@@ -1,0 +1,1116 @@
+package fhirpath
+
+import (
+	"testing"
+
+	"github.com/gofhir/fhirpath/types"
+)
+
+// Test data
+var patientJSON = []byte(`{
+	"resourceType": "Patient",
+	"id": "123",
+	"active": true,
+	"name": [
+		{
+			"use": "official",
+			"family": "Doe",
+			"given": ["John", "James"]
+		},
+		{
+			"use": "nickname",
+			"given": ["Johnny"]
+		}
+	],
+	"birthDate": "1990-01-15",
+	"address": [
+		{
+			"city": "Boston",
+			"state": "MA"
+		}
+	]
+}`)
+
+var simpleJSON = []byte(`{
+	"value": 42,
+	"decimal": 3.14,
+	"text": "hello",
+	"active": true,
+	"items": [1, 2, 3, 4, 5]
+}`)
+
+func TestCompile(t *testing.T) {
+	t.Run("valid expression", func(t *testing.T) {
+		expr, err := Compile("Patient.name.given")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if expr.String() != "Patient.name.given" {
+			t.Errorf("expected 'Patient.name.given', got '%s'", expr.String())
+		}
+	})
+
+	t.Run("empty expression", func(t *testing.T) {
+		_, err := Compile("")
+		if err == nil {
+			t.Error("expected error for empty expression")
+		}
+	})
+
+	t.Run("invalid syntax", func(t *testing.T) {
+		_, err := Compile("Patient.name..")
+		if err == nil {
+			t.Error("expected error for invalid syntax")
+		}
+	})
+}
+
+func TestLiterals(t *testing.T) {
+	t.Run("boolean true", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "true")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("boolean false", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "false")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, false)
+	})
+
+	t.Run("integer", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "42")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertIntegerResult(t, result, 42)
+	})
+
+	t.Run("decimal", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "3.14")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Empty() || result[0].Type() != "Decimal" {
+			t.Errorf("expected Decimal, got %v", result)
+		}
+	})
+
+	t.Run("string", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "'hello world'")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertStringResult(t, result, "hello world")
+	})
+
+	t.Run("empty collection", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "{}")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !result.Empty() {
+			t.Errorf("expected empty collection, got %v", result)
+		}
+	})
+}
+
+func TestNavigation(t *testing.T) {
+	t.Run("simple path", func(t *testing.T) {
+		result, err := Evaluate(patientJSON, "Patient.id")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertStringResult(t, result, "123")
+	})
+
+	t.Run("boolean field", func(t *testing.T) {
+		result, err := Evaluate(patientJSON, "Patient.active")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("nested path", func(t *testing.T) {
+		result, err := Evaluate(patientJSON, "Patient.name.family")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		// Should return all family names
+		if result.Count() != 1 {
+			t.Errorf("expected 1 family name, got %d", result.Count())
+		}
+		assertStringResult(t, result, "Doe")
+	})
+
+	t.Run("array navigation", func(t *testing.T) {
+		result, err := Evaluate(patientJSON, "Patient.name.given")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		// Should return all given names from all name entries
+		if result.Count() != 3 {
+			t.Errorf("expected 3 given names, got %d: %v", result.Count(), result)
+		}
+	})
+
+	t.Run("non-existent path", func(t *testing.T) {
+		result, err := Evaluate(patientJSON, "Patient.nonexistent")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !result.Empty() {
+			t.Errorf("expected empty collection for non-existent path, got %v", result)
+		}
+	})
+}
+
+func TestArithmeticOperators(t *testing.T) {
+	t.Run("addition integers", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "2 + 3")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertIntegerResult(t, result, 5)
+	})
+
+	t.Run("subtraction", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "10 - 3")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertIntegerResult(t, result, 7)
+	})
+
+	t.Run("multiplication", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "4 * 5")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertIntegerResult(t, result, 20)
+	})
+
+	t.Run("division", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "10 / 4")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		// Division returns Decimal
+		if result.Empty() || result[0].Type() != "Decimal" {
+			t.Errorf("expected Decimal, got %v", result)
+		}
+	})
+
+	t.Run("integer division", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "10 div 3")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertIntegerResult(t, result, 3)
+	})
+
+	t.Run("modulo", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "10 mod 3")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertIntegerResult(t, result, 1)
+	})
+
+	t.Run("negation", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "-5")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertIntegerResult(t, result, -5)
+	})
+
+	t.Run("string concatenation with +", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "'hello' + ' world'")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertStringResult(t, result, "hello world")
+	})
+
+	t.Run("string concatenation with &", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "'hello' & ' world'")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertStringResult(t, result, "hello world")
+	})
+}
+
+func TestComparisonOperators(t *testing.T) {
+	t.Run("less than true", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "5 < 10")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("less than false", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "10 < 5")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, false)
+	})
+
+	t.Run("greater than", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "10 > 5")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("less or equal", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "5 <= 5")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("greater or equal", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "5 >= 10")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, false)
+	})
+}
+
+func TestEqualityOperators(t *testing.T) {
+	t.Run("equal integers", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "5 = 5")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("not equal", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "5 != 10")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("string equality", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "'hello' = 'hello'")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("equivalence case insensitive", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "'HELLO' ~ 'hello'")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("not equivalent", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "'hello' !~ 'world'")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+}
+
+func TestBooleanOperators(t *testing.T) {
+	t.Run("and true", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "true and true")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("and false", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "true and false")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, false)
+	})
+
+	t.Run("or true", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "false or true")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("or false", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "false or false")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, false)
+	})
+
+	t.Run("xor", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "true xor false")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("implies true", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "false implies true")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("implies false", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "true implies false")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, false)
+	})
+}
+
+func TestCollectionOperators(t *testing.T) {
+	t.Run("union", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "(1 | 2) | (2 | 3)")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		// Union removes duplicates
+		if result.Count() != 3 {
+			t.Errorf("expected 3 elements, got %d: %v", result.Count(), result)
+		}
+	})
+
+	t.Run("in membership", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "2 in (1 | 2 | 3)")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("contains", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "(1 | 2 | 3) contains 2")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+}
+
+func TestIndexer(t *testing.T) {
+	t.Run("array index", func(t *testing.T) {
+		result, err := Evaluate(patientJSON, "Patient.name[0].family")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertStringResult(t, result, "Doe")
+	})
+
+	t.Run("index out of bounds", func(t *testing.T) {
+		result, err := Evaluate(patientJSON, "Patient.name[10]")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !result.Empty() {
+			t.Errorf("expected empty for out of bounds, got %v", result)
+		}
+	})
+}
+
+func TestTypeOperators(t *testing.T) {
+	t.Run("is type check", func(t *testing.T) {
+		result, err := Evaluate(patientJSON, "Patient.active is Boolean")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("as type cast", func(t *testing.T) {
+		result, err := Evaluate(patientJSON, "Patient.active as Boolean")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+}
+
+func TestEmptyPropagation(t *testing.T) {
+	t.Run("empty + value", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "{} + 5")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !result.Empty() {
+			t.Errorf("expected empty, got %v", result)
+		}
+	})
+
+	t.Run("empty and true", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "{} and true")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		// In three-valued logic, empty and true = empty
+		if !result.Empty() {
+			t.Errorf("expected empty, got %v", result)
+		}
+	})
+
+	t.Run("empty and false", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "{} and false")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		// In three-valued logic, empty and false = false
+		assertBooleanResult(t, result, false)
+	})
+}
+
+func TestParentheses(t *testing.T) {
+	t.Run("precedence override", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "(2 + 3) * 4")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertIntegerResult(t, result, 20)
+	})
+
+	t.Run("default precedence", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "2 + 3 * 4")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertIntegerResult(t, result, 14)
+	})
+}
+
+// Test data for polymorphic elements
+var observationWithQuantity = []byte(`{
+	"resourceType": "Observation",
+	"id": "obs1",
+	"status": "final",
+	"code": {
+		"coding": [{
+			"system": "http://loinc.org",
+			"code": "8867-4"
+		}]
+	},
+	"valueQuantity": {
+		"value": 72,
+		"unit": "beats/min",
+		"system": "http://unitsofmeasure.org",
+		"code": "/min"
+	}
+}`)
+
+var observationWithString = []byte(`{
+	"resourceType": "Observation",
+	"id": "obs2",
+	"status": "final",
+	"code": {
+		"coding": [{
+			"system": "http://loinc.org",
+			"code": "8867-4"
+		}]
+	},
+	"valueString": "Normal findings"
+}`)
+
+var observationWithCodeableConcept = []byte(`{
+	"resourceType": "Observation",
+	"id": "obs3",
+	"status": "final",
+	"code": {
+		"coding": [{
+			"system": "http://loinc.org",
+			"code": "8867-4"
+		}]
+	},
+	"valueCodeableConcept": {
+		"coding": [{
+			"system": "http://snomed.info/sct",
+			"code": "260385009",
+			"display": "Negative"
+		}],
+		"text": "Negative"
+	}
+}`)
+
+var bundleWithMixedResources = []byte(`{
+	"resourceType": "Bundle",
+	"type": "collection",
+	"entry": [
+		{
+			"resource": {
+				"resourceType": "Patient",
+				"id": "p1",
+				"name": [{"family": "Doe"}]
+			}
+		},
+		{
+			"resource": {
+				"resourceType": "Observation",
+				"id": "obs1",
+				"status": "final"
+			}
+		},
+		{
+			"resource": {
+				"resourceType": "Patient",
+				"id": "p2",
+				"name": [{"family": "Smith"}]
+			}
+		}
+	]
+}`)
+
+func TestPolymorphicElements(t *testing.T) {
+	t.Run("Observation.value resolves valueQuantity", func(t *testing.T) {
+		result, err := Evaluate(observationWithQuantity, "Observation.value")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Empty() {
+			t.Fatal("expected non-empty result for Observation.value")
+		}
+		// Should resolve to the Quantity object
+		if result[0].Type() != "Quantity" {
+			t.Errorf("expected Quantity type, got %s", result[0].Type())
+		}
+	})
+
+	t.Run("Observation.value resolves valueString", func(t *testing.T) {
+		result, err := Evaluate(observationWithString, "Observation.value")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Empty() {
+			t.Fatal("expected non-empty result for Observation.value")
+		}
+		assertStringResult(t, result, "Normal findings")
+	})
+
+	t.Run("Observation.value resolves valueCodeableConcept", func(t *testing.T) {
+		result, err := Evaluate(observationWithCodeableConcept, "Observation.value")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Empty() {
+			t.Fatal("expected non-empty result for Observation.value")
+		}
+		if result[0].Type() != "CodeableConcept" {
+			t.Errorf("expected CodeableConcept type, got %s", result[0].Type())
+		}
+	})
+
+	t.Run("Direct access valueQuantity still works", func(t *testing.T) {
+		result, err := Evaluate(observationWithQuantity, "Observation.valueQuantity")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Empty() {
+			t.Fatal("expected non-empty result")
+		}
+		if result[0].Type() != "Quantity" {
+			t.Errorf("expected Quantity type, got %s", result[0].Type())
+		}
+	})
+
+	t.Run("Access value.value (nested) for Quantity", func(t *testing.T) {
+		result, err := Evaluate(observationWithQuantity, "Observation.value.value")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertIntegerResult(t, result, 72)
+	})
+
+	t.Run("Access value.unit for Quantity", func(t *testing.T) {
+		result, err := Evaluate(observationWithQuantity, "Observation.value.unit")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertStringResult(t, result, "beats/min")
+	})
+}
+
+func TestOfTypeFunction(t *testing.T) {
+	t.Run("ofType filters by Quantity", func(t *testing.T) {
+		result, err := Evaluate(observationWithQuantity, "Observation.value.ofType(Quantity)")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Empty() {
+			t.Fatal("expected non-empty result")
+		}
+		if result[0].Type() != "Quantity" {
+			t.Errorf("expected Quantity type, got %s", result[0].Type())
+		}
+	})
+
+	t.Run("ofType filters by String", func(t *testing.T) {
+		result, err := Evaluate(observationWithString, "Observation.value.ofType(String)")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Empty() {
+			t.Fatal("expected non-empty result")
+		}
+		assertStringResult(t, result, "Normal findings")
+	})
+
+	t.Run("ofType returns empty for non-matching type", func(t *testing.T) {
+		result, err := Evaluate(observationWithQuantity, "Observation.value.ofType(String)")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !result.Empty() {
+			t.Errorf("expected empty result, got %v", result)
+		}
+	})
+
+	t.Run("ofType filters CodeableConcept", func(t *testing.T) {
+		result, err := Evaluate(observationWithCodeableConcept, "Observation.value.ofType(CodeableConcept)")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Empty() {
+			t.Fatal("expected non-empty result")
+		}
+		if result[0].Type() != "CodeableConcept" {
+			t.Errorf("expected CodeableConcept type, got %s", result[0].Type())
+		}
+	})
+
+	t.Run("ofType filters resources in Bundle", func(t *testing.T) {
+		result, err := Evaluate(bundleWithMixedResources, "Bundle.entry.resource.ofType(Patient)")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Count() != 2 {
+			t.Errorf("expected 2 Patient resources, got %d", result.Count())
+		}
+	})
+
+	t.Run("ofType filters to single resource type", func(t *testing.T) {
+		result, err := Evaluate(bundleWithMixedResources, "Bundle.entry.resource.ofType(Observation)")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Count() != 1 {
+			t.Errorf("expected 1 Observation resource, got %d", result.Count())
+		}
+	})
+
+	t.Run("ofType on empty returns empty", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "{}.ofType(String)")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !result.Empty() {
+			t.Errorf("expected empty result, got %v", result)
+		}
+	})
+}
+
+// Helper functions
+
+func assertBooleanResult(t *testing.T, result types.Collection, expected bool) {
+	t.Helper()
+	if result.Empty() {
+		t.Fatalf("expected boolean %v, got empty collection", expected)
+	}
+	if len(result) != 1 {
+		t.Fatalf("expected single value, got %d: %v", len(result), result)
+	}
+	b, ok := result[0].(types.Boolean)
+	if !ok {
+		t.Fatalf("expected Boolean, got %s: %v", result[0].Type(), result[0])
+	}
+	if b.Bool() != expected {
+		t.Errorf("expected %v, got %v", expected, b.Bool())
+	}
+}
+
+func assertIntegerResult(t *testing.T, result types.Collection, expected int64) {
+	t.Helper()
+	if result.Empty() {
+		t.Fatalf("expected integer %d, got empty collection", expected)
+	}
+	if len(result) != 1 {
+		t.Fatalf("expected single value, got %d: %v", len(result), result)
+	}
+	i, ok := result[0].(types.Integer)
+	if !ok {
+		t.Fatalf("expected Integer, got %s: %v", result[0].Type(), result[0])
+	}
+	if i.Value() != expected {
+		t.Errorf("expected %d, got %d", expected, i.Value())
+	}
+}
+
+func assertStringResult(t *testing.T, result types.Collection, expected string) {
+	t.Helper()
+	if result.Empty() {
+		t.Fatalf("expected string '%s', got empty collection", expected)
+	}
+	if len(result) != 1 {
+		t.Fatalf("expected single value, got %d: %v", len(result), result)
+	}
+	s, ok := result[0].(types.String)
+	if !ok {
+		t.Fatalf("expected String, got %s: %v", result[0].Type(), result[0])
+	}
+	if s.Value() != expected {
+		t.Errorf("expected '%s', got '%s'", expected, s.Value())
+	}
+}
+
+// TestUCUMQuantityComparison tests UCUM unit normalization for quantity comparisons.
+func TestUCUMQuantityComparison(t *testing.T) {
+	t.Run("10 mg equals 0.01 g", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "10 'mg' = 0.01 'g'")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("1000 mg equals 1 g", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "1000 'mg' = 1 'g'")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("100 cm equals 1 m", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "100 'cm' = 1 'm'")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("1000 mL equals 1 L", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "1000 'mL' = 1 'L'")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("60 min equals 1 h", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "60 'min' = 1 'h'")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("500 mg less than 1 g", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "500 'mg' < 1 'g'")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("incompatible units return false", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "1 'kg' = 1 'm'")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		// Per FHIRPath spec: if units cannot be converted to same canonical form, result is false
+		assertBooleanResult(t, result, false)
+	})
+}
+
+// TestQuantityEquivalent tests the ~ operator for quantities with UCUM normalization.
+func TestQuantityEquivalent(t *testing.T) {
+	t.Run("10 mg equivalent to 0.01 g", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "10 'mg' ~ 0.01 'g'")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("1 kg equivalent to 1000 g", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "1 'kg' ~ 1000 'g'")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("incompatible units not equivalent", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "1 'kg' ~ 1 'm'")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, false)
+	})
+}
+
+// TestIifLazyEvaluation tests that iif() only evaluates the matching branch.
+func TestIifLazyEvaluation(t *testing.T) {
+	t.Run("iif true branch only", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "iif(true, 'yes', 'no')")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertStringResult(t, result, "yes")
+	})
+
+	t.Run("iif false branch only", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "iif(false, 'yes', 'no')")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertStringResult(t, result, "no")
+	})
+
+	t.Run("iif with no else returns empty", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "iif(false, 'yes')")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !result.Empty() {
+			t.Errorf("expected empty result, got %v", result)
+		}
+	})
+
+	t.Run("iif with expression criterion", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "iif(1 > 0, 'positive', 'negative')")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertStringResult(t, result, "positive")
+	})
+
+	t.Run("iif returns numeric values", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "iif(true, 42, 0)")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertIntegerResult(t, result, 42)
+	})
+}
+
+// TestStringEquivalent tests the ~ operator for strings with normalization.
+func TestStringEquivalent(t *testing.T) {
+	t.Run("case insensitive equivalence", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "'Hello' ~ 'hello'")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("whitespace normalization", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "'hello   world' ~ 'hello world'")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("leading trailing whitespace ignored", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "'  hello  ' ~ 'hello'")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("different strings not equivalent", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "'hello' ~ 'world'")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, false)
+	})
+}
+
+// TestConvertsToQuantityWithUnit tests convertsToQuantity with optional unit parameter.
+func TestConvertsToQuantityWithUnit(t *testing.T) {
+	t.Run("quantity without unit arg", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "(10 'kg').convertsToQuantity()")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("quantity with compatible unit", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "(10 'kg').convertsToQuantity('g')")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("quantity with incompatible unit", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "(10 'kg').convertsToQuantity('m')")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, false)
+	})
+
+	t.Run("quantity mg to kg compatible", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "(500 'mg').convertsToQuantity('kg')")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("quantity mm to cm compatible", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "(100 'mm').convertsToQuantity('cm')")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("string quantity with compatible unit", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "'5 kg'.convertsToQuantity('g')")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("string quantity with incompatible unit", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "'5 kg'.convertsToQuantity('L')")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, false)
+	})
+
+	t.Run("integer always converts to quantity", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "(42).convertsToQuantity('kg')")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("decimal always converts to quantity", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "(3.14).convertsToQuantity('m')")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("time units compatible", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "(60 's').convertsToQuantity('min')")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("volume units compatible", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "(1000 'mL').convertsToQuantity('L')")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+}
+
+// TestContextVariable tests the %context environment variable.
+func TestContextVariable(t *testing.T) {
+	t.Run("%context returns root resource", func(t *testing.T) {
+		result, err := Evaluate(patientJSON, "%context.resourceType")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertStringResult(t, result, "Patient")
+	})
+
+	t.Run("%context equals %resource for top-level evaluation", func(t *testing.T) {
+		result, err := Evaluate(patientJSON, "%context = %resource")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("%context.id returns resource id", func(t *testing.T) {
+		result, err := Evaluate(patientJSON, "%context.id")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertStringResult(t, result, "123")
+	})
+}
+
+// TestDelimitedIdentifiers tests backtick-delimited identifiers for special characters.
+func TestDelimitedIdentifiers(t *testing.T) {
+	// JSON with hyphenated field names
+	jsonWithSpecialFields := []byte(`{
+		"resourceType": "Patient",
+		"PID-1": "12345",
+		"PID-2": "67890",
+		"normal_field": "value"
+	}`)
+
+	t.Run("backtick identifier with hyphen", func(t *testing.T) {
+		result, err := Evaluate(jsonWithSpecialFields, "Patient.`PID-1`")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertStringResult(t, result, "12345")
+	})
+
+	t.Run("backtick identifier second field", func(t *testing.T) {
+		result, err := Evaluate(jsonWithSpecialFields, "Patient.`PID-2`")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertStringResult(t, result, "67890")
+	})
+
+	t.Run("normal identifier still works", func(t *testing.T) {
+		result, err := Evaluate(jsonWithSpecialFields, "Patient.normal_field")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertStringResult(t, result, "value")
+	})
+
+	t.Run("backtick with normal field name", func(t *testing.T) {
+		result, err := Evaluate(jsonWithSpecialFields, "Patient.`normal_field`")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertStringResult(t, result, "value")
+	})
+}
