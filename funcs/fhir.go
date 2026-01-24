@@ -57,7 +57,6 @@ func init() {
 		MaxArgs: 1,
 		Fn:      fnConformsTo,
 	})
-
 }
 
 // fnResolve resolves a FHIR reference to the referenced resource.
@@ -371,25 +370,27 @@ func extractCodeValue(item types.Value) interface{} {
 		if codings := v.GetCollection("coding"); len(codings) > 0 {
 			var codingList []map[string]interface{}
 			for _, c := range codings {
-				if codingObj, ok := c.(*types.ObjectValue); ok {
-					coding := make(map[string]interface{})
-					if sys, ok := codingObj.Get("system"); ok {
-						if sysStr, ok := sys.(types.String); ok {
-							coding["system"] = sysStr.Value()
-						}
-					}
-					if code, ok := codingObj.Get("code"); ok {
-						if codeStr, ok := code.(types.String); ok {
-							coding["code"] = codeStr.Value()
-						}
-					}
-					if ver, ok := codingObj.Get("version"); ok {
-						if verStr, ok := ver.(types.String); ok {
-							coding["version"] = verStr.Value()
-						}
-					}
-					codingList = append(codingList, coding)
+				codingObj, ok := c.(*types.ObjectValue)
+				if !ok {
+					continue
 				}
+				coding := make(map[string]interface{})
+				if sys, ok := codingObj.Get("system"); ok {
+					if sysStr, ok := sys.(types.String); ok {
+						coding["system"] = sysStr.Value()
+					}
+				}
+				if code, ok := codingObj.Get("code"); ok {
+					if codeStr, ok := code.(types.String); ok {
+						coding["code"] = codeStr.Value()
+					}
+				}
+				if ver, ok := codingObj.Get("version"); ok {
+					if verStr, ok := ver.(types.String); ok {
+						coding["version"] = verStr.Value()
+					}
+				}
+				codingList = append(codingList, coding)
 			}
 			result["coding"] = codingList
 		}
@@ -447,7 +448,7 @@ func fnConformsTo(ctx *eval.Context, input types.Collection, args []interface{})
 
 		// Get the raw JSON data for validation
 		resourceJSON := obj.Data()
-		if resourceJSON == nil || len(resourceJSON) == 0 {
+		if len(resourceJSON) == 0 {
 			continue
 		}
 

@@ -7,8 +7,8 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/gofhir/fhirpath/eval"
-	"github.com/gofhir/fhirpath/types"
 	"github.com/gofhir/fhirpath/internal/ucum"
+	"github.com/gofhir/fhirpath/types"
 )
 
 func init() {

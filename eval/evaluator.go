@@ -56,14 +56,14 @@ type Evaluator struct {
 
 // Context holds the evaluation state.
 type Context struct {
-	root              types.Collection
-	this              types.Collection
-	index             int
-	total             types.Value
-	variables         map[string]types.Collection
-	limits            map[string]int
-	goCtx             context.Context
-	resolver          Resolver
+	root               types.Collection
+	this               types.Collection
+	index              int
+	total              types.Value
+	variables          map[string]types.Collection
+	limits             map[string]int
+	goCtx              context.Context
+	resolver           Resolver
 	terminologyService TerminologyService
 	profileValidator   ProfileValidator
 }
