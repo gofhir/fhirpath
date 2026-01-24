@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.1](https://github.com/gofhir/fhirpath/compare/v1.0.0...v1.0.1) (2026-01-24)
+
+
+### Bug Fixes
+
+* resolve golangci-lint issues ([6021b6e](https://github.com/gofhir/fhirpath/commit/6021b6ee2d6fdaf5985529d64cf295ec949fdf62))
+
 ## [0.2.0](https://github.com/robertoAraneda/gofhir/compare/fhirpath/v0.1.0...fhirpath/v0.2.0) (2026-01-17)
 
 
