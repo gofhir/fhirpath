@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.2](https://github.com/gofhir/fhirpath/compare/v1.0.1...v1.0.2) (2026-01-26)
+
+
+### Bug Fixes
+
+* allow as() function to work on collections ([cf3042e](https://github.com/gofhir/fhirpath/commit/cf3042e3a3eb24f0c17a7b863ed0902707eb0998)), closes [#2](https://github.com/gofhir/fhirpath/issues/2)
+
 ## [1.0.1](https://github.com/gofhir/fhirpath/compare/v1.0.0...v1.0.1) (2026-01-24)
 
 
