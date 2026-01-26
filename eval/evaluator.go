@@ -675,16 +675,13 @@ func (e *Evaluator) evaluateIsFunction(input types.Collection, typeExpr grammar.
 }
 
 // evaluateAsFunction evaluates as() function - casts input to specified type.
-// Returns input if it matches the type, empty otherwise.
+// Returns elements that match the type, empty otherwise.
+// Per FHIRPath spec and HL7 validator behavior, as() works on collections
+// by filtering/projecting elements that match the target type.
 func (e *Evaluator) evaluateAsFunction(input types.Collection, typeExpr grammar.IExpressionContext) interface{} {
 	// Empty input returns empty
 	if input.Empty() {
 		return types.Collection{}
-	}
-
-	// as() requires singleton input
-	if len(input) != 1 {
-		return SingletonError(len(input))
 	}
 
 	// Extract the type name from the expression
@@ -693,14 +690,22 @@ func (e *Evaluator) evaluateAsFunction(input types.Collection, typeExpr grammar.
 		return InvalidArgumentsError("as", 1, 0)
 	}
 
-	// Get actual type - Type() already returns resourceType for ObjectValue
-	actualType := input[0].Type()
+	// Filter collection by type (works for both singleton and collection input)
+	result := types.Collection{}
+	for _, item := range input {
+		actualType := item.Type()
 
-	if TypeMatches(actualType, typeName) {
-		return input
+		// For ObjectValue, get the specific type
+		if obj, ok := item.(*types.ObjectValue); ok {
+			actualType = obj.Type()
+		}
+
+		if TypeMatches(actualType, typeName) {
+			result = append(result, item)
+		}
 	}
 
-	return types.Collection{}
+	return result
 }
 
 // extractTypeNameFromExpr extracts a type name from a FHIRPath expression.

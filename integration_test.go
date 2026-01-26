@@ -690,6 +690,34 @@ func TestAsFunctionIntegration(t *testing.T) {
 			t.Error("expected empty result for non-matching type")
 		}
 	})
+
+	t.Run("as works on collections without error", func(t *testing.T) {
+		// Test that as() works on collections (the issue from GitHub #2)
+		resource := []byte(`{
+			"resourceType": "Patient",
+			"id": "123",
+			"contained": [{
+				"resourceType": "Organization",
+				"id": "org1",
+				"name": "Test Org"
+			}],
+			"managingOrganization": {
+				"reference": "#org1"
+			}
+		}`)
+
+		// This expression returns multiple elements via descendants()
+		// as() should filter them by type without throwing SingletonExpectedError
+		expr := fhirpath.MustCompile("descendants().as(string)")
+		result, err := expr.Evaluate(resource)
+		if err != nil {
+			t.Fatalf("as() on collection should not error, got: %v", err)
+		}
+		// Should return string values from descendants
+		if result.Empty() {
+			t.Error("expected non-empty result for as(string) on descendants")
+		}
+	})
 }
 
 // Test is operator (not function)
