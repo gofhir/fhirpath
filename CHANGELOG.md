@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.3](https://github.com/gofhir/fhirpath/compare/v1.0.2...v1.0.3) (2026-02-17)
+
+
+### Bug Fixes
+
+* remove gofhir/fhir/r4 dependency from tests ([c3bf7e3](https://github.com/gofhir/fhirpath/commit/c3bf7e3b1a025fccf29ee2c1cda2bfe28dd5f022))
+
 ## [1.0.2](https://github.com/gofhir/fhirpath/compare/v1.0.1...v1.0.2) (2026-01-26)
 
 
