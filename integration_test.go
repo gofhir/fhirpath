@@ -6,9 +6,26 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gofhir/fhir/r4"
 	"github.com/gofhir/fhirpath"
 )
+
+// testPatient is a minimal Patient struct for testing the Resource interface.
+type testPatient struct {
+	ResourceType string          `json:"resourceType"`
+	ID           string          `json:"id,omitempty"`
+	Active       bool            `json:"active,omitempty"`
+	Gender       string          `json:"gender,omitempty"`
+	BirthDate    string          `json:"birthDate,omitempty"`
+	Name         []testHumanName `json:"name,omitempty"`
+}
+
+type testHumanName struct {
+	Use    string   `json:"use,omitempty"`
+	Family string   `json:"family,omitempty"`
+	Given  []string `json:"given,omitempty"`
+}
+
+func (p testPatient) GetResourceType() string { return "Patient" }
 
 // Test evaluating FHIRPath against JSON bytes
 func TestEvaluateJSON(t *testing.T) {
@@ -120,18 +137,16 @@ func TestEvaluateJSON(t *testing.T) {
 
 // Test evaluating against Go structs using EvaluateResource
 func TestEvaluateResource(t *testing.T) {
-	// Create patient using fluent builder - resourceType is set automatically
-	patient := r4.NewPatientBuilder().
-		SetId("test-patient").
-		SetActive(true).
-		AddName(r4.HumanName{
-			Use:    ptrTo(r4.NameUse("official")),
-			Family: strPtr("Doe"),
-			Given:  []string{"Jane", "Marie"},
-		}).
-		SetGender(r4.AdministrativeGenderFemale).
-		SetBirthDate("1985-06-20").
-		Build()
+	patient := testPatient{
+		ResourceType: "Patient",
+		ID:           "test-patient",
+		Active:       true,
+		Gender:       "female",
+		BirthDate:    "1985-06-20",
+		Name: []testHumanName{
+			{Use: "official", Family: "Doe", Given: []string{"Jane", "Marie"}},
+		},
+	}
 
 	// Test with EvaluateResource - should work now that MarshalJSON includes resourceType
 	result, err := fhirpath.EvaluateResource(patient, "Patient.name.given.first()")
@@ -163,17 +178,13 @@ func TestEvaluateResource(t *testing.T) {
 	}
 }
 
-func ptrTo[T any](v T) *T {
-	return &v
-}
-
 // Test ResourceJSON wrapper for efficient repeated evaluation
 func TestResourceJSON(t *testing.T) {
-	// Use fluent builder to create patient with resourceType
-	patient := r4.NewPatientBuilder().
-		SetId("cached-patient").
-		AddName(r4.HumanName{Family: strPtr("Cached")}).
-		Build()
+	patient := testPatient{
+		ResourceType: "Patient",
+		ID:           "cached-patient",
+		Name:         []testHumanName{{Family: "Cached"}},
+	}
 
 	rj, err := fhirpath.NewResourceJSON(patient)
 	if err != nil {
@@ -525,20 +536,17 @@ func BenchmarkEvaluate(b *testing.B) {
 
 // Benchmark struct evaluation
 func BenchmarkEvaluateResource(b *testing.B) {
-	patient := &r4.Patient{
-		Id: strPtr("bench"),
-		Name: []r4.HumanName{
-			{Given: []string{"John", "James"}},
-		},
-	}
+	patient := []byte(`{
+		"resourceType": "Patient",
+		"id": "bench",
+		"name": [{"given": ["John", "James"]}]
+	}`)
 
-	// Pre-serialize for fair comparison
-	jsonBytes, _ := json.Marshal(patient)
 	expr := fhirpath.MustCompile("Patient.name.given.first()")
 
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, _ = expr.Evaluate(jsonBytes)
+		_, _ = expr.Evaluate(patient)
 	}
 }
 
@@ -899,10 +907,6 @@ func TestResourceBaseTypeIntegration(t *testing.T) {
 }
 
 // Helper functions
-func strPtr(s string) *string {
-	return &s
-}
-
 func boolPtr(b bool) *bool {
 	return &b
 }
