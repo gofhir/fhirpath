@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.0.4](https://github.com/gofhir/fhirpath/compare/v1.0.3...v1.0.4) (2026-02-18)
+
+
+### Bug Fixes
+
+* **docs:** per-language menus and improved Quick Start styling ([54d0422](https://github.com/gofhir/fhirpath/commit/54d0422d01b59fa3b5ae11a3e0c79f7c83bdf499))
+* **docs:** upgrade Hugo to v0.155.3 and add npm ci step ([8d4a255](https://github.com/gofhir/fhirpath/commit/8d4a2556b61510465d105f9557f5f7d80ba2864b))
+
 ## [1.0.3](https://github.com/gofhir/fhirpath/compare/v1.0.2...v1.0.3) (2026-02-17)
 
 
