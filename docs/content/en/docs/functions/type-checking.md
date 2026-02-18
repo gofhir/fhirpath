@@ -6,7 +6,7 @@ description: >
   Functions for inspecting and casting element types in FHIRPath expressions.
 ---
 
-Type checking functions allow you to test an element's type and to cast elements to specific types. These are essential when working with polymorphic FHIR elements (like `value[x]`) where the actual type may vary.
+Type checking functions allow you to test an element's type and to cast elements to specific types. These are essential when working with polymorphic FHIR® elements (like `value[x]`) where the actual type may vary.
 
 ---
 
@@ -24,7 +24,7 @@ is(type : TypeSpecifier) : Boolean
 
 | Name     | Type              | Description                                                                         |
 |----------|-------------------|-------------------------------------------------------------------------------------|
-| `type`   | `TypeSpecifier`   | The FHIR type name to check against (e.g., `Quantity`, `String`, `Patient`)         |
+| `type`   | `TypeSpecifier`   | The FHIR® type name to check against (e.g., `Quantity`, `String`, `Patient`)         |
 
 **Return Type:** `Boolean`
 
@@ -46,7 +46,7 @@ result, _ := fhirpath.Evaluate(patient, "Patient.name.first().is(HumanName)")
 - Requires a singleton input (exactly one element). If the input contains more than one element, an error is raised.
 - Returns empty collection if the input is empty.
 - The type name is resolved by the evaluator directly from the expression AST, so type names like `Patient` or `Quantity` are used without quotes.
-- Type matching uses the `eval.TypeMatches` function, which supports both simple type names and fully qualified FHIR type names.
+- Type matching uses the `eval.TypeMatches` function, which supports both simple type names and fully qualified FHIR® type names.
 - The function form `value.is(Quantity)` is equivalent to the operator form `value is Quantity`.
 
 ---
@@ -65,7 +65,7 @@ as(type : TypeSpecifier) : Collection
 
 | Name     | Type              | Description                                                                         |
 |----------|-------------------|-------------------------------------------------------------------------------------|
-| `type`   | `TypeSpecifier`   | The FHIR type name to cast to (e.g., `Quantity`, `String`, `Patient`)               |
+| `type`   | `TypeSpecifier`   | The FHIR® type name to cast to (e.g., `Quantity`, `String`, `Patient`)               |
 
 **Return Type:** `Collection`
 
@@ -106,7 +106,7 @@ ofType(type : TypeSpecifier) : Collection
 
 | Name     | Type              | Description                                                                         |
 |----------|-------------------|-------------------------------------------------------------------------------------|
-| `type`   | `TypeSpecifier`   | The FHIR type name to filter by (e.g., `Quantity`, `String`, `HumanName`)           |
+| `type`   | `TypeSpecifier`   | The FHIR® type name to filter by (e.g., `Quantity`, `String`, `HumanName`)           |
 
 **Return Type:** `Collection`
 

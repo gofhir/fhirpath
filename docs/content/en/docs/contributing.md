@@ -90,7 +90,7 @@ fhirpath/
 
 ### Key Design Decisions
 
-- **No FHIR model dependency.** The library works directly with raw JSON bytes via `github.com/buger/jsonparser`. This keeps the dependency tree small and lets users bring any FHIR model library (or none at all).
+- **No FHIR® model dependency.** The library works directly with raw JSON bytes via `github.com/buger/jsonparser`. This keeps the dependency tree small and lets users bring any FHIR® model library (or none at all).
 - **ANTLR-generated parser.** The FHIRPath grammar is parsed with `antlr4-go`. The grammar files live in `parser/grammar/`. Do not edit the generated Go files directly; regenerate them from the `.g4` grammar file if needed.
 - **Arbitrary-precision decimals.** Decimal values use `github.com/shopspring/decimal` to avoid floating-point surprises.
 
@@ -179,7 +179,7 @@ Place your function in the file that matches its category:
 | Type checking / conversion | `funcs/typechecking.go` or `funcs/conversion.go` |
 | Date / time | `funcs/temporal.go` |
 | Aggregation | `funcs/aggregate.go` |
-| FHIR-specific | `funcs/fhir.go` |
+| FHIR®-specific | `funcs/fhir.go` |
 | Regex | `funcs/regex.go` |
 | Utility | `funcs/utility.go` |
 

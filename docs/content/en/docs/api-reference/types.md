@@ -766,7 +766,7 @@ fmt.Println(sum)       // 78 kg
 
 ## ObjectValue
 
-Represents a FHIR resource or complex type as a JSON object. This type is used internally to represent structured data within the evaluation engine. The `Type()` method attempts to infer the FHIR type from the JSON structure (checking `resourceType` first, then structural patterns for common complex types).
+Represents a FHIR® resource or complex type as a JSON object. This type is used internally to represent structured data within the evaluation engine. The `Type()` method attempts to infer the FHIR® type from the JSON structure (checking `resourceType` first, then structural patterns for common complex types).
 
 ```go
 type ObjectValue struct {
@@ -788,7 +788,7 @@ Creates an `ObjectValue` from raw JSON bytes representing an object.
 
 | Method | Signature | Description |
 |--------|-----------|-------------|
-| `Type` | `func (o *ObjectValue) Type() string` | Inferred FHIR type or `"Object"` |
+| `Type` | `func (o *ObjectValue) Type() string` | Inferred FHIR® type or `"Object"` |
 | `Data` | `func (o *ObjectValue) Data() []byte` | Raw JSON bytes |
 | `Get` | `func (o *ObjectValue) Get(field string) (Value, bool)` | Get a field value (cached) |
 | `GetCollection` | `func (o *ObjectValue) GetCollection(field string) Collection` | Get a field as a Collection |
@@ -796,7 +796,7 @@ Creates an `ObjectValue` from raw JSON bytes representing an object.
 | `Children` | `func (o *ObjectValue) Children() Collection` | All child values |
 | `ToQuantity` | `func (o *ObjectValue) ToQuantity() (Quantity, bool)` | Convert to Quantity if structure matches |
 
-**Type inference:** The `Type()` method recognizes FHIR resource types (via `resourceType` field) and common complex types including `Quantity`, `Coding`, `CodeableConcept`, `Reference`, `Period`, `Identifier`, `Range`, `Ratio`, `Attachment`, `HumanName`, `Address`, `ContactPoint`, and `Annotation`.
+**Type inference:** The `Type()` method recognizes FHIR® resource types (via `resourceType` field) and common complex types including `Quantity`, `Coding`, `CodeableConcept`, `Reference`, `Period`, `Identifier`, `Range`, `Ratio`, `Attachment`, `HumanName`, `Address`, `ContactPoint`, and `Annotation`.
 
 **Example:**
 

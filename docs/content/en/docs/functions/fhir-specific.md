@@ -1,12 +1,12 @@
 ---
-title: "FHIR-Specific Functions"
-linkTitle: "FHIR-Specific Functions"
+title: "FHIR®-Specific Functions"
+linkTitle: "FHIR®-Specific Functions"
 weight: 11
 description: >
-  Functions specific to FHIR resources, including extension access, reference resolution, terminology validation, and profile conformance.
+  Functions specific to FHIR® resources, including extension access, reference resolution, terminology validation, and profile conformance.
 ---
 
-FHIR-specific functions extend the core FHIRPath specification with operations that are unique to the FHIR data model. These include accessing extensions, resolving references, checking terminology membership, and validating profile conformance. Several of these functions require external services to be configured via the evaluation context.
+FHIR®-specific functions extend the core FHIRPath specification with operations that are unique to the FHIR® data model. These include accessing extensions, resolving references, checking terminology membership, and validating profile conformance. Several of these functions require external services to be configured via the evaluation context.
 
 ---
 
@@ -133,7 +133,7 @@ result, _ := fhirpath.Evaluate(patient,
 
 ## resolve
 
-Resolves a FHIR reference to the referenced resource. This function requires a `ReferenceResolver` to be configured in the evaluation context.
+Resolves a FHIR® reference to the referenced resource. This function requires a `ReferenceResolver` to be configured in the evaluation context.
 
 **Signature:**
 ```
@@ -170,7 +170,7 @@ result, _ = compiled.EvaluateWithOptions(resource, fhirpath.WithResolver(myResol
 
 ## getReferenceKey
 
-Extracts the resource type and/or ID from a FHIR reference string.
+Extracts the resource type and/or ID from a FHIR® reference string.
 
 **Signature:**
 ```
@@ -259,7 +259,7 @@ result, _ = compiled.EvaluateWithOptions(resource,
 
 ## conformsTo
 
-Checks if a resource conforms to a specified FHIR profile (StructureDefinition). This function requires a `ProfileValidator` to be configured in the evaluation context.
+Checks if a resource conforms to a specified FHIR® profile (StructureDefinition). This function requires a `ProfileValidator` to be configured in the evaluation context.
 
 **Signature:**
 ```

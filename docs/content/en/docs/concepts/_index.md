@@ -5,7 +5,7 @@ description: "Understand the foundational concepts of FHIRPath as implemented in
 weight: 2
 ---
 
-FHIRPath is a path-based navigation and extraction language designed for use with FHIR resources. Before diving into advanced usage, it is important to understand the core concepts that govern how expressions are evaluated.
+FHIRPath is a path-based navigation and extraction language designed for use with FHIR® resources. Before diving into advanced usage, it is important to understand the core concepts that govern how expressions are evaluated.
 
 This section covers:
 

@@ -5,7 +5,7 @@ description: "Cómo usar las variables de entorno incorporadas de FHIRPath (%res
 weight: 4
 ---
 
-Las variables de entorno de FHIRPath son identificadores especiales con el prefijo `%` que proporcionan acceso a información contextual durante la evaluación de expresiones. Son esenciales para escribir restricciones de invariantes FHIR, referenciar el recurso raíz desde rutas anidadas e inyectar datos externos en las expresiones.
+Las variables de entorno de FHIRPath son identificadores especiales con el prefijo `%` que proporcionan acceso a información contextual durante la evaluación de expresiones. Son esenciales para escribir restricciones de invariantes FHIR®, referenciar el recurso raíz desde rutas anidadas e inyectar datos externos en las expresiones.
 
 ## Variables Incorporadas
 
@@ -15,7 +15,7 @@ La biblioteca FHIRPath para Go establece automáticamente las siguientes variabl
 
 `%resource` se refiere al **recurso raíz** que se está evaluando. Se establece automáticamente al recurso de nivel superior pasado a `Evaluate`, `EvaluateCached` o `Expression.Evaluate`.
 
-Esta variable es requerida por muchas restricciones de StructureDefinition de FHIR (invariantes) que necesitan referenciar el recurso raíz desde un contexto anidado. Por ejemplo, el invariante FHIR de Bundle `bdl-3` utiliza `%resource` para referenciar el Bundle desde dentro de una entrada:
+Esta variable es requerida por muchas restricciones de StructureDefinition de FHIR® (invariantes) que necesitan referenciar el recurso raíz desde un contexto anidado. Por ejemplo, el invariante FHIR® de Bundle `bdl-3` utiliza `%resource` para referenciar el Bundle desde dentro de una entrada:
 
 ```text
 // FHIR invariant bdl-3: fullUrl must be unique within a Bundle

@@ -1,16 +1,16 @@
 ---
-title: "Validación FHIR"
-linkTitle: "Validación FHIR"
+title: "Validación FHIR®"
+linkTitle: "Validación FHIR®"
 weight: 3
 description: >
-  Usar expresiones FHIRPath para evaluar restricciones e invariantes FHIR, realizar validación Boolean y construir una función de validación simple.
+  Usar expresiones FHIRPath para evaluar restricciones e invariantes FHIR®, realizar validación Boolean y construir una función de validación simple.
 ---
 
-Muchas restricciones FHIR (invariantes) están formalmente definidas como expresiones FHIRPath que deben evaluarse a `true` para que un recurso sea válido. La biblioteca FHIRPath de Go es ideal para evaluar estas reglas porque `EvaluateToBoolean` le proporciona un resultado `bool` directo de Go.
+Muchas restricciones FHIR® (invariantes) están formalmente definidas como expresiones FHIRPath que deben evaluarse a `true` para que un recurso sea válido. La biblioteca FHIRPath de Go es ideal para evaluar estas reglas porque `EvaluateToBoolean` le proporciona un resultado `bool` directo de Go.
 
-## Comprensión de los Invariantes FHIR
+## Comprensión de los Invariantes FHIR®
 
-La especificación FHIR define invariantes sobre recursos y tipos de datos. Cada invariante tiene:
+La especificación FHIR® define invariantes sobre recursos y tipos de datos. Cada invariante tiene:
 
 - Una **clave** (por ejemplo, `pat-1`)
 - Una **severidad** (`error` o `warning`)
@@ -75,7 +75,7 @@ func main() {
 
 ### Observation Debe Tener un Valor o una Razón de Ausencia de Datos
 
-Un invariante FHIR común requiere que un Observation contenga un valor o una razón explícita de por qué el valor está ausente:
+Un invariante FHIR® común requiere que un Observation contenga un valor o una razón explícita de por qué el valor está ausente:
 
 ```
 obs-6: Observation.value.exists() or Observation.dataAbsentReason.exists()
@@ -430,9 +430,9 @@ func main() {
 }
 ```
 
-## Invariantes FHIR Comunes
+## Invariantes FHIR® Comunes
 
-Aquí hay una tabla de referencia de invariantes FHIR de uso común que puede evaluar con esta biblioteca:
+Aquí hay una tabla de referencia de invariantes FHIR® de uso común que puede evaluar con esta biblioteca:
 
 | Recurso | Clave | Expresión |
 |---------|-------|-----------|

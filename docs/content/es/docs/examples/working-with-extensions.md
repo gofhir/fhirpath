@@ -3,14 +3,14 @@ title: "Trabajo con Extensions"
 linkTitle: "Trabajo con Extensions"
 weight: 4
 description: >
-  Acceder, verificar y extraer valores de extensions FHIR usando las funciones extension(), hasExtension() y getExtensionValue().
+  Acceder, verificar y extraer valores de extensions FHIR® usando las funciones extension(), hasExtension() y getExtensionValue().
 ---
 
-Las extensions FHIR son el mecanismo principal para agregar elementos de datos a los recursos que no forman parte de la especificación base. Debido a que las extensions son tan frecuentes en implementaciones FHIR del mundo real, la biblioteca FHIRPath de Go proporciona funciones dedicadas para trabajar con ellas de manera eficiente.
+Las extensions FHIR® son el mecanismo principal para agregar elementos de datos a los recursos que no forman parte de la especificación base. Debido a que las extensions son tan frecuentes en implementaciones FHIR® del mundo real, la biblioteca FHIRPath de Go proporciona funciones dedicadas para trabajar con ellas de manera eficiente.
 
-## ¿Qué Son las Extensions FHIR?
+## ¿Qué Son las Extensions FHIR®?
 
-Todo elemento FHIR puede contener un arreglo `extension`. Cada extension se identifica por una URL y contiene un valor tipado (uno de los campos `value[x]`). Las extensions son la forma en que las guías de implementación como US Core, AU Base e IPS agregan datos específicos de país o caso de uso.
+Todo elemento FHIR® puede contener un arreglo `extension`. Cada extension se identifica por una URL y contiene un valor tipado (uno de los campos `value[x]`). Las extensions son la forma en que las guías de implementación como US Core, AU Base e IPS agregan datos específicos de país o caso de uso.
 
 Una extension se ve así en JSON:
 

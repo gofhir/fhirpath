@@ -3,7 +3,7 @@ title: "Filtrado de Datos"
 linkTitle: "Filtrado de Datos"
 weight: 2
 description: >
-  Use where(), select(), exists(), count() y empty() para filtrar, proyectar e inspeccionar colecciones FHIR.
+  Use where(), select(), exists(), count() y empty() para filtrar, proyectar e inspeccionar colecciones FHIR®.
 ---
 
 FHIRPath proporciona un rico conjunto de funciones para reducir colecciones a los elementos que necesita. Esta página cubre las funciones de filtrado e inspección más importantes con ejemplos completos.

@@ -6,7 +6,7 @@ description: >
   Funciones para depuracion, registro y navegacion del arbol de elementos en expresiones FHIRPath.
 ---
 
-Las funciones de utilidad ayudan con la depuracion de expresiones FHIRPath y la navegacion de la estructura jerarquica de los recursos FHIR. La funcion `trace` proporciona observabilidad durante la evaluacion de expresiones, mientras que `children` y `descendants` permiten el recorrido del arbol.
+Las funciones de utilidad ayudan con la depuracion de expresiones FHIRPath y la navegacion de la estructura jerarquica de los recursos FHIR®. La funcion `trace` proporciona observabilidad durante la evaluacion de expresiones, mientras que `children` y `descendants` permiten el recorrido del arbol.
 
 ---
 

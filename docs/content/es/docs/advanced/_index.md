@@ -21,7 +21,7 @@ aplicaciones listas para producción. Cada tema se basa en la API principal pres
   personalizadas a través de la API de opciones funcionales.
 
 - **[Resolvedores de Referencias Personalizados](custom-resolvers/)** -- Implemente la interfaz
-  `ReferenceResolver` para permitir que la función `resolve()` obtenga recursos FHIR
+  `ReferenceResolver` para permitir que la función `resolve()` obtenga recursos FHIR®
   referenciados desde endpoints HTTP, bundles en memoria o cualquier otra fuente de datos.
 
 - **[Servicios de Terminología](terminology-services/)** -- Conecte las funciones `memberOf()` y

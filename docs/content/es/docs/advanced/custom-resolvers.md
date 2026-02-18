@@ -4,12 +4,12 @@ linkTitle: "Resolvedores de Referencias Personalizados"
 weight: 3
 description: >
   Implemente la interfaz ReferenceResolver para permitir que la función resolve() obtenga
-  recursos FHIR referenciados desde endpoints HTTP, bundles en memoria o cualquier fuente de datos.
+  recursos FHIR® referenciados desde endpoints HTTP, bundles en memoria o cualquier fuente de datos.
 ---
 
 ## La Interfaz ReferenceResolver
 
-Los recursos FHIR frecuentemente referencian otros recursos. La función FHIRPath `resolve()`
+Los recursos FHIR® frecuentemente referencian otros recursos. La función FHIRPath `resolve()`
 sigue esas referencias y devuelve el recurso referenciado como parte del resultado de la evaluación.
 Para que `resolve()` funcione, necesita proporcionar un `ReferenceResolver` que sepa
 cómo obtener recursos dada una cadena de referencia.
@@ -27,7 +27,7 @@ type ReferenceResolver interface {
 
 Puntos clave:
 
-- El parámetro `reference` es la cadena sin procesar extraída de un campo FHIR `Reference.reference`.
+- El parámetro `reference` es la cadena sin procesar extraída de un campo FHIR® `Reference.reference`.
   Puede ser una referencia relativa (`"Patient/123"`), una URL absoluta
   (`"http://example.org/fhir/Patient/123"`), o un fragmento (`"#contained-1"`).
 - El resolver debe devolver el recurso como **bytes JSON** (`[]byte`).
@@ -38,7 +38,7 @@ Puntos clave:
 
 ## Resolver HTTP Simple
 
-El caso de uso más común es resolver referencias contra un servidor FHIR remoto:
+El caso de uso más común es resolver referencias contra un servidor FHIR® remoto:
 
 ```go
 package main
@@ -122,7 +122,7 @@ func main() {
 
 ## Resolver de Bundle en Memoria
 
-Cuando trabaja con Bundles FHIR, las referencias frecuentemente son internas al bundle. Un
+Cuando trabaja con Bundles FHIR®, las referencias frecuentemente son internas al bundle. Un
 resolver en memoria evita cualquier llamada de red:
 
 ```go
@@ -337,7 +337,7 @@ automáticamente.
 |--------------------------|---------------------------------------------------------------|
 | `ReferenceResolver`      | Interfaz con un único método `Resolve(ctx, reference) ([]byte, error)` |
 | `WithResolver(r)`        | Opción funcional para adjuntar un resolver a una evaluación   |
-| Resolver HTTP            | Resuelve referencias obteniendo datos de una API REST FHIR   |
-| Resolver de Bundle       | Resuelve referencias dentro de un Bundle FHIR pre-indexado    |
+| Resolver HTTP            | Resuelve referencias obteniendo datos de una API REST FHIR®   |
+| Resolver de Bundle       | Resuelve referencias dentro de un Bundle FHIR® pre-indexado    |
 | Comportamiento de error  | Las referencias irresolubles se omiten silenciosamente        |
 | Sin resolver configurado | `resolve()` devuelve una colección vacía                      |

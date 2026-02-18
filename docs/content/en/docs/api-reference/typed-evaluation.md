@@ -22,7 +22,7 @@ func EvaluateToBoolean(resource []byte, expr string) (bool, error)
 
 | Name | Type | Description |
 |------|------|-------------|
-| `resource` | `[]byte` | Raw JSON bytes of a FHIR resource |
+| `resource` | `[]byte` | Raw JSON bytes of a FHIR® resource |
 | `expr` | `string` | A FHIRPath expression that should yield a single Boolean |
 
 **Returns:**
@@ -70,7 +70,7 @@ func EvaluateToString(resource []byte, expr string) (string, error)
 
 | Name | Type | Description |
 |------|------|-------------|
-| `resource` | `[]byte` | Raw JSON bytes of a FHIR resource |
+| `resource` | `[]byte` | Raw JSON bytes of a FHIR® resource |
 | `expr` | `string` | A FHIRPath expression that should yield a single value |
 
 **Returns:**
@@ -116,7 +116,7 @@ func EvaluateToStrings(resource []byte, expr string) ([]string, error)
 
 | Name | Type | Description |
 |------|------|-------------|
-| `resource` | `[]byte` | Raw JSON bytes of a FHIR resource |
+| `resource` | `[]byte` | Raw JSON bytes of a FHIR® resource |
 | `expr` | `string` | A FHIRPath expression |
 
 **Returns:**
@@ -159,7 +159,7 @@ func Exists(resource []byte, expr string) (bool, error)
 
 | Name | Type | Description |
 |------|------|-------------|
-| `resource` | `[]byte` | Raw JSON bytes of a FHIR resource |
+| `resource` | `[]byte` | Raw JSON bytes of a FHIR® resource |
 | `expr` | `string` | A FHIRPath expression |
 
 **Returns:**
@@ -206,7 +206,7 @@ func Count(resource []byte, expr string) (int, error)
 
 | Name | Type | Description |
 |------|------|-------------|
-| `resource` | `[]byte` | Raw JSON bytes of a FHIR resource |
+| `resource` | `[]byte` | Raw JSON bytes of a FHIR® resource |
 | `expr` | `string` | A FHIRPath expression |
 
 **Returns:**

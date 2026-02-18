@@ -1,7 +1,7 @@
 ---
 title: "Getting Started"
 linkTitle: "Getting Started"
-description: "Install the FHIRPath Go library, evaluate your first expression, and learn the core API patterns for compiling, caching, and extracting data from FHIR resources."
+description: "Install the FHIRPath Go library, evaluate your first expression, and learn the core API patterns for compiling, caching, and extracting data from FHIR® resources."
 weight: 1
 ---
 
@@ -28,7 +28,7 @@ import "github.com/gofhir/fhirpath"
 
 ## Your First Evaluation
 
-The simplest way to evaluate a FHIRPath expression is the top-level `Evaluate` function. It accepts raw JSON bytes representing a FHIR resource and a FHIRPath expression string, and returns a `Collection` of results.
+The simplest way to evaluate a FHIRPath expression is the top-level `Evaluate` function. It accepts raw JSON bytes representing a FHIR® resource and a FHIRPath expression string, and returns a `Collection` of results.
 
 ```go
 package main

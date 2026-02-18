@@ -6,7 +6,7 @@ description: >
   Funciones para extraer subconjuntos de elementos de colecciones en expresiones FHIRPath.
 ---
 
-Las funciones de subconjunto permiten seleccionar elementos especificos o rangos de elementos de una coleccion. Son esenciales para navegar datos FHIR ordenados como entradas de nombre, contactos de telecomunicacion o recursos de lista.
+Las funciones de subconjunto permiten seleccionar elementos especificos o rangos de elementos de una coleccion. Son esenciales para navegar datos FHIR® ordenados como entradas de nombre, contactos de telecomunicacion o recursos de lista.
 
 ---
 

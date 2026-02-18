@@ -5,7 +5,7 @@ description: "Comprende los conceptos fundamentales de FHIRPath tal como se impl
 weight: 2
 ---
 
-FHIRPath es un lenguaje de navegación y extracción basado en rutas diseñado para su uso con recursos FHIR. Antes de profundizar en el uso avanzado, es importante comprender los conceptos fundamentales que gobiernan cómo se evalúan las expresiones.
+FHIRPath es un lenguaje de navegación y extracción basado en rutas diseñado para su uso con recursos FHIR®. Antes de profundizar en el uso avanzado, es importante comprender los conceptos fundamentales que gobiernan cómo se evalúan las expresiones.
 
 Esta sección cubre:
 

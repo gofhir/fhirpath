@@ -569,9 +569,9 @@ result, _ := fhirpath.Evaluate(resource, "'a,b,c'.split(',').join()")
 
 ## encode / decode
 
-{{% alert title="Not Implemented" color="warning" %}}
-The `encode(encoding)` and `decode(encoding)` functions for base64 encoding/decoding are defined in the FHIRPath specification but are **not yet implemented** in this library. Calling these functions will result in an error.
-{{% /alert %}}
+{{< callout type="warning" >}}
+**Not Implemented:** The `encode(encoding)` and `decode(encoding)` functions for base64 encoding/decoding are defined in the FHIRPath specification but are **not yet implemented** in this library. Calling these functions will result in an error.
+{{< /callout >}}
 
 **Signature:**
 

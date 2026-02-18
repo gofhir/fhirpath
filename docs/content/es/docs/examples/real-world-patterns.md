@@ -8,9 +8,9 @@ description: >
 
 Esta página muestra cómo la biblioteca FHIRPath de Go se integra en servicios Go de producción. Cada patrón es autocontenido y demuestra un escenario de integración común.
 
-## Middleware HTTP para Evaluación de Parámetros de Búsqueda FHIR
+## Middleware HTTP para Evaluación de Parámetros de Búsqueda FHIR®
 
-Un servidor FHIR frecuentemente necesita evaluar parámetros de búsqueda contra recursos almacenados. El siguiente middleware evalúa una expresión FHIRPath proporcionada en un parámetro de consulta y retorna el resultado como JSON.
+Un servidor FHIR® frecuentemente necesita evaluar parámetros de búsqueda contra recursos almacenados. El siguiente middleware evalúa una expresión FHIRPath proporcionada en un parámetro de consulta y retorna el resultado como JSON.
 
 ```go
 package main
@@ -555,7 +555,7 @@ func main() {
 | Usar `EvaluateCached` en manejadores de solicitudes | Evita recompilar la misma expresión en cada solicitud |
 | Usar `Compile` + `Expression.Evaluate` en trabajos por lotes | Compilar una vez, evaluar muchas veces para máximo rendimiento |
 | Validar expresiones proporcionadas por usuarios antes de almacenarlas | Detecta errores de sintaxis temprano, antes de que causen fallas en tiempo de ejecución |
-| Registrar errores de evaluación pero no abortar | Los datos FHIR son inherentemente variables; los campos ausentes son normales |
+| Registrar errores de evaluación pero no abortar | Los datos FHIR® son inherentemente variables; los campos ausentes son normales |
 | Monitorear `DefaultCache.Stats()` | Asegura que la caché tenga el tamaño correcto para su carga de trabajo |
 | Usar workers concurrentes con un semáforo | Aprovecha la concurrencia de Go sin sobrecargar la CPU |
 | Separar errores de compilación de errores de evaluación | Proporciona diagnósticos más claros a operadores y usuarios |

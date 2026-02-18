@@ -3,7 +3,7 @@ title: "Filtering Data"
 linkTitle: "Filtering Data"
 weight: 2
 description: >
-  Use where(), select(), exists(), count(), and empty() to filter, project, and inspect FHIR collections.
+  Use where(), select(), exists(), count(), and empty() to filter, project, and inspect FHIR® collections.
 ---
 
 FHIRPath provides a rich set of functions for narrowing collections down to the elements you need. This page covers the most important filtering and inspection functions with complete examples.

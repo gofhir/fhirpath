@@ -18,7 +18,7 @@ Compile("Patient.name.family")   ~250 us   (parse + build AST)
 expr.Evaluate(resource)          ~5 us     (walk the cached AST)
 ```
 
-En un servidor FHIR típico evaluará el mismo puñado de expresiones (restricciones de
+En un servidor FHIR® típico evaluará el mismo puñado de expresiones (restricciones de
 validación, parámetros de búsqueda, reglas de extracción) millones de veces contra diferentes
 recursos. Cachear los objetos `*Expression` compilados elimina el costo de análisis para
 cada llamada después de la primera.

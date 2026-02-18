@@ -3,7 +3,7 @@ title: "Evaluate Functions"
 linkTitle: "Evaluate"
 weight: 1
 description: >
-  One-shot evaluation of FHIRPath expressions against JSON FHIR resources.
+  One-shot evaluation of FHIRPath expressions against JSON FHIR® resources.
 ---
 
 The evaluate functions are the simplest way to run a FHIRPath expression. They accept raw JSON bytes and an expression string, and return a `Collection` of results. Choose the variant that best matches your needs.
@@ -20,7 +20,7 @@ func Evaluate(resource []byte, expr string) (Collection, error)
 
 | Name | Type | Description |
 |------|------|-------------|
-| `resource` | `[]byte` | Raw JSON bytes of a FHIR resource |
+| `resource` | `[]byte` | Raw JSON bytes of a FHIR® resource |
 | `expr` | `string` | A FHIRPath expression to evaluate |
 
 **Returns:**
@@ -65,9 +65,9 @@ func main() {
 }
 ```
 
-{{% alert title="Performance Note" color="warning" %}}
-`Evaluate` compiles the expression on every call. If you evaluate the same expression repeatedly, use `EvaluateCached` or pre-compile with `Compile` instead.
-{{% /alert %}}
+{{< callout type="warning" >}}
+**Performance Note:** `Evaluate` compiles the expression on every call. If you evaluate the same expression repeatedly, use `EvaluateCached` or pre-compile with `Compile` instead.
+{{< /callout >}}
 
 ---
 
@@ -83,7 +83,7 @@ func MustEvaluate(resource []byte, expr string) Collection
 
 | Name | Type | Description |
 |------|------|-------------|
-| `resource` | `[]byte` | Raw JSON bytes of a FHIR resource |
+| `resource` | `[]byte` | Raw JSON bytes of a FHIR® resource |
 | `expr` | `string` | A FHIRPath expression to evaluate |
 
 **Returns:**
@@ -122,7 +122,7 @@ func EvaluateCached(resource []byte, expr string) (Collection, error)
 
 | Name | Type | Description |
 |------|------|-------------|
-| `resource` | `[]byte` | Raw JSON bytes of a FHIR resource |
+| `resource` | `[]byte` | Raw JSON bytes of a FHIR® resource |
 | `expr` | `string` | A FHIRPath expression to evaluate |
 
 **Returns:**

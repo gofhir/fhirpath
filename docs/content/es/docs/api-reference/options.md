@@ -105,9 +105,9 @@ result, err := expr.EvaluateWithOptions(resource,
 )
 ```
 
-{{% alert title="Nota" color="info" %}}
+{{< callout type="info" >}}
 Cuando se proporcionan tanto `WithContext` como `WithTimeout`, la fecha límite efectiva es la más temprana de las dos. `WithTimeout` internamente crea un contexto hijo con el timeout dado.
-{{% /alert %}}
+{{< /callout >}}
 
 ---
 
@@ -181,7 +181,7 @@ result, err := expr.EvaluateWithOptions(resource,
 
 ### WithResolver
 
-Proporciona una implementación de `ReferenceResolver` para la función `resolve()` de FHIRPath. Cuando una expresión llama a `resolve()` sobre una referencia FHIR, el resolver obtiene el recurso referenciado.
+Proporciona una implementación de `ReferenceResolver` para la función `resolve()` de FHIRPath. Cuando una expresión llama a `resolve()` sobre una referencia FHIR®, el resolver obtiene el recurso referenciado.
 
 ```go
 func WithResolver(r ReferenceResolver) EvalOption
@@ -214,7 +214,7 @@ type ReferenceResolver interface {
 | Nombre | Tipo | Descripción |
 |--------|------|-------------|
 | `ctx` | `context.Context` | El contexto de evaluación (respeta cancelación/timeout) |
-| `reference` | `string` | La cadena de referencia FHIR (por ejemplo, `"Patient/123"`, `"http://example.com/fhir/Patient/123"`) |
+| `reference` | `string` | La cadena de referencia FHIR® (por ejemplo, `"Patient/123"`, `"http://example.com/fhir/Patient/123"`) |
 
 **Retorna:**
 

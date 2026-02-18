@@ -90,7 +90,7 @@ fhirpath/
 
 ### Decisiones de Diseño Clave
 
-- **Sin dependencia de modelos FHIR.** La biblioteca trabaja directamente con bytes JSON crudos vía `github.com/buger/jsonparser`. Esto mantiene el árbol de dependencias pequeño y permite a los usuarios usar cualquier biblioteca de modelos FHIR (o ninguna).
+- **Sin dependencia de modelos FHIR®.** La biblioteca trabaja directamente con bytes JSON crudos vía `github.com/buger/jsonparser`. Esto mantiene el árbol de dependencias pequeño y permite a los usuarios usar cualquier biblioteca de modelos FHIR® (o ninguna).
 - **Parser generado por ANTLR.** La gramática FHIRPath se analiza con `antlr4-go`. Los archivos de gramática están en `parser/grammar/`. No edite los archivos Go generados directamente; regenere los desde el archivo `.g4` de gramática si es necesario.
 - **Decimales de precisión arbitraria.** Los valores decimales usan `github.com/shopspring/decimal` para evitar sorpresas de punto flotante.
 
@@ -179,7 +179,7 @@ Coloque su función en el archivo que coincida con su categoría:
 | Verificación / conversión de tipos | `funcs/typechecking.go` o `funcs/conversion.go` |
 | Fecha / hora | `funcs/temporal.go` |
 | Agregación | `funcs/aggregate.go` |
-| Específicas de FHIR | `funcs/fhir.go` |
+| Específicas de FHIR® | `funcs/fhir.go` |
 | Expresiones regulares | `funcs/regex.go` |
 | Utilidades | `funcs/utility.go` |
 

@@ -1,16 +1,16 @@
 ---
-title: "FHIR Validation"
-linkTitle: "FHIR Validation"
+title: "FHIR® Validation"
+linkTitle: "FHIR® Validation"
 weight: 3
 description: >
-  Use FHIRPath expressions to evaluate FHIR constraints and invariants, perform Boolean validation, and build a simple validator function.
+  Use FHIRPath expressions to evaluate FHIR® constraints and invariants, perform Boolean validation, and build a simple validator function.
 ---
 
-Many FHIR constraints (invariants) are formally defined as FHIRPath expressions that must evaluate to `true` for a resource to be valid. The FHIRPath Go library is well suited for evaluating these rules because `EvaluateToBoolean` gives you a direct Go `bool` result.
+Many FHIR® constraints (invariants) are formally defined as FHIRPath expressions that must evaluate to `true` for a resource to be valid. The FHIRPath Go library is well suited for evaluating these rules because `EvaluateToBoolean` gives you a direct Go `bool` result.
 
-## Understanding FHIR Invariants
+## Understanding FHIR® Invariants
 
-The FHIR specification defines invariants on resources and data types. Each invariant has:
+The FHIR® specification defines invariants on resources and data types. Each invariant has:
 
 - A **key** (e.g., `pat-1`)
 - A **severity** (`error` or `warning`)
@@ -75,7 +75,7 @@ func main() {
 
 ### Observation Must Have a Value or a Data Absent Reason
 
-A common FHIR invariant requires that an Observation carry either a value or an explicit reason for why the value is absent:
+A common FHIR® invariant requires that an Observation carry either a value or an explicit reason for why the value is absent:
 
 ```
 obs-6: Observation.value.exists() or Observation.dataAbsentReason.exists()
@@ -430,9 +430,9 @@ func main() {
 }
 ```
 
-## Common FHIR Invariants
+## Common FHIR® Invariants
 
-Here is a reference table of commonly used FHIR invariants that you can evaluate with this library:
+Here is a reference table of commonly used FHIR® invariants that you can evaluate with this library:
 
 | Resource | Key | Expression |
 |----------|-----|------------|

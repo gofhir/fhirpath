@@ -6,7 +6,7 @@ description: >
   Functions for debugging, logging, and navigating the element tree in FHIRPath expressions.
 ---
 
-Utility functions help with debugging FHIRPath expressions and navigating the hierarchical structure of FHIR resources. The `trace` function provides observability during expression evaluation, while `children` and `descendants` enable tree traversal.
+Utility functions help with debugging FHIRPath expressions and navigating the hierarchical structure of FHIR® resources. The `trace` function provides observability during expression evaluation, while `children` and `descendants` enable tree traversal.
 
 ---
 

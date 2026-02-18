@@ -18,7 +18,7 @@ type Resource interface {
 }
 ```
 
-El método `GetResourceType()` debe retornar el nombre del tipo de recurso FHIR (por ejemplo, `"Patient"`, `"Observation"`, `"Bundle"`). Típicamente es el mismo valor que el campo `resourceType` en la representación JSON.
+El método `GetResourceType()` debe retornar el nombre del tipo de recurso FHIR® (por ejemplo, `"Patient"`, `"Observation"`, `"Bundle"`). Típicamente es el mismo valor que el campo `resourceType` en la representación JSON.
 
 **Implementación de la interfaz:**
 
@@ -42,9 +42,9 @@ type HumanName struct {
 }
 ```
 
-{{% alert title="Consejo" color="info" %}}
-Si utiliza una biblioteca de modelos FHIR para Go (como las generadas a partir de FHIR StructureDefinitions), solo necesita agregar o verificar el método `GetResourceType()` en cada tipo de recurso.
-{{% /alert %}}
+{{< callout type="info" >}}
+**Consejo:** Si utiliza una biblioteca de modelos FHIR® para Go (como las generadas a partir de FHIR® StructureDefinitions), solo necesita agregar o verificar el método `GetResourceType()` en cada tipo de recurso.
+{{< /callout >}}
 
 ---
 
@@ -90,9 +90,9 @@ if err != nil {
 fmt.Println(result) // [Smith]
 ```
 
-{{% alert title="Nota de Rendimiento" color="warning" %}}
-`EvaluateResource` llama a `json.Marshal` en cada invocación. Si evalúa múltiples expresiones contra el mismo recurso, utilice `ResourceJSON` para serializar una vez y evaluar muchas veces.
-{{% /alert %}}
+{{< callout type="warning" >}}
+**Nota de Rendimiento:** `EvaluateResource` llama a `json.Marshal` en cada invocación. Si evalúa múltiples expresiones contra el mismo recurso, utilice `ResourceJSON` para serializar una vez y evaluar muchas veces.
+{{< /callout >}}
 
 ---
 
@@ -263,9 +263,9 @@ fmt.Println(rj.Resource().GetResourceType()) // Patient
 | Muchas expresiones, muchos recursos | `ResourceJSON` por recurso + `EvaluateCached` |
 | Ya se tienen bytes JSON | Utilice `Evaluate` / `EvaluateCached` directamente |
 
-## Uso con Bibliotecas de Modelos FHIR
+## Uso con Bibliotecas de Modelos FHIR®
 
-Si ya se tienen structs de Go de una biblioteca de modelos FHIR, solo es necesario asegurarse de que implementen `GetResourceType()`:
+Si ya se tienen structs de Go de una biblioteca de modelos FHIR®, solo es necesario asegurarse de que implementen `GetResourceType()`:
 
 ```go
 // Adapter for an external FHIR model that has ResourceType as a field

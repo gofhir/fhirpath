@@ -3,7 +3,7 @@ title: "Funciones de Evaluacion"
 linkTitle: "Evaluate"
 weight: 1
 description: >
-  Evaluacion directa de expresiones FHIRPath contra recursos FHIR en formato JSON.
+  Evaluacion directa de expresiones FHIRPath contra recursos FHIR® en formato JSON.
 ---
 
 Las funciones de evaluacion son la forma mas sencilla de ejecutar una expresion FHIRPath. Aceptan bytes JSON crudos y una cadena de expresion, y retornan una `Collection` de resultados. Elija la variante que mejor se adapte a sus necesidades.
@@ -20,7 +20,7 @@ func Evaluate(resource []byte, expr string) (Collection, error)
 
 | Nombre | Tipo | Descripcion |
 |--------|------|-------------|
-| `resource` | `[]byte` | Bytes JSON crudos de un recurso FHIR |
+| `resource` | `[]byte` | Bytes JSON crudos de un recurso FHIR® |
 | `expr` | `string` | Una expresion FHIRPath a evaluar |
 
 **Retorna:**
@@ -65,9 +65,9 @@ func main() {
 }
 ```
 
-{{% alert title="Nota de Rendimiento" color="warning" %}}
-`Evaluate` compila la expresion en cada llamada. Si evalua la misma expresion repetidamente, use `EvaluateCached` o precompile con `Compile` en su lugar.
-{{% /alert %}}
+{{< callout type="warning" >}}
+**Nota de Rendimiento:** `Evaluate` compila la expresion en cada llamada. Si evalua la misma expresion repetidamente, use `EvaluateCached` o precompile con `Compile` en su lugar.
+{{< /callout >}}
 
 ---
 
@@ -83,7 +83,7 @@ func MustEvaluate(resource []byte, expr string) Collection
 
 | Nombre | Tipo | Descripcion |
 |--------|------|-------------|
-| `resource` | `[]byte` | Bytes JSON crudos de un recurso FHIR |
+| `resource` | `[]byte` | Bytes JSON crudos de un recurso FHIR® |
 | `expr` | `string` | Una expresion FHIRPath a evaluar |
 
 **Retorna:**
@@ -122,7 +122,7 @@ func EvaluateCached(resource []byte, expr string) (Collection, error)
 
 | Nombre | Tipo | Descripcion |
 |--------|------|-------------|
-| `resource` | `[]byte` | Bytes JSON crudos de un recurso FHIR |
+| `resource` | `[]byte` | Bytes JSON crudos de un recurso FHIR® |
 | `expr` | `string` | Una expresion FHIRPath a evaluar |
 
 **Retorna:**

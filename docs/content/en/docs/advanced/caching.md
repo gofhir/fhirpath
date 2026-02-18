@@ -18,7 +18,7 @@ Compile("Patient.name.family")   ~250 us   (parse + build AST)
 expr.Evaluate(resource)          ~5 us     (walk the cached AST)
 ```
 
-In a typical FHIR server you will evaluate the same handful of expressions (validation
+In a typical FHIR® server you will evaluate the same handful of expressions (validation
 constraints, search parameters, extraction rules) millions of times against different
 resources. Caching the compiled `*Expression` objects eliminates the parse cost for
 every call after the first.

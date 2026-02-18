@@ -6,7 +6,7 @@ description: >
   Funciones para inspeccionar y convertir tipos de elementos en expresiones FHIRPath.
 ---
 
-Las funciones de verificacion de tipos permiten probar el tipo de un elemento y convertir elementos a tipos especificos. Estas son esenciales cuando se trabaja con elementos FHIR polimorficos (como `value[x]`) donde el tipo real puede variar.
+Las funciones de verificacion de tipos permiten probar el tipo de un elemento y convertir elementos a tipos especificos. Estas son esenciales cuando se trabaja con elementos FHIR® polimorficos (como `value[x]`) donde el tipo real puede variar.
 
 ---
 
@@ -24,7 +24,7 @@ is(type : TypeSpecifier) : Boolean
 
 | Nombre   | Tipo              | Descripcion                                                                               |
 |----------|-------------------|-------------------------------------------------------------------------------------------|
-| `type`   | `TypeSpecifier`   | El nombre del tipo FHIR contra el cual verificar (por ejemplo, `Quantity`, `String`, `Patient`) |
+| `type`   | `TypeSpecifier`   | El nombre del tipo FHIR® contra el cual verificar (por ejemplo, `Quantity`, `String`, `Patient`) |
 
 **Tipo de Retorno:** `Boolean`
 
@@ -46,7 +46,7 @@ result, _ := fhirpath.Evaluate(patient, "Patient.name.first().is(HumanName)")
 - Requiere una entrada singleton (exactamente un elemento). Si la entrada contiene mas de un elemento, se genera un error.
 - Devuelve una coleccion vacia si la entrada esta vacia.
 - El nombre del tipo es resuelto por el evaluador directamente desde el AST de la expresion, por lo que nombres de tipo como `Patient` o `Quantity` se usan sin comillas.
-- La coincidencia de tipos utiliza la funcion `eval.TypeMatches`, que soporta tanto nombres de tipo simples como nombres de tipo FHIR completamente calificados.
+- La coincidencia de tipos utiliza la funcion `eval.TypeMatches`, que soporta tanto nombres de tipo simples como nombres de tipo FHIR® completamente calificados.
 - La forma de funcion `value.is(Quantity)` es equivalente a la forma de operador `value is Quantity`.
 
 ---
@@ -65,7 +65,7 @@ as(type : TypeSpecifier) : Collection
 
 | Nombre   | Tipo              | Descripcion                                                                               |
 |----------|-------------------|-------------------------------------------------------------------------------------------|
-| `type`   | `TypeSpecifier`   | El nombre del tipo FHIR al cual convertir (por ejemplo, `Quantity`, `String`, `Patient`)   |
+| `type`   | `TypeSpecifier`   | El nombre del tipo FHIR® al cual convertir (por ejemplo, `Quantity`, `String`, `Patient`)   |
 
 **Tipo de Retorno:** `Collection`
 
@@ -106,7 +106,7 @@ ofType(type : TypeSpecifier) : Collection
 
 | Nombre   | Tipo              | Descripcion                                                                                 |
 |----------|-------------------|---------------------------------------------------------------------------------------------|
-| `type`   | `TypeSpecifier`   | El nombre del tipo FHIR para filtrar (por ejemplo, `Quantity`, `String`, `HumanName`)        |
+| `type`   | `TypeSpecifier`   | El nombre del tipo FHIR® para filtrar (por ejemplo, `Quantity`, `String`, `HumanName`)        |
 
 **Tipo de Retorno:** `Collection`
 

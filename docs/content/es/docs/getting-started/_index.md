@@ -1,7 +1,7 @@
 ---
 title: "Primeros Pasos"
 linkTitle: "Primeros Pasos"
-description: "Instala la biblioteca FHIRPath Go, evalúa tu primera expresión y aprende los patrones principales de la API para compilar, almacenar en caché y extraer datos de recursos FHIR."
+description: "Instala la biblioteca FHIRPath Go, evalúa tu primera expresión y aprende los patrones principales de la API para compilar, almacenar en caché y extraer datos de recursos FHIR®."
 weight: 1
 ---
 
@@ -28,7 +28,7 @@ import "github.com/gofhir/fhirpath"
 
 ## Tu Primera Evaluación
 
-La forma más sencilla de evaluar una expresión FHIRPath es la función de nivel superior `Evaluate`. Acepta bytes JSON sin procesar que representan un recurso FHIR y una cadena de expresión FHIRPath, y devuelve una `Collection` de resultados.
+La forma más sencilla de evaluar una expresión FHIRPath es la función de nivel superior `Evaluate`. Acepta bytes JSON sin procesar que representan un recurso FHIR® y una cadena de expresión FHIRPath, y devuelve una `Collection` de resultados.
 
 ```go
 package main

@@ -6,7 +6,7 @@ description: >
   Referencia completa de la API publica de la biblioteca FHIRPath para Go.
 ---
 
-El paquete `github.com/gofhir/fhirpath` proporciona un evaluador completo de expresiones FHIRPath 2.0 para recursos FHIR en Go. Esta seccion documenta cada funcion, tipo e interfaz publica disponible en la biblioteca.
+El paquete `github.com/gofhir/fhirpath` proporciona un evaluador completo de expresiones FHIRPath 2.0 para recursos FHIR® en Go. Esta seccion documenta cada funcion, tipo e interfaz publica disponible en la biblioteca.
 
 ## Descripcion General del Paquete
 

@@ -242,7 +242,7 @@ La biblioteca proporciona automáticamente estas variables para cada evaluación
 | `%resource`   | El recurso raíz que se está evaluando             |
 | `%context`    | Igual que `%resource` para evaluación de nivel superior |
 
-Estas son requeridas por las expresiones de restricción FHIR (como `bdl-3` y `bdl-4`)
+Estas son requeridas por las expresiones de restricción FHIR® (como `bdl-3` y `bdl-4`)
 y no deben sobrescribirse a menos que tenga una razón específica para hacerlo.
 
 ## Combinación de Opciones

@@ -3,10 +3,10 @@ title: "Consultas Básicas"
 linkTitle: "Consultas Básicas"
 weight: 1
 description: >
-  Extraer datos demográficos del paciente, navegar estructuras anidadas, trabajar con arreglos y usar sintaxis FHIRPath contra recursos FHIR reales.
+  Extraer datos demográficos del paciente, navegar estructuras anidadas, trabajar con arreglos y usar sintaxis FHIRPath contra recursos FHIR® reales.
 ---
 
-Esta página recorre las operaciones FHIRPath más comunes que realizará: leer campos simples, recorrer objetos anidados e indexar en arreglos. Cada ejemplo incluye un recurso FHIR JSON completo y el código Go necesario para evaluarlo.
+Esta página recorre las operaciones FHIRPath más comunes que realizará: leer campos simples, recorrer objetos anidados e indexar en arreglos. Cada ejemplo incluye un recurso FHIR® JSON completo y el código Go necesario para evaluarlo.
 
 ## Extracción de Datos Demográficos del Paciente
 
@@ -152,7 +152,7 @@ for label, expr := range expressions {
 
 ## Navegación de Estructuras Anidadas
 
-Los recursos FHIR contienen objetos profundamente anidados. FHIRPath usa notación de punto para recorrerlos.
+Los recursos FHIR® contienen objetos profundamente anidados. FHIRPath usa notación de punto para recorrerlos.
 
 ### Extracción de Campos de Dirección
 
@@ -214,7 +214,7 @@ for _, v := range values {
 
 ### Navegación de Anidamiento Multi-Nivel
 
-Algunos recursos FHIR están profundamente anidados. Por ejemplo, una Observation con un componente:
+Algunos recursos FHIR® están profundamente anidados. Por ejemplo, una Observation con un componente:
 
 ```go
 observation := []byte(`{

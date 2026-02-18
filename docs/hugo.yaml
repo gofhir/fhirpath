@@ -1,0 +1,120 @@
+baseURL: "https://gofhir.github.io/fhirpath/"
+title: "FHIRPath Go"
+
+defaultContentLanguage: en
+defaultContentLanguageInSubdir: false
+enableRobotsTXT: true
+enableGitInfo: true
+
+disableKinds:
+  - taxonomy
+  - term
+
+languages:
+  en:
+    languageName: English
+    contentDir: content/en
+    weight: 1
+    params:
+      description: "A complete FHIRPath 2.0 expression evaluator for FHIR® resources in Go"
+    menu:
+      main:
+        - name: Documentation
+          pageRef: /docs
+          weight: 10
+        - name: Search
+          weight: 20
+          params:
+            type: search
+        - name: pkg.go.dev
+          url: "https://pkg.go.dev/github.com/gofhir/fhirpath"
+          weight: 30
+        - name: GitHub
+          url: "https://github.com/gofhir/fhirpath"
+          weight: 40
+          params:
+            icon: github
+  es:
+    languageName: Español
+    contentDir: content/es
+    weight: 2
+    params:
+      description: "Un evaluador completo de expresiones FHIRPath 2.0 para recursos FHIR® en Go"
+    menu:
+      main:
+        - name: Documentación
+          pageRef: /docs
+          weight: 10
+        - name: Búsqueda
+          weight: 20
+          params:
+            type: search
+        - name: pkg.go.dev
+          url: "https://pkg.go.dev/github.com/gofhir/fhirpath"
+          weight: 30
+        - name: GitHub
+          url: "https://github.com/gofhir/fhirpath"
+          weight: 40
+          params:
+            icon: github
+
+markup:
+  goldmark:
+    parser:
+      attribute:
+        block: true
+    renderer:
+      unsafe: true
+  highlight:
+    noClasses: false
+
+outputs:
+  home:
+    - HTML
+    - RSS
+  section:
+    - HTML
+    - RSS
+
+module:
+  proxy: direct
+  hugoVersion:
+    extended: true
+    min: "0.112.0"
+  imports:
+    - path: github.com/imfing/hextra
+
+params:
+  navbar:
+    displayTitle: true
+    displayLogo: true
+    logo:
+      path: icons/logo.svg
+      link: /
+      width: 32
+      height: 32
+
+  theme:
+    default: system
+    displayToggle: true
+
+  search:
+    enable: true
+    type: flexsearch
+    flexsearch:
+      index: content
+      tokenize: forward
+
+  editURL:
+    enable: true
+    base: "https://github.com/gofhir/fhirpath/edit/main/docs/content"
+
+  displayUpdatedDate: true
+  dateFormat: "January 2, 2006"
+
+  page:
+    width: normal
+
+  footer:
+    displayCopyright: true
+    displayPoweredBy: false

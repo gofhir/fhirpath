@@ -6,7 +6,7 @@ description: >
   Functions for testing the existence and properties of elements within collections.
 ---
 
-Existence functions allow you to test whether collections contain elements, whether those elements meet certain criteria, and to retrieve distinct values. These are fundamental to FHIRPath expressions and are used extensively in FHIR validation and data extraction.
+Existence functions allow you to test whether collections contain elements, whether those elements meet certain criteria, and to retrieve distinct values. These are fundamental to FHIRPath expressions and are used extensively in FHIR® validation and data extraction.
 
 ---
 
@@ -117,7 +117,7 @@ result, _ := fhirpath.Evaluate(patient, "Patient.contact.all(name.exists())")
 
 - An empty collection returns `true` (vacuous truth per FHIRPath specification).
 - The criteria expression is evaluated with `$this` set to each element.
-- This function is commonly used in FHIR invariant definitions.
+- This function is commonly used in FHIR® invariant definitions.
 
 ---
 

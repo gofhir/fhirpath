@@ -145,7 +145,7 @@ ofType(type : TypeSpecifier) : Collection
 
 | Nombre   | Tipo              | Descripcion                                                                          |
 |----------|-------------------|--------------------------------------------------------------------------------------|
-| `type`   | `TypeSpecifier`   | El nombre del tipo FHIR para filtrar (por ejemplo, `Quantity`, `String`, `HumanName`) |
+| `type`   | `TypeSpecifier`   | El nombre del tipo FHIR® para filtrar (por ejemplo, `Quantity`, `String`, `HumanName`) |
 
 **Tipo de Retorno:** `Collection`
 
@@ -164,7 +164,7 @@ result, _ := fhirpath.Evaluate(resource, "Bundle.entry.resource.ofType(Patient)"
 
 **Casos Limite / Notas:**
 
-- Esta funcion es particularmente util para elementos FHIR polimorficos (por ejemplo, `value[x]`).
+- Esta funcion es particularmente util para elementos FHIR® polimorficos (por ejemplo, `value[x]`).
 - La coincidencia de tipos compara el tipo en tiempo de ejecucion del elemento contra el nombre de tipo especificado.
 - Una coleccion de entrada vacia devuelve una coleccion vacia.
 - Esta funcion tambien esta documentada en [Funciones de Verificacion de Tipos]({{< relref "type-checking" >}}) ya que cumple un doble proposito.

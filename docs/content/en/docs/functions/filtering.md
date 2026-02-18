@@ -145,7 +145,7 @@ ofType(type : TypeSpecifier) : Collection
 
 | Name     | Type              | Description                                                                    |
 |----------|-------------------|--------------------------------------------------------------------------------|
-| `type`   | `TypeSpecifier`   | The FHIR type name to filter by (e.g., `Quantity`, `String`, `HumanName`)      |
+| `type`   | `TypeSpecifier`   | The FHIR® type name to filter by (e.g., `Quantity`, `String`, `HumanName`)      |
 
 **Return Type:** `Collection`
 
@@ -164,7 +164,7 @@ result, _ := fhirpath.Evaluate(resource, "Bundle.entry.resource.ofType(Patient)"
 
 **Edge Cases / Notes:**
 
-- This function is particularly useful for polymorphic FHIR elements (e.g., `value[x]`).
+- This function is particularly useful for polymorphic FHIR® elements (e.g., `value[x]`).
 - Type matching compares the element's runtime type against the specified type name.
 - An empty input collection returns an empty collection.
 - This function is also listed under [Type Checking Functions]({{< relref "type-checking" >}}) since it serves a dual purpose.

@@ -47,7 +47,7 @@ dependiendo del tipo de entrada:
 | CodeableConcept   | `{"coding": [{"system": "...", "code": "..."}], "text": "..."}` |
 
 Su implementación debe inspeccionar el mapa y llamar a la operación de terminología
-apropiada (típicamente una operación FHIR `$validate-code` o `$expand`).
+apropiada (típicamente una operación FHIR® `$validate-code` o `$expand`).
 
 ## La Interfaz ProfileValidator
 
@@ -105,7 +105,7 @@ Al evaluarse:
 
 ## Ejemplo de Implementación
 
-A continuación se muestra un ejemplo completo que se conecta a un servidor de terminología FHIR para
+A continuación se muestra un ejemplo completo que se conecta a un servidor de terminología FHIR® para
 validación con `memberOf()` e implementa un validador de perfiles simple.
 
 ### Implementación del Servicio de Terminología

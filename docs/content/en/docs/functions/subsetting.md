@@ -6,7 +6,7 @@ description: >
   Functions for extracting subsets of elements from collections in FHIRPath expressions.
 ---
 
-Subsetting functions allow you to select specific elements or ranges of elements from a collection. They are essential for navigating ordered FHIR data such as name entries, telecom contacts, or list resources.
+Subsetting functions allow you to select specific elements or ranges of elements from a collection. They are essential for navigating ordered FHIR® data such as name entries, telecom contacts, or list resources.
 
 ---
 

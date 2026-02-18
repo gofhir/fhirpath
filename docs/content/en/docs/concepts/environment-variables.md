@@ -5,7 +5,7 @@ description: "How to use built-in FHIRPath environment variables (%resource, %co
 weight: 4
 ---
 
-FHIRPath environment variables are special identifiers prefixed with `%` that provide access to contextual information during expression evaluation. They are essential for writing FHIR invariant constraints, referencing the root resource from nested paths, and injecting external data into expressions.
+FHIRPath environment variables are special identifiers prefixed with `%` that provide access to contextual information during expression evaluation. They are essential for writing FHIR® invariant constraints, referencing the root resource from nested paths, and injecting external data into expressions.
 
 ## Built-in Variables
 
@@ -15,7 +15,7 @@ The FHIRPath Go library automatically sets the following environment variables w
 
 `%resource` refers to the **root resource** being evaluated. It is automatically set to the top-level resource passed to `Evaluate`, `EvaluateCached`, or `Expression.Evaluate`.
 
-This variable is required by many FHIR StructureDefinition constraints (invariants) that need to reference the root resource from within a nested context. For example, the FHIR Bundle invariant `bdl-3` uses `%resource` to reference the Bundle from within an entry:
+This variable is required by many FHIR® StructureDefinition constraints (invariants) that need to reference the root resource from within a nested context. For example, the FHIR® Bundle invariant `bdl-3` uses `%resource` to reference the Bundle from within an entry:
 
 ```text
 // FHIR invariant bdl-3: fullUrl must be unique within a Bundle

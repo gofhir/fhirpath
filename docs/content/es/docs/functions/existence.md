@@ -6,7 +6,7 @@ description: >
   Funciones para verificar la existencia y propiedades de elementos dentro de colecciones.
 ---
 
-Las funciones de existencia permiten verificar si las colecciones contienen elementos, si esos elementos cumplen ciertos criterios, y obtener valores distintos. Estas son fundamentales para las expresiones FHIRPath y se utilizan extensamente en la validacion y extraccion de datos FHIR.
+Las funciones de existencia permiten verificar si las colecciones contienen elementos, si esos elementos cumplen ciertos criterios, y obtener valores distintos. Estas son fundamentales para las expresiones FHIRPath y se utilizan extensamente en la validacion y extraccion de datos FHIR®.
 
 ---
 
@@ -117,7 +117,7 @@ result, _ := fhirpath.Evaluate(patient, "Patient.contact.all(name.exists())")
 
 - Una coleccion vacia devuelve `true` (verdad vacua segun la especificacion FHIRPath).
 - La expresion de criterio se evalua con `$this` asignado a cada elemento.
-- Esta funcion se usa comunmente en definiciones de invariantes FHIR.
+- Esta funcion se usa comunmente en definiciones de invariantes FHIR®.
 
 ---
 

@@ -1,12 +1,12 @@
 ---
-title: "Funciones Especificas de FHIR"
-linkTitle: "Funciones Especificas de FHIR"
+title: "Funciones Especificas de FHIR®"
+linkTitle: "Funciones Especificas de FHIR®"
 weight: 11
 description: >
-  Funciones especificas de recursos FHIR, incluyendo acceso a extensiones, resolucion de referencias, validacion de terminologia y conformidad de perfiles.
+  Funciones especificas de recursos FHIR®, incluyendo acceso a extensiones, resolucion de referencias, validacion de terminologia y conformidad de perfiles.
 ---
 
-Las funciones especificas de FHIR extienden la especificacion base de FHIRPath con operaciones que son unicas del modelo de datos FHIR. Estas incluyen acceso a extensiones, resolucion de referencias, verificacion de membresia en terminologia y validacion de conformidad con perfiles. Varias de estas funciones requieren que se configuren servicios externos a traves del contexto de evaluacion.
+Las funciones especificas de FHIR® extienden la especificacion base de FHIRPath con operaciones que son unicas del modelo de datos FHIR®. Estas incluyen acceso a extensiones, resolucion de referencias, verificacion de membresia en terminologia y validacion de conformidad con perfiles. Varias de estas funciones requieren que se configuren servicios externos a traves del contexto de evaluacion.
 
 ---
 
@@ -133,7 +133,7 @@ result, _ := fhirpath.Evaluate(patient,
 
 ## resolve
 
-Resuelve una referencia FHIR al recurso referenciado. Esta funcion requiere que se configure un `ReferenceResolver` en el contexto de evaluacion.
+Resuelve una referencia FHIR® al recurso referenciado. Esta funcion requiere que se configure un `ReferenceResolver` en el contexto de evaluacion.
 
 **Firma:**
 ```
@@ -170,7 +170,7 @@ result, _ = compiled.EvaluateWithOptions(resource, fhirpath.WithResolver(myResol
 
 ## getReferenceKey
 
-Extrae el tipo de recurso y/o ID de una cadena de referencia FHIR.
+Extrae el tipo de recurso y/o ID de una cadena de referencia FHIR®.
 
 **Firma:**
 ```
@@ -259,7 +259,7 @@ result, _ = compiled.EvaluateWithOptions(resource,
 
 ## conformsTo
 
-Verifica si un recurso conforma a un perfil FHIR especificado (StructureDefinition). Esta funcion requiere que se configure un `ProfileValidator` en el contexto de evaluacion.
+Verifica si un recurso conforma a un perfil FHIR® especificado (StructureDefinition). Esta funcion requiere que se configure un `ProfileValidator` en el contexto de evaluacion.
 
 **Firma:**
 ```

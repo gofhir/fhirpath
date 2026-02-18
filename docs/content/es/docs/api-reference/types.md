@@ -766,7 +766,7 @@ fmt.Println(sum)       // 78 kg
 
 ## ObjectValue
 
-Representa un recurso FHIR o tipo complejo como un objeto JSON. Este tipo se utiliza internamente para representar datos estructurados dentro del motor de evaluación. El método `Type()` intenta inferir el tipo FHIR desde la estructura JSON (verificando `resourceType` primero, luego patrones estructurales para tipos complejos comunes).
+Representa un recurso FHIR® o tipo complejo como un objeto JSON. Este tipo se utiliza internamente para representar datos estructurados dentro del motor de evaluación. El método `Type()` intenta inferir el tipo FHIR® desde la estructura JSON (verificando `resourceType` primero, luego patrones estructurales para tipos complejos comunes).
 
 ```go
 type ObjectValue struct {
@@ -788,7 +788,7 @@ Crea un `ObjectValue` desde bytes JSON crudos que representan un objeto.
 
 | Método | Firma | Descripción |
 |--------|-----------|-------------|
-| `Type` | `func (o *ObjectValue) Type() string` | Tipo FHIR inferido u `"Object"` |
+| `Type` | `func (o *ObjectValue) Type() string` | Tipo FHIR® inferido u `"Object"` |
 | `Data` | `func (o *ObjectValue) Data() []byte` | Bytes JSON crudos |
 | `Get` | `func (o *ObjectValue) Get(field string) (Value, bool)` | Obtener un valor de campo (con caché) |
 | `GetCollection` | `func (o *ObjectValue) GetCollection(field string) Collection` | Obtener un campo como Collection |
@@ -796,7 +796,7 @@ Crea un `ObjectValue` desde bytes JSON crudos que representan un objeto.
 | `Children` | `func (o *ObjectValue) Children() Collection` | Todos los valores hijos |
 | `ToQuantity` | `func (o *ObjectValue) ToQuantity() (Quantity, bool)` | Convertir a Quantity si la estructura coincide |
 
-**Inferencia de tipo:** El método `Type()` reconoce tipos de recurso FHIR (vía el campo `resourceType`) y tipos complejos comunes incluyendo `Quantity`, `Coding`, `CodeableConcept`, `Reference`, `Period`, `Identifier`, `Range`, `Ratio`, `Attachment`, `HumanName`, `Address`, `ContactPoint` y `Annotation`.
+**Inferencia de tipo:** El método `Type()` reconoce tipos de recurso FHIR® (vía el campo `resourceType`) y tipos complejos comunes incluyendo `Quantity`, `Coding`, `CodeableConcept`, `Reference`, `Period`, `Identifier`, `Range`, `Ratio`, `Attachment`, `HumanName`, `Address`, `ContactPoint` y `Annotation`.
 
 **Ejemplo:**
 

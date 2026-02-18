@@ -242,7 +242,7 @@ The library automatically provides these variables for every evaluation:
 | `%resource`   | The root resource being evaluated          |
 | `%context`    | Same as `%resource` for top-level evaluation |
 
-These are required by FHIR constraint expressions (such as `bdl-3` and `bdl-4`)
+These are required by FHIR® constraint expressions (such as `bdl-3` and `bdl-4`)
 and should not be overridden unless you have a specific reason to do so.
 
 ## Combining Options

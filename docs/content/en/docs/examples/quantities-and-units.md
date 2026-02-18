@@ -6,7 +6,7 @@ description: >
   Work with UCUM quantities, compare and convert units, perform quantity arithmetic, and extract values from Observations.
 ---
 
-FHIR uses the [Unified Code for Units of Measure (UCUM)](https://ucum.org) system to represent physical quantities. The FHIRPath Go library includes built-in support for quantity literals, UCUM unit normalization, comparisons, and arithmetic -- all of which are critical when working with clinical Observations.
+FHIR® uses the [Unified Code for Units of Measure (UCUM)](https://ucum.org) system to represent physical quantities. The FHIRPath Go library includes built-in support for quantity literals, UCUM unit normalization, comparisons, and arithmetic -- all of which are critical when working with clinical Observations.
 
 ## UCUM Unit System Basics
 

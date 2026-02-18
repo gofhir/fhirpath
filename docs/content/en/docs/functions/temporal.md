@@ -6,7 +6,7 @@ description: >
   Functions for working with dates, times, and extracting temporal components in FHIRPath expressions.
 ---
 
-Temporal functions provide access to the current date and time, and allow extracting individual components (year, month, day, etc.) from `Date`, `DateTime`, and `Time` values. These are essential for date-based filtering and calculations on FHIR resources.
+Temporal functions provide access to the current date and time, and allow extracting individual components (year, month, day, etc.) from `Date`, `DateTime`, and `Time` values. These are essential for date-based filtering and calculations on FHIR® resources.
 
 ---
 
@@ -347,4 +347,4 @@ result, _ := fhirpath.Evaluate(resource, "timeOfDay().millisecond()")
 
 - Returns empty collection if the input is empty or not a `DateTime`/`Time`.
 - Not applicable to `Date` values -- returns empty.
-- Precision depends on the underlying time representation. Some FHIR date-time values may not have millisecond precision.
+- Precision depends on the underlying time representation. Some FHIR® date-time values may not have millisecond precision.

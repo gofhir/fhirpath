@@ -98,7 +98,7 @@ func getPatientInfo(resource []byte) (string, error) {
 
 ## Tipo Expression
 
-`Expression` representa una expresión FHIRPath compilada. Contiene el AST (árbol de sintaxis abstracta) analizado y puede ser evaluada contra cualquier recurso FHIR.
+`Expression` representa una expresión FHIRPath compilada. Contiene el AST (árbol de sintaxis abstracta) analizado y puede ser evaluada contra cualquier recurso FHIR®.
 
 ```go
 type Expression struct {
@@ -108,7 +108,7 @@ type Expression struct {
 
 ### Expression.Evaluate
 
-Ejecuta la expresión compilada contra un recurso FHIR en formato JSON.
+Ejecuta la expresión compilada contra un recurso FHIR® en formato JSON.
 
 ```go
 func (e *Expression) Evaluate(resource []byte) (Collection, error)
@@ -118,7 +118,7 @@ func (e *Expression) Evaluate(resource []byte) (Collection, error)
 
 | Nombre | Tipo | Descripción |
 |--------|------|-------------|
-| `resource` | `[]byte` | Bytes JSON crudos de un recurso FHIR |
+| `resource` | `[]byte` | Bytes JSON crudos de un recurso FHIR® |
 
 **Retorna:**
 
@@ -186,7 +186,7 @@ func (e *Expression) EvaluateWithOptions(resource []byte, opts ...EvalOption) (C
 
 | Nombre | Tipo | Descripción |
 |--------|------|-------------|
-| `resource` | `[]byte` | Bytes JSON crudos de un recurso FHIR |
+| `resource` | `[]byte` | Bytes JSON crudos de un recurso FHIR® |
 | `opts` | `...EvalOption` | Cero o más opciones funcionales |
 
 **Retorna:**

@@ -8,9 +8,9 @@ description: >
 
 This page shows how the FHIRPath Go library fits into production Go services. Each pattern is self-contained and demonstrates a common integration scenario.
 
-## HTTP Middleware for FHIR Search Parameter Evaluation
+## HTTP Middleware for FHIR® Search Parameter Evaluation
 
-A FHIR server often needs to evaluate search parameters against stored resources. The following middleware evaluates a FHIRPath expression provided in a query parameter and returns the result as JSON.
+A FHIR® server often needs to evaluate search parameters against stored resources. The following middleware evaluates a FHIRPath expression provided in a query parameter and returns the result as JSON.
 
 ```go
 package main
@@ -555,7 +555,7 @@ func main() {
 | Use `EvaluateCached` in request handlers | Avoids recompiling the same expression on every request |
 | Use `Compile` + `Expression.Evaluate` in batch jobs | Compile once, evaluate many times for maximum throughput |
 | Validate user-supplied expressions before storing | Catches syntax errors early, before they cause runtime failures |
-| Log evaluation errors but do not abort | FHIR data is inherently variable; missing fields are normal |
+| Log evaluation errors but do not abort | FHIR® data is inherently variable; missing fields are normal |
 | Monitor `DefaultCache.Stats()` | Ensures the cache is sized correctly for your workload |
 | Use concurrent workers with a semaphore | Exploits Go's concurrency without overwhelming the CPU |
 | Separate compile errors from evaluation errors | Gives clearer diagnostics to operators and users |

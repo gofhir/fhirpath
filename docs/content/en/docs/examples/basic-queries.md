@@ -3,10 +3,10 @@ title: "Basic Queries"
 linkTitle: "Basic Queries"
 weight: 1
 description: >
-  Extract patient demographics, navigate nested structures, work with arrays, and use FHIRPath syntax against real FHIR resources.
+  Extract patient demographics, navigate nested structures, work with arrays, and use FHIRPath syntax against real FHIR® resources.
 ---
 
-This page walks through the most common FHIRPath operations you will perform: reading simple fields, traversing nested objects, and indexing into arrays. Every example includes a complete FHIR JSON resource and the Go code needed to evaluate it.
+This page walks through the most common FHIRPath operations you will perform: reading simple fields, traversing nested objects, and indexing into arrays. Every example includes a complete FHIR® JSON resource and the Go code needed to evaluate it.
 
 ## Extracting Patient Demographics
 
@@ -152,7 +152,7 @@ for label, expr := range expressions {
 
 ## Navigating Nested Structures
 
-FHIR resources contain deeply nested objects. FHIRPath uses dot notation to traverse them.
+FHIR® resources contain deeply nested objects. FHIRPath uses dot notation to traverse them.
 
 ### Extracting Address Fields
 
@@ -214,7 +214,7 @@ for _, v := range values {
 
 ### Navigating Multi-Level Nesting
 
-Some FHIR resources are deeply nested. For example, an Observation with a component:
+Some FHIR® resources are deeply nested. For example, an Observation with a component:
 
 ```go
 observation := []byte(`{

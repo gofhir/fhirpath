@@ -6,7 +6,7 @@ description: >
   Complete reference for all FHIRPath functions supported by the Go FHIRPath library.
 ---
 
-The FHIRPath specification defines a rich set of functions for navigating, filtering, and transforming FHIR data. This library implements the full function catalog from the [FHIRPath 2.0 specification](http://hl7.org/fhirpath/), along with FHIR-specific extensions.
+The FHIRPath specification defines a rich set of functions for navigating, filtering, and transforming FHIR® data. This library implements the full function catalog from the [FHIRPath 2.0 specification](http://hl7.org/fhirpath/), along with FHIR®-specific extensions.
 
 Functions are invoked using dot notation on a collection:
 
@@ -30,7 +30,7 @@ All functions operate on collections and return collections, following FHIRPath'
 | [Type Checking Functions]({{< relref "type-checking" >}}) | 3 | Type inspection: `is`, `as`, `ofType` |
 | [Temporal Functions]({{< relref "temporal" >}}) | 10 | Date/time operations: `now`, `today`, `timeOfDay`, `year`, `month`, `day`, `hour`, `minute`, `second`, `millisecond` |
 | [Utility Functions]({{< relref "utility" >}}) | 3 | Debugging and navigation: `trace`, `children`, `descendants` |
-| [FHIR-Specific Functions]({{< relref "fhir-specific" >}}) | 8 | FHIR extensions: `extension`, `hasExtension`, `resolve`, `memberOf`, `conformsTo`, `hasValue`, `getValue`, `getReferenceKey` |
+| [FHIR®-Specific Functions]({{< relref "fhir-specific" >}}) | 8 | FHIR® extensions: `extension`, `hasExtension`, `resolve`, `memberOf`, `conformsTo`, `hasValue`, `getValue`, `getReferenceKey` |
 | [Aggregate Functions]({{< relref "aggregate" >}}) | 5 | Reduction operations: `aggregate`, `sum`, `avg`, `min`, `max` |
 
 ## Common Patterns

@@ -22,7 +22,7 @@ production-ready applications. Each topic builds on the core API introduced in t
 
 - **[Custom Reference Resolvers](custom-resolvers/)** -- Implement the
   `ReferenceResolver` interface to let the `resolve()` function fetch referenced
-  FHIR resources from HTTP endpoints, in-memory bundles, or any other data source.
+  FHIR® resources from HTTP endpoints, in-memory bundles, or any other data source.
 
 - **[Terminology Services](terminology-services/)** -- Connect the `memberOf()` and
   `conformsTo()` functions to external terminology servers and profile validators
