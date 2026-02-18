@@ -102,19 +102,38 @@ prism_syntax_highlighting = false
   icon = "fa-solid fa-cube"
   desc = "Go documentation on pkg.go.dev"
 
-[menu]
-[[menu.main]]
+# Menus per language
+[languages.en.menu]
+[[languages.en.menu.main]]
   name = "Documentation"
   weight = 10
   url = "/docs/"
 
-[[menu.main]]
+[[languages.en.menu.main]]
   name = "pkg.go.dev"
   weight = 30
   url = "https://pkg.go.dev/github.com/gofhir/fhirpath"
   pre = "<i class='fa-solid fa-arrow-up-right-from-square'></i>"
 
-[[menu.main]]
+[[languages.en.menu.main]]
+  name = "GitHub"
+  weight = 40
+  url = "https://github.com/gofhir/fhirpath"
+  pre = "<i class='fab fa-github'></i>"
+
+[languages.es.menu]
+[[languages.es.menu.main]]
+  name = "Documentación"
+  weight = 10
+  url = "/es/docs/"
+
+[[languages.es.menu.main]]
+  name = "pkg.go.dev"
+  weight = 30
+  url = "https://pkg.go.dev/github.com/gofhir/fhirpath"
+  pre = "<i class='fa-solid fa-arrow-up-right-from-square'></i>"
+
+[[languages.es.menu.main]]
   name = "GitHub"
   weight = 40
   url = "https://github.com/gofhir/fhirpath"

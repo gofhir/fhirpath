@@ -47,19 +47,19 @@ cero dependencias de modelos FHIR externos. Listo para servicios de alto rendimi
 {{% /blocks/section %}}
 
 
-{{% blocks/section color="white" %}}
+{{< blocks/section color="white" >}}
+<div class="col-lg-8 mx-auto">
+  <h2 class="text-center mb-4">Inicio Rápido</h2>
 
-## Inicio Rápido
+  <h5><i class="fa-solid fa-download me-2 text-primary"></i>Instala la biblioteca</h5>
 
-Instala la biblioteca:
-
-```bash
+{{< highlight bash >}}
 go get github.com/gofhir/fhirpath
-```
+{{< /highlight >}}
 
-Evalúa una expresión FHIRPath contra un recurso FHIR en cinco líneas:
+  <h5 class="mt-4"><i class="fa-solid fa-code me-2 text-primary"></i>Evalúa una expresión FHIRPath en cinco líneas</h5>
 
-```go
+{{< highlight go >}}
 package main
 
 import (
@@ -75,6 +75,12 @@ func main() {
     }
     fmt.Println(result) // [Doe]
 }
-```
+{{< /highlight >}}
 
-{{% /blocks/section %}}
+  <div class="text-center mt-4">
+    <a class="btn btn-lg btn-primary" href="{{< relref "/docs/getting-started" >}}">
+      Leer la guía completa <i class="fas fa-arrow-right ms-2"></i>
+    </a>
+  </div>
+</div>
+{{< /blocks/section >}}
