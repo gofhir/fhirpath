@@ -47,7 +47,7 @@ external FHIR model dependencies. Ready for high-throughput services.
 {{% /blocks/section %}}
 
 
-{{< blocks/section color="white" >}}
+{{< blocks/section color="light" >}}
 <div class="col-lg-8 mx-auto">
   <h2 class="text-center mb-4">Quick Start</h2>
 

@@ -47,7 +47,7 @@ cero dependencias de modelos FHIR externos. Listo para servicios de alto rendimi
 {{% /blocks/section %}}
 
 
-{{< blocks/section color="white" >}}
+{{< blocks/section color="light" >}}
 <div class="col-lg-8 mx-auto">
   <h2 class="text-center mb-4">Inicio Rápido</h2>
 
