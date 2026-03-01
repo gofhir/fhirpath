@@ -954,6 +954,68 @@ func TestResourceBaseTypeIntegration(t *testing.T) {
 	})
 }
 
+// Test aggregate() function with $total and $index — GitHub issue #8
+func TestAggregateIntegration(t *testing.T) {
+	t.Run("sum with aggregate", func(t *testing.T) {
+		resource := []byte(`{
+			"resourceType": "Observation",
+			"component": [
+				{"valueInteger": 10},
+				{"valueInteger": 20},
+				{"valueInteger": 30}
+			]
+		}`)
+
+		expr := fhirpath.MustCompile("component.valueInteger.aggregate($this + $total, 0)")
+		result, err := expr.Evaluate(resource)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Empty() {
+			t.Fatal("expected non-empty result")
+		}
+		if result[0].String() != "60" {
+			t.Errorf("expected 60, got %s", result[0].String())
+		}
+	})
+
+	t.Run("aggregate without init returns empty for empty input", func(t *testing.T) {
+		resource := []byte(`{"resourceType": "Patient"}`)
+		expr := fhirpath.MustCompile("name.aggregate($this + $total)")
+		result, err := expr.Evaluate(resource)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if !result.Empty() {
+			t.Errorf("expected empty result, got %d elements", len(result))
+		}
+	})
+
+	t.Run("aggregate with $index", func(t *testing.T) {
+		resource := []byte(`{
+			"resourceType": "Patient",
+			"name": [
+				{"family": "A"},
+				{"family": "B"},
+				{"family": "C"}
+			]
+		}`)
+
+		// Use $index to count elements: aggregate($total + 1, 0)
+		expr := fhirpath.MustCompile("name.aggregate($total + 1, 0)")
+		result, err := expr.Evaluate(resource)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if result.Empty() {
+			t.Fatal("expected non-empty result")
+		}
+		if result[0].String() != "3" {
+			t.Errorf("expected 3, got %s", result[0].String())
+		}
+	})
+}
+
 // Helper functions
 func boolPtr(b bool) *bool {
 	return &b

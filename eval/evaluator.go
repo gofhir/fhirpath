@@ -450,6 +450,10 @@ func (e *Evaluator) VisitFunctionInvocation(ctx *grammar.FunctionInvocationConte
 		if argCount > 0 {
 			return e.evaluateOfType(input, argExprs[0])
 		}
+	case "aggregate":
+		if argCount >= 1 {
+			return e.evaluateAggregate(input, argExprs)
+		}
 	case "iif":
 		// iif requires lazy evaluation - only evaluate the branch that matches
 		if argCount >= 2 {
@@ -649,6 +653,70 @@ func (e *Evaluator) evaluateSelect(input types.Collection, projection grammar.IE
 	}
 
 	return result
+}
+
+// evaluateAggregate evaluates aggregate(aggregator [, init]).
+// Iterates over the collection, maintaining $total across iterations.
+// Per FHIRPath spec §5.4.1: $this is the current element, $index is the 0-based index,
+// and $total accumulates the result starting from init (or empty if not provided).
+func (e *Evaluator) evaluateAggregate(input types.Collection, argExprs []grammar.IExpressionContext) interface{} {
+	aggregator := argExprs[0]
+
+	// Evaluate optional init value
+	var total types.Collection
+	if len(argExprs) > 1 {
+		initResult := e.Visit(argExprs[1])
+		if err, ok := initResult.(error); ok {
+			return err
+		}
+		if col, ok := initResult.(types.Collection); ok {
+			total = col
+		}
+	}
+	if total == nil {
+		total = types.Collection{}
+	}
+
+	// Save and restore context
+	oldThis := e.ctx.this
+	oldIndex := e.ctx.index
+	oldTotal := e.ctx.total
+	defer func() {
+		e.ctx.this = oldThis
+		e.ctx.index = oldIndex
+		e.ctx.total = oldTotal
+	}()
+
+	for i, item := range input {
+		// Check for cancellation periodically
+		if i%100 == 0 {
+			if err := e.ctx.CheckCancellation(); err != nil {
+				return err
+			}
+		}
+
+		// Set $this, $index, and $total for each iteration
+		e.ctx.this = types.Collection{item}
+		e.ctx.index = i
+		if len(total) > 0 {
+			e.ctx.total = total[0]
+		} else {
+			e.ctx.total = nil
+		}
+
+		// Evaluate the aggregator expression
+		result := e.Visit(aggregator)
+		if err, ok := result.(error); ok {
+			return err
+		}
+
+		// Update $total with the result
+		if col, ok := result.(types.Collection); ok {
+			total = col
+		}
+	}
+
+	return total
 }
 
 // evaluateIsFunction evaluates is() function - checks if input is of specified type.
