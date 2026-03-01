@@ -1800,3 +1800,39 @@ func TestContextPathGetterSetter(t *testing.T) {
 		t.Errorf("expected path 'Patient.name', got %q", ctx.Path())
 	}
 }
+
+func TestIsResourceType(t *testing.T) {
+	model := newTestModel()
+
+	tests := []struct {
+		name     string
+		typeName string
+		model    Model
+		expected bool
+	}{
+		// With model — uses model.IsResource()
+		{"Patient is resource with model", "Patient", model, true},
+		{"Observation is resource with model", "Observation", model, true},
+		{"Bundle is resource with model", "Bundle", model, true},
+		{"HumanName is NOT resource with model", "HumanName", model, false},
+		{"Quantity is NOT resource with model", "Quantity", model, false},
+		{"BackboneElement is NOT resource with model", "BackboneElement", model, false},
+
+		// Without model — uses isPossibleResourceType heuristic
+		{"Patient is resource without model", "Patient", nil, true},
+		{"Boolean is NOT resource without model", "Boolean", nil, false},
+		{"String is NOT resource without model", "String", nil, false},
+		{"empty is NOT resource without model", "", nil, false},
+		// Heuristic limitation: HumanName looks like a resource (PascalCase)
+		{"HumanName is resource without model (heuristic)", "HumanName", nil, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := isResourceType(tt.typeName, tt.model)
+			if result != tt.expected {
+				t.Errorf("isResourceType(%q) = %v, want %v", tt.typeName, result, tt.expected)
+			}
+		})
+	}
+}

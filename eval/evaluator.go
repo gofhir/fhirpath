@@ -1445,6 +1445,16 @@ func isPossibleResourceType(typeName string) bool {
 	return typeName[0] >= 'A' && typeName[0] <= 'Z'
 }
 
+// isResourceType returns true if typeName is a known FHIR resource type.
+// Uses model.IsResource() when available, otherwise falls back to the
+// isPossibleResourceType heuristic.
+func isResourceType(typeName string, model Model) bool {
+	if model != nil {
+		return model.IsResource(typeName)
+	}
+	return isPossibleResourceType(typeName)
+}
+
 // IsSubtypeOfWithModel checks subtype relationship using the model if available,
 // falling back to the built-in heuristic when model is nil.
 // When a model is present, it is authoritative — the heuristic fallback is skipped.
@@ -1604,9 +1614,10 @@ func (e *Evaluator) navigateMember(input types.Collection, name string) types.Co
 			continue
 		}
 
-		// Check if name matches resourceType (for FHIR resources)
-		// Uses IsSubtypeOf to handle Resource and DomainResource base types
-		if IsSubtypeOfWithModel(obj.Type(), name, e.ctx.model) {
+		// Check if name matches resourceType (for FHIR resources).
+		// Skip subtype check for lowercase names (field names like "name", "status")
+		// since FHIR type names always start with uppercase.
+		if name != "" && name[0] >= 'A' && name[0] <= 'Z' && IsSubtypeOfWithModel(obj.Type(), name, e.ctx.model) {
 			// Entering a resource — set path to resource type
 			e.ctx.path = obj.Type()
 			result = append(result, obj)
