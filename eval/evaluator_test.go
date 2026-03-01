@@ -1594,3 +1594,209 @@ func TestQuantityComparison(t *testing.T) {
 		})
 	}
 }
+
+// mockModel implements the eval.Model interface for testing.
+type mockModel struct {
+	choiceTypes      map[string][]string
+	typeOf           map[string]string
+	referenceTargets map[string][]string
+	parentType       map[string]string
+	resolvePath      map[string]string
+	resources        map[string]bool
+}
+
+func (m *mockModel) ChoiceTypes(path string) []string      { return m.choiceTypes[path] }
+func (m *mockModel) TypeOf(path string) string             { return m.typeOf[path] }
+func (m *mockModel) ReferenceTargets(path string) []string { return m.referenceTargets[path] }
+func (m *mockModel) ParentType(typeName string) string     { return m.parentType[typeName] }
+func (m *mockModel) IsSubtype(child, parent string) bool {
+	if child == parent {
+		return true
+	}
+	current := child
+	for {
+		p, ok := m.parentType[current]
+		if !ok || p == "" {
+			return false
+		}
+		if p == parent {
+			return true
+		}
+		current = p
+	}
+}
+func (m *mockModel) ResolvePath(path string) string {
+	if resolved, ok := m.resolvePath[path]; ok {
+		return resolved
+	}
+	return path
+}
+func (m *mockModel) IsResource(typeName string) bool { return m.resources[typeName] }
+
+func newTestModel() *mockModel {
+	return &mockModel{
+		choiceTypes: map[string][]string{
+			"Observation.value": {"Quantity", "CodeableConcept", "string", "boolean", "integer", "Range", "Ratio", "SampledData", "time", "dateTime", "Period"},
+			"Patient.deceased":  {"boolean", "dateTime"},
+		},
+		typeOf: map[string]string{
+			"Patient.name":         "HumanName",
+			"Patient.gender":       "code",
+			"Patient.active":       "boolean",
+			"Observation.subject":  "Reference",
+			"Observation.status":   "code",
+			"Observation.code":     "CodeableConcept",
+			"Patient.contact":      "BackboneElement",
+			"Patient.contact.name": "HumanName",
+		},
+		referenceTargets: map[string][]string{
+			"Observation.subject": {"Patient", "Group", "Device", "Location"},
+		},
+		parentType: map[string]string{
+			"Patient":         "DomainResource",
+			"Observation":     "DomainResource",
+			"Bundle":          "Resource",
+			"DomainResource":  "Resource",
+			"Age":             "Quantity",
+			"Duration":        "Quantity",
+			"Distance":        "Quantity",
+			"Count":           "Quantity",
+			"MoneyQuantity":   "Quantity",
+			"SimpleQuantity":  "Quantity",
+			"BackboneElement": "Element",
+		},
+		resolvePath: map[string]string{
+			"Questionnaire.item.item": "Questionnaire.item",
+		},
+		resources: map[string]bool{
+			"Patient":     true,
+			"Observation": true,
+			"Bundle":      true,
+			"Parameters":  true,
+		},
+	}
+}
+
+func TestIsSubtypeOfWithModel(t *testing.T) {
+	model := newTestModel()
+
+	tests := []struct {
+		name     string
+		actual   string
+		base     string
+		model    Model
+		expected bool
+	}{
+		// With model — supports full type hierarchy
+		{"Age is Quantity with model", "Age", "Quantity", model, true},
+		{"Duration is Quantity with model", "Duration", "Quantity", model, true},
+		{"Patient is DomainResource with model", "Patient", "DomainResource", model, true},
+		{"Patient is Resource with model (transitive)", "Patient", "Resource", model, true},
+		{"Bundle is Resource with model", "Bundle", "Resource", model, true},
+		{"Patient is Patient with model (reflexive)", "Patient", "Patient", model, true},
+		{"Patient is not Observation with model", "Patient", "Observation", model, false},
+
+		// Model-authoritative: heuristic would say true, but model says false
+		{"HumanName is NOT Resource with model", "HumanName", "Resource", model, false},
+		{"BackboneElement is NOT Resource with model", "BackboneElement", "Resource", model, false},
+		{"HumanName is NOT DomainResource with model", "HumanName", "DomainResource", model, false},
+
+		// Without model — falls back to heuristics
+		{"Age is Quantity without model (heuristic)", "Age", "Quantity", nil, false},
+		{"Patient is DomainResource without model", "Patient", "DomainResource", nil, true},
+		{"Patient is Resource without model", "Patient", "Resource", nil, true},
+		// Heuristic says true (PascalCase), but this is incorrect without model
+		{"HumanName is Resource without model (heuristic)", "HumanName", "Resource", nil, true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := IsSubtypeOfWithModel(tt.actual, tt.base, tt.model)
+			if result != tt.expected {
+				t.Errorf("IsSubtypeOfWithModel(%q, %q) = %v, want %v", tt.actual, tt.base, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestTypeMatchesWithModel(t *testing.T) {
+	model := newTestModel()
+
+	tests := []struct {
+		name     string
+		actual   string
+		typeName string
+		model    Model
+		expected bool
+	}{
+		// Exact match — always works
+		{"exact match Patient", "Patient", "Patient", nil, true},
+		{"exact match String", "String", "String", nil, true},
+
+		// With model — subtype checking
+		{"Age matches Quantity with model", "Age", "Quantity", model, true},
+		{"Duration matches Quantity with model", "Duration", "Quantity", model, true},
+		{"Patient matches DomainResource with model", "Patient", "DomainResource", model, true},
+		{"Patient matches Resource with model", "Patient", "Resource", model, true},
+
+		// Without model — heuristics also handle some cases
+		{"Age matches Quantity without model (via TypeMatches heuristic)", "Age", "Quantity", nil, true},
+
+		// Model-authoritative: heuristic would say true, but model says false
+		{"HumanName doesn't match Resource with model", "HumanName", "Resource", model, false},
+		{"BackboneElement doesn't match Resource with model", "BackboneElement", "Resource", model, false},
+
+		// Spec-stable maps always work with model
+		{"code matches String with model (spec map)", "String", "code", model, true},
+		{"instant matches DateTime with model (spec map)", "DateTime", "instant", model, true},
+		{"uri matches String with model (spec map)", "String", "uri", model, true},
+
+		// Namespace handling works with model
+		{"System.Boolean matches with model", "Boolean", "System.Boolean", model, true},
+		{"FHIR.Patient matches with model", "Patient", "FHIR.Patient", model, true},
+
+		// False cases
+		{"Patient doesn't match Observation", "Patient", "Observation", model, false},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result := TypeMatchesWithModel(tt.actual, tt.typeName, tt.model)
+			if result != tt.expected {
+				t.Errorf("TypeMatchesWithModel(%q, %q) = %v, want %v", tt.actual, tt.typeName, result, tt.expected)
+			}
+		})
+	}
+}
+
+func TestContextModelGetterSetter(t *testing.T) {
+	ctx := NewContext([]byte(`{}`))
+
+	// Initially nil
+	if ctx.GetModel() != nil {
+		t.Error("expected nil model initially")
+	}
+
+	// Set model
+	model := newTestModel()
+	ctx.SetModel(model)
+
+	if ctx.GetModel() == nil {
+		t.Error("expected non-nil model after SetModel")
+	}
+}
+
+func TestContextPathGetterSetter(t *testing.T) {
+	ctx := NewContext([]byte(`{}`))
+
+	// Initially empty
+	if ctx.Path() != "" {
+		t.Errorf("expected empty path initially, got %q", ctx.Path())
+	}
+
+	// Set path
+	ctx.SetPath("Patient.name")
+	if ctx.Path() != "Patient.name" {
+		t.Errorf("expected path 'Patient.name', got %q", ctx.Path())
+	}
+}

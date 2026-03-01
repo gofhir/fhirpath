@@ -47,6 +47,20 @@ type ProfileValidator interface {
 	ConformsTo(ctx context.Context, resource []byte, profileURL string) (bool, error)
 }
 
+// Model provides FHIR version-specific type and path metadata.
+// When set on a Context, the evaluator uses it for precise polymorphic
+// field resolution, type hierarchy checking, and path-based type inference.
+// When nil, the evaluator falls back to built-in heuristics.
+type Model interface {
+	ChoiceTypes(path string) []string
+	TypeOf(path string) string
+	ReferenceTargets(path string) []string
+	ParentType(typeName string) string
+	IsSubtype(child, parent string) bool
+	ResolvePath(path string) string
+	IsResource(typeName string) bool
+}
+
 // Evaluator evaluates FHIRPath expressions using the visitor pattern.
 type Evaluator struct {
 	grammar.BasefhirpathVisitor
@@ -66,6 +80,8 @@ type Context struct {
 	resolver           Resolver
 	terminologyService TerminologyService
 	profileValidator   ProfileValidator
+	model              Model  // FHIR version-specific model data (nil = use heuristics)
+	path               string // current FHIR navigation path (e.g., "Patient.name")
 }
 
 // NewContext creates a new evaluation context.
@@ -153,6 +169,26 @@ func (c *Context) SetProfileValidator(pv ProfileValidator) {
 // GetProfileValidator returns the profile validator.
 func (c *Context) GetProfileValidator() ProfileValidator {
 	return c.profileValidator
+}
+
+// SetModel sets the FHIR model for version-specific type resolution.
+func (c *Context) SetModel(m Model) {
+	c.model = m
+}
+
+// GetModel returns the FHIR model, or nil if not set.
+func (c *Context) GetModel() Model {
+	return c.model
+}
+
+// SetPath sets the current FHIR navigation path.
+func (c *Context) SetPath(path string) {
+	c.path = path
+}
+
+// Path returns the current FHIR navigation path.
+func (c *Context) Path() string {
+	return c.path
 }
 
 // CheckCancellation checks if the context has been canceled.
@@ -499,6 +535,7 @@ func (e *Evaluator) evaluateWhere(input types.Collection, criteria grammar.IExpr
 		// Set $this to current item and $index
 		oldThis := e.ctx.this
 		oldIndex := e.ctx.index
+		oldPath := e.ctx.path
 		e.ctx.this = types.Collection{item}
 		e.ctx.index = i
 
@@ -508,6 +545,7 @@ func (e *Evaluator) evaluateWhere(input types.Collection, criteria grammar.IExpr
 		// Restore context
 		e.ctx.this = oldThis
 		e.ctx.index = oldIndex
+		e.ctx.path = oldPath
 
 		if err, ok := criteriaResult.(error); ok {
 			return err
@@ -537,6 +575,7 @@ func (e *Evaluator) evaluateExists(input types.Collection, criteria grammar.IExp
 		// Set $this to current item
 		oldThis := e.ctx.this
 		oldIndex := e.ctx.index
+		oldPath := e.ctx.path
 		e.ctx.this = types.Collection{item}
 		e.ctx.index = i
 
@@ -546,6 +585,7 @@ func (e *Evaluator) evaluateExists(input types.Collection, criteria grammar.IExp
 		// Restore context
 		e.ctx.this = oldThis
 		e.ctx.index = oldIndex
+		e.ctx.path = oldPath
 
 		if err, ok := criteriaResult.(error); ok {
 			return err
@@ -579,6 +619,7 @@ func (e *Evaluator) evaluateAll(input types.Collection, criteria grammar.IExpres
 		// Set $this to current item
 		oldThis := e.ctx.this
 		oldIndex := e.ctx.index
+		oldPath := e.ctx.path
 		e.ctx.this = types.Collection{item}
 		e.ctx.index = i
 
@@ -588,6 +629,7 @@ func (e *Evaluator) evaluateAll(input types.Collection, criteria grammar.IExpres
 		// Restore context
 		e.ctx.this = oldThis
 		e.ctx.index = oldIndex
+		e.ctx.path = oldPath
 
 		if err, ok := criteriaResult.(error); ok {
 			return err
@@ -627,6 +669,7 @@ func (e *Evaluator) evaluateSelect(input types.Collection, projection grammar.IE
 		// Set $this to current item
 		oldThis := e.ctx.this
 		oldIndex := e.ctx.index
+		oldPath := e.ctx.path
 		e.ctx.this = types.Collection{item}
 		e.ctx.index = i
 
@@ -636,6 +679,7 @@ func (e *Evaluator) evaluateSelect(input types.Collection, projection grammar.IE
 		// Restore context
 		e.ctx.this = oldThis
 		e.ctx.index = oldIndex
+		e.ctx.path = oldPath
 
 		if err, ok := projResult.(error); ok {
 			return err
@@ -681,10 +725,12 @@ func (e *Evaluator) evaluateAggregate(input types.Collection, argExprs []grammar
 	oldThis := e.ctx.this
 	oldIndex := e.ctx.index
 	oldTotal := e.ctx.total
+	oldPath := e.ctx.path
 	defer func() {
 		e.ctx.this = oldThis
 		e.ctx.index = oldIndex
 		e.ctx.total = oldTotal
+		e.ctx.path = oldPath
 	}()
 
 	for i, item := range input {
@@ -741,7 +787,7 @@ func (e *Evaluator) evaluateIsFunction(input types.Collection, typeExpr grammar.
 	// Get actual type - Type() already returns resourceType for ObjectValue
 	actualType := input[0].Type()
 
-	matches := TypeMatches(actualType, typeName)
+	matches := TypeMatchesWithModel(actualType, typeName, e.ctx.model)
 	return types.Collection{types.NewBoolean(matches)}
 }
 
@@ -771,7 +817,7 @@ func (e *Evaluator) evaluateAsFunction(input types.Collection, typeExpr grammar.
 			actualType = obj.Type()
 		}
 
-		if TypeMatches(actualType, typeName) {
+		if TypeMatchesWithModel(actualType, typeName, e.ctx.model) {
 			result = append(result, item)
 		}
 	}
@@ -814,7 +860,7 @@ func (e *Evaluator) evaluateOfType(input types.Collection, typeExpr grammar.IExp
 			actualType = obj.Type()
 		}
 
-		if TypeMatches(actualType, typeName) {
+		if TypeMatchesWithModel(actualType, typeName, e.ctx.model) {
 			result = append(result, item)
 		}
 	}
@@ -902,10 +948,14 @@ func (e *Evaluator) VisitInvocationExpression(ctx *grammar.InvocationExpressionC
 	}
 	baseCol := base.(types.Collection)
 
-	// Save current this and set new this
+	// Save current this and path, set new this
 	oldThis := e.ctx.this
+	oldPath := e.ctx.path
 	e.ctx.this = baseCol
-	defer func() { e.ctx.this = oldThis }()
+	defer func() {
+		e.ctx.this = oldThis
+		e.ctx.path = oldPath
+	}()
 
 	// Evaluate the invocation
 	return e.Visit(ctx.Invocation())
@@ -1266,7 +1316,7 @@ func (e *Evaluator) VisitTypeExpression(ctx *grammar.TypeExpressionContext) inte
 			return SingletonError(len(leftCol))
 		}
 		actualType := leftCol[0].Type()
-		return types.Collection{types.NewBoolean(TypeMatches(actualType, typeName))}
+		return types.Collection{types.NewBoolean(TypeMatchesWithModel(actualType, typeName, e.ctx.model))}
 	case "as":
 		// as filters collections by type (consistent with evaluateAsFunction)
 		result := types.Collection{}
@@ -1275,7 +1325,7 @@ func (e *Evaluator) VisitTypeExpression(ctx *grammar.TypeExpressionContext) inte
 			if obj, ok := item.(*types.ObjectValue); ok {
 				actualType = obj.Type()
 			}
-			if TypeMatches(actualType, typeName) {
+			if TypeMatchesWithModel(actualType, typeName, e.ctx.model) {
 				result = append(result, item)
 			}
 		}
@@ -1291,6 +1341,45 @@ var nonDomainResources = map[string]bool{
 	"Bundle":     true,
 	"Binary":     true,
 	"Parameters": true,
+}
+
+// fhirPathSpecMap contains FHIRPath spec-stable primitive type mappings.
+// These are defined by the FHIRPath specification and are stable across FHIR versions.
+// Keys are lowercase FHIR type names, values are PascalCase FHIRPath type names.
+var fhirPathSpecMap = map[string]string{
+	"boolean":      "Boolean",
+	"string":       "String",
+	"integer":      "Integer",
+	"decimal":      "Decimal",
+	"date":         "Date",
+	"datetime":     "DateTime",
+	"time":         "Time",
+	"instant":      "DateTime",
+	"uri":          "String",
+	"url":          "String",
+	"canonical":    "String",
+	"base64binary": "String",
+	"code":         "String",
+	"id":           "String",
+	"markdown":     "String",
+	"oid":          "String",
+	"uuid":         "String",
+	"positiveint":  "Integer",
+	"unsignedint":  "Integer",
+	"integer64":    "Integer",
+	"quantity":     "Quantity",
+	"money":        "Quantity",
+}
+
+// fhirVersionSpecificMap contains FHIR version-specific profiled type mappings.
+// These types are profiled Quantity subtypes that may vary across FHIR versions.
+// When a Model is available, these mappings are skipped in favor of model.IsSubtype().
+var fhirVersionSpecificMap = map[string]string{
+	"simplequantity": "Quantity",
+	"age":            "Quantity",
+	"count":          "Quantity",
+	"distance":       "Quantity",
+	"duration":       "Quantity",
 }
 
 // IsDomainResource returns true if the given resource type inherits from DomainResource.
@@ -1356,6 +1445,84 @@ func isPossibleResourceType(typeName string) bool {
 	return typeName[0] >= 'A' && typeName[0] <= 'Z'
 }
 
+// IsSubtypeOfWithModel checks subtype relationship using the model if available,
+// falling back to the built-in heuristic when model is nil.
+// When a model is present, it is authoritative — the heuristic fallback is skipped.
+func IsSubtypeOfWithModel(actualType, baseType string, model Model) bool {
+	if actualType == baseType || strings.EqualFold(actualType, baseType) {
+		return true
+	}
+	if model != nil {
+		return model.IsSubtype(actualType, baseType)
+	}
+	return IsSubtypeOf(actualType, baseType)
+}
+
+// TypeMatchesWithModel checks type matching using the model if available,
+// falling back to the built-in TypeMatches when model is nil.
+// When a model is present, it is authoritative for type hierarchy — only
+// spec-stable FHIRPath type mappings are applied, version-specific heuristics are skipped.
+func TypeMatchesWithModel(actualType, typeName string, model Model) bool {
+	if actualType == typeName {
+		return true
+	}
+
+	actualLower := strings.ToLower(actualType)
+	typeNameLower := strings.ToLower(typeName)
+
+	if actualLower == typeNameLower {
+		return true
+	}
+
+	if model != nil {
+		// Model is authoritative for type hierarchy
+		if model.IsSubtype(actualType, typeName) {
+			return true
+		}
+		// Only use spec-stable mappings (skip version-specific profiled types)
+		return typeMatchesSpecMaps(actualType, typeName, actualLower, typeNameLower, fhirPathSpecMap)
+	}
+
+	// No model: full heuristic (backward compatible)
+	return TypeMatches(actualType, typeName)
+}
+
+// typeMatchesSpecMaps checks if actualType matches typeName using the provided
+// FHIR-to-FHIRPath type mapping and namespace handling (System.*, FHIR.*).
+func typeMatchesSpecMaps(actualType, typeName, actualLower, typeNameLower string, specMap map[string]string) bool {
+	// Check if requesting a FHIR type that maps to a FHIRPath type
+	if fhirPathType, ok := specMap[typeNameLower]; ok {
+		if actualType == fhirPathType {
+			return true
+		}
+	}
+
+	// Check reverse: if actual type is a FHIR type that maps to the requested FHIRPath type
+	if fhirPathType, ok := specMap[actualLower]; ok {
+		if fhirPathType == typeName || strings.EqualFold(fhirPathType, typeName) {
+			return true
+		}
+	}
+
+	// System type namespace handling (System.Boolean, System.String, etc.)
+	if strings.HasPrefix(typeNameLower, "system.") {
+		systemType := typeName[7:] // Remove "System." prefix
+		if strings.EqualFold(actualType, systemType) {
+			return true
+		}
+	}
+
+	// FHIR namespace handling (FHIR.Patient, etc.)
+	if strings.HasPrefix(typeNameLower, "fhir.") {
+		fhirType := typeName[5:] // Remove "FHIR." prefix
+		if strings.EqualFold(actualType, fhirType) {
+			return true
+		}
+	}
+
+	return false
+}
+
 // TypeMatches checks if actualType matches the requested typeName.
 // Handles case-insensitive comparison and FHIR type aliases.
 // This function is exported for use by the is() function implementation.
@@ -1379,66 +1546,14 @@ func TypeMatches(actualType, typeName string) bool {
 		return true
 	}
 
-	// FHIR primitive type mappings (FHIR uses lowercase, FHIRPath uses PascalCase)
-	fhirToFHIRPath := map[string]string{
-		"boolean":        "Boolean",
-		"string":         "String",
-		"integer":        "Integer",
-		"decimal":        "Decimal",
-		"date":           "Date",
-		"datetime":       "DateTime",
-		"time":           "Time",
-		"instant":        "DateTime",
-		"uri":            "String",
-		"url":            "String",
-		"canonical":      "String",
-		"base64binary":   "String",
-		"code":           "String",
-		"id":             "String",
-		"markdown":       "String",
-		"oid":            "String",
-		"uuid":           "String",
-		"positiveint":    "Integer",
-		"unsignedint":    "Integer",
-		"integer64":      "Integer",
-		"quantity":       "Quantity",
-		"simplequantity": "Quantity",
-		"age":            "Quantity",
-		"count":          "Quantity",
-		"distance":       "Quantity",
-		"duration":       "Quantity",
-		"money":          "Quantity",
+	// Check spec-stable FHIR-to-FHIRPath type mappings + namespace handling
+	if typeMatchesSpecMaps(actualType, typeName, actualLower, typeNameLower, fhirPathSpecMap) {
+		return true
 	}
 
-	// Check if requesting a FHIR type that maps to a FHIRPath type
-	if fhirPathType, ok := fhirToFHIRPath[typeNameLower]; ok {
-		if actualType == fhirPathType {
-			return true
-		}
-	}
-
-	// Check reverse: if actual type is a FHIR type that maps to the requested FHIRPath type
-	if fhirPathType, ok := fhirToFHIRPath[actualLower]; ok {
-		if fhirPathType == typeName || strings.EqualFold(fhirPathType, typeName) {
-			return true
-		}
-	}
-
-	// System type namespace handling (FHIR.* and System.*)
-	// System.Boolean, System.String, etc.
-	if strings.HasPrefix(typeNameLower, "system.") {
-		systemType := typeName[7:] // Remove "System." prefix
-		if strings.EqualFold(actualType, systemType) {
-			return true
-		}
-	}
-
-	// FHIR namespace handling
-	if strings.HasPrefix(typeNameLower, "fhir.") {
-		fhirType := typeName[5:] // Remove "FHIR." prefix
-		if strings.EqualFold(actualType, fhirType) {
-			return true
-		}
+	// Check FHIR version-specific type mappings (profiled Quantity subtypes)
+	if typeMatchesSpecMaps(actualType, typeName, actualLower, typeNameLower, fhirVersionSpecificMap) {
+		return true
 	}
 
 	return false
@@ -1462,6 +1577,21 @@ var polymorphicTypeSuffixes = []string{
 	"ParameterDefinition", "RelatedArtifact", "TriggerDefinition", "UsageContext",
 }
 
+// buildElementPath constructs a FHIR element path from the object type and field name.
+// For example, buildElementPath("Observation", "value") returns "Observation.value".
+// If the model provides a contentReference redirect (e.g., "Questionnaire.item.item"
+// → "Questionnaire.item"), the resolved path is returned instead.
+func (e *Evaluator) buildElementPath(objType, name string) string {
+	if objType == "" {
+		return ""
+	}
+	path := objType + "." + name
+	if m := e.ctx.model; m != nil {
+		path = m.ResolvePath(path)
+	}
+	return path
+}
+
 // navigateMember navigates to a member of objects in the collection.
 // Supports FHIR polymorphic elements (value[x] pattern) by automatically
 // resolving element names like "value" to their typed variants.
@@ -1476,14 +1606,20 @@ func (e *Evaluator) navigateMember(input types.Collection, name string) types.Co
 
 		// Check if name matches resourceType (for FHIR resources)
 		// Uses IsSubtypeOf to handle Resource and DomainResource base types
-		if IsSubtypeOf(obj.Type(), name) {
+		if IsSubtypeOfWithModel(obj.Type(), name, e.ctx.model) {
+			// Entering a resource — set path to resource type
+			e.ctx.path = obj.Type()
 			result = append(result, obj)
 			continue
 		}
 
+		// Build FHIR element path for model lookups
+		elementPath := e.buildElementPath(obj.Type(), name)
+
 		// Try direct field access first
 		children := obj.GetCollection(name)
 		if len(children) > 0 {
+			e.ctx.path = elementPath
 			result = append(result, children...)
 			continue
 		}
@@ -1491,7 +1627,10 @@ func (e *Evaluator) navigateMember(input types.Collection, name string) types.Co
 		// If direct access failed, try polymorphic element resolution
 		// This handles FHIR's value[x] pattern where "value" can resolve to
 		// "valueQuantity", "valueString", "valueCodeableConcept", etc.
-		polymorphicChildren := e.resolvePolymorphicField(obj, name)
+		polymorphicChildren := e.resolvePolymorphicField(obj, name, elementPath)
+		if len(polymorphicChildren) > 0 {
+			e.ctx.path = elementPath
+		}
 		result = append(result, polymorphicChildren...)
 	}
 
@@ -1500,10 +1639,27 @@ func (e *Evaluator) navigateMember(input types.Collection, name string) types.Co
 
 // resolvePolymorphicField attempts to resolve a polymorphic FHIR element.
 // For example, accessing "value" will search for "valueQuantity", "valueString", etc.
-func (e *Evaluator) resolvePolymorphicField(obj *types.ObjectValue, name string) types.Collection {
+// When a Model is available and elementPath is non-empty, uses precise choice type
+// suffixes from the model. Otherwise falls back to the brute-force suffix list.
+func (e *Evaluator) resolvePolymorphicField(obj *types.ObjectValue, name, elementPath string) types.Collection {
 	result := types.Collection{}
 
-	// Try each possible type suffix
+	// When a model is available, use precise choice type suffixes
+	if m := e.ctx.model; m != nil && elementPath != "" {
+		if suffixes := m.ChoiceTypes(elementPath); len(suffixes) > 0 {
+			for _, suffix := range suffixes {
+				fieldName := name + strings.ToUpper(suffix[:1]) + suffix[1:]
+				children := obj.GetCollection(fieldName)
+				if len(children) > 0 {
+					result = append(result, children...)
+					return result
+				}
+			}
+			return result
+		}
+	}
+
+	// Fallback: try each possible type suffix from the hardcoded list
 	for _, suffix := range polymorphicTypeSuffixes {
 		fieldName := name + suffix
 		children := obj.GetCollection(fieldName)

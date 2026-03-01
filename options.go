@@ -27,6 +27,10 @@ type EvalOptions struct {
 
 	// Resolver handles reference resolution for resolve() function
 	Resolver ReferenceResolver
+
+	// Model provides FHIR version-specific type metadata.
+	// When nil, the engine uses built-in heuristics.
+	Model Model
 }
 
 // DefaultOptions returns default evaluation options suitable for production.
@@ -127,6 +131,11 @@ func (e *Expression) EvaluateWithOptions(resource []byte, opts ...EvalOption) (t
 		evalCtx.SetResolver(newResolverAdapter(options.Resolver))
 	}
 
+	// Set model if provided
+	if options.Model != nil {
+		evalCtx.SetModel(newModelAdapter(options.Model))
+	}
+
 	return e.EvaluateWithContext(evalCtx)
 }
 
@@ -142,3 +151,20 @@ func newResolverAdapter(r ReferenceResolver) *resolverAdapter {
 func (a *resolverAdapter) Resolve(ctx context.Context, reference string) ([]byte, error) {
 	return a.resolver.Resolve(ctx, reference)
 }
+
+// modelAdapter adapts fhirpath.Model to eval.Model
+type modelAdapter struct {
+	model Model
+}
+
+func newModelAdapter(m Model) *modelAdapter {
+	return &modelAdapter{model: m}
+}
+
+func (a *modelAdapter) ChoiceTypes(path string) []string      { return a.model.ChoiceTypes(path) }
+func (a *modelAdapter) TypeOf(path string) string             { return a.model.TypeOf(path) }
+func (a *modelAdapter) ReferenceTargets(path string) []string { return a.model.ReferenceTargets(path) }
+func (a *modelAdapter) ParentType(typeName string) string     { return a.model.ParentType(typeName) }
+func (a *modelAdapter) IsSubtype(child, parent string) bool   { return a.model.IsSubtype(child, parent) }
+func (a *modelAdapter) ResolvePath(path string) string        { return a.model.ResolvePath(path) }
+func (a *modelAdapter) IsResource(typeName string) bool       { return a.model.IsResource(typeName) }
