@@ -728,6 +728,54 @@ func TestAsFunctionIntegration(t *testing.T) {
 	})
 }
 
+// Test as operator (not function) with collections — GitHub issue #7
+func TestAsOperatorIntegration(t *testing.T) {
+	resource := []byte(`{
+		"resourceType": "Patient",
+		"id": "123",
+		"contained": [
+			{"resourceType": "Practitioner", "id": "p1"},
+			{"resourceType": "Organization", "id": "o1"}
+		]
+	}`)
+
+	t.Run("as operator on collection filters by type", func(t *testing.T) {
+		// The operator form "expr as Type" should filter collections,
+		// not throw SingletonExpectedError
+		expr := fhirpath.MustCompile("contained as Practitioner")
+		result, err := expr.Evaluate(resource)
+		if err != nil {
+			t.Fatalf("as operator on collection should not error, got: %v", err)
+		}
+		if len(result) != 1 {
+			t.Errorf("expected 1 Practitioner, got %d elements", len(result))
+		}
+	})
+
+	t.Run("as operator on collection returns empty for no matches", func(t *testing.T) {
+		expr := fhirpath.MustCompile("contained as Encounter")
+		result, err := expr.Evaluate(resource)
+		if err != nil {
+			t.Fatalf("as operator should not error, got: %v", err)
+		}
+		if !result.Empty() {
+			t.Errorf("expected empty result, got %d elements", len(result))
+		}
+	})
+
+	t.Run("as operator on singleton still works", func(t *testing.T) {
+		patient := []byte(`{"resourceType": "Patient", "id": "p1"}`)
+		expr := fhirpath.MustCompile("Patient as Patient")
+		result, err := expr.Evaluate(patient)
+		if err != nil {
+			t.Fatalf("error = %v", err)
+		}
+		if result.Empty() {
+			t.Error("expected non-empty result for matching singleton")
+		}
+	})
+}
+
 // Test is operator (not function)
 func TestIsOperatorIntegration(t *testing.T) {
 	patient := []byte(`{

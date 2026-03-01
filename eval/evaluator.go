@@ -1188,20 +1188,27 @@ func (e *Evaluator) VisitTypeExpression(ctx *grammar.TypeExpressionContext) inte
 		return types.Collection{}
 	}
 
-	if len(leftCol) != 1 {
-		return SingletonError(len(leftCol))
-	}
-
-	actualType := leftCol[0].Type()
-
 	switch op {
 	case "is":
+		// is requires singleton input — returns a boolean
+		if len(leftCol) != 1 {
+			return SingletonError(len(leftCol))
+		}
+		actualType := leftCol[0].Type()
 		return types.Collection{types.NewBoolean(TypeMatches(actualType, typeName))}
 	case "as":
-		if TypeMatches(actualType, typeName) {
-			return leftCol
+		// as filters collections by type (consistent with evaluateAsFunction)
+		result := types.Collection{}
+		for _, item := range leftCol {
+			actualType := item.Type()
+			if obj, ok := item.(*types.ObjectValue); ok {
+				actualType = obj.Type()
+			}
+			if TypeMatches(actualType, typeName) {
+				result = append(result, item)
+			}
 		}
-		return types.Collection{}
+		return result
 	}
 
 	return types.Collection{}
