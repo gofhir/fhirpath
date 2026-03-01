@@ -35,7 +35,7 @@ func init() {
 // fnIsType is the function implementation for is().
 // Note: This is typically not called directly - the evaluator handles is() specially
 // to extract type names from the AST. This stub exists for completeness.
-func fnIsType(_ *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
+func fnIsType(ctx *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
 	if len(args) == 0 {
 		return nil, eval.InvalidArgumentsError("is", 1, 0)
 	}
@@ -59,8 +59,8 @@ func fnIsType(_ *eval.Context, input types.Collection, args []interface{}) (type
 	// Get actual type
 	actualType := input[0].Type()
 
-	// Use the exported TypeMatches function from eval package
-	matches := eval.TypeMatches(actualType, typeName)
+	// Use model-aware type matching when available
+	matches := eval.TypeMatchesWithModel(actualType, typeName, ctx.GetModel())
 	return types.Collection{types.NewBoolean(matches)}, nil
 }
 
