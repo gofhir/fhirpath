@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.2.0](https://github.com/gofhir/fhirpath/compare/v1.1.0...v1.2.0) (2026-03-01)
+
+
+### Features
+
+* add FHIR Model interface for version-specific type resolution ([7f6e07f](https://github.com/gofhir/fhirpath/commit/7f6e07f54c2747f9bbe1b3fe157476deefde10d9))
+* wire model.IsResource() via isResourceType helper ([c8e76e2](https://github.com/gofhir/fhirpath/commit/c8e76e2c55548382ec90b52c7603e91cc2431b44))
+
 ## [1.1.0](https://github.com/gofhir/fhirpath/compare/v1.0.3...v1.1.0) (2026-03-01)
 
 
