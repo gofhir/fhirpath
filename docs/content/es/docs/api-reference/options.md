@@ -31,6 +31,9 @@ type EvalOptions struct {
 
     // Resolver handles reference resolution for the resolve() function.
     Resolver ReferenceResolver
+
+    // Model provides FHIR version-specific type metadata.
+    Model Model
 }
 ```
 
@@ -199,6 +202,28 @@ Consulte [Interfaz ReferenceResolver](#interfaz-referenceresolver) más abajo pa
 
 ---
 
+### WithModel
+
+Proporciona una implementación de `Model` para metadatos de tipos específicos de cada versión FHIR. Cuando hay un modelo presente, el motor lo usa para resolución polimórfica precisa, verificación de jerarquía de tipos e inferencia basada en rutas. El modelo es **autoritativo** --- sus respuestas prevalecen sobre las heurísticas internas.
+
+```go
+func WithModel(m Model) EvalOption
+```
+
+**Ejemplo:**
+
+```go
+import "github.com/gofhir/models/r4"
+
+result, err := expr.EvaluateWithOptions(resource,
+    fhirpath.WithModel(r4.FHIRPathModel()),
+)
+```
+
+Consulte [Modelos FHIR por Versión](/docs/advanced/fhir-model/) para detalles sobre la interfaz `Model` y cómo implementar modelos personalizados.
+
+---
+
 ## Interfaz ReferenceResolver
 
 La interfaz `ReferenceResolver` es implementada por la aplicación para proporcionar resolución de referencias para la función `resolve()` de FHIRPath. Cuando una expresión evalúa `Reference.resolve()`, la biblioteca llama al resolver con la cadena de referencia.
@@ -344,3 +369,4 @@ fmt.Println(result)
 | `WithMaxCollectionSize` | `10000` | Tamaño máximo de la colección de resultados |
 | `WithVariable` | Ninguno | Define variables externas accesibles vía `%name` |
 | `WithResolver` | `nil` | Proporciona resolución de referencias para `resolve()` |
+| `WithModel` | `nil` | Proporciona metadatos de tipos específicos de versión FHIR |

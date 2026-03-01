@@ -20,6 +20,11 @@ production-ready applications. Each topic builds on the core API introduced in t
   timeouts, recursion limits, collection size caps, and custom variables via the
   functional options API.
 
+- **[FHIR Version-Specific Models](fhir-model/)** -- Use the `Model` interface to
+  provide FHIR version-specific type metadata for precise polymorphic resolution,
+  type hierarchy checking, and path-based inference. Compatible with `gofhir/models`
+  for R4, R4B, and R5.
+
 - **[Custom Reference Resolvers](custom-resolvers/)** -- Implement the
   `ReferenceResolver` interface to let the `resolve()` function fetch referenced
   FHIR® resources from HTTP endpoints, in-memory bundles, or any other data source.

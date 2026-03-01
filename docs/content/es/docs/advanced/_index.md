@@ -20,6 +20,11 @@ aplicaciones listas para producción. Cada tema se basa en la API principal pres
   tiempos de espera, límites de recursión, límites de tamaño de colección y variables
   personalizadas a través de la API de opciones funcionales.
 
+- **[Modelos FHIR por Versión](fhir-model/)** -- Use la interfaz `Model` para
+  proporcionar metadatos de tipos específicos de cada versión FHIR, logrando resolución
+  polimórfica precisa, verificación de jerarquía de tipos e inferencia basada en rutas.
+  Compatible con `gofhir/models` para R4, R4B y R5.
+
 - **[Resolvedores de Referencias Personalizados](custom-resolvers/)** -- Implemente la interfaz
   `ReferenceResolver` para permitir que la función `resolve()` obtenga recursos FHIR®
   referenciados desde endpoints HTTP, bundles en memoria o cualquier otra fuente de datos.

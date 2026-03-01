@@ -44,6 +44,25 @@ func main() {
 }
 ```
 
+## FHIR Model Support
+
+For precise type resolution across FHIR versions, supply a version-specific model:
+
+```go
+import "github.com/gofhir/models/r4"
+
+result, err := expr.EvaluateWithOptions(resource,
+    fhirpath.WithModel(r4.FHIRPathModel()),
+)
+```
+
+Without a model, the engine uses built-in heuristics that work for most cases.
+With a model, type hierarchy queries (`is`, `as`, `ofType`) become precise and
+polymorphic elements (`value[x]`) resolve using exact type metadata.
+
+See the [documentation](https://gofhir.github.io/fhirpath/docs/advanced/fhir-model/)
+for details on the Model interface and custom implementations.
+
 ## API Reference
 
 ### Main Functions
