@@ -1072,6 +1072,38 @@ func TestContextVariable(t *testing.T) {
 	})
 }
 
+// TestRootResourceVariable tests the %rootResource environment variable.
+func TestRootResourceVariable(t *testing.T) {
+	t.Run("%rootResource returns root resource", func(t *testing.T) {
+		result, err := Evaluate(patientJSON, "%rootResource.resourceType")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertStringResult(t, result, "Patient")
+	})
+
+	t.Run("%rootResource equals %resource for top-level evaluation", func(t *testing.T) {
+		result, err := Evaluate(patientJSON, "%rootResource = %resource")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("%rootResource can be overridden via WithVariable", func(t *testing.T) {
+		bundle := []byte(`{"resourceType": "Bundle", "type": "transaction"}`)
+		patient := []byte(`{"resourceType": "Patient", "id": "p1"}`)
+
+		expr := MustCompile("%rootResource.resourceType")
+		bundleCol, _ := types.JSONToCollection(bundle)
+		result, err := expr.EvaluateWithOptions(patient, WithVariable("rootResource", bundleCol))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertStringResult(t, result, "Bundle")
+	})
+}
+
 // TestDelimitedIdentifiers tests backtick-delimited identifiers for special characters.
 func TestDelimitedIdentifiers(t *testing.T) {
 	// JSON with hyphenated field names

@@ -69,19 +69,22 @@ type Context struct {
 }
 
 // NewContext creates a new evaluation context.
-// Automatically sets %resource and %context to the root resource for FHIR constraint evaluation.
+// Automatically sets %resource, %rootResource, and %context to the root resource for FHIR constraint evaluation.
 // Per FHIRPath spec:
 //   - %resource: the root resource being evaluated
+//   - %rootResource: the root resource in the evaluation context (differs from %resource for contained/Bundle resources)
 //   - %context: the original node passed to the evaluation engine (same as %resource for top-level evaluation)
 func NewContext(resource []byte) *Context {
 	//nolint:errcheck // Empty collection is acceptable for invalid JSON in context creation
 	root, _ := types.JSONToCollection(resource)
 
-	// Initialize variables map with %resource and %context pointing to root
+	// Initialize variables map with %resource, %rootResource, and %context pointing to root
 	// %resource is required by FHIR constraints like bdl-3, bdl-4
+	// %rootResource defaults to %resource; callers can override via SetVariable for nested evaluation
 	// %context represents the evaluation context (same as root for top-level evaluation)
 	variables := make(map[string]types.Collection)
 	variables["resource"] = root
+	variables["rootResource"] = root
 	variables["context"] = root
 
 	return &Context{
