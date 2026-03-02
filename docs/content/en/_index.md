@@ -11,62 +11,63 @@ layout: hextra-home
 {{< /hextra/hero-badge >}}
 </div>
 
-<div class="hx:text-center hx:mt-8 hx:mb-6">
+<div class="hx:mt-6 hx:mb-6">
 {{< hextra/hero-headline >}}
   FHIRPath for Go
 {{< /hextra/hero-headline >}}
 </div>
 
-<div class="hx:text-center hx:mt-6 hx:mb-20">
+<div class="hx:mb-12">
 {{< hextra/hero-subtitle >}}
   A fully compliant FHIRPath 2.0 expression evaluator built for Go.&nbsp;<br class="sm:hx:block hx:hidden" />Evaluate, validate, and extract data from FHIR® resources with ease.
 {{< /hextra/hero-subtitle >}}
 </div>
 
-<div class="hx:text-center hx:mb-32">
+<div class="hx:mb-6">
 {{< hextra/hero-button text="Get Started" link="docs/getting-started" >}}
-{{< hextra/hero-button text="View on GitHub" link="https://github.com/gofhir/fhirpath" style="background: transparent; border: 1px solid #e5e7eb; color: inherit;" >}}
+{{< hextra/hero-button text="View on GitHub" link="https://github.com/gofhir/fhirpath" style="alt" >}}
 </div>
 
-<div class="hx:mt-32"></div>
+<div class="hx:mt-6"></div>
 
-## Features
-
-<div class="hx:mt-8"></div>
-
-{{< cards >}}
-  {{< card link="docs/functions" title="95+ Built-in Functions" icon="puzzle" subtitle="Complete function library: existence, filtering, subsetting, strings, math, type checking, date/time, aggregation, and more." >}}
-  {{< card link="docs/concepts" title="Full Spec Compliance" icon="badge-check" subtitle="FHIRPath 2.0 with three-valued Boolean logic, partial date/time precision, UCUM unit normalization, and all operator categories." >}}
-  {{< card link="docs/advanced/performance" title="Production Ready" icon="lightning-bolt" subtitle="Thread-safe evaluation, LRU caching, configurable timeouts, memory-efficient pooling, and zero FHIR® model dependencies." >}}
-{{< /cards >}}
-
-<div class="hx:mt-32"></div>
+{{< hextra/feature-grid >}}
+  {{< hextra/feature-card
+    title="95+ Built-in Functions"
+    icon="puzzle"
+    subtitle="Complete function library: existence, filtering, subsetting, strings, math, type checking, date/time, aggregation, and more."
+  >}}
+  {{< hextra/feature-card
+    title="Full Spec Compliance"
+    icon="badge-check"
+    subtitle="FHIRPath 2.0 with three-valued Boolean logic, partial date/time precision, UCUM unit normalization, and all operator categories."
+  >}}
+  {{< hextra/feature-card
+    title="Production Ready"
+    icon="lightning-bolt"
+    subtitle="Thread-safe evaluation, LRU caching, configurable timeouts, memory-efficient pooling, and zero FHIR® model dependencies."
+  >}}
+{{< /hextra/feature-grid >}}
 
 ## Quick Start
 
-<div class="hx:mt-8"></div>
-
 {{< callout type="info" >}}
-Requires **Go 1.21** or later.
+  Requires **Go 1.21** or later.
 {{< /callout >}}
 
-<div class="hx:mt-8"></div>
+Install the library:
 
-**Install the library:**
-
-```bash
+```shell
 go get github.com/gofhir/fhirpath
 ```
 
-<div class="hx:mt-8"></div>
-
-**Evaluate a FHIRPath expression:**
+Evaluate a FHIRPath expression:
 
 ```go
 package main
 
 import (
     "fmt"
+
     "github.com/gofhir/fhirpath"
 )
 
@@ -80,10 +81,14 @@ func main() {
     if err != nil {
         panic(err)
     }
-    fmt.Println(result) // [Doe]
+    fmt.Println(result)
 }
 ```
 
-<div class="hx:text-center hx:mt-16 hx:mb-32">
-{{< hextra/hero-button text="Read the full guide →" link="docs/getting-started" >}}
-</div>
+Output:
+
+```json
+["Doe"]
+```
+
+{{< hextra/hero-button text="Read the full guide" link="docs/getting-started" >}}
