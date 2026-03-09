@@ -252,6 +252,15 @@ func (dt DateTime) ToTime() time.Time {
 	return time.Date(dt.year, time.Month(month), day, dt.hour, dt.minute, dt.second, dt.millis*1000000, loc)
 }
 
+// Precision returns the datetime precision.
+func (dt DateTime) Precision() DateTimePrecision { return dt.precision }
+
+// HasTZ returns whether the datetime has an explicit timezone.
+func (dt DateTime) HasTZ() bool { return dt.hasTZ }
+
+// TZOffset returns the timezone offset in minutes.
+func (dt DateTime) TZOffset() int { return dt.tzOffset }
+
 // Accessors
 func (dt DateTime) Year() int        { return dt.year }
 func (dt DateTime) Month() int       { return dt.month }

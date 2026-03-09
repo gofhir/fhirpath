@@ -155,6 +155,9 @@ func (t Time) IsEmpty() bool {
 	return false
 }
 
+// Precision returns the time precision.
+func (t Time) Precision() TimePrecision { return t.precision }
+
 // Accessors
 func (t Time) Hour() int        { return t.hour }
 func (t Time) Minute() int      { return t.minute }

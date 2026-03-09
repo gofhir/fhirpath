@@ -338,6 +338,64 @@ func jsonValueToFHIRValue(data []byte, dataType jsonparser.ValueType) Value {
 	return nil
 }
 
+// jsonValueToFHIRValueWithType converts a JSON value to a FHIRPath Value,
+// using the FHIR type hint to parse strings as Date, DateTime, Time, etc.
+func jsonValueToFHIRValueWithType(data []byte, dataType jsonparser.ValueType, fhirType string) Value {
+	if dataType == jsonparser.String {
+		var s string
+		if err := json.Unmarshal(append([]byte{'"'}, append(data, '"')...), &s); err != nil {
+			s = string(data)
+		}
+		switch strings.ToLower(fhirType) {
+		case "date":
+			if d, err := NewDate(s); err == nil {
+				return d
+			}
+		case "datetime", "instant":
+			if dt, err := NewDateTime(s); err == nil {
+				return dt
+			}
+		case "time":
+			if t, err := NewTime(s); err == nil {
+				return t
+			}
+		}
+		return NewString(s)
+	}
+	return jsonValueToFHIRValue(data, dataType)
+}
+
+// GetCollectionWithType retrieves a field as a Collection, using the FHIR type hint
+// to properly parse string values as Date, DateTime, Time, etc.
+func (o *ObjectValue) GetCollectionWithType(field, fhirType string) Collection {
+	value, dataType, _, err := jsonparser.Get(o.data, field)
+	if err != nil {
+		return Collection{}
+	}
+
+	if dataType == jsonparser.Array {
+		return jsonArrayToCollectionWithType(value, fhirType)
+	}
+
+	v := jsonValueToFHIRValueWithType(value, dataType, fhirType)
+	if v == nil {
+		return Collection{}
+	}
+	return Collection{v}
+}
+
+func jsonArrayToCollectionWithType(data []byte, fhirType string) Collection {
+	var result Collection
+	//nolint:errcheck // ArrayEach only returns errors for non-arrays; data is already validated as array
+	jsonparser.ArrayEach(data, func(value []byte, dataType jsonparser.ValueType, _ int, _ error) {
+		v := jsonValueToFHIRValueWithType(value, dataType, fhirType)
+		if v != nil {
+			result = append(result, v)
+		}
+	})
+	return result
+}
+
 // jsonArrayToCollection converts a JSON array to a Collection.
 func jsonArrayToCollection(data []byte) Collection {
 	var result Collection

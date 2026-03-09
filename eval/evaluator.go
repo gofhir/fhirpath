@@ -16,10 +16,11 @@ type FuncImpl func(ctx *Context, input types.Collection, args []interface{}) (ty
 
 // FuncDef defines a FHIRPath function.
 type FuncDef struct {
-	Name    string
-	MinArgs int
-	MaxArgs int
-	Fn      FuncImpl
+	Name     string
+	MinArgs  int
+	MaxArgs  int
+	Fn       FuncImpl
+	TypeArgs []int // Indices of arguments that are type specifiers (extracted as strings, not evaluated as expressions)
 }
 
 // FuncRegistry is an interface for function lookup.
@@ -500,11 +501,17 @@ func (e *Evaluator) VisitFunctionInvocation(ctx *grammar.FunctionInvocationConte
 	// Evaluate arguments normally
 	args := make([]interface{}, argCount)
 	for i, argExpr := range argExprs {
-		result := e.Visit(argExpr)
-		if err, ok := result.(error); ok {
-			return err
+		if isTypeArg(fn.TypeArgs, i) {
+			// Extract type name from AST instead of evaluating as expression
+			typeName := e.extractTypeNameFromExpr(argExpr)
+			args[i] = types.Collection{types.NewString(typeName)}
+		} else {
+			result := e.Visit(argExpr)
+			if err, ok := result.(error); ok {
+				return err
+			}
+			args[i] = result
 		}
-		args[i] = result
 	}
 
 	// Call the function
@@ -823,6 +830,16 @@ func (e *Evaluator) evaluateAsFunction(input types.Collection, typeExpr grammar.
 	}
 
 	return result
+}
+
+// isTypeArg checks if the given argument index is marked as a type specifier argument.
+func isTypeArg(typeArgs []int, index int) bool {
+	for _, ta := range typeArgs {
+		if ta == index {
+			return true
+		}
+	}
+	return false
 }
 
 // extractTypeNameFromExpr extracts a type name from a FHIRPath expression.
@@ -1627,8 +1644,16 @@ func (e *Evaluator) navigateMember(input types.Collection, name string) types.Co
 		// Build FHIR element path for model lookups
 		elementPath := e.buildElementPath(obj.Type(), name)
 
-		// Try direct field access first
-		children := obj.GetCollection(name)
+		// Try direct field access first, using type-aware conversion when model is available
+		var children types.Collection
+		if m := e.ctx.model; m != nil && elementPath != "" {
+			if fhirType := m.TypeOf(elementPath); fhirType != "" {
+				children = obj.GetCollectionWithType(name, fhirType)
+			}
+		}
+		if len(children) == 0 {
+			children = obj.GetCollection(name)
+		}
 		if len(children) > 0 {
 			e.ctx.path = elementPath
 			result = append(result, children...)
@@ -1660,7 +1685,7 @@ func (e *Evaluator) resolvePolymorphicField(obj *types.ObjectValue, name, elemen
 		if suffixes := m.ChoiceTypes(elementPath); len(suffixes) > 0 {
 			for _, suffix := range suffixes {
 				fieldName := name + strings.ToUpper(suffix[:1]) + suffix[1:]
-				children := obj.GetCollection(fieldName)
+				children := obj.GetCollectionWithType(fieldName, suffix)
 				if len(children) > 0 {
 					result = append(result, children...)
 					return result
@@ -1673,7 +1698,7 @@ func (e *Evaluator) resolvePolymorphicField(obj *types.ObjectValue, name, elemen
 	// Fallback: try each possible type suffix from the hardcoded list
 	for _, suffix := range polymorphicTypeSuffixes {
 		fieldName := name + suffix
-		children := obj.GetCollection(fieldName)
+		children := obj.GetCollectionWithType(fieldName, suffix)
 		if len(children) > 0 {
 			result = append(result, children...)
 			// Return on first match - polymorphic elements have only one variant
