@@ -64,7 +64,7 @@ func TestLowBoundary(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		expected := "2010-10-10T00:00:00.000"
+		expected := "2010-10-10T00:00:00.000+14:00"
 		if result[0].String() != expected {
 			t.Errorf("expected %s, got %s", expected, result[0].String())
 		}
@@ -76,7 +76,7 @@ func TestLowBoundary(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		expected := "2010-01-01T00:00:00.000"
+		expected := "2010-01-01T00:00:00.000+14:00"
 		if result[0].String() != expected {
 			t.Errorf("expected %s, got %s", expected, result[0].String())
 		}
@@ -212,7 +212,7 @@ func TestHighBoundary(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		expected := "2010-10-10T23:59:59.999"
+		expected := "2010-10-10T23:59:59.999-12:00"
 		if result[0].String() != expected {
 			t.Errorf("expected %s, got %s", expected, result[0].String())
 		}
@@ -224,7 +224,7 @@ func TestHighBoundary(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		expected := "2010-12-31T23:59:59.999"
+		expected := "2010-12-31T23:59:59.999-12:00"
 		if result[0].String() != expected {
 			t.Errorf("expected %s, got %s", expected, result[0].String())
 		}

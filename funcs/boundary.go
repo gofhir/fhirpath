@@ -176,9 +176,12 @@ func lowBoundaryDateTime(dt types.DateTime) (types.Collection, error) {
 	s := fmt.Sprintf("%04d-%02d-%02dT%02d:%02d:%02d.%03d",
 		year, month, day, hour, minute, second, millis)
 
-	// Per FHIRPath spec, lowBoundary for DateTime uses +14:00 (earliest timezone)
+	// Per FHIRPath spec, lowBoundary preserves existing TZ,
+	// or adds +14:00 (earliest timezone) when no TZ is specified
 	if dt.HasTZ() {
 		s += formatTZOffset(dt.TZOffset())
+	} else {
+		s += "+14:00"
 	}
 
 	result, err := types.NewDateTime(s)
@@ -230,8 +233,12 @@ func highBoundaryDateTime(dt types.DateTime) (types.Collection, error) {
 	s := fmt.Sprintf("%04d-%02d-%02dT%02d:%02d:%02d.%03d",
 		year, month, day, hour, minute, second, millis)
 
+	// Per FHIRPath spec, highBoundary preserves existing TZ,
+	// or adds -12:00 (latest timezone) when no TZ is specified
 	if dt.HasTZ() {
 		s += formatTZOffset(dt.TZOffset())
+	} else {
+		s += "-12:00"
 	}
 
 	result, err := types.NewDateTime(s)
