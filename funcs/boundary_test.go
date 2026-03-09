@@ -133,14 +133,31 @@ func TestLowBoundary(t *testing.T) {
 		}
 	})
 
-	t.Run("decimal no precision returns empty", func(t *testing.T) {
+	t.Run("decimal infers precision from representation", func(t *testing.T) {
+		// 1.0 has implicit precision 1, so lowBoundary() infers precision=1
+		// 1.0.lowBoundary() = 1.0 - 0.05 = 0.95
 		d, _ := types.NewDecimal("1.0")
 		result, err := fn.Fn(ctx, types.Collection{d}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
+		if result.Empty() {
+			t.Fatal("expected non-empty result for decimal with implicit precision")
+		}
+		if result[0].String() != "0.95" {
+			t.Errorf("expected 0.95, got %s", result[0].String())
+		}
+	})
+
+	t.Run("integer-like decimal no precision returns empty", func(t *testing.T) {
+		// "1" has no decimal places, so precision=0 → returns empty
+		d, _ := types.NewDecimal("1")
+		result, err := fn.Fn(ctx, types.Collection{d}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
 		if !result.Empty() {
-			t.Error("expected empty for decimal without precision arg")
+			t.Error("expected empty for decimal without fractional precision")
 		}
 	})
 

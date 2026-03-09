@@ -27,6 +27,8 @@ func init() {
 }
 
 // fnLowBoundary returns the lowest possible value for the input based on its precision.
+//
+//nolint:dupl // mirrors fnHighBoundary intentionally; extracting shared logic would hurt readability
 func fnLowBoundary(_ *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
 	if input.Empty() {
 		return types.Collection{}, nil
@@ -43,14 +45,20 @@ func fnLowBoundary(_ *eval.Context, input types.Collection, args []interface{}) 
 		return lowBoundaryTime(v)
 	case types.Decimal:
 		if precision < 0 {
-			return types.Collection{}, nil
+			precision = v.ImplicitPrecision()
+			if precision == 0 {
+				return types.Collection{}, nil
+			}
 		}
 		return lowBoundaryDecimal(v, precision)
 	case types.Integer:
 		return types.Collection{v}, nil
 	case types.Quantity:
 		if precision < 0 {
-			return types.Collection{}, nil
+			precision = inferQuantityPrecision(v)
+			if precision == 0 {
+				return types.Collection{}, nil
+			}
 		}
 		return lowBoundaryQuantity(v, precision)
 	default:
@@ -59,6 +67,8 @@ func fnLowBoundary(_ *eval.Context, input types.Collection, args []interface{}) 
 }
 
 // fnHighBoundary returns the highest possible value for the input based on its precision.
+//
+//nolint:dupl // mirrors fnLowBoundary intentionally; extracting shared logic would hurt readability
 func fnHighBoundary(_ *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
 	if input.Empty() {
 		return types.Collection{}, nil
@@ -75,14 +85,20 @@ func fnHighBoundary(_ *eval.Context, input types.Collection, args []interface{})
 		return highBoundaryTime(v)
 	case types.Decimal:
 		if precision < 0 {
-			return types.Collection{}, nil
+			precision = v.ImplicitPrecision()
+			if precision == 0 {
+				return types.Collection{}, nil
+			}
 		}
 		return highBoundaryDecimal(v, precision)
 	case types.Integer:
 		return types.Collection{v}, nil
 	case types.Quantity:
 		if precision < 0 {
-			return types.Collection{}, nil
+			precision = inferQuantityPrecision(v)
+			if precision == 0 {
+				return types.Collection{}, nil
+			}
 		}
 		return highBoundaryQuantity(v, precision)
 	default:
@@ -337,6 +353,15 @@ func highBoundaryQuantity(q types.Quantity, precision int) (types.Collection, er
 	offset := half.Mul(decimal.NewFromInt(10).Pow(decimal.NewFromInt(int64(-precision))))
 	newVal := q.Value().Add(offset)
 	return types.Collection{types.NewQuantityFromDecimal(newVal, q.Unit())}, nil
+}
+
+// inferQuantityPrecision infers decimal precision from a Quantity's value.
+func inferQuantityPrecision(q types.Quantity) int {
+	exp := q.Value().Exponent()
+	if exp < 0 {
+		return int(-exp)
+	}
+	return 0
 }
 
 // --- Helpers ---

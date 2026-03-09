@@ -1114,7 +1114,7 @@ func TestOfTypePolymorphic(t *testing.T) {
 			resource:  `{"resourceType":"Observation","valueQuantity":{"value":1.0,"unit":"mg"}}`,
 			expr:      "Observation.value.ofType(Quantity).value",
 			wantCount: 1,
-			wantFirst: "1",
+			wantFirst: "1.0",
 		},
 		{
 			name:      "ofType(Date) returns empty when valueString present",
@@ -1237,7 +1237,7 @@ func TestOfTypeComplexTypes(t *testing.T) {
 			resource:  `{"resourceType":"Observation","valueQuantity":{"value":1.0}}`,
 			expr:      "Observation.value.ofType(Quantity).value",
 			wantCount: 1,
-			wantFirst: "1",
+			wantFirst: "1.0",
 		},
 		{
 			name:      "ofType(CodeableConcept) on valueCodeableConcept",
