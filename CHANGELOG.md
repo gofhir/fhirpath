@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.3.0](https://github.com/gofhir/fhirpath/compare/v1.2.0...v1.3.0) (2026-03-09)
+
+
+### Features
+
+* add type-aware polymorphic field resolution for ofType() ([8a2fe45](https://github.com/gofhir/fhirpath/commit/8a2fe45808e0f16ffd8e8b319abe2ef6fc839cb0))
+* add TypeArgs support for type specifier function arguments ([0caf6e4](https://github.com/gofhir/fhirpath/commit/0caf6e4b5cc715f2f9b062a992a542088e0c14e0))
+* implement lowBoundary() and highBoundary() FHIRPath 2.0 functions ([8869165](https://github.com/gofhir/fhirpath/commit/886916574a4a600d1d5803a2f17165995c57d4a8))
+
 ## [1.2.0](https://github.com/gofhir/fhirpath/compare/v1.1.0...v1.2.0) (2026-03-01)
 
 
