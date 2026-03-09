@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.3.1](https://github.com/gofhir/fhirpath/compare/v1.3.0...v1.3.1) (2026-03-09)
+
+
+### Bug Fixes
+
+* add spec-mandated timezone offsets to DateTime boundary functions ([803d23f](https://github.com/gofhir/fhirpath/commit/803d23f724da24afe900ce5f49cc25282d903a3e))
+* discriminate URI subtypes and complex types in ofType() resolution ([27c77f3](https://github.com/gofhir/fhirpath/commit/27c77f32ac51ceeadb81ad37fc3c819a72957f81))
+
 ## [1.3.0](https://github.com/gofhir/fhirpath/compare/v1.2.0...v1.3.0) (2026-03-09)
 
 
