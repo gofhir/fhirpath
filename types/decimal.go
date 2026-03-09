@@ -3,6 +3,7 @@ package types
 import (
 	"fmt"
 	"math"
+	"strings"
 
 	"github.com/shopspring/decimal"
 )
@@ -12,7 +13,8 @@ const TypeNameDecimal = "Decimal"
 
 // Decimal represents a FHIRPath decimal value with arbitrary precision.
 type Decimal struct {
-	value decimal.Decimal
+	value    decimal.Decimal
+	original string // original string representation for precision preservation (empty for computed values)
 }
 
 // NewDecimal creates a new Decimal from a string.
@@ -21,7 +23,7 @@ func NewDecimal(s string) (Decimal, error) {
 	if err != nil {
 		return Decimal{}, fmt.Errorf("invalid decimal: %s", s)
 	}
-	return Decimal{value: d}, nil
+	return Decimal{value: d, original: s}, nil
 }
 
 // NewDecimalFromInt creates a new Decimal from an int64.
@@ -69,9 +71,27 @@ func (d Decimal) Equivalent(other Value) bool {
 	return d.Equal(other)
 }
 
-// String returns the decimal string representation.
+// String returns the decimal string representation. For values created from
+// string parsing, preserves the original representation (e.g., "1.0" stays "1.0").
+// For computed values, uses the default shopspring representation.
 func (d Decimal) String() string {
+	if d.original != "" {
+		return d.original
+	}
 	return d.value.String()
+}
+
+// ImplicitPrecision returns the number of decimal places in this value,
+// inferred from the original string representation. For example, "1.0" has
+// precision 1, "1.00" has precision 2, and "42" has precision 0.
+// Returns 0 for computed values with no original string.
+func (d Decimal) ImplicitPrecision() int {
+	if d.original != "" {
+		if idx := strings.Index(d.original, "."); idx >= 0 {
+			return len(d.original) - idx - 1
+		}
+	}
+	return 0
 }
 
 // IsEmpty returns false for decimal values.
