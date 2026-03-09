@@ -7,7 +7,8 @@ import (
 
 // String represents a FHIRPath string value.
 type String struct {
-	value string
+	value    string
+	fhirType string // optional FHIR type (e.g., "Oid", "Url", "Uuid", "Id") for subtype discrimination
 }
 
 // NewString creates a new String value.
@@ -15,13 +16,23 @@ func NewString(v string) String {
 	return String{value: v}
 }
 
+// NewStringWithFHIRType creates a new String value with an explicit FHIR type.
+// Used for URI subtypes (id, oid, url, uuid, code, etc.) to preserve type identity
+// so that ofType() can discriminate between them.
+func NewStringWithFHIRType(v, fhirType string) String {
+	return String{value: v, fhirType: fhirType}
+}
+
 // Value returns the underlying string value.
 func (s String) Value() string {
 	return s.value
 }
 
-// Type returns "String".
+// Type returns the FHIR type if set (e.g., "Oid", "Url"), otherwise "String".
 func (s String) Type() string {
+	if s.fhirType != "" {
+		return s.fhirType
+	}
 	return "String"
 }
 

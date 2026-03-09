@@ -11,8 +11,9 @@ import (
 
 // ObjectValue represents a FHIR resource or complex type as a JSON object.
 type ObjectValue struct {
-	data   []byte
-	fields map[string]Value // Cache of accessed fields
+	data         []byte
+	fields       map[string]Value // Cache of accessed fields
+	explicitType string           // optional explicit FHIR type from polymorphic resolution
 }
 
 // NewObjectValue creates a new ObjectValue from JSON bytes.
@@ -20,6 +21,16 @@ func NewObjectValue(data []byte) *ObjectValue {
 	return &ObjectValue{
 		data:   data,
 		fields: make(map[string]Value),
+	}
+}
+
+// NewObjectValueWithType creates a new ObjectValue with an explicit FHIR type.
+// Used when the type is known from polymorphic field resolution (e.g., valueQuantity → "Quantity").
+func NewObjectValueWithType(data []byte, typeName string) *ObjectValue {
+	return &ObjectValue{
+		data:         data,
+		fields:       make(map[string]Value),
+		explicitType: typeName,
 	}
 }
 
@@ -42,9 +53,14 @@ const (
 )
 
 // Type returns the FHIR type of this object.
-// First checks resourceType, then attempts to infer common FHIR types from structure.
+// Checks explicit type (from polymorphic resolution), then resourceType, then infers from structure.
 func (o *ObjectValue) Type() string {
-	// First, check for explicit resourceType (FHIR resources)
+	// First, check for explicit type set during polymorphic resolution
+	if o.explicitType != "" {
+		return o.explicitType
+	}
+
+	// Then, check for explicit resourceType (FHIR resources)
 	if rt, err := jsonparser.GetString(o.data, "resourceType"); err == nil {
 		return rt
 	}
@@ -300,6 +316,10 @@ func jsonValueToFHIRValue(data []byte, dataType jsonparser.ValueType) Value {
 		if err := json.Unmarshal(append([]byte{'"'}, append(data, '"')...), &s); err != nil {
 			s = string(data)
 		}
+		// Heuristic: try to detect ISO 8601 date/datetime patterns
+		if v := tryParseTemporalString(s); v != nil {
+			return v
+		}
 		return NewString(s)
 
 	case jsonparser.Number:
@@ -338,6 +358,28 @@ func jsonValueToFHIRValue(data []byte, dataType jsonparser.ValueType) Value {
 	return nil
 }
 
+// tryParseTemporalString attempts to parse a string as a Date or DateTime
+// using strict pattern matching. Returns nil if the string doesn't match temporal patterns.
+// This provides heuristic type detection when no Model is available.
+func tryParseTemporalString(s string) Value {
+	if len(s) < 4 {
+		return nil
+	}
+	// Try Date first for short strings (4-10 chars: YYYY to YYYY-MM-DD)
+	if len(s) <= 10 {
+		if d, err := NewDate(s); err == nil {
+			return d
+		}
+	}
+	// Try DateTime for anything that could be a datetime (contains T, Z, or TZ offset)
+	if strings.ContainsAny(s, "TZ") || (len(s) > 10 && (s[10] == '+' || s[10] == '-')) {
+		if dt, err := NewDateTime(s); err == nil {
+			return dt
+		}
+	}
+	return nil
+}
+
 // jsonValueToFHIRValueWithType converts a JSON value to a FHIRPath Value,
 // using the FHIR type hint to parse strings as Date, DateTime, Time, etc.
 func jsonValueToFHIRValueWithType(data []byte, dataType jsonparser.ValueType, fhirType string) Value {
@@ -359,8 +401,14 @@ func jsonValueToFHIRValueWithType(data []byte, dataType jsonparser.ValueType, fh
 			if t, err := NewTime(s); err == nil {
 				return t
 			}
+		case "uri", "url", "canonical", "oid", "uuid", "id", "code", "markdown", "base64binary":
+			return NewStringWithFHIRType(s, fhirType)
 		}
 		return NewString(s)
+	}
+	// For objects, propagate the FHIR type hint so Type() returns the correct type
+	if dataType == jsonparser.Object && fhirType != "" {
+		return NewObjectValueWithType(data, fhirType)
 	}
 	return jsonValueToFHIRValue(data, dataType)
 }
