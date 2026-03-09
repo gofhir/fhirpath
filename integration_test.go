@@ -7,6 +7,9 @@ import (
 	"time"
 
 	"github.com/gofhir/fhirpath"
+	"github.com/gofhir/fhirpath/eval"
+	"github.com/gofhir/fhirpath/funcs"
+	"github.com/gofhir/fhirpath/types"
 )
 
 // testPatient is a minimal Patient struct for testing the Resource interface.
@@ -1014,6 +1017,137 @@ func TestAggregateIntegration(t *testing.T) {
 			t.Errorf("expected 3, got %s", result[0].String())
 		}
 	})
+}
+
+// TestTypeArgsCustomFunction verifies that custom functions with TypeArgs
+// receive type specifier names as strings instead of evaluating them as expressions.
+func TestTypeArgsCustomFunction(t *testing.T) {
+	// Register a custom function that expects a type name as first arg
+	funcs.Register(eval.FuncDef{
+		Name:     "testTypeArg",
+		MinArgs:  1,
+		MaxArgs:  1,
+		TypeArgs: []int{0},
+		Fn: func(_ *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
+			if col, ok := args[0].(types.Collection); ok && !col.Empty() {
+				return col, nil // Return the type name string
+			}
+			return types.Collection{}, nil
+		},
+	})
+
+	patient := []byte(`{"resourceType": "Patient", "id": "test"}`)
+	result, err := fhirpath.Evaluate(patient, "Patient.testTypeArg(Observation)")
+	if err != nil {
+		t.Fatalf("error: %v", err)
+	}
+
+	if result.Empty() {
+		t.Fatal("expected non-empty result, got empty (type specifier was not passed)")
+	}
+
+	if result[0].String() != "Observation" {
+		t.Errorf("expected 'Observation', got %q", result[0].String())
+	}
+}
+
+// TestOfTypePolymorphic verifies that .ofType() correctly resolves polymorphic
+// FHIR fields (value[x], effective[x], identified[x]) for temporal and complex types.
+func TestOfTypePolymorphic(t *testing.T) {
+	tests := []struct {
+		name      string
+		resource  string
+		expr      string
+		wantCount int
+		wantFirst string
+		wantType  string
+	}{
+		{
+			name:      "ofType(DateTime) on valueDateTime",
+			resource:  `{"resourceType":"Observation","valueDateTime":"2023-02-08"}`,
+			expr:      "Observation.value.ofType(DateTime)",
+			wantCount: 1,
+			wantFirst: "2023-02-08",
+			wantType:  "DateTime",
+		},
+		{
+			name:      "ofType(Date) on valueDate",
+			resource:  `{"resourceType":"Observation","valueDate":"2023-06-15"}`,
+			expr:      "Observation.value.ofType(Date)",
+			wantCount: 1,
+			wantFirst: "2023-06-15",
+			wantType:  "Date",
+		},
+		{
+			name:      "ofType(Time) on valueTime",
+			resource:  `{"resourceType":"Observation","valueTime":"18:12:00"}`,
+			expr:      "Observation.value.ofType(Time)",
+			wantCount: 1,
+			wantFirst: "18:12:00",
+			wantType:  "Time",
+		},
+		{
+			name:      "ofType(Instant) on effectiveInstant",
+			resource:  `{"resourceType":"Observation","effectiveInstant":"2015-02-07T13:28:17.239+02:00"}`,
+			expr:      "Observation.effective.ofType(Instant)",
+			wantCount: 1,
+			wantFirst: "2015-02-07T13:28:17.239+02:00",
+			wantType:  "DateTime",
+		},
+		{
+			name:      "ofType(String) on valueString still works",
+			resource:  `{"resourceType":"Observation","valueString":"hello"}`,
+			expr:      "Observation.value.ofType(String)",
+			wantCount: 1,
+			wantFirst: "hello",
+			wantType:  "String",
+		},
+		{
+			name:      "ofType(Quantity) on valueQuantity",
+			resource:  `{"resourceType":"Observation","valueQuantity":{"value":1.0,"unit":"mg"}}`,
+			expr:      "Observation.value.ofType(Quantity)",
+			wantCount: 1,
+			wantType:  "Quantity",
+		},
+		{
+			name:      "ofType(Quantity).value on valueQuantity",
+			resource:  `{"resourceType":"Observation","valueQuantity":{"value":1.0,"unit":"mg"}}`,
+			expr:      "Observation.value.ofType(Quantity).value",
+			wantCount: 1,
+			wantFirst: "1",
+		},
+		{
+			name:      "ofType(Date) returns empty when valueString present",
+			resource:  `{"resourceType":"Observation","valueString":"hello"}`,
+			expr:      "Observation.value.ofType(Date)",
+			wantCount: 0,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := fhirpath.Evaluate([]byte(tt.resource), tt.expr)
+			if err != nil {
+				t.Fatalf("error: %v", err)
+			}
+
+			if len(result) != tt.wantCount {
+				t.Fatalf("expected %d results, got %d: %v", tt.wantCount, len(result), result)
+			}
+
+			if tt.wantCount > 0 && tt.wantFirst != "" {
+				if result[0].String() != tt.wantFirst {
+					t.Errorf("expected first=%q, got %q", tt.wantFirst, result[0].String())
+				}
+			}
+
+			if tt.wantCount > 0 && tt.wantType != "" {
+				if result[0].Type() != tt.wantType {
+					t.Errorf("expected type=%q, got %q", tt.wantType, result[0].Type())
+				}
+			}
+		})
+	}
 }
 
 // Helper functions

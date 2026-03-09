@@ -1801,6 +1801,28 @@ func TestContextPathGetterSetter(t *testing.T) {
 	}
 }
 
+func TestIsTypeArg(t *testing.T) {
+	tests := []struct {
+		typeArgs []int
+		index    int
+		expected bool
+	}{
+		{nil, 0, false},
+		{[]int{0}, 0, true},
+		{[]int{0}, 1, false},
+		{[]int{1, 2}, 0, false},
+		{[]int{1, 2}, 1, true},
+		{[]int{1, 2}, 2, true},
+	}
+
+	for _, tt := range tests {
+		result := isTypeArg(tt.typeArgs, tt.index)
+		if result != tt.expected {
+			t.Errorf("isTypeArg(%v, %d) = %v, want %v", tt.typeArgs, tt.index, result, tt.expected)
+		}
+	}
+}
+
 func TestIsResourceType(t *testing.T) {
 	model := newTestModel()
 
