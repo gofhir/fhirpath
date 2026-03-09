@@ -1150,6 +1150,239 @@ func TestOfTypePolymorphic(t *testing.T) {
 	}
 }
 
+// TestOfTypeURISubtypes verifies that ofType() discriminates between URI subtypes
+// (url, oid, uuid, id) instead of treating them all as String.
+func TestOfTypeURISubtypes(t *testing.T) {
+	tests := []struct {
+		name      string
+		resource  string
+		expr      string
+		wantCount int
+	}{
+		{
+			name:      "ofType(url) returns empty when valueOid present",
+			resource:  `{"resourceType":"Task","output":[{"valueOid":"urn:oid:1.0"}]}`,
+			expr:      "Task.output.first().value.ofType(url)",
+			wantCount: 0,
+		},
+		{
+			name:      "ofType(oid) returns value when valueOid present",
+			resource:  `{"resourceType":"Task","output":[{"valueOid":"urn:oid:1.0"}]}`,
+			expr:      "Task.output.first().value.ofType(oid)",
+			wantCount: 1,
+		},
+		{
+			name:      "ofType(uuid) returns empty when valueOid present",
+			resource:  `{"resourceType":"Task","output":[{"valueOid":"urn:oid:1.0"}]}`,
+			expr:      "Task.output.first().value.ofType(uuid)",
+			wantCount: 0,
+		},
+		{
+			name:      "ofType(id) returns empty when valueOid present",
+			resource:  `{"resourceType":"Task","output":[{"valueOid":"urn:oid:1.0"}]}`,
+			expr:      "Task.output.first().value.ofType(id)",
+			wantCount: 0,
+		},
+		{
+			name:      "ofType(url) returns value when valueUrl present",
+			resource:  `{"resourceType":"Task","output":[{"valueUrl":"http://example.com"}]}`,
+			expr:      "Task.output.first().value.ofType(url)",
+			wantCount: 1,
+		},
+		{
+			name:      "ofType(uuid) returns value when valueUuid present",
+			resource:  `{"resourceType":"Task","output":[{"valueUuid":"urn:uuid:abc-123"}]}`,
+			expr:      "Task.output.first().value.ofType(uuid)",
+			wantCount: 1,
+		},
+		{
+			name:      "ofType(id) returns value when valueId present",
+			resource:  `{"resourceType":"Task","output":[{"valueId":"my-id"}]}`,
+			expr:      "Task.output.first().value.ofType(id)",
+			wantCount: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := fhirpath.Evaluate([]byte(tt.resource), tt.expr)
+			if err != nil {
+				t.Fatalf("error: %v", err)
+			}
+			if len(result) != tt.wantCount {
+				t.Errorf("expected %d results, got %d: %v", tt.wantCount, len(result), result)
+			}
+		})
+	}
+}
+
+// TestOfTypeComplexTypes verifies that ofType() resolves complex types like Quantity
+// even when the JSON object doesn't have enough fields for heuristic detection.
+func TestOfTypeComplexTypes(t *testing.T) {
+	tests := []struct {
+		name      string
+		resource  string
+		expr      string
+		wantCount int
+		wantFirst string
+	}{
+		{
+			name:      "ofType(Quantity) on minimal valueQuantity (no unit)",
+			resource:  `{"resourceType":"Observation","valueQuantity":{"value":1.0}}`,
+			expr:      "Observation.value.ofType(Quantity)",
+			wantCount: 1,
+		},
+		{
+			name:      "ofType(Quantity).value on minimal valueQuantity",
+			resource:  `{"resourceType":"Observation","valueQuantity":{"value":1.0}}`,
+			expr:      "Observation.value.ofType(Quantity).value",
+			wantCount: 1,
+			wantFirst: "1",
+		},
+		{
+			name:      "ofType(CodeableConcept) on valueCodeableConcept",
+			resource:  `{"resourceType":"Observation","valueCodeableConcept":{"text":"Normal"}}`,
+			expr:      "Observation.value.ofType(CodeableConcept)",
+			wantCount: 1,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := fhirpath.Evaluate([]byte(tt.resource), tt.expr)
+			if err != nil {
+				t.Fatalf("error: %v", err)
+			}
+			if len(result) != tt.wantCount {
+				t.Fatalf("expected %d results, got %d: %v", tt.wantCount, len(result), result)
+			}
+			if tt.wantFirst != "" && len(result) > 0 {
+				if result[0].String() != tt.wantFirst {
+					t.Errorf("expected %q, got %q", tt.wantFirst, result[0].String())
+				}
+			}
+		})
+	}
+}
+
+// TestBoundaryTimezoneOffsets verifies that lowBoundary/highBoundary add
+// spec-mandated timezone offsets for DateTime without explicit TZ.
+func TestBoundaryTimezoneOffsets(t *testing.T) {
+	tests := []struct {
+		name      string
+		resource  string
+		expr      string
+		wantFirst string
+	}{
+		{
+			name:      "lowBoundary adds +14:00 for dateTime without TZ",
+			resource:  `{"resourceType":"Observation","effectiveDateTime":"2010-10-10T10:00:00"}`,
+			expr:      "Observation.effectiveDateTime.lowBoundary()",
+			wantFirst: "2010-10-10T10:00:00.000+14:00",
+		},
+		{
+			name:      "highBoundary adds -12:00 for dateTime without TZ",
+			resource:  `{"resourceType":"Observation","effectiveDateTime":"2010-10-10T10:00:00"}`,
+			expr:      "Observation.effectiveDateTime.highBoundary()",
+			wantFirst: "2010-10-10T10:00:00.999-12:00",
+		},
+		{
+			name:      "lowBoundary preserves existing TZ",
+			resource:  `{"resourceType":"Observation","effectiveDateTime":"2010-10-10T10:00:00+02:00"}`,
+			expr:      "Observation.effectiveDateTime.lowBoundary()",
+			wantFirst: "2010-10-10T10:00:00.000+02:00",
+		},
+		{
+			name:      "highBoundary preserves existing TZ",
+			resource:  `{"resourceType":"Observation","effectiveDateTime":"2010-10-10T10:00:00+02:00"}`,
+			expr:      "Observation.effectiveDateTime.highBoundary()",
+			wantFirst: "2010-10-10T10:00:00.999+02:00",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			result, err := fhirpath.Evaluate([]byte(tt.resource), tt.expr)
+			if err != nil {
+				t.Fatalf("error: %v", err)
+			}
+			if result.Empty() {
+				t.Fatal("expected non-empty result")
+			}
+			if result[0].String() != tt.wantFirst {
+				t.Errorf("expected %q, got %q", tt.wantFirst, result[0].String())
+			}
+		})
+	}
+}
+
+// TestHeuristicDateDetection verifies that JSON string fields matching ISO 8601
+// date patterns are automatically detected as Date/DateTime types without a Model.
+func TestHeuristicDateDetection(t *testing.T) {
+	patient := []byte(`{
+		"resourceType": "Patient",
+		"birthDate": "1978-03-12"
+	}`)
+
+	t.Run("birthDate is detected as Date", func(t *testing.T) {
+		result, err := fhirpath.Evaluate(patient, "Patient.birthDate")
+		if err != nil {
+			t.Fatalf("error: %v", err)
+		}
+		if result.Empty() {
+			t.Fatal("expected non-empty result")
+		}
+		if result[0].Type() != "Date" {
+			t.Errorf("expected type Date, got %s", result[0].Type())
+		}
+	})
+
+	t.Run("birthDate equals Date literal", func(t *testing.T) {
+		result, err := fhirpath.EvaluateToBoolean(patient, "Patient.birthDate = @1978-03-12")
+		if err != nil {
+			t.Fatalf("error: %v", err)
+		}
+		if !result {
+			t.Error("expected birthDate = @1978-03-12 to be true")
+		}
+	})
+
+	t.Run("birthDate.lowBoundary works", func(t *testing.T) {
+		result, err := fhirpath.Evaluate(patient, "Patient.birthDate.lowBoundary()")
+		if err != nil {
+			t.Fatalf("error: %v", err)
+		}
+		if result.Empty() {
+			t.Fatal("expected non-empty result from lowBoundary on auto-detected Date")
+		}
+		if result[0].String() != "1978-03-12" {
+			t.Errorf("expected 1978-03-12, got %s", result[0].String())
+		}
+	})
+
+	t.Run("plain string is not misdetected as Date", func(t *testing.T) {
+		resource := []byte(`{"resourceType": "Patient", "id": "test-patient"}`)
+		result, err := fhirpath.Evaluate(resource, "Patient.id")
+		if err != nil {
+			t.Fatalf("error: %v", err)
+		}
+		if result[0].Type() != "String" {
+			t.Errorf("expected type String for id field, got %s", result[0].Type())
+		}
+	})
+
+	t.Run("year-only date is detected", func(t *testing.T) {
+		resource := []byte(`{"resourceType": "Patient", "birthDate": "1978"}`)
+		result, err := fhirpath.Evaluate(resource, "Patient.birthDate")
+		if err != nil {
+			t.Fatalf("error: %v", err)
+		}
+		if result[0].Type() != "Date" {
+			t.Errorf("expected type Date, got %s", result[0].Type())
+		}
+	})
+}
+
 // Helper functions
 func boolPtr(b bool) *bool {
 	return &b
