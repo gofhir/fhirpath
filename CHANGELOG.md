@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.4.0](https://github.com/gofhir/fhirpath/compare/v1.3.1...v1.4.0) (2026-03-09)
+
+
+### Features
+
+* auto-infer precision for lowBoundary/highBoundary on Decimal and Quantity ([18ce1ef](https://github.com/gofhir/fhirpath/commit/18ce1efa30bb5738fa917c46a359996ee99e1ff4))
+
+
+### Bug Fixes
+
+* preserve original string representation in Decimal type ([8878874](https://github.com/gofhir/fhirpath/commit/8878874da02ae97c4dbb13d9b7ee143b37cf9225))
+
 ## [1.3.1](https://github.com/gofhir/fhirpath/compare/v1.3.0...v1.3.1) (2026-03-09)
 
 
