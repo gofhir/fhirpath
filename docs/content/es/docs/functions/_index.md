@@ -32,6 +32,7 @@ Todas las funciones operan sobre colecciones y devuelven colecciones, siguiendo 
 | [Funciones de Utilidad]({{< relref "utility" >}}) | 3 | Depuracion y navegacion: `trace`, `children`, `descendants` |
 | [Funciones Especificas de FHIR®]({{< relref "fhir-specific" >}}) | 8 | Extensiones FHIR®: `extension`, `hasExtension`, `resolve`, `memberOf`, `conformsTo`, `hasValue`, `getValue`, `getReferenceKey` |
 | [Funciones de Agregacion]({{< relref "aggregate" >}}) | 5 | Operaciones de reduccion: `aggregate`, `sum`, `avg`, `min`, `max` |
+| [Funciones de Limites]({{< relref "boundary" >}}) | 2 | Limites de precision: `lowBoundary`, `highBoundary` |
 
 ## Patrones Comunes
 

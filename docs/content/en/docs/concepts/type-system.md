@@ -117,6 +117,17 @@ fmt.Println(d.Floor())      // 3
 
 Division always returns a `Decimal` (even for `Integer / Integer`), matching the FHIRPath specification.
 
+**Precision Preservation:** When a `Decimal` is created from a string (e.g., from JSON parsing), the original string representation is preserved. This means `"1.0"` retains its trailing zero and reports an implicit precision of 1, which is critical for [boundary functions]({{< relref "../functions/boundary" >}}) like `lowBoundary()` and `highBoundary()` that infer precision automatically. Computed values (e.g., from arithmetic) do not carry an original string and use the default `shopspring/decimal` representation.
+
+```go
+d, _ := types.NewDecimal("1.0")
+fmt.Println(d.String())             // "1.0" (preserved)
+fmt.Println(d.ImplicitPrecision())  // 1
+
+computed := d.Add(types.MustDecimal("1"))
+fmt.Println(computed.String())      // "2" (default representation)
+```
+
 ### String
 
 `types.String` wraps a Go `string` and provides `Length`, `Contains`, `StartsWith`, `EndsWith`, `Upper`, `Lower`, `IndexOf`, `Substring`, `Replace`, and `ToChars`.

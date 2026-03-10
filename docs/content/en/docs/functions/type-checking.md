@@ -129,6 +129,8 @@ result, _ := fhirpath.Evaluate(resource, "Bundle.entry.resource.ofType(Observati
 - Type matching compares the element's runtime type name against the specified type name.
 - Returns an empty collection if no elements match the type.
 - Unlike `is()`, `ofType()` works on collections with multiple elements and never errors on non-singleton input.
+- **URI subtypes:** FHIR® defines several URI subtypes (`url`, `oid`, `uuid`, `id`, `code`, `markdown`, etc.) that all map to `String` in FHIRPath. This library preserves the FHIR® type identity, so `ofType(url)` correctly returns only `url` values, not `oid` or other string subtypes.
+- **Complex types from JSON:** When resolving polymorphic fields (e.g., `value[x]`), complex types like `Quantity` and `CodeableConcept` are recognized even when the JSON lacks optional fields like `unit`, `system`, or `code`.
 
 ---
 

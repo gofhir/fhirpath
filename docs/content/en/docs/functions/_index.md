@@ -32,6 +32,7 @@ All functions operate on collections and return collections, following FHIRPath'
 | [Utility Functions]({{< relref "utility" >}}) | 3 | Debugging and navigation: `trace`, `children`, `descendants` |
 | [FHIR®-Specific Functions]({{< relref "fhir-specific" >}}) | 8 | FHIR® extensions: `extension`, `hasExtension`, `resolve`, `memberOf`, `conformsTo`, `hasValue`, `getValue`, `getReferenceKey` |
 | [Aggregate Functions]({{< relref "aggregate" >}}) | 5 | Reduction operations: `aggregate`, `sum`, `avg`, `min`, `max` |
+| [Boundary Functions]({{< relref "boundary" >}}) | 2 | Precision boundaries: `lowBoundary`, `highBoundary` |
 
 ## Common Patterns
 

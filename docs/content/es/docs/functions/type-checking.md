@@ -129,6 +129,8 @@ result, _ := fhirpath.Evaluate(resource, "Bundle.entry.resource.ofType(Observati
 - La coincidencia de tipos compara el nombre del tipo en tiempo de ejecucion del elemento contra el nombre de tipo especificado.
 - Devuelve una coleccion vacia si ningun elemento coincide con el tipo.
 - A diferencia de `is()`, `ofType()` funciona con colecciones de multiples elementos y nunca genera errores en entradas no singleton.
+- **Subtipos de URI:** FHIR® define varios subtipos de URI (`url`, `oid`, `uuid`, `id`, `code`, `markdown`, etc.) que todos mapean a `String` en FHIRPath. Esta biblioteca preserva la identidad del tipo FHIR®, por lo que `ofType(url)` devuelve correctamente solo valores `url`, no `oid` u otros subtipos de cadena.
+- **Tipos complejos desde JSON:** Al resolver campos polimorficos (por ejemplo, `value[x]`), los tipos complejos como `Quantity` y `CodeableConcept` se reconocen incluso cuando el JSON carece de campos opcionales como `unit`, `system` o `code`.
 
 ---
 
