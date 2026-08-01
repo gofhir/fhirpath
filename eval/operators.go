@@ -89,14 +89,12 @@ func Add(left, right types.Value) (types.Value, error) {
 	case types.Date:
 		if q, ok := right.(types.Quantity); ok {
 			// Date + Quantity (duration)
-			value := int(q.Value().IntPart())
-			return l.AddDuration(value, q.Unit()), nil
+			return l.AddDuration(int(q.Value().IntPart()), q.Unit())
 		}
 	case types.DateTime:
 		if q, ok := right.(types.Quantity); ok {
 			// DateTime + Quantity (duration)
-			value := int(q.Value().IntPart())
-			return l.AddDuration(value, q.Unit()), nil
+			return l.AddDuration(int(q.Value().IntPart()), q.Unit())
 		}
 	case types.Quantity:
 		if r, ok := right.(types.Quantity); ok {
@@ -132,14 +130,12 @@ func Subtract(left, right types.Value) (types.Value, error) {
 	case types.Date:
 		if q, ok := right.(types.Quantity); ok {
 			// Date - Quantity (duration)
-			value := int(q.Value().IntPart())
-			return l.SubtractDuration(value, q.Unit()), nil
+			return l.SubtractDuration(int(q.Value().IntPart()), q.Unit())
 		}
 	case types.DateTime:
 		if q, ok := right.(types.Quantity); ok {
 			// DateTime - Quantity (duration)
-			value := int(q.Value().IntPart())
-			return l.SubtractDuration(value, q.Unit()), nil
+			return l.SubtractDuration(int(q.Value().IntPart()), q.Unit())
 		}
 	case types.Quantity:
 		if r, ok := right.(types.Quantity); ok {

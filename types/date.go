@@ -180,31 +180,27 @@ func (d Date) Compare(other Value) (int, error) {
 
 // AddDuration adds a duration (as Quantity with temporal unit) to the date.
 // Supported units: year(s), month(s), week(s), day(s)
-func (d Date) AddDuration(value int, unit string) Date {
-	t := d.ToTime()
+func (d Date) AddDuration(value int, unit string) (Date, error) {
+	years, months, days, millis, err := durationParts(value, unit)
+	if err != nil {
+		return Date{}, err
+	}
 
-	switch unit {
-	case "year", "years", "'year'", "'years'":
-		t = t.AddDate(value, 0, 0)
-	case "month", "months", "'month'", "'months'":
-		t = t.AddDate(0, value, 0)
-	case "week", "weeks", "'week'", "'weeks'":
-		t = t.AddDate(0, 0, value*7)
-	case "day", "days", "'day'", "'days'":
-		t = t.AddDate(0, 0, value)
-	default:
-		// For unsupported units, return unchanged
-		return d
+	// A date has no time of day, so a sub-day duration cannot move it. The
+	// specification keeps the value unchanged rather than rounding.
+	shifted := d.ToTime().AddDate(years, months, days)
+	if millis != 0 {
+		shifted = shifted.Add(time.Duration(millis) * time.Millisecond)
 	}
 
 	result := Date{
-		year:      t.Year(),
-		month:     int(t.Month()),
-		day:       t.Day(),
+		year:      shifted.Year(),
+		month:     int(shifted.Month()),
+		day:       shifted.Day(),
 		precision: d.precision,
 	}
 
-	// Adjust precision
+	// A shift never makes the value more precise than it was
 	if d.precision < MonthPrecision {
 		result.month = 0
 	}
@@ -212,10 +208,10 @@ func (d Date) AddDuration(value int, unit string) Date {
 		result.day = 0
 	}
 
-	return result
+	return result, nil
 }
 
 // SubtractDuration subtracts a duration from the date.
-func (d Date) SubtractDuration(value int, unit string) Date {
+func (d Date) SubtractDuration(value int, unit string) (Date, error) {
 	return d.AddDuration(-value, unit)
 }

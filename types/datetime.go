@@ -279,45 +279,31 @@ func (dt DateTime) Millisecond() int { return dt.millis }
 
 // AddDuration adds a duration (as Quantity with temporal unit) to the datetime.
 // Supported units: year(s), month(s), week(s), day(s), hour(s), minute(s), second(s), millisecond(s)
-func (dt DateTime) AddDuration(value int, unit string) DateTime {
-	t := dt.ToTime()
+func (dt DateTime) AddDuration(value int, unit string) (DateTime, error) {
+	years, months, days, millis, err := durationParts(value, unit)
+	if err != nil {
+		return DateTime{}, err
+	}
 
-	switch unit {
-	case "year", "years", "'year'", "'years'":
-		t = t.AddDate(value, 0, 0)
-	case "month", "months", "'month'", "'months'":
-		t = t.AddDate(0, value, 0)
-	case "week", "weeks", "'week'", "'weeks'":
-		t = t.AddDate(0, 0, value*7)
-	case "day", "days", "'day'", "'days'":
-		t = t.AddDate(0, 0, value)
-	case "hour", "hours", "'hour'", "'hours'":
-		t = t.Add(time.Duration(value) * time.Hour)
-	case "minute", "minutes", "'minute'", "'minutes'":
-		t = t.Add(time.Duration(value) * time.Minute)
-	case "second", "seconds", "'second'", "'seconds'":
-		t = t.Add(time.Duration(value) * time.Second)
-	case "millisecond", "milliseconds", "'millisecond'", "'milliseconds'", "ms":
-		t = t.Add(time.Duration(value) * time.Millisecond)
-	default:
-		// For unsupported units, return unchanged
-		return dt
+	shifted := dt.ToTime().AddDate(years, months, days)
+	if millis != 0 {
+		shifted = shifted.Add(time.Duration(millis) * time.Millisecond)
 	}
 
 	result := DateTime{
-		year:      t.Year(),
-		month:     int(t.Month()),
-		day:       t.Day(),
-		hour:      t.Hour(),
-		minute:    t.Minute(),
-		second:    t.Second(),
-		millis:    t.Nanosecond() / 1000000,
+		year:      shifted.Year(),
+		month:     int(shifted.Month()),
+		day:       shifted.Day(),
+		hour:      shifted.Hour(),
+		minute:    shifted.Minute(),
+		second:    shifted.Second(),
+		millis:    shifted.Nanosecond() / 1000000,
 		tzOffset:  dt.tzOffset,
 		hasTZ:     dt.hasTZ,
 		precision: dt.precision,
 	}
 
-	// Adjust precision - zero out components beyond precision
+	// A shift never makes the value more precise than it was
 	if dt.precision < DTMonthPrecision {
 		result.month = 0
 	}
@@ -337,11 +323,11 @@ func (dt DateTime) AddDuration(value int, unit string) DateTime {
 		result.millis = 0
 	}
 
-	return result
+	return result, nil
 }
 
 // SubtractDuration subtracts a duration from the datetime.
-func (dt DateTime) SubtractDuration(value int, unit string) DateTime {
+func (dt DateTime) SubtractDuration(value int, unit string) (DateTime, error) {
 	return dt.AddDuration(-value, unit)
 }
 

@@ -35,8 +35,8 @@ Measured against the official suite, in both configurations a caller can use:
 
 | Configuration | Passing |
 |---|---|
-| No FHIR model supplied | **831 of 928 (89.5%)** |
-| With the R4 model | **835 of 928 (90.0%)** |
+| No FHIR model supplied | **840 of 928 (90.5%)** |
+| With the R4 model | **844 of 928 (90.9%)** |
 
 ```sh
 make conformance          # prints both numbers
@@ -67,7 +67,6 @@ passing — so the list can only shrink, and it never lies about the number.
 
 | Block | Cases | Notes |
 |---|---|---|
-| Date arithmetic (`+`/`-` with durations) | ~12 | Adding a duration to a date does not shift it |
 | `is()` / `as()` on FHIR primitives | 11 | `code` and `string` are distinct types; supplying a Model does not settle it |
 | Errors we should raise and don't | 23 | 12 `execution`, 11 `semantic`; the semantic ones need a Model |
 | Quantity conversion | ~12 | `toQuantity` on a bare number should carry unit `'1'`; string-to-quantity parsing |
@@ -107,6 +106,11 @@ that only checked "does it compile" reported success:
   operator precedence was wrong.
 - **String escapes were resolved by successive replacement**, so `'\\n'` — a
   backslash and an n — came out as a line feed.
+- **Shifting a date by a duration it did not recognize returned the date
+  unchanged.** Only calendar keywords were understood, so `@1973-12-25 + 1 'd'`
+  quietly produced `@1973-12-25`.
+- **Comparing temporals of different precisions raised an error**, failing the
+  whole evaluation where the spec asks only for empty.
 
 ## Decisions taken where the specification is silent
 

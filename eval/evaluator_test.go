@@ -1374,7 +1374,11 @@ func TestDateArithmetic(t *testing.T) {
 		// Date + years
 		{"date plus 1 year", "2020-01-01", 1, "year", "2021-01-01", false},
 		{"date plus 2 years", "2020-01-01", 2, "years", "2022-01-01", false},
-		{"date plus years quoted", "2020-01-01", 1, "'year'", "2021-01-01", false},
+		// UCUM definite durations of a week or less shift the same fields as the
+		// calendar keywords
+		{"date plus UCUM days", "2020-01-01", 1, "d", "2020-01-02", false},
+		{"date plus UCUM weeks", "2020-01-01", 1, "wk", "2020-01-08", false},
+		{"date minus UCUM days", "2020-01-02", 1, "d", "2020-01-01", true},
 
 		// Date + months
 		{"date plus 1 month", "2020-01-15", 1, "month", "2020-02-15", false},

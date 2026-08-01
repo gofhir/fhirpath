@@ -75,6 +75,51 @@ func TestTemporalPrecisionSemantics(t *testing.T) {
 			"@2018-03-01T10:30:00Z < @2018-03-01T12:30:00+01:00"), true)
 	})
 
+	t.Run("date arithmetic accepts both unit systems", func(t *testing.T) {
+		cases := map[string]string{
+			// Calendar keywords
+			"(@1973-12-25 + 1 day).toString()":   "1973-12-26",
+			"(@1973-12-25 + 1 week).toString()":  "1974-01-01",
+			"(@1973-12-25 + 1 month).toString()": "1974-01-25",
+			"(@1973-12-25 + 1 year).toString()":  "1974-12-25",
+			// UCUM definite durations up to a week convert exactly
+			"(@1973-12-25 + 1 'd').toString()":                    "1973-12-26",
+			"(@1973-12-25 + 1 'wk').toString()":                   "1974-01-01",
+			"(@1973-12-25T00:00:00.000+10:00 + 1 's').toString()": "1973-12-25T00:00:01.000+10:00",
+			// Subtraction
+			"(@1974-01-01 - 1 week).toString()": "1973-12-25",
+		}
+		for expr, expected := range cases {
+			t.Run(expr, func(t *testing.T) {
+				assertStringResult(t, evalOrFatal(t, simpleJSON, expr), expected)
+			})
+		}
+	})
+
+	t.Run("UCUM years and months need explicit conversion", func(t *testing.T) {
+		// A UCUM year is a fixed 365.25 days and a UCUM month 30.44, neither of
+		// which is what adding a calendar year or month means. The spec keeps
+		// the systems apart rather than silently choosing one.
+		for _, expr := range []string{
+			"@1973-12-25 + 1 'a'",
+			"@1975-12-25 + 1 'a'",
+			"@1973-12-25 + 1 'mo'",
+		} {
+			t.Run(expr, func(t *testing.T) {
+				if _, err := Evaluate(simpleJSON, expr); err == nil {
+					t.Error("expected an error rather than a silently chosen meaning")
+				}
+			})
+		}
+	})
+
+	t.Run("an unrecognized unit is an error, not a no-op", func(t *testing.T) {
+		// Previously any unknown unit returned the date unchanged
+		if _, err := Evaluate(simpleJSON, "@1973-12-25 + 1 'furlong'"); err == nil {
+			t.Error("expected an error for a unit that cannot shift a date")
+		}
+	})
+
 	t.Run("partial datetime literals are DateTime, not Date", func(t *testing.T) {
 		// The grammar allows the T marker with no time after it
 		for _, expr := range []string{
