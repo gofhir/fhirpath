@@ -8,6 +8,10 @@ on:
 
 env:
   GO_VERSION: "1.24"
+  # Pinned rather than "latest": a linter that updates itself turns an unrelated
+  # commit red, and the config format is version-specific — v2 rejects a v1 file
+  # outright. Keep in sync with GOLANGCI_VERSION in the Makefile.
+  GOLANGCI_VERSION: "v2.12.2"
 
 jobs:
   lint:
@@ -23,10 +27,17 @@ jobs:
           go-version: ${{ env.GO_VERSION }}
 
       - name: Run golangci-lint
-        uses: golangci/golangci-lint-action@v4
+        uses: golangci/golangci-lint-action@v9
         with:
-          version: latest
-          args: --timeout=5m
+          version: ${{ env.GOLANGCI_VERSION }}
+
+      # The conformance harness is a separate module, so ./... from the root
+      # never reaches it.
+      - name: Run golangci-lint on the conformance harness
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: ${{ env.GOLANGCI_VERSION }}
+          working-directory: conformance
 
   grammar:
     name: Grammar
