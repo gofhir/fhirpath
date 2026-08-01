@@ -6,9 +6,18 @@ package fhirpath
 // and path-based type inference. When nil (the default), the engine falls
 // back to its built-in heuristics.
 //
-// This interface is satisfied by gofhir/models/r4.FHIRPathModelData (and the
-// r4b/r5 equivalents) via Go's structural typing — no import dependency is
-// required between the two packages.
+// This interface is satisfied by the model returned from
+// gofhir/models/r4.FHIRPathModel() (and the r4b/r5 equivalents) via Go's
+// structural typing — no import dependency is required between the two
+// packages:
+//
+//	import "github.com/gofhir/models/r4"
+//
+//	result, err := expr.EvaluateWithOptions(resource,
+//	    fhirpath.WithModel(r4.FHIRPathModel()))
+//
+// Note that FHIRPathModelData is the struct type; FHIRPathModel() is the
+// accessor that returns the populated instance.
 type Model interface {
 	// ChoiceTypes returns the permitted type suffixes for a polymorphic
 	// element path. For example, "Observation.value" might return

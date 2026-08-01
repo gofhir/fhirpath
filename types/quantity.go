@@ -1,6 +1,7 @@
 package types
 
 import (
+	"errors"
 	"fmt"
 	"regexp"
 	"strings"
@@ -9,6 +10,13 @@ import (
 
 	"github.com/gofhir/fhirpath/internal/ucum"
 )
+
+// ErrIncompatibleUnits reports that two quantities are not commensurable, so no
+// conversion between their units exists. Per the FHIRPath spec, "attempting to
+// operate on quantities with invalid units will result in empty ({})", so
+// callers translate this sentinel into an empty collection instead of failing
+// the whole expression.
+var ErrIncompatibleUnits = errors.New("incompatible units")
 
 // Quantity represents a FHIRPath quantity value with a numeric value and unit.
 type Quantity struct {
@@ -165,24 +173,45 @@ func (q Quantity) Compare(other Value) (int, error) {
 		return 0, fmt.Errorf("cannot compare Quantity with %s", other.Type())
 	}
 
-	// If units are the same (or one is empty), compare directly
-	if q.unit == otherQ.unit || q.unit == "" || otherQ.unit == "" {
-		return q.value.Cmp(otherQ.value), nil
+	// Express the right operand in the left operand's unit, so that the
+	// comparison is exact decimal arithmetic rather than a float round-trip
+	// through both canonical forms.
+	rhs, err := otherQ.valueIn(q)
+	if err != nil {
+		return 0, err
+	}
+	return q.value.Cmp(rhs), nil
+}
+
+// Comparable reports whether the two quantities can be compared, that is
+// whether their units are commensurable. Quantities sharing a unit always are;
+// otherwise both units must reduce to the same canonical unit.
+func (q Quantity) Comparable(other Quantity) bool {
+	if q.unit == other.unit || q.unit == "" || other.unit == "" {
+		return true
 	}
 
-	// Try UCUM normalization for different units
-	norm1 := q.Normalize()
-	norm2 := otherQ.Normalize()
+	_, canonical, known := ucum.ConversionFactor(q.unit)
+	_, otherCanonical, otherKnown := ucum.ConversionFactor(other.unit)
+	return known && otherKnown && canonical == otherCanonical
+}
 
-	// Check if units are compatible after normalization
-	if norm1.Code != norm2.Code {
-		return 0, fmt.Errorf("incompatible units: %s and %s", q.unit, otherQ.unit)
+// valueIn returns q's value expressed in target's unit.
+// Returns ErrIncompatibleUnits when the two units are not commensurable.
+func (q Quantity) valueIn(target Quantity) (decimal.Decimal, error) {
+	// Same unit, or a unitless operand: the value carries over untouched.
+	if q.unit == target.unit || q.unit == "" || target.unit == "" {
+		return q.value, nil
 	}
 
-	// Compare normalized values
-	val1 := decimal.NewFromFloat(norm1.Value)
-	val2 := decimal.NewFromFloat(norm2.Value)
-	return val1.Cmp(val2), nil
+	fromFactor, fromCanonical, fromKnown := ucum.ConversionFactor(q.unit)
+	toFactor, toCanonical, toKnown := ucum.ConversionFactor(target.unit)
+	if !fromKnown || !toKnown || fromCanonical != toCanonical {
+		return decimal.Decimal{}, fmt.Errorf("%w: %s and %s", ErrIncompatibleUnits, target.unit, q.unit)
+	}
+
+	// value * fromFactor / toFactor, in decimal: 2 'g' as 'mg' is exactly 2000.
+	return q.value.Mul(decimal.NewFromFloat(fromFactor)).Div(decimal.NewFromFloat(toFactor)), nil
 }
 
 // Normalize returns the UCUM-normalized form of this quantity.
@@ -192,27 +221,33 @@ func (q Quantity) Normalize() ucum.NormalizedQuantity {
 }
 
 // Add adds two quantities.
+// Commensurable units are converted into the left operand's unit, which is also
+// the unit of the result: 1 'g' + 500 'mg' is 1.5 'g'.
 func (q Quantity) Add(other Quantity) (Quantity, error) {
-	if q.unit != other.unit && q.unit != "" && other.unit != "" {
-		return Quantity{}, fmt.Errorf("incompatible units: %s and %s", q.unit, other.unit)
+	rhs, err := other.valueIn(q)
+	if err != nil {
+		return Quantity{}, err
 	}
-	unit := q.unit
-	if unit == "" {
-		unit = other.unit
-	}
-	return Quantity{value: q.value.Add(other.value), unit: unit}, nil
+	return Quantity{value: q.value.Add(rhs), unit: q.resultUnit(other)}, nil
 }
 
 // Subtract subtracts two quantities.
+// Units are handled as in [Quantity.Add].
 func (q Quantity) Subtract(other Quantity) (Quantity, error) {
-	if q.unit != other.unit && q.unit != "" && other.unit != "" {
-		return Quantity{}, fmt.Errorf("incompatible units: %s and %s", q.unit, other.unit)
+	rhs, err := other.valueIn(q)
+	if err != nil {
+		return Quantity{}, err
 	}
-	unit := q.unit
-	if unit == "" {
-		unit = other.unit
+	return Quantity{value: q.value.Sub(rhs), unit: q.resultUnit(other)}, nil
+}
+
+// resultUnit returns the unit an arithmetic result carries: the left operand's,
+// unless it is unitless.
+func (q Quantity) resultUnit(other Quantity) string {
+	if q.unit == "" {
+		return other.unit
 	}
-	return Quantity{value: q.value.Sub(other.value), unit: unit}, nil
+	return q.unit
 }
 
 // Multiply multiplies the quantity by a number.

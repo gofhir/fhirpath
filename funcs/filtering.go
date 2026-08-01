@@ -34,6 +34,24 @@ func init() {
 		MaxArgs: 1,
 		Fn:      fnOfType,
 	})
+
+	// sort() takes any number of ordering keys, each evaluated per element.
+	// The evaluator intercepts it to bind $this; this registration makes the
+	// name known and its arity checked.
+	Register(FuncDef{
+		Name:    "sort",
+		MinArgs: 0,
+		MaxArgs: -1,
+		Fn:      fnSort,
+	})
+}
+
+// fnSort is a placeholder: sort() is evaluated by the evaluator, which needs the
+// unevaluated criteria to bind $this and to read a leading minus as a descending
+// marker. Reached only if called without that interception, where the input is
+// already the answer for a collection of fewer than two elements.
+func fnSort(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
+	return input, nil
 }
 
 // fnWhere filters the collection based on a criteria expression.

@@ -714,35 +714,54 @@ func TestErrorMethods(t *testing.T) {
 	})
 }
 
+// TestBooleanLogicEdgeCases covers the FHIRPath "Singleton Evaluation of
+// Collections" rule: where a Boolean is expected, a single node of any other
+// type evaluates to true.
 func TestBooleanLogicEdgeCases(t *testing.T) {
-	t.Run("and with non-boolean", func(t *testing.T) {
+	assertBool := func(t *testing.T, result types.Collection, expected bool) {
+		t.Helper()
+		if len(result) != 1 {
+			t.Fatalf("expected singleton result, got %v", result)
+		}
+		b, ok := result[0].(types.Boolean)
+		if !ok {
+			t.Fatalf("expected Boolean, got %s", result[0].Type())
+		}
+		if b.Bool() != expected {
+			t.Errorf("expected %v, got %v", expected, b.Bool())
+		}
+	}
+
+	t.Run("and with non-boolean singleton is true", func(t *testing.T) {
 		result := And(
 			types.Collection{types.NewInteger(1)},
 			types.Collection{types.NewBoolean(true)},
 		)
-		if !result.Empty() {
-			t.Error("expected empty for and with non-boolean")
-		}
+		assertBool(t, result, true)
 	})
 
-	t.Run("or with non-boolean", func(t *testing.T) {
+	t.Run("and with non-boolean singleton and false", func(t *testing.T) {
+		result := And(
+			types.Collection{types.NewInteger(1)},
+			types.Collection{types.NewBoolean(false)},
+		)
+		assertBool(t, result, false)
+	})
+
+	t.Run("or with non-boolean singleton is true", func(t *testing.T) {
 		result := Or(
 			types.Collection{types.NewBoolean(false)},
 			types.Collection{types.NewInteger(1)},
 		)
-		if !result.Empty() {
-			t.Error("expected empty for or with non-boolean")
-		}
+		assertBool(t, result, true)
 	})
 
-	t.Run("xor with non-boolean", func(t *testing.T) {
+	t.Run("xor with non-boolean singleton", func(t *testing.T) {
 		result := Xor(
 			types.Collection{types.NewInteger(1)},
 			types.Collection{types.NewBoolean(true)},
 		)
-		if !result.Empty() {
-			t.Error("expected empty for xor with non-boolean")
-		}
+		assertBool(t, result, false)
 	})
 
 	t.Run("not with multiple values", func(t *testing.T) {
@@ -752,12 +771,42 @@ func TestBooleanLogicEdgeCases(t *testing.T) {
 		}
 	})
 
-	t.Run("not with non-boolean", func(t *testing.T) {
+	t.Run("not with non-boolean singleton", func(t *testing.T) {
 		result := Not(types.Collection{types.NewInteger(1)})
+		assertBool(t, result, false)
+	})
+
+	t.Run("and with empty is empty", func(t *testing.T) {
+		result := And(types.Collection{}, types.Collection{types.NewBoolean(true)})
 		if !result.Empty() {
-			t.Error("expected empty for not with non-boolean")
+			t.Error("expected empty for and with empty operand")
 		}
 	})
+
+	t.Run("or with multiple values is empty", func(t *testing.T) {
+		result := Or(
+			types.Collection{types.NewBoolean(false), types.NewBoolean(false)},
+			types.Collection{types.NewBoolean(false)},
+		)
+		if !result.Empty() {
+			t.Error("expected empty for or with a non-singleton operand")
+		}
+	})
+}
+
+// assertBoolCollection checks that a result is the expected singleton Boolean.
+func assertBoolCollection(t *testing.T, result types.Collection, expected bool) {
+	t.Helper()
+	if len(result) != 1 {
+		t.Fatalf("expected singleton Boolean, got %v", result)
+	}
+	b, ok := result[0].(types.Boolean)
+	if !ok {
+		t.Fatalf("expected Boolean, got %s", result[0].Type())
+	}
+	if b.Bool() != expected {
+		t.Errorf("expected %v, got %v", expected, b.Bool())
+	}
 }
 
 func TestCollectionOperatorEdgeCases(t *testing.T) {
@@ -793,22 +842,40 @@ func TestCollectionOperatorEdgeCases(t *testing.T) {
 		}
 	})
 
-	t.Run("equal with multiple elements", func(t *testing.T) {
+	// Collections of different lengths are not equal, which the spec states is
+	// false rather than empty: "if the collections have a different number of
+	// items to compare, the result will be false".
+	t.Run("equal with differing lengths is false", func(t *testing.T) {
 		result := Equal(
 			types.Collection{types.NewInteger(1), types.NewInteger(2)},
 			types.Collection{types.NewInteger(1)},
 		)
-		if !result.Empty() {
-			t.Error("expected empty for equal with multiple elements on left")
-		}
+		assertBoolCollection(t, result, false)
 
 		result = Equal(
 			types.Collection{types.NewInteger(1)},
 			types.Collection{types.NewInteger(1), types.NewInteger(2)},
 		)
-		if !result.Empty() {
-			t.Error("expected empty for equal with multiple elements on right")
-		}
+		assertBoolCollection(t, result, false)
+	})
+
+	// Collections of the same length compare item by item, in order.
+	t.Run("equal compares collections item by item", func(t *testing.T) {
+		same := types.Collection{types.NewInteger(1), types.NewInteger(2), types.NewInteger(3)}
+		assertBoolCollection(t, Equal(same, same), true)
+
+		reordered := types.Collection{types.NewInteger(3), types.NewInteger(2), types.NewInteger(1)}
+		assertBoolCollection(t, Equal(same, reordered), false)
+	})
+
+	// Equivalence over collections ignores order.
+	t.Run("equivalent ignores order for collections", func(t *testing.T) {
+		same := types.Collection{types.NewInteger(1), types.NewInteger(2), types.NewInteger(3)}
+		reordered := types.Collection{types.NewInteger(3), types.NewInteger(1), types.NewInteger(2)}
+		assertBoolCollection(t, Equivalent(same, reordered), true)
+
+		different := types.Collection{types.NewInteger(1), types.NewInteger(2), types.NewInteger(9)}
+		assertBoolCollection(t, Equivalent(same, different), false)
 	})
 
 	t.Run("not equal with empty", func(t *testing.T) {
@@ -1454,8 +1521,12 @@ func TestQuantityArithmetic(t *testing.T) {
 		// Quantity with empty unit
 		{"quantity plus quantity empty unit", 5, "", 3, "", "8", false, false},
 
-		// Incompatible units
-		{"quantity plus incompatible units", 5, "mg", 3, "kg", "", false, true},
+		// Commensurable units are converted into the left operand's unit
+		{"quantity plus commensurable unit", 5, "mg", 3, "g", "3005 mg", false, false},
+		{"quantity minus commensurable unit", 2, "g", 500, "mg", "1.5 g", true, false},
+
+		// Units of different dimensions cannot be combined
+		{"quantity plus incompatible units", 5, "mg", 3, "m", "", false, true},
 	}
 
 	for _, tt := range tests {
@@ -1502,14 +1573,14 @@ func TestQuantityArithmetic(t *testing.T) {
 
 func TestQuantityComparison(t *testing.T) {
 	tests := []struct {
-		name      string
-		q1Value   int64
-		q1Unit    string
-		q2Value   int64
-		q2Unit    string
-		op        string
-		expected  bool
-		expectErr bool
+		name        string
+		q1Value     int64
+		q1Unit      string
+		q2Value     int64
+		q2Unit      string
+		op          string
+		expected    bool
+		expectEmpty bool
 	}{
 		// Greater than
 		{"10 kg > 5 kg", 10, "kg", 5, "kg", ">", true, false},
@@ -1539,8 +1610,9 @@ func TestQuantityComparison(t *testing.T) {
 		{"10 kg > 5 mg (UCUM)", 10, "kg", 5, "mg", ">", true, false},
 		{"5 mg > 10 kg (UCUM)", 5, "mg", 10, "kg", ">", false, false},
 
-		// Truly incompatible units (mass vs length)
-		{"incompatible units error", 10, "kg", 5, "m", ">", false, true},
+		// Truly incompatible units (mass vs length): the FHIRPath spec says
+		// operating on quantities with invalid units results in empty
+		{"incompatible units yield empty", 10, "kg", 5, "m", ">", false, true},
 	}
 
 	for _, tt := range tests {
@@ -1568,15 +1640,15 @@ func TestQuantityComparison(t *testing.T) {
 				result, err = LessOrEqual(q1, q2)
 			}
 
-			if tt.expectErr {
-				if err == nil {
-					t.Fatalf("expected error, got nil")
-				}
-				return
-			}
-
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if tt.expectEmpty {
+				if !result.Empty() {
+					t.Fatalf("expected empty collection, got %v", result)
+				}
+				return
 			}
 
 			if result.Empty() {

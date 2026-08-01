@@ -98,14 +98,37 @@ func fnAggregate(ctx *eval.Context, input types.Collection, args []interface{}) 
 	return types.Collection{}, nil
 }
 
+// defaultMaxDepth bounds descendants() when the context sets no limit.
+// It matches the default documented for EvalOptions.MaxDepth.
+const defaultMaxDepth = 100
+
+// typeResolver returns the context's FHIR model as an element type resolver, or
+// nil when no model was supplied. With a resolver, children carry the type the
+// model assigns them instead of one inferred from the JSON shape.
+func typeResolver(ctx *eval.Context) types.ElementTypeResolver {
+	if ctx == nil {
+		return nil
+	}
+	if m := ctx.GetModel(); m != nil {
+		return m
+	}
+	return nil
+}
+
 // fnChildren returns all direct children of the input.
-func fnChildren(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
+func fnChildren(ctx *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
 	result := types.Collection{}
+	res := typeResolver(ctx)
+	basePath := ""
+	if ctx != nil {
+		basePath = ctx.Path()
+	}
 
 	for _, item := range input {
 		if obj, ok := item.(*types.ObjectValue); ok {
-			children := obj.Children()
-			result = append(result, children...)
+			for _, child := range obj.TypedChildren(basePath, res) {
+				result = append(result, child.Value)
+			}
 		}
 	}
 
@@ -113,41 +136,59 @@ func fnChildren(_ *eval.Context, input types.Collection, _ []interface{}) (types
 }
 
 // fnDescendants returns all descendants of the input (recursive children).
-func fnDescendants(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
+// The walk carries each node's FHIR path so that the model keeps resolving types
+// all the way down; without a model it falls back to structural inference.
+func fnDescendants(ctx *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
 	result := types.Collection{}
-	seen := make(map[types.Value]bool)
+	res := typeResolver(ctx)
 
-	var collect func(items types.Collection)
-	collect = func(items types.Collection) {
-		for _, item := range items {
-			if seen[item] {
-				continue
-			}
-			seen[item] = true
+	maxDepth := defaultMaxDepth
+	basePath := ""
+	if ctx != nil {
+		if limit := ctx.GetLimit("maxDepth"); limit > 0 {
+			maxDepth = limit
+		}
+		basePath = ctx.Path()
+	}
 
-			if obj, ok := item.(*types.ObjectValue); ok {
-				children := obj.Children()
-				result = append(result, children...)
-				collect(children)
-			}
+	type node struct {
+		value types.Value
+		path  string
+		depth int
+	}
+
+	queue := make([]node, 0, len(input))
+	for _, item := range input {
+		queue = append(queue, node{value: item, path: basePath})
+	}
+
+	for len(queue) > 0 {
+		current := queue[0]
+		queue = queue[1:]
+
+		obj, ok := current.value.(*types.ObjectValue)
+		if !ok || current.depth >= maxDepth {
+			continue
+		}
+
+		for _, child := range obj.TypedChildren(current.path, res) {
+			result = append(result, child.Value)
+			queue = append(queue, node{value: child.Value, path: child.Path, depth: current.depth + 1})
 		}
 	}
 
-	collect(input)
 	return result, nil
 }
 
 // fnNot returns the boolean negation.
 func fnNot(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
-	if input.Empty() {
+	// Singleton evaluation: a single non-Boolean node counts as true, so
+	// "reference.startsWith('#').not()" and "code.not()" both behave per spec.
+	val, ok := input.SingletonBoolean()
+	if !ok {
 		return types.Collection{}, nil
 	}
-
-	if b, ok := input[0].(types.Boolean); ok {
-		return types.Collection{types.NewBoolean(!b.Bool())}, nil
-	}
-
-	return types.Collection{}, nil
+	return types.Collection{types.NewBoolean(!val)}, nil
 }
 
 // fnHasValue returns true if the input has a primitive value.

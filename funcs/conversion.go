@@ -142,11 +142,7 @@ func fnIif(_ *eval.Context, input types.Collection, args []interface{}) (types.C
 	// Evaluate the condition
 	condition := false
 	if cond, ok := args[0].(types.Collection); ok {
-		if !cond.Empty() {
-			if b, ok := cond[0].(types.Boolean); ok {
-				condition = b.Bool()
-			}
-		}
+		condition, _ = cond.SingletonBoolean()
 	}
 
 	if condition {
@@ -493,6 +489,13 @@ func fnToQuantity(_ *eval.Context, input types.Collection, args []interface{}) (
 			return types.Collection{}, nil
 		}
 		return types.Collection{q}, nil
+	case *types.ObjectValue:
+		// FHIR Quantity (and Age, Duration, SimpleQuantity, ...) as a JSON object
+		q, ok := v.ToQuantity()
+		if !ok {
+			return types.Collection{}, nil
+		}
+		return types.Collection{q}, nil
 	default:
 		return types.Collection{}, nil
 	}
@@ -542,6 +545,18 @@ func fnConvertsToQuantity(_ *eval.Context, input types.Collection, args []interf
 			return types.Collection{types.NewBoolean(true)}, nil
 		}
 		// Check unit compatibility
+		sourceNorm := q.Normalize()
+		targetNorm := ucum.Normalize(1, targetUnit)
+		return types.Collection{types.NewBoolean(sourceNorm.Code == targetNorm.Code)}, nil
+	case *types.ObjectValue:
+		// FHIR Quantity as a JSON object
+		q, ok := v.ToQuantity()
+		if !ok {
+			return types.Collection{types.NewBoolean(false)}, nil
+		}
+		if targetUnit == "" {
+			return types.Collection{types.NewBoolean(true)}, nil
+		}
 		sourceNorm := q.Normalize()
 		targetNorm := ucum.Normalize(1, targetUnit)
 		return types.Collection{types.NewBoolean(sourceNorm.Code == targetNorm.Code)}, nil

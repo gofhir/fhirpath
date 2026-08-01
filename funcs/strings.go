@@ -45,6 +45,13 @@ func init() {
 	})
 
 	Register(FuncDef{
+		Name:    "matchesFull",
+		MinArgs: 1,
+		MaxArgs: 1,
+		Fn:      fnMatchesFull,
+	})
+
+	Register(FuncDef{
 		Name:    "replaceMatches",
 		MinArgs: 2,
 		MaxArgs: 2,
@@ -216,6 +223,37 @@ func fnMatches(ctx *eval.Context, input types.Collection, args []interface{}) (t
 
 	// Use regex cache with timeout protection
 	matched, err := DefaultRegexCache.MatchWithTimeout(ctx.Context(), pattern, str)
+	if err != nil {
+		return nil, err
+	}
+
+	return types.Collection{types.NewBoolean(matched)}, nil
+}
+
+// fnMatchesFull returns true when the pattern matches the entire input string,
+// as opposed to matches(), which succeeds on any substring match.
+//
+// The pattern is anchored to the whole input, so a pattern that only describes
+// part of it fails even if it is present: 'a/Library/b'.matchesFull('Library')
+// is false, while 'a/Library/b'.matchesFull('.*Library.*') is true.
+func fnMatchesFull(ctx *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
+	if input.Empty() {
+		return types.Collection{}, nil
+	}
+
+	str, ok := toString(input)
+	if !ok {
+		return types.Collection{}, nil
+	}
+
+	pattern, ok := toStringArg(args[0])
+	if !ok {
+		return types.Collection{}, nil
+	}
+
+	// \A and \z anchor to the whole text regardless of any line anchors inside
+	// the pattern, so an already-anchored pattern keeps its own meaning.
+	matched, err := DefaultRegexCache.MatchWithTimeout(ctx.Context(), `\A(?:`+pattern+`)\z`, str)
 	if err != nil {
 		return nil, err
 	}

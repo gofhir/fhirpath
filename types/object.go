@@ -85,8 +85,11 @@ func (o *ObjectValue) inferType() string {
 }
 
 // inferQuantityType checks if the object is a Quantity type.
+// The value must be numeric: an Identifier also carries "value" and "system",
+// but its value is a string, and misreading it as a Quantity made
+// identifier.ofType(Identifier) return nothing.
 func (o *ObjectValue) inferQuantityType() string {
-	if o.hasField("value") {
+	if o.hasNumberField("value") {
 		if o.hasField("unit") || o.hasField("code") || o.hasField("system") {
 			return typeQuantity
 		}
@@ -189,6 +192,12 @@ func (o *ObjectValue) hasIdentifierFields() bool {
 func (o *ObjectValue) hasStringField(name string) bool {
 	_, dataType, _, err := jsonparser.Get(o.data, name)
 	return err == nil && dataType == jsonparser.String
+}
+
+// hasNumberField checks if a field exists and is a number.
+func (o *ObjectValue) hasNumberField(name string) bool {
+	_, dataType, _, err := jsonparser.Get(o.data, name)
+	return err == nil && dataType == jsonparser.Number
 }
 
 func (o *ObjectValue) hasHumanNameFields() bool {
@@ -305,6 +314,97 @@ func (o *ObjectValue) Children() Collection {
 		return nil
 	})
 	return result
+}
+
+// ElementTypeResolver resolves a FHIR element path to its type, e.g.
+// "Observation.subject" to "Reference". It is the single slice of the engine's
+// FHIR model that type-aware child navigation needs, declared here so that this
+// package stays independent of the evaluator.
+type ElementTypeResolver interface {
+	TypeOf(path string) string
+}
+
+// TypedChild is a child value together with the FHIR path it was reached by, so
+// that a recursive walk (descendants()) can keep resolving types as it descends.
+type TypedChild struct {
+	Value Value
+	Path  string
+}
+
+// TypedChildren returns the object's children with their FHIR types resolved
+// through res, which makes the model — not structural inference — decide what
+// each child is. A child whose type the model does not know falls back to
+// inference, exactly like [ObjectValue.Children].
+//
+// basePath is this object's FHIR path (e.g. "Observation.component"); it may be
+// empty, in which case only the object's own type is used to resolve children.
+func (o *ObjectValue) TypedChildren(basePath string, res ElementTypeResolver) []TypedChild {
+	var result []TypedChild
+
+	//nolint:errcheck // ObjectEach only returns errors for non-objects; o.data is always a valid object
+	jsonparser.ObjectEach(o.data, func(key []byte, value []byte, dataType jsonparser.ValueType, _ int) error {
+		name := string(key)
+		childPath, fhirType := o.childElement(basePath, name, res)
+
+		appendChild := func(data []byte, dt jsonparser.ValueType) {
+			var v Value
+			if fhirType != "" {
+				v = jsonValueToFHIRValueWithType(data, dt, fhirType)
+			} else {
+				v = jsonValueToFHIRValue(data, dt)
+			}
+			if v != nil {
+				result = append(result, TypedChild{Value: v, Path: childPath})
+			}
+		}
+
+		if dataType == jsonparser.Array {
+			//nolint:errcheck // ArrayEach only returns errors for non-arrays; value is already an array
+			jsonparser.ArrayEach(value, func(item []byte, itemType jsonparser.ValueType, _ int, _ error) {
+				appendChild(item, itemType)
+			})
+			return nil
+		}
+		appendChild(value, dataType)
+		return nil
+	})
+
+	return result
+}
+
+// childElement resolves a named child's FHIR type and the path it should carry
+// onward. It tries both ways a FHIR model indexes elements: a complex type or
+// resource indexes its own elements ("Identifier.system", "Observation.subject"),
+// while a backbone element only exists beneath the path it was reached by
+// ("Observation.component.valueQuantity").
+//
+// The returned path is the one that resolved, so a recursive walk keeps a path
+// the model can still answer for. fhirType is "" when there is no resolver or
+// the model knows neither form, leaving the caller on structural inference.
+func (o *ObjectValue) childElement(basePath, name string, res ElementTypeResolver) (childPath, fhirType string) {
+	candidates := make([]string, 0, 2)
+
+	// The object's own type covers complex types and contained resources, whose
+	// type comes from resourceType.
+	if t := o.Type(); t != "" && t != typeObject {
+		candidates = append(candidates, t+"."+name)
+	}
+	if basePath != "" {
+		candidates = append(candidates, basePath+"."+name)
+	}
+
+	if res != nil {
+		for _, candidate := range candidates {
+			if t := res.TypeOf(candidate); t != "" {
+				return candidate, t
+			}
+		}
+	}
+
+	if len(candidates) > 0 {
+		return candidates[0], ""
+	}
+	return name, ""
 }
 
 // jsonValueToFHIRValue converts a JSON value to a FHIRPath Value.
@@ -504,12 +604,14 @@ func (o *ObjectValue) ToQuantity() (Quantity, bool) {
 		return Quantity{}, false
 	}
 
-	// Try to get the unit - can be "unit" or "code" field
+	// Prefer "code" over "unit": code carries the computable UCUM symbol ("mg"),
+	// while unit is a human-readable display ("milligram") that no unit
+	// conversion can interpret. Fall back to unit when there is no code.
 	unit := ""
-	if unitBytes, _, _, err := jsonparser.Get(o.data, "unit"); err == nil {
-		unit = string(unitBytes)
-	} else if codeBytes, _, _, err := jsonparser.Get(o.data, "code"); err == nil {
+	if codeBytes, _, _, err := jsonparser.Get(o.data, "code"); err == nil {
 		unit = string(codeBytes)
+	} else if unitBytes, _, _, err := jsonparser.Get(o.data, "unit"); err == nil {
+		unit = string(unitBytes)
 	}
 
 	return NewQuantityFromDecimal(val, unit), true

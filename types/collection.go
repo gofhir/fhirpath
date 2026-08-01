@@ -179,6 +179,24 @@ func (c Collection) ToBoolean() (bool, error) {
 	return false, fmt.Errorf("cannot convert %s to boolean", c[0].Type())
 }
 
+// SingletonBoolean applies the FHIRPath "Singleton Evaluation of Collections"
+// rule for operations that expect a Boolean input: a single Boolean node
+// evaluates to its value, and a single node of any other type evaluates to
+// true. FHIR invariants rely on this — age-1 opens with "(code or
+// value.empty())", where code is a string.
+//
+// ok is false when the collection is empty or holds more than one item; callers
+// propagate empty in that case.
+func (c Collection) SingletonBoolean() (value, ok bool) {
+	if len(c) != 1 {
+		return false, false
+	}
+	if b, isBool := c[0].(Boolean); isBool {
+		return b.Bool(), true
+	}
+	return true, true
+}
+
 // AllTrue returns true if all items are boolean true.
 func (c Collection) AllTrue() bool {
 	for _, item := range c {

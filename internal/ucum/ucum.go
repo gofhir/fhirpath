@@ -185,6 +185,28 @@ func NormalizeWithSystem(value float64, system, code string) NormalizedQuantity 
 	return Normalize(value, code)
 }
 
+// ConversionFactor returns the multiplier that converts a value expressed in
+// code into its canonical unit, along with that canonical unit code.
+// known is false when the code is not in the conversion table, in which case no
+// conversion to any other unit is possible.
+//
+// Callers do the arithmetic themselves so that it can be carried out in decimal
+// rather than float64.
+func ConversionFactor(code string) (factor float64, canonical string, known bool) {
+	if conv, ok := canonicalUnits[code]; ok {
+		return conv.Factor, conv.CanonicalCode, true
+	}
+
+	// Case-insensitive match for common variations
+	for ucumCode, conv := range canonicalUnits {
+		if strings.EqualFold(ucumCode, code) {
+			return conv.Factor, conv.CanonicalCode, true
+		}
+	}
+
+	return 1, code, false
+}
+
 // IsKnownUnit returns true if the unit code is recognized for normalization.
 func IsKnownUnit(code string) bool {
 	if _, ok := canonicalUnits[code]; ok {

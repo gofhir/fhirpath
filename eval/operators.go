@@ -1,13 +1,72 @@
 package eval
 
 import (
+	"errors"
+
+	"github.com/shopspring/decimal"
+
 	"github.com/gofhir/fhirpath/types"
 )
+
+// asQuantity converts a value to a Quantity when possible.
+// FHIR carries quantities as JSON objects (Quantity, SimpleQuantity, Age,
+// Duration, Count, Distance, ...), so they must be converted before any
+// quantity operation — Range.low and Range.high are both objects, never
+// [types.Quantity] values.
+func asQuantity(v types.Value) (types.Quantity, bool) {
+	switch q := v.(type) {
+	case types.Quantity:
+		return q, true
+	case *types.ObjectValue:
+		return q.ToQuantity()
+	}
+	return types.Quantity{}, false
+}
+
+// quantityOperands converts both operands to quantities when at least one of
+// them is a FHIR quantity object. Returns false when either side does not
+// convert, so that plain object operands keep their existing behavior.
+func quantityOperands(left, right types.Value) (lq, rq types.Quantity, ok bool) {
+	_, leftIsObject := left.(*types.ObjectValue)
+	_, rightIsObject := right.(*types.ObjectValue)
+	if !leftIsObject && !rightIsObject {
+		return types.Quantity{}, types.Quantity{}, false
+	}
+
+	lq, lok := asQuantity(left)
+	rq, rok := asQuantity(right)
+	if !lok || !rok {
+		return types.Quantity{}, types.Quantity{}, false
+	}
+	return lq, rq, true
+}
+
+// quantityAndNumber matches a quantity scaled by a plain number, in either
+// order for multiplication. Division only ever has the quantity on the left,
+// which the caller enforces.
+func quantityAndNumber(left, right types.Value) (q types.Quantity, factor decimal.Decimal, ok bool) {
+	if lq, converted := asQuantity(left); converted {
+		if n, isNumeric := right.(types.Numeric); isNumeric {
+			return lq, n.ToDecimal().Value(), true
+		}
+	}
+	if rq, converted := asQuantity(right); converted {
+		if n, isNumeric := left.(types.Numeric); isNumeric {
+			return rq, n.ToDecimal().Value(), true
+		}
+	}
+	return types.Quantity{}, decimal.Decimal{}, false
+}
 
 // Arithmetic operators
 
 // Add performs addition on two values.
 func Add(left, right types.Value) (types.Value, error) {
+	// FHIR quantity objects: route through Quantity arithmetic.
+	if lq, rq, ok := quantityOperands(left, right); ok {
+		return lq.Add(rq)
+	}
+
 	switch l := left.(type) {
 	case types.Integer:
 		switch r := right.(type) {
@@ -50,6 +109,11 @@ func Add(left, right types.Value) (types.Value, error) {
 
 // Subtract performs subtraction on two values.
 func Subtract(left, right types.Value) (types.Value, error) {
+	// FHIR quantity objects: route through Quantity arithmetic.
+	if lq, rq, ok := quantityOperands(left, right); ok {
+		return lq.Subtract(rq)
+	}
+
 	switch l := left.(type) {
 	case types.Integer:
 		switch r := right.(type) {
@@ -88,6 +152,11 @@ func Subtract(left, right types.Value) (types.Value, error) {
 
 // Multiply performs multiplication on two values.
 func Multiply(left, right types.Value) (types.Value, error) {
+	// Quantity * number scales the value and keeps the unit
+	if q, factor, ok := quantityAndNumber(left, right); ok {
+		return q.Multiply(factor), nil
+	}
+
 	switch l := left.(type) {
 	case types.Integer:
 		switch r := right.(type) {
@@ -109,6 +178,13 @@ func Multiply(left, right types.Value) (types.Value, error) {
 
 // Divide performs division on two values.
 func Divide(left, right types.Value) (types.Value, error) {
+	// Quantity / number scales the value and keeps the unit
+	if lq, converted := asQuantity(left); converted {
+		if n, isNumeric := right.(types.Numeric); isNumeric {
+			return lq.Divide(n.ToDecimal().Value())
+		}
+	}
+
 	// Convert both to Decimal for division
 	var lDec, rDec types.Decimal
 	switch l := left.(type) {
@@ -173,22 +249,10 @@ func Negate(value types.Value) (types.Value, error) {
 
 // Compare compares two values and returns -1, 0, or 1.
 func Compare(left, right types.Value) (int, error) {
-	// Try to convert ObjectValue to Quantity if comparing with Quantity
-	if obj, ok := left.(*types.ObjectValue); ok {
-		if _, isRightQuantity := right.(types.Quantity); isRightQuantity {
-			if q, ok := obj.ToQuantity(); ok {
-				return q.Compare(right)
-			}
-		}
-	}
-	if obj, ok := right.(*types.ObjectValue); ok {
-		if _, isLeftQuantity := left.(types.Quantity); isLeftQuantity {
-			if q, ok := obj.ToQuantity(); ok {
-				if comp, ok := left.(types.Comparable); ok {
-					return comp.Compare(q)
-				}
-			}
-		}
+	// FHIR quantity objects on either side (or both, as in Range.low <=
+	// Range.high) compare as quantities.
+	if lq, rq, ok := quantityOperands(left, right); ok {
+		return lq.Compare(rq)
 	}
 
 	if comp, ok := left.(types.Comparable); ok {
@@ -197,72 +261,99 @@ func Compare(left, right types.Value) (int, error) {
 	return 0, InvalidOperationError("compare", left.Type(), right.Type())
 }
 
-// LessThan returns true if left < right.
-func LessThan(left, right types.Value) (types.Collection, error) {
+// compareWith compares two values and reports whether the ordering satisfies
+// accept. Quantities whose units are not commensurable yield empty, per the
+// FHIRPath spec: "attempting to operate on quantities with invalid units will
+// result in empty ({})".
+func compareWith(left, right types.Value, accept func(cmp int) bool) (types.Collection, error) {
 	cmp, err := Compare(left, right)
 	if err != nil {
+		if errors.Is(err, types.ErrIncompatibleUnits) {
+			return types.EmptyCollection, nil
+		}
 		return nil, err
 	}
-	if cmp < 0 {
+	if accept(cmp) {
 		return types.TrueCollection, nil
 	}
 	return types.FalseCollection, nil
+}
+
+// LessThan returns true if left < right.
+func LessThan(left, right types.Value) (types.Collection, error) {
+	return compareWith(left, right, func(cmp int) bool { return cmp < 0 })
 }
 
 // LessOrEqual returns true if left <= right.
 func LessOrEqual(left, right types.Value) (types.Collection, error) {
-	cmp, err := Compare(left, right)
-	if err != nil {
-		return nil, err
-	}
-	if cmp <= 0 {
-		return types.TrueCollection, nil
-	}
-	return types.FalseCollection, nil
+	return compareWith(left, right, func(cmp int) bool { return cmp <= 0 })
 }
 
 // GreaterThan returns true if left > right.
 func GreaterThan(left, right types.Value) (types.Collection, error) {
-	cmp, err := Compare(left, right)
-	if err != nil {
-		return nil, err
-	}
-	if cmp > 0 {
-		return types.TrueCollection, nil
-	}
-	return types.FalseCollection, nil
+	return compareWith(left, right, func(cmp int) bool { return cmp > 0 })
 }
 
 // GreaterOrEqual returns true if left >= right.
 func GreaterOrEqual(left, right types.Value) (types.Collection, error) {
-	cmp, err := Compare(left, right)
-	if err != nil {
-		return nil, err
-	}
-	if cmp >= 0 {
-		return types.TrueCollection, nil
-	}
-	return types.FalseCollection, nil
+	return compareWith(left, right, func(cmp int) bool { return cmp >= 0 })
 }
 
 // Equality operators
 
+// literalQuantityOperands converts a FHIR quantity object compared against a
+// Quantity literal, so that `Observation.valueQuantity = 10 'mg'` compares as
+// quantities rather than object-against-primitive.
+//
+// Two quantity objects are deliberately not converted here: comparing complex
+// types with = and ~ compares their children, which is a separate concern from
+// quantity ordering.
+func literalQuantityOperands(left, right types.Value) (lq, rq types.Quantity, ok bool) {
+	leftLiteral, leftIsLiteral := left.(types.Quantity)
+	rightLiteral, rightIsLiteral := right.(types.Quantity)
+
+	switch {
+	case leftIsLiteral && !rightIsLiteral:
+		if q, converted := asQuantity(right); converted {
+			return leftLiteral, q, true
+		}
+	case rightIsLiteral && !leftIsLiteral:
+		if q, converted := asQuantity(left); converted {
+			return q, rightLiteral, true
+		}
+	}
+	return types.Quantity{}, types.Quantity{}, false
+}
+
 // Equal returns true if left = right.
+//
+// Per the spec, an empty operand yields empty; collections of the same length
+// are compared item by item in order; and collections of different lengths are
+// not equal — which is false, not empty.
 func Equal(left, right types.Collection) types.Collection {
 	// Empty propagation
 	if left.Empty() || right.Empty() {
 		return types.EmptyCollection
 	}
 
-	// Both must be singletons
-	if len(left) != 1 || len(right) != 1 {
-		return types.EmptyCollection
+	if len(left) != len(right) {
+		return types.FalseCollection
 	}
 
-	if left[0].Equal(right[0]) {
-		return types.TrueCollection
+	for i := range left {
+		if !valuesEqual(left[i], right[i]) {
+			return types.FalseCollection
+		}
 	}
-	return types.FalseCollection
+	return types.TrueCollection
+}
+
+// valuesEqual compares two single values for equality.
+func valuesEqual(left, right types.Value) bool {
+	if lq, rq, ok := literalQuantityOperands(left, right); ok {
+		return lq.Equal(rq)
+	}
+	return left.Equal(right)
 }
 
 // NotEqual returns true if left != right.
@@ -278,6 +369,11 @@ func NotEqual(left, right types.Collection) types.Collection {
 }
 
 // Equivalent returns true if left ~ right.
+//
+// Unlike equality, equivalence never yields empty: two empty collections are
+// equivalent, and a length mismatch is false. For collections of more than one
+// item the comparison is not order dependent, so each item on the left must have
+// a distinct equivalent partner on the right.
 func Equivalent(left, right types.Collection) types.Collection {
 	// For equivalence, empty collections are equivalent to each other
 	if left.Empty() && right.Empty() {
@@ -287,15 +383,42 @@ func Equivalent(left, right types.Collection) types.Collection {
 		return types.FalseCollection
 	}
 
-	// Both must be singletons
-	if len(left) != 1 || len(right) != 1 {
+	if len(left) != len(right) {
 		return types.FalseCollection
 	}
 
-	if left[0].Equivalent(right[0]) {
-		return types.TrueCollection
+	if len(left) == 1 {
+		if valuesEquivalent(left[0], right[0]) {
+			return types.TrueCollection
+		}
+		return types.FalseCollection
 	}
-	return types.FalseCollection
+
+	// Order-independent: pair each left item with an unused equivalent right one
+	used := make([]bool, len(right))
+	for _, item := range left {
+		matched := false
+		for j, candidate := range right {
+			if used[j] || !valuesEquivalent(item, candidate) {
+				continue
+			}
+			used[j] = true
+			matched = true
+			break
+		}
+		if !matched {
+			return types.FalseCollection
+		}
+	}
+	return types.TrueCollection
+}
+
+// valuesEquivalent compares two single values for equivalence.
+func valuesEquivalent(left, right types.Value) bool {
+	if lq, rq, ok := literalQuantityOperands(left, right); ok {
+		return lq.Equivalent(rq)
+	}
+	return left.Equivalent(right)
 }
 
 // NotEquivalent returns true if left !~ right.
@@ -308,90 +431,58 @@ func NotEquivalent(left, right types.Collection) types.Collection {
 }
 
 // Boolean operators (three-valued logic)
+//
+// Operands go through [types.Collection.SingletonBoolean], so a single
+// non-Boolean node counts as true — the rule FHIR invariants such as age-1
+// ("(code or value.empty()) and ...") depend on.
 
 // And performs logical AND with three-valued logic.
 func And(left, right types.Collection) types.Collection {
-	lEmpty := left.Empty()
-	rEmpty := right.Empty()
+	lVal, lOk := left.SingletonBoolean()
+	rVal, rOk := right.SingletonBoolean()
 
-	// If either is false, result is false
-	if !lEmpty {
-		if b, ok := left[0].(types.Boolean); ok && !b.Bool() {
-			return types.FalseCollection
-		}
+	// false and anything is false, even when the other side is empty
+	if lOk && !lVal {
+		return types.FalseCollection
 	}
-	if !rEmpty {
-		if b, ok := right[0].(types.Boolean); ok && !b.Bool() {
-			return types.FalseCollection
-		}
+	if rOk && !rVal {
+		return types.FalseCollection
 	}
 
-	// If either is empty, propagate empty
-	if lEmpty || rEmpty {
-		return types.EmptyCollection
-	}
-
-	// Both must be true
-	lBool, lOk := left[0].(types.Boolean)
-	rBool, rOk := right[0].(types.Boolean)
 	if !lOk || !rOk {
 		return types.EmptyCollection
 	}
-
-	if lBool.Bool() && rBool.Bool() {
-		return types.TrueCollection
-	}
-	return types.FalseCollection
+	return types.TrueCollection
 }
 
 // Or performs logical OR with three-valued logic.
 func Or(left, right types.Collection) types.Collection {
-	lEmpty := left.Empty()
-	rEmpty := right.Empty()
+	lVal, lOk := left.SingletonBoolean()
+	rVal, rOk := right.SingletonBoolean()
 
-	// If either is true, result is true
-	if !lEmpty {
-		if b, ok := left[0].(types.Boolean); ok && b.Bool() {
-			return types.TrueCollection
-		}
+	// true or anything is true, even when the other side is empty
+	if lOk && lVal {
+		return types.TrueCollection
 	}
-	if !rEmpty {
-		if b, ok := right[0].(types.Boolean); ok && b.Bool() {
-			return types.TrueCollection
-		}
+	if rOk && rVal {
+		return types.TrueCollection
 	}
 
-	// If either is empty, propagate empty
-	if lEmpty || rEmpty {
-		return types.EmptyCollection
-	}
-
-	// Both must be false
-	lBool, lOk := left[0].(types.Boolean)
-	rBool, rOk := right[0].(types.Boolean)
 	if !lOk || !rOk {
 		return types.EmptyCollection
-	}
-
-	if lBool.Bool() || rBool.Bool() {
-		return types.TrueCollection
 	}
 	return types.FalseCollection
 }
 
 // Xor performs logical XOR.
 func Xor(left, right types.Collection) types.Collection {
-	if left.Empty() || right.Empty() {
-		return types.EmptyCollection
-	}
-
-	lBool, lOk := left[0].(types.Boolean)
-	rBool, rOk := right[0].(types.Boolean)
+	lVal, lOk := left.SingletonBoolean()
+	rVal, rOk := right.SingletonBoolean()
 	if !lOk || !rOk {
 		return types.EmptyCollection
 	}
 
-	if lBool.Bool() != rBool.Bool() {
+	if lVal != rVal {
 		return types.TrueCollection
 	}
 	return types.FalseCollection
@@ -399,25 +490,18 @@ func Xor(left, right types.Collection) types.Collection {
 
 // Implies performs logical implication.
 func Implies(left, right types.Collection) types.Collection {
-	lEmpty := left.Empty()
-	rEmpty := right.Empty()
+	lVal, lOk := left.SingletonBoolean()
+	rVal, rOk := right.SingletonBoolean()
 
-	// If left is false, result is true
-	if !lEmpty {
-		if b, ok := left[0].(types.Boolean); ok && !b.Bool() {
-			return types.TrueCollection
-		}
+	// false implies anything, and anything implies true
+	if lOk && !lVal {
+		return types.TrueCollection
+	}
+	if rOk && rVal {
+		return types.TrueCollection
 	}
 
-	// If right is true, result is true
-	if !rEmpty {
-		if b, ok := right[0].(types.Boolean); ok && b.Bool() {
-			return types.TrueCollection
-		}
-	}
-
-	// If either is empty, propagate empty
-	if lEmpty || rEmpty {
+	if !lOk || !rOk {
 		return types.EmptyCollection
 	}
 
@@ -427,19 +511,14 @@ func Implies(left, right types.Collection) types.Collection {
 
 // Not performs logical NOT.
 func Not(value types.Collection) types.Collection {
-	if value.Empty() {
+	val, ok := value.SingletonBoolean()
+	if !ok {
 		return types.EmptyCollection
 	}
-	if len(value) != 1 {
-		return types.EmptyCollection
+	if val {
+		return types.FalseCollection
 	}
-	if b, ok := value[0].(types.Boolean); ok {
-		if b.Bool() {
-			return types.FalseCollection
-		}
-		return types.TrueCollection
-	}
-	return types.EmptyCollection
+	return types.TrueCollection
 }
 
 // String operators

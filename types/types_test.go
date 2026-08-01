@@ -485,9 +485,10 @@ func TestObjectValue(t *testing.T) {
 		if q.Value().String() != "6.3" {
 			t.Errorf("expected value 6.3, got %s", q.Value().String())
 		}
-		// unit field takes precedence over code
-		if q.Unit() != "mmol/l" {
-			t.Errorf("expected unit mmol/l, got %s", q.Unit())
+		// code takes precedence over unit: code carries the computable UCUM
+		// symbol ("mmol/L"), unit only a display string ("mmol/l")
+		if q.Unit() != "mmol/L" {
+			t.Errorf("expected unit mmol/L, got %s", q.Unit())
 		}
 	})
 

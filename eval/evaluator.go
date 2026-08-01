@@ -2,6 +2,8 @@ package eval
 
 import (
 	"context"
+	"errors"
+	"sort"
 	"strconv"
 	"strings"
 
@@ -85,12 +87,30 @@ type Context struct {
 	path               string // current FHIR navigation path (e.g., "Patient.name")
 }
 
+// FHIR environment variables with a fixed value, defined by the FHIR
+// specification rather than supplied by the caller. Invariants such as age-1,
+// drt-1, cnt-3 and dis-1 compare against %ucum.
+const (
+	ucumSystem  = "http://unitsofmeasure.org"
+	sctSystem   = "http://snomed.info/sct"
+	loincSystem = "http://loinc.org"
+
+	// Prefixes for the parameterized forms %"vs-[name]" and %"ext-[name]".
+	valueSetPrefix          = "vs-"
+	valueSetBaseURL         = "http://hl7.org/fhir/ValueSet/"
+	structureDefPrefix      = "ext-"
+	structureDefinitionBase = "http://hl7.org/fhir/StructureDefinition/"
+)
+
 // NewContext creates a new evaluation context.
 // Automatically sets %resource, %rootResource, and %context to the root resource for FHIR constraint evaluation.
 // Per FHIRPath spec:
 //   - %resource: the root resource being evaluated
 //   - %rootResource: the root resource in the evaluation context (differs from %resource for contained/Bundle resources)
 //   - %context: the original node passed to the evaluation engine (same as %resource for top-level evaluation)
+//
+// The fixed FHIR constants %ucum, %sct and %loinc are also defined; callers can
+// override any of them via SetVariable.
 func NewContext(resource []byte) *Context {
 	//nolint:errcheck // Empty collection is acceptable for invalid JSON in context creation
 	root, _ := types.JSONToCollection(resource)
@@ -103,6 +123,9 @@ func NewContext(resource []byte) *Context {
 	variables["resource"] = root
 	variables["rootResource"] = root
 	variables["context"] = root
+	variables["ucum"] = types.Collection{types.NewString(ucumSystem)}
+	variables["sct"] = types.Collection{types.NewString(sctSystem)}
+	variables["loinc"] = types.Collection{types.NewString(loincSystem)}
 
 	return &Context{
 		root:      root,
@@ -328,7 +351,24 @@ func (e *Evaluator) VisitExternalConstant(ctx *grammar.ExternalConstantContext) 
 	if value, ok := e.ctx.GetVariable(name); ok {
 		return value
 	}
+	if url, ok := fhirConstantURL(name); ok {
+		return types.Collection{types.NewString(url)}
+	}
 	return NewEvalError(ErrInvalidPath, "undefined variable: %"+name)
+}
+
+// fhirConstantURL resolves the parameterized FHIR environment variables
+// %"vs-[name]" and %"ext-[name]" to their canonical URLs.
+// Note that the FHIR specification writes them with double quotes, which the
+// FHIRPath grammar does not accept; use %'vs-name' or %`vs-name` instead.
+func fhirConstantURL(name string) (string, bool) {
+	switch {
+	case strings.HasPrefix(name, valueSetPrefix):
+		return valueSetBaseURL + strings.TrimPrefix(name, valueSetPrefix), true
+	case strings.HasPrefix(name, structureDefPrefix):
+		return structureDefinitionBase + strings.TrimPrefix(name, structureDefPrefix), true
+	}
+	return "", false
 }
 
 // Literal visitors
@@ -487,6 +527,9 @@ func (e *Evaluator) VisitFunctionInvocation(ctx *grammar.FunctionInvocationConte
 		if argCount > 0 {
 			return e.evaluateOfType(input, argExprs[0])
 		}
+	case "sort":
+		// sort() needs its criteria evaluated per element, with $this bound
+		return e.evaluateSort(input, argExprs)
 	case "aggregate":
 		if argCount >= 1 {
 			return e.evaluateAggregate(input, argExprs)
@@ -559,8 +602,8 @@ func (e *Evaluator) evaluateWhere(input types.Collection, criteria grammar.IExpr
 		}
 
 		// Check if criteria is true
-		if col, ok := criteriaResult.(types.Collection); ok && !col.Empty() {
-			if b, ok := col[0].(types.Boolean); ok && b.Bool() {
+		if col, ok := criteriaResult.(types.Collection); ok {
+			if val, isBool := col.SingletonBoolean(); isBool && val {
 				result = append(result, item)
 			}
 		}
@@ -599,8 +642,8 @@ func (e *Evaluator) evaluateExists(input types.Collection, criteria grammar.IExp
 		}
 
 		// Check if criteria is true
-		if col, ok := criteriaResult.(types.Collection); ok && !col.Empty() {
-			if b, ok := col[0].(types.Boolean); ok && b.Bool() {
+		if col, ok := criteriaResult.(types.Collection); ok {
+			if val, isBool := col.SingletonBoolean(); isBool && val {
 				return types.Collection{types.NewBoolean(true)}
 			}
 		}
@@ -644,16 +687,139 @@ func (e *Evaluator) evaluateAll(input types.Collection, criteria grammar.IExpres
 
 		// Check if criteria is true
 		if col, ok := criteriaResult.(types.Collection); ok {
-			if col.Empty() {
-				return types.Collection{types.NewBoolean(false)}
-			}
-			if b, ok := col[0].(types.Boolean); ok && !b.Bool() {
+			if val, isBool := col.SingletonBoolean(); !isBool || !val {
 				return types.Collection{types.NewBoolean(false)}
 			}
 		}
 	}
 
 	return types.Collection{types.NewBoolean(true)}
+}
+
+// sortCriterion is one ordering key of sort(): the expression to evaluate for
+// each element, and the direction it imposes.
+type sortCriterion struct {
+	expr       grammar.IExpressionContext
+	descending bool
+}
+
+// evaluateSort evaluates sort() — orders the input collection.
+//
+// Without arguments the elements are ordered by their own value. Each argument
+// is an ordering key evaluated with $this bound to the element, and a leading
+// minus reverses that key: sort(-family, given) orders by family descending,
+// then by given ascending. Note the minus is a direction marker, not arithmetic
+// negation, which is why it also applies to strings and dates.
+//
+// Ordering is stable, so elements that compare equal keep their input order.
+func (e *Evaluator) evaluateSort(input types.Collection, argExprs []grammar.IExpressionContext) interface{} {
+	if len(input) < 2 {
+		return input
+	}
+
+	criteria := make([]sortCriterion, 0, len(argExprs))
+	for _, argExpr := range argExprs {
+		expr, descending := unwrapSortDirection(argExpr)
+		criteria = append(criteria, sortCriterion{expr: expr, descending: descending})
+	}
+
+	// Evaluate every key once per element rather than on each comparison
+	keys := make([][]types.Collection, len(input))
+	for i, item := range input {
+		if len(criteria) == 0 {
+			// The element itself is the key
+			keys[i] = []types.Collection{{item}}
+			continue
+		}
+
+		itemKeys := make([]types.Collection, len(criteria))
+		for j, criterion := range criteria {
+			result := e.evaluateWithThis(item, i, criterion.expr)
+			if err, ok := result.(error); ok {
+				return err
+			}
+			col, _ := result.(types.Collection)
+			itemKeys[j] = col
+		}
+		keys[i] = itemKeys
+	}
+
+	order := make([]int, len(input))
+	for i := range order {
+		order[i] = i
+	}
+
+	sort.SliceStable(order, func(a, b int) bool {
+		return compareSortKeys(keys[order[a]], keys[order[b]], criteria) < 0
+	})
+
+	result := make(types.Collection, len(input))
+	for i, idx := range order {
+		result[i] = input[idx]
+	}
+	return result
+}
+
+// unwrapSortDirection strips a leading minus from an ordering key, reporting
+// that the key sorts descending.
+func unwrapSortDirection(expr grammar.IExpressionContext) (grammar.IExpressionContext, bool) {
+	polarity, ok := expr.(*grammar.PolarityExpressionContext)
+	if !ok {
+		return expr, false
+	}
+	if node, ok := polarity.GetChild(0).(antlr.TerminalNode); ok && node.GetText() == "-" {
+		return polarity.Expression(), true
+	}
+	return expr, false
+}
+
+// evaluateWithThis evaluates an expression with $this bound to a single element.
+func (e *Evaluator) evaluateWithThis(item types.Value, index int, expr grammar.IExpressionContext) interface{} {
+	oldThis, oldIndex, oldPath := e.ctx.this, e.ctx.index, e.ctx.path
+	e.ctx.this = types.Collection{item}
+	e.ctx.index = index
+
+	result := e.Visit(expr)
+
+	e.ctx.this, e.ctx.index, e.ctx.path = oldThis, oldIndex, oldPath
+	return result
+}
+
+// compareSortKeys orders two elements by their keys, applying each criterion in
+// turn until one of them decides. Keys whose values cannot be compared are
+// treated as equal, so an incomparable pair falls through to the next criterion
+// rather than failing the whole sort.
+func compareSortKeys(left, right []types.Collection, criteria []sortCriterion) int {
+	for i := range left {
+		cmp := compareKeyValues(left[i], right[i])
+		if cmp == 0 {
+			continue
+		}
+		if i < len(criteria) && criteria[i].descending {
+			return -cmp
+		}
+		return cmp
+	}
+	return 0
+}
+
+// compareKeyValues compares two ordering keys. An empty key sorts after a
+// present one, so elements missing the key end up last.
+func compareKeyValues(left, right types.Collection) int {
+	switch {
+	case left.Empty() && right.Empty():
+		return 0
+	case left.Empty():
+		return 1
+	case right.Empty():
+		return -1
+	}
+
+	cmp, err := Compare(left[0], right[0])
+	if err != nil {
+		return 0
+	}
+	return cmp
 }
 
 // evaluateSelect evaluates select() - projects each element.
@@ -902,11 +1068,7 @@ func (e *Evaluator) evaluateIif(_ types.Collection, argExprs []grammar.IExpressi
 	// Convert criterion to boolean
 	criterion := false
 	if coll, ok := criterionResult.(types.Collection); ok {
-		if !coll.Empty() {
-			if b, ok := coll[0].(types.Boolean); ok {
-				criterion = b.Bool()
-			}
-		}
+		criterion, _ = coll.SingletonBoolean()
 	}
 
 	// Lazily evaluate only the matching branch
@@ -1125,6 +1287,10 @@ func (e *Evaluator) VisitAdditiveExpression(ctx *grammar.AdditiveExpressionConte
 	}
 
 	if err != nil {
+		// Quantities with incommensurable units evaluate to empty, per spec
+		if errors.Is(err, types.ErrIncompatibleUnits) {
+			return types.Collection{}
+		}
 		return err
 	}
 	return types.Collection{result}
@@ -1619,6 +1785,42 @@ func (e *Evaluator) buildElementPath(objType, name string) string {
 	return path
 }
 
+// resolveElement determines the FHIR element path for a named member of obj and
+// the type the model assigns it. It tries both ways a model indexes elements: a
+// complex type or resource indexes its own ("Observation.subject",
+// "Quantity.value"), while a backbone element only exists beneath the path it was
+// reached by ("Observation.component.valueQuantity") — hence the current
+// navigation path as the second candidate.
+//
+// fhirType is "" when there is no model or it knows neither form, in which case
+// the caller falls back to untyped field access.
+func (e *Evaluator) resolveElement(obj *types.ObjectValue, name string) (elementPath, fhirType string) {
+	elementPath = e.buildElementPath(obj.Type(), name)
+
+	m := e.ctx.model
+	if m == nil {
+		return elementPath, ""
+	}
+
+	if elementPath != "" {
+		if t := m.TypeOf(elementPath); t != "" {
+			return elementPath, t
+		}
+	}
+
+	// Fall back to the accumulated navigation path, which is the only form that
+	// resolves elements of anonymous backbone types.
+	if e.ctx.path != "" && e.ctx.path != obj.Type() {
+		if nested := e.buildElementPath(e.ctx.path, name); nested != "" {
+			if t := m.TypeOf(nested); t != "" {
+				return nested, t
+			}
+		}
+	}
+
+	return elementPath, ""
+}
+
 // navigateMember navigates to a member of objects in the collection.
 // Supports FHIR polymorphic elements (value[x] pattern) by automatically
 // resolving element names like "value" to their typed variants.
@@ -1642,14 +1844,12 @@ func (e *Evaluator) navigateMember(input types.Collection, name string) types.Co
 		}
 
 		// Build FHIR element path for model lookups
-		elementPath := e.buildElementPath(obj.Type(), name)
+		elementPath, fhirType := e.resolveElement(obj, name)
 
 		// Try direct field access first, using type-aware conversion when model is available
 		var children types.Collection
-		if m := e.ctx.model; m != nil && elementPath != "" {
-			if fhirType := m.TypeOf(elementPath); fhirType != "" {
-				children = obj.GetCollectionWithType(name, fhirType)
-			}
+		if fhirType != "" {
+			children = obj.GetCollectionWithType(name, fhirType)
 		}
 		if len(children) == 0 {
 			children = obj.GetCollection(name)
@@ -1709,7 +1909,19 @@ func (e *Evaluator) resolvePolymorphicField(obj *types.ObjectValue, name, elemen
 	return result
 }
 
-// unquoteString removes quotes and handles escape sequences.
+// unquoteString removes the surrounding quotes of a string literal and resolves
+// its escape sequences, as defined by the FHIRPath specification's String
+// section:
+//
+//	\'  \"  \`  \r  \n  \t  \f  \\  \uXXXX
+//
+// A backslash that begins anything else is dropped and the character kept
+// verbatim, which the specification states explicitly: '\p' is 'p', '\3' is '3',
+// and an incomplete '\u005' is 'u005'.
+//
+// The sequences are resolved in a single pass. Successive replacements would be
+// wrong: rewriting \\ before \n turns the literal '\\n' — a backslash followed
+// by the letter n — into a line feed.
 func unquoteString(s string) string {
 	if len(s) < 2 {
 		return s
@@ -1717,14 +1929,53 @@ func unquoteString(s string) string {
 	// Remove surrounding quotes
 	s = s[1 : len(s)-1]
 
-	// Handle escape sequences
-	s = strings.ReplaceAll(s, "\\'", "'")
-	s = strings.ReplaceAll(s, "\\\\", "\\")
-	s = strings.ReplaceAll(s, "\\n", "\n")
-	s = strings.ReplaceAll(s, "\\r", "\r")
-	s = strings.ReplaceAll(s, "\\t", "\t")
+	if !strings.Contains(s, `\`) {
+		return s
+	}
 
-	return s
+	var b strings.Builder
+	b.Grow(len(s))
+
+	runes := []rune(s)
+	for i := 0; i < len(runes); i++ {
+		if runes[i] != '\\' {
+			b.WriteRune(runes[i])
+			continue
+		}
+		if i+1 >= len(runes) {
+			// A trailing backslash is dropped: '\' is the empty string
+			break
+		}
+
+		i++
+		switch runes[i] {
+		case '\'', '"', '`', '\\':
+			b.WriteRune(runes[i])
+		case 'r':
+			b.WriteRune('\r')
+		case 'n':
+			b.WriteRune('\n')
+		case 't':
+			b.WriteRune('\t')
+		case 'f':
+			b.WriteRune('\f')
+		case 'u':
+			if i+4 < len(runes) {
+				if code, err := strconv.ParseUint(string(runes[i+1:i+5]), 16, 32); err == nil {
+					b.WriteRune(rune(code))
+					i += 4
+					continue
+				}
+			}
+			// Not four hex digits: the backslash is dropped, 'u' remains
+			b.WriteRune('u')
+		default:
+			// Not an escape sequence: drop the backslash, keep the character
+			b.WriteRune(runes[i])
+		}
+	}
+
+	return b.String()
 }
 
 // stripBackticks removes backtick delimiters from delimited identifiers.
