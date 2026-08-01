@@ -12,6 +12,7 @@ help:
 	@echo "test-race       Run the test suite with the race detector"
 	@echo "lint            Run golangci-lint"
 	@echo "conformance     Report conformance against the official FHIRPath suite"
+	@echo "conformance-update  Re-baseline the conformance known-failures lists"
 	@echo "clean           Remove build artifacts"
 
 $(ANTLR_JAR):
@@ -37,11 +38,13 @@ generate-check: $(ANTLR_JAR)
 	@rm -f build/generate-check/grammar/*.interp build/generate-check/grammar/*.tokens
 	@gofmt -w build/generate-check/grammar
 	@diff -q build/generate-check/grammar parser/grammar >/dev/null 2>&1 \
-		|| { echo "parser/grammar is out of date with $(GRAMMAR); run 'make generate'"; exit 1; }
+		|| { rm -rf build/generate-check; echo "parser/grammar is out of date with $(GRAMMAR); run 'make generate'"; exit 1; }
+	@rm -rf build/generate-check
 	@echo "Generated parser is up to date with $(GRAMMAR)"
 
 test:
 	go test ./...
+	cd conformance && go test ./...
 
 test-race:
 	go test -race ./...
@@ -49,8 +52,13 @@ test-race:
 lint:
 	golangci-lint run ./...
 
+# The harness lives in its own module so that the engine's go.mod stays free of
+# the FHIR model packages.
 conformance:
-	@go test -run TestOfficialSuite -v . 2>&1 | grep -E "official suite|skipped [0-9]"
+	@cd conformance && go test -run TestOfficialSuite -v . 2>&1 | grep -E "official suite|skipped [0-9]"
+
+conformance-update:
+	@cd conformance && go test -run TestOfficialSuite -update-known-failures .
 
 clean:
 	rm -rf build

@@ -31,19 +31,35 @@ Two further sources matter:
 
 ## Current conformance
 
-**799 of 928 executed cases (86.1%)**, measured against the official suite.
+Measured against the official suite, in both configurations a caller can use:
+
+| Configuration | Passing |
+|---|---|
+| No FHIR model supplied | **799 of 928 (86.1%)** |
+| With the R4 model | **803 of 928 (86.5%)** |
 
 ```sh
-make conformance     # prints the number
-go test -run TestOfficialSuite -v .   # per-case detail
+make conformance          # prints both numbers
+make conformance-update   # re-baseline after closing a gap
 ```
 
-The harness ([`conformance_test.go`](conformance_test.go)) runs the 937 cases of
+The harness ([`conformance/`](conformance)) runs the 937 cases of
 [`FHIR/fhir-test-cases`](https://github.com/FHIR/fhir-test-cases), vendored under
-[`testdata/fhirpath-suite`](testdata/fhirpath-suite). Nine cases are skipped
-because two inputs have no published JSON equivalent; every skip is logged.
+[`conformance/testdata/fhirpath-suite`](conformance/testdata/fhirpath-suite).
+Nine cases are skipped because two inputs have no published JSON equivalent;
+every skip is logged.
 
-Cases that do not pass yet live in `known-failures.txt`. CI does not break over
+It is a **separate Go module**, so the FHIR model packages it needs to measure
+the model-aware run stay out of the engine's own dependency graph.
+
+A model is worth less here than expected — four cases — and the reason is
+instructive: most remaining `is()`/`as()` failures are not about hierarchy but
+about FHIR primitives being distinct types from their System counterparts
+(`Patient.gender.as(string)` must yield empty because gender is a `code`), and
+three more fail on an input discrepancy rather than on evaluation.
+
+Cases that do not pass yet live in `known-failures.txt` and
+`known-failures-model.txt`, one baseline per configuration. CI does not break over
 pre-existing gaps, but it fails on a regression **and** when a listed case starts
 passing — so the list can only shrink, and it never lies about the number.
 
@@ -52,7 +68,7 @@ passing — so the list can only shrink, and it never lies about the number.
 | Block | Cases | Notes |
 |---|---|---|
 | Temporal comparison and precision | ~35 | Needs semantics decided: what yields empty vs false across precisions |
-| `is()` and type hierarchy | 15 | Mostly resolvable only with a Model |
+| `is()` / `as()` on FHIR primitives | 11 | `code` and `string` are distinct types; supplying a Model does not settle it |
 | Errors we should raise and don't | 23 | 12 `execution`, 11 `semantic`; the semantic ones need a Model |
 | Quantity conversion | ~12 | `toQuantity` on a bare number should carry unit `'1'`; string-to-quantity parsing |
 | `lowBoundary` / `highBoundary` | 8 | Three are a suite disagreement (see below); two assume `@2014-01-01T08` carries an implicit minute |

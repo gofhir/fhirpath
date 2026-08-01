@@ -1,4 +1,4 @@
-package fhirpath
+package conformance
 
 // Conformance harness for the official HL7 FHIRPath test suite.
 //
@@ -10,6 +10,12 @@ package fhirpath
 //
 // The harness measures results, not just that expressions compile: each case
 // carries the expected output, and 36 cases assert that evaluation must fail.
+//
+// The suite runs twice: once as a caller with no FHIR model, and once with the
+// R4 model supplied. Several cases can only be decided with a model — a
+// semantic error such as Encounter.name.given is not detectable from the
+// document alone — so the two runs keep separate baselines and show what the
+// model is worth.
 //
 // Cases that do not pass yet are listed in testdata/fhirpath-suite/known-failures.txt
 // so that this test guards against regressions without failing the build for
@@ -29,17 +35,22 @@ import (
 	"sort"
 	"strings"
 	"testing"
+
+	"github.com/gofhir/fhirpath"
+	"github.com/gofhir/fhirpath/types"
+	"github.com/gofhir/models/r4"
 )
 
 var updateKnownFailures = flag.Bool("update-known-failures", false,
 	"rewrite testdata/fhirpath-suite/known-failures.txt from this run")
 
 const (
-	suiteDir             = "testdata/fhirpath-suite"
-	suiteFile            = suiteDir + "/tests-fhir-r4.xml"
-	suiteInputDir        = suiteDir + "/input"
-	knownFailuresFile    = suiteDir + "/known-failures.txt"
-	knownFailuresComment = `# Cases from the official FHIRPath suite that this engine does not pass yet.
+	suiteDir               = "testdata/fhirpath-suite"
+	suiteFile              = suiteDir + "/tests-fhir-r4.xml"
+	suiteInputDir          = suiteDir + "/input"
+	knownFailuresFile      = suiteDir + "/known-failures.txt"
+	knownFailuresModelFile = suiteDir + "/known-failures-model.txt"
+	knownFailuresComment   = `# Cases from the official FHIRPath suite that this engine does not pass yet.
 # One "group/test" per line. Maintained by TestOfficialSuite; regenerate with
 #   go test -run TestOfficialSuite -update-known-failures
 # A line removed from here must stay passing; a new failure fails the build.
@@ -82,7 +93,41 @@ func (c suiteCase) expectsError() bool {
 	return c.Expression.Invalid != "" && c.Expression.Invalid != "false"
 }
 
+// variant is one way of calling the engine, measured against its own baseline.
+type variant struct {
+	name         string
+	baselineFile string
+	evaluate     func(expr *fhirpath.Expression, resource []byte) (types.Collection, error)
+}
+
+func variants() []variant {
+	return []variant{
+		{
+			name:         "without model",
+			baselineFile: knownFailuresFile,
+			evaluate: func(expr *fhirpath.Expression, resource []byte) (types.Collection, error) {
+				return expr.Evaluate(resource)
+			},
+		},
+		{
+			name:         "with r4 model",
+			baselineFile: knownFailuresModelFile,
+			evaluate: func(expr *fhirpath.Expression, resource []byte) (types.Collection, error) {
+				return expr.EvaluateWithOptions(resource, fhirpath.WithModel(r4.FHIRPathModel()))
+			},
+		},
+	}
+}
+
 func TestOfficialSuite(t *testing.T) {
+	for _, v := range variants() {
+		t.Run(v.name, func(t *testing.T) {
+			runSuite(t, v)
+		})
+	}
+}
+
+func runSuite(t *testing.T, v variant) {
 	data, err := os.ReadFile(suiteFile)
 	if err != nil {
 		t.Fatalf("read suite: %v", err)
@@ -94,7 +139,7 @@ func TestOfficialSuite(t *testing.T) {
 	}
 
 	inputs := newInputLoader(t)
-	known := loadKnownFailures(t)
+	known := loadKnownFailures(t, v.baselineFile)
 
 	var (
 		failures []string
@@ -114,7 +159,7 @@ func TestOfficialSuite(t *testing.T) {
 			}
 
 			executed++
-			if err := runSuiteCase(tc, resource); err != nil {
+			if err := runSuiteCase(tc, resource, v); err != nil {
 				failures = append(failures, id)
 				if !known[id] {
 					t.Errorf("%s: %v\n  expression: %s", id, err, strings.TrimSpace(tc.Expression.Text))
@@ -123,35 +168,35 @@ func TestOfficialSuite(t *testing.T) {
 			}
 			passed++
 			if known[id] {
-				t.Errorf("%s now passes — remove it from %s", id, knownFailuresFile)
+				t.Errorf("%s now passes — remove it from %s", id, v.baselineFile)
 			}
 		}
 	}
 
 	sort.Strings(failures)
 	if *updateKnownFailures {
-		writeKnownFailures(t, failures)
+		writeKnownFailures(t, v.baselineFile, failures)
 	}
 
 	// Coverage is reported, never silently reduced: a case the harness could not
 	// run is as important as one that failed.
-	t.Logf("official suite: %d/%d executed cases pass (%.1f%%), %d known failures",
-		passed, executed, 100*float64(passed)/float64(executed), len(failures))
+	t.Logf("official suite (%s): %d/%d executed cases pass (%.1f%%), %d known failures",
+		v.name, passed, executed, 100*float64(passed)/float64(executed), len(failures))
 	for file, n := range skippedByInput {
 		t.Logf("skipped %d case(s): no JSON available for input %q", n, file)
 	}
 }
 
 // runSuiteCase evaluates one case and reports why it did not conform, or nil.
-func runSuiteCase(tc suiteCase, resource []byte) error {
-	expr, compileErr := Compile(strings.TrimSpace(tc.Expression.Text))
+func runSuiteCase(tc suiteCase, resource []byte, v variant) error {
+	expr, compileErr := fhirpath.Compile(strings.TrimSpace(tc.Expression.Text))
 
 	var (
-		result  Collection
+		result  types.Collection
 		evalErr error
 	)
 	if compileErr == nil {
-		result, evalErr = expr.Evaluate(resource)
+		result, evalErr = v.evaluate(expr, resource)
 	}
 
 	if tc.expectsError() {
@@ -173,7 +218,7 @@ func runSuiteCase(tc suiteCase, resource []byte) error {
 
 // compareOutputs checks the result against the expected outputs. Values are
 // compared by their string form, which is what the suite records.
-func compareOutputs(tc suiteCase, result Collection) error {
+func compareOutputs(tc suiteCase, result types.Collection) error {
 	// predicate="true" means the expression is evaluated for its truth value
 	if tc.Predicate == "true" && len(tc.Outputs) == 1 && tc.Outputs[0].Type == "boolean" {
 		got := "false"
@@ -271,9 +316,9 @@ func (l *inputLoader) load(name string) ([]byte, bool) {
 	return data, true
 }
 
-func loadKnownFailures(t *testing.T) map[string]bool {
+func loadKnownFailures(t *testing.T, path string) map[string]bool {
 	known := map[string]bool{}
-	data, err := os.ReadFile(knownFailuresFile)
+	data, err := os.ReadFile(path)
 	if err != nil {
 		if !os.IsNotExist(err) {
 			t.Fatalf("read known failures: %v", err)
@@ -290,13 +335,13 @@ func loadKnownFailures(t *testing.T) map[string]bool {
 	return known
 }
 
-func writeKnownFailures(t *testing.T, failures []string) {
+func writeKnownFailures(t *testing.T, path string, failures []string) {
 	content := knownFailuresComment
 	if len(failures) > 0 {
 		content += strings.Join(failures, "\n") + "\n"
 	}
-	if err := os.WriteFile(knownFailuresFile, []byte(content), 0o644); err != nil {
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write known failures: %v", err)
 	}
-	t.Logf("wrote %d known failure(s) to %s", len(failures), knownFailuresFile)
+	t.Logf("wrote %d known failure(s) to %s", len(failures), path)
 }

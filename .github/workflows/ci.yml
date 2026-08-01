@@ -82,14 +82,21 @@ jobs:
       - name: Run tests
         run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
 
-      # TestOfficialSuite already fails the run on a regression; this reports the
+      # The conformance harness is a separate module so that the engine's go.mod
+      # stays free of the FHIR model packages.
+      - name: Run the conformance harness
+        working-directory: conformance
+        run: go test -v ./...
+
+      # The harness already fails the run on a regression; this reports the
       # standing conformance number in the job summary.
       - name: Report conformance against the official FHIRPath suite
         if: always()
+        working-directory: conformance
         run: |
           go test -run TestOfficialSuite -v . 2>&1 \
             | grep -E "official suite|skipped [0-9]" \
-            | sed 's/^[[:space:]]*conformance_test.go:[0-9]*: //' \
+            | sed 's/^[[:space:]]*suite_test.go:[0-9]*: //' \
             | tee -a "$GITHUB_STEP_SUMMARY"
 
       - name: Upload coverage
