@@ -51,3 +51,6 @@ docs/resources/_gen/
 docs/node_modules/
 docs/.hugo_build.lock
 docs/_vendor/
+
+# ANTLR jar and generation artifacts
+build/

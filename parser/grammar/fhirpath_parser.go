@@ -33,7 +33,7 @@ func fhirpathParserInit() {
 	staticData := &FhirpathParserStaticData
 	staticData.LiteralNames = []string{
 		"", "'.'", "'['", "']'", "'+'", "'-'", "'*'", "'/'", "'div'", "'mod'",
-		"'&'", "'|'", "'<='", "'<'", "'>'", "'>='", "'is'", "'as'", "'='", "'~'",
+		"'&'", "'is'", "'as'", "'|'", "'<='", "'<'", "'>'", "'>='", "'='", "'~'",
 		"'!='", "'!~'", "'in'", "'contains'", "'and'", "'or'", "'xor'", "'implies'",
 		"'('", "')'", "'{'", "'}'", "'true'", "'false'", "'%'", "'$this'", "'$index'",
 		"'$total'", "','", "'year'", "'month'", "'week'", "'day'", "'hour'",
@@ -44,8 +44,8 @@ func fhirpathParserInit() {
 		"", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "",
 		"", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "",
 		"", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "", "",
-		"", "", "", "", "IDENTIFIER", "DELIMITEDIDENTIFIER", "STRING", "NUMBER",
-		"DATE", "DATETIME", "TIME", "WS", "COMMENT", "LINE_COMMENT",
+		"", "", "", "", "DATE", "DATETIME", "TIME", "IDENTIFIER", "DELIMITEDIDENTIFIER",
+		"STRING", "NUMBER", "WS", "COMMENT", "LINE_COMMENT",
 	}
 	staticData.RuleNames = []string{
 		"entireExpression", "expression", "term", "literal", "externalConstant",
@@ -70,26 +70,26 @@ func fhirpathParserInit() {
 		12, 1, 12, 1, 13, 1, 13, 1, 13, 5, 13, 148, 8, 13, 10, 13, 12, 13, 151,
 		9, 13, 1, 14, 1, 14, 1, 14, 0, 1, 2, 15, 0, 2, 4, 6, 8, 10, 12, 14, 16,
 		18, 20, 22, 24, 26, 28, 0, 12, 1, 0, 4, 5, 1, 0, 6, 9, 2, 0, 4, 5, 10,
-		10, 1, 0, 12, 15, 1, 0, 18, 21, 1, 0, 22, 23, 1, 0, 25, 26, 1, 0, 16, 17,
-		1, 0, 32, 33, 1, 0, 39, 46, 1, 0, 47, 54, 4, 0, 8, 9, 16, 17, 22, 27, 55,
-		56, 173, 0, 30, 1, 0, 0, 0, 2, 37, 1, 0, 0, 0, 4, 89, 1, 0, 0, 0, 6, 100,
-		1, 0, 0, 0, 8, 102, 1, 0, 0, 0, 10, 112, 1, 0, 0, 0, 12, 114, 1, 0, 0,
-		0, 14, 121, 1, 0, 0, 0, 16, 129, 1, 0, 0, 0, 18, 136, 1, 0, 0, 0, 20, 138,
+		10, 1, 0, 14, 17, 1, 0, 18, 21, 1, 0, 22, 23, 1, 0, 25, 26, 1, 0, 11, 12,
+		1, 0, 32, 33, 1, 0, 39, 46, 1, 0, 47, 54, 3, 0, 11, 12, 22, 23, 58, 59,
+		173, 0, 30, 1, 0, 0, 0, 2, 37, 1, 0, 0, 0, 4, 89, 1, 0, 0, 0, 6, 100, 1,
+		0, 0, 0, 8, 102, 1, 0, 0, 0, 10, 112, 1, 0, 0, 0, 12, 114, 1, 0, 0, 0,
+		14, 121, 1, 0, 0, 0, 16, 129, 1, 0, 0, 0, 18, 136, 1, 0, 0, 0, 20, 138,
 		1, 0, 0, 0, 22, 140, 1, 0, 0, 0, 24, 142, 1, 0, 0, 0, 26, 144, 1, 0, 0,
 		0, 28, 152, 1, 0, 0, 0, 30, 31, 3, 2, 1, 0, 31, 32, 5, 0, 0, 1, 32, 1,
 		1, 0, 0, 0, 33, 34, 6, 1, -1, 0, 34, 38, 3, 4, 2, 0, 35, 36, 7, 0, 0, 0,
 		36, 38, 3, 2, 1, 11, 37, 33, 1, 0, 0, 0, 37, 35, 1, 0, 0, 0, 38, 79, 1,
 		0, 0, 0, 39, 40, 10, 10, 0, 0, 40, 41, 7, 1, 0, 0, 41, 78, 3, 2, 1, 11,
 		42, 43, 10, 9, 0, 0, 43, 44, 7, 2, 0, 0, 44, 78, 3, 2, 1, 10, 45, 46, 10,
-		8, 0, 0, 46, 47, 5, 11, 0, 0, 47, 78, 3, 2, 1, 9, 48, 49, 10, 7, 0, 0,
-		49, 50, 7, 3, 0, 0, 50, 78, 3, 2, 1, 8, 51, 52, 10, 5, 0, 0, 52, 53, 7,
+		7, 0, 0, 46, 47, 5, 13, 0, 0, 47, 78, 3, 2, 1, 8, 48, 49, 10, 6, 0, 0,
+		49, 50, 7, 3, 0, 0, 50, 78, 3, 2, 1, 7, 51, 52, 10, 5, 0, 0, 52, 53, 7,
 		4, 0, 0, 53, 78, 3, 2, 1, 6, 54, 55, 10, 4, 0, 0, 55, 56, 7, 5, 0, 0, 56,
 		78, 3, 2, 1, 5, 57, 58, 10, 3, 0, 0, 58, 59, 5, 24, 0, 0, 59, 78, 3, 2,
 		1, 4, 60, 61, 10, 2, 0, 0, 61, 62, 7, 6, 0, 0, 62, 78, 3, 2, 1, 3, 63,
 		64, 10, 1, 0, 0, 64, 65, 5, 27, 0, 0, 65, 78, 3, 2, 1, 2, 66, 67, 10, 13,
 		0, 0, 67, 68, 5, 1, 0, 0, 68, 78, 3, 10, 5, 0, 69, 70, 10, 12, 0, 0, 70,
 		71, 5, 2, 0, 0, 71, 72, 3, 2, 1, 0, 72, 73, 5, 3, 0, 0, 73, 78, 1, 0, 0,
-		0, 74, 75, 10, 6, 0, 0, 75, 76, 7, 7, 0, 0, 76, 78, 3, 24, 12, 0, 77, 39,
+		0, 74, 75, 10, 8, 0, 0, 75, 76, 7, 7, 0, 0, 76, 78, 3, 24, 12, 0, 77, 39,
 		1, 0, 0, 0, 77, 42, 1, 0, 0, 0, 77, 45, 1, 0, 0, 0, 77, 48, 1, 0, 0, 0,
 		77, 51, 1, 0, 0, 0, 77, 54, 1, 0, 0, 0, 77, 57, 1, 0, 0, 0, 77, 60, 1,
 		0, 0, 0, 77, 63, 1, 0, 0, 0, 77, 66, 1, 0, 0, 0, 77, 69, 1, 0, 0, 0, 77,
@@ -99,12 +99,12 @@ func fhirpathParserInit() {
 		87, 88, 5, 29, 0, 0, 88, 90, 1, 0, 0, 0, 89, 82, 1, 0, 0, 0, 89, 83, 1,
 		0, 0, 0, 89, 84, 1, 0, 0, 0, 89, 85, 1, 0, 0, 0, 90, 5, 1, 0, 0, 0, 91,
 		92, 5, 30, 0, 0, 92, 101, 5, 31, 0, 0, 93, 101, 7, 8, 0, 0, 94, 101, 5,
-		57, 0, 0, 95, 101, 5, 58, 0, 0, 96, 101, 5, 59, 0, 0, 97, 101, 5, 60, 0,
-		0, 98, 101, 5, 61, 0, 0, 99, 101, 3, 16, 8, 0, 100, 91, 1, 0, 0, 0, 100,
+		60, 0, 0, 95, 101, 5, 61, 0, 0, 96, 101, 5, 55, 0, 0, 97, 101, 5, 56, 0,
+		0, 98, 101, 5, 57, 0, 0, 99, 101, 3, 16, 8, 0, 100, 91, 1, 0, 0, 0, 100,
 		93, 1, 0, 0, 0, 100, 94, 1, 0, 0, 0, 100, 95, 1, 0, 0, 0, 100, 96, 1, 0,
 		0, 0, 100, 97, 1, 0, 0, 0, 100, 98, 1, 0, 0, 0, 100, 99, 1, 0, 0, 0, 101,
 		7, 1, 0, 0, 0, 102, 105, 5, 34, 0, 0, 103, 106, 3, 28, 14, 0, 104, 106,
-		5, 57, 0, 0, 105, 103, 1, 0, 0, 0, 105, 104, 1, 0, 0, 0, 106, 9, 1, 0,
+		5, 60, 0, 0, 105, 103, 1, 0, 0, 0, 105, 104, 1, 0, 0, 0, 106, 9, 1, 0,
 		0, 0, 107, 113, 3, 28, 14, 0, 108, 113, 3, 12, 6, 0, 109, 113, 5, 35, 0,
 		0, 110, 113, 5, 36, 0, 0, 111, 113, 5, 37, 0, 0, 112, 107, 1, 0, 0, 0,
 		112, 108, 1, 0, 0, 0, 112, 109, 1, 0, 0, 0, 112, 110, 1, 0, 0, 0, 112,
@@ -113,10 +113,10 @@ func fhirpathParserInit() {
 		0, 0, 0, 118, 119, 1, 0, 0, 0, 119, 120, 5, 29, 0, 0, 120, 13, 1, 0, 0,
 		0, 121, 126, 3, 2, 1, 0, 122, 123, 5, 38, 0, 0, 123, 125, 3, 2, 1, 0, 124,
 		122, 1, 0, 0, 0, 125, 128, 1, 0, 0, 0, 126, 124, 1, 0, 0, 0, 126, 127,
-		1, 0, 0, 0, 127, 15, 1, 0, 0, 0, 128, 126, 1, 0, 0, 0, 129, 131, 5, 58,
+		1, 0, 0, 0, 127, 15, 1, 0, 0, 0, 128, 126, 1, 0, 0, 0, 129, 131, 5, 61,
 		0, 0, 130, 132, 3, 18, 9, 0, 131, 130, 1, 0, 0, 0, 131, 132, 1, 0, 0, 0,
 		132, 17, 1, 0, 0, 0, 133, 137, 3, 20, 10, 0, 134, 137, 3, 22, 11, 0, 135,
-		137, 5, 57, 0, 0, 136, 133, 1, 0, 0, 0, 136, 134, 1, 0, 0, 0, 136, 135,
+		137, 5, 60, 0, 0, 136, 133, 1, 0, 0, 0, 136, 134, 1, 0, 0, 0, 136, 135,
 		1, 0, 0, 0, 137, 19, 1, 0, 0, 0, 138, 139, 7, 9, 0, 0, 139, 21, 1, 0, 0,
 		0, 140, 141, 7, 10, 0, 0, 141, 23, 1, 0, 0, 0, 142, 143, 3, 26, 13, 0,
 		143, 25, 1, 0, 0, 0, 144, 149, 3, 28, 14, 0, 145, 146, 5, 1, 0, 0, 146,
@@ -216,13 +216,13 @@ const (
 	fhirpathParserT__51               = 52
 	fhirpathParserT__52               = 53
 	fhirpathParserT__53               = 54
-	fhirpathParserIDENTIFIER          = 55
-	fhirpathParserDELIMITEDIDENTIFIER = 56
-	fhirpathParserSTRING              = 57
-	fhirpathParserNUMBER              = 58
-	fhirpathParserDATE                = 59
-	fhirpathParserDATETIME            = 60
-	fhirpathParserTIME                = 61
+	fhirpathParserDATE                = 55
+	fhirpathParserDATETIME            = 56
+	fhirpathParserTIME                = 57
+	fhirpathParserIDENTIFIER          = 58
+	fhirpathParserDELIMITEDIDENTIFIER = 59
+	fhirpathParserSTRING              = 60
+	fhirpathParserNUMBER              = 61
 	fhirpathParserWS                  = 62
 	fhirpathParserCOMMENT             = 63
 	fhirpathParserLINE_COMMENT        = 64
@@ -1339,7 +1339,7 @@ func (p *fhirpathParser) expression(_p int) (localctx IExpressionContext) {
 	}
 
 	switch p.GetTokenStream().LA(1) {
-	case fhirpathParserT__7, fhirpathParserT__8, fhirpathParserT__15, fhirpathParserT__16, fhirpathParserT__21, fhirpathParserT__22, fhirpathParserT__23, fhirpathParserT__24, fhirpathParserT__25, fhirpathParserT__26, fhirpathParserT__27, fhirpathParserT__29, fhirpathParserT__31, fhirpathParserT__32, fhirpathParserT__33, fhirpathParserT__34, fhirpathParserT__35, fhirpathParserT__36, fhirpathParserIDENTIFIER, fhirpathParserDELIMITEDIDENTIFIER, fhirpathParserSTRING, fhirpathParserNUMBER, fhirpathParserDATE, fhirpathParserDATETIME, fhirpathParserTIME:
+	case fhirpathParserT__10, fhirpathParserT__11, fhirpathParserT__21, fhirpathParserT__22, fhirpathParserT__27, fhirpathParserT__29, fhirpathParserT__31, fhirpathParserT__32, fhirpathParserT__33, fhirpathParserT__34, fhirpathParserT__35, fhirpathParserT__36, fhirpathParserDATE, fhirpathParserDATETIME, fhirpathParserTIME, fhirpathParserIDENTIFIER, fhirpathParserDELIMITEDIDENTIFIER, fhirpathParserSTRING, fhirpathParserNUMBER:
 		localctx = NewTermExpressionContext(p, localctx)
 		p.SetParserRuleContext(localctx)
 		_prevctx = localctx
@@ -1451,13 +1451,13 @@ func (p *fhirpathParser) expression(_p int) (localctx IExpressionContext) {
 				p.PushNewRecursionContext(localctx, _startState, fhirpathParserRULE_expression)
 				p.SetState(45)
 
-				if !(p.Precpred(p.GetParserRuleContext(), 8)) {
-					p.SetError(antlr.NewFailedPredicateException(p, "p.Precpred(p.GetParserRuleContext(), 8)", ""))
+				if !(p.Precpred(p.GetParserRuleContext(), 7)) {
+					p.SetError(antlr.NewFailedPredicateException(p, "p.Precpred(p.GetParserRuleContext(), 7)", ""))
 					goto errorExit
 				}
 				{
 					p.SetState(46)
-					p.Match(fhirpathParserT__10)
+					p.Match(fhirpathParserT__12)
 					if p.HasError() {
 						// Recognition error - abort rule
 						goto errorExit
@@ -1465,7 +1465,7 @@ func (p *fhirpathParser) expression(_p int) (localctx IExpressionContext) {
 				}
 				{
 					p.SetState(47)
-					p.expression(9)
+					p.expression(8)
 				}
 
 			case 4:
@@ -1473,15 +1473,15 @@ func (p *fhirpathParser) expression(_p int) (localctx IExpressionContext) {
 				p.PushNewRecursionContext(localctx, _startState, fhirpathParserRULE_expression)
 				p.SetState(48)
 
-				if !(p.Precpred(p.GetParserRuleContext(), 7)) {
-					p.SetError(antlr.NewFailedPredicateException(p, "p.Precpred(p.GetParserRuleContext(), 7)", ""))
+				if !(p.Precpred(p.GetParserRuleContext(), 6)) {
+					p.SetError(antlr.NewFailedPredicateException(p, "p.Precpred(p.GetParserRuleContext(), 6)", ""))
 					goto errorExit
 				}
 				{
 					p.SetState(49)
 					_la = p.GetTokenStream().LA(1)
 
-					if !((int64(_la) & ^0x3f) == 0 && ((int64(1)<<_la)&61440) != 0) {
+					if !((int64(_la) & ^0x3f) == 0 && ((int64(1)<<_la)&245760) != 0) {
 						p.GetErrorHandler().RecoverInline(p)
 					} else {
 						p.GetErrorHandler().ReportMatch(p)
@@ -1490,7 +1490,7 @@ func (p *fhirpathParser) expression(_p int) (localctx IExpressionContext) {
 				}
 				{
 					p.SetState(50)
-					p.expression(8)
+					p.expression(7)
 				}
 
 			case 5:
@@ -1669,15 +1669,15 @@ func (p *fhirpathParser) expression(_p int) (localctx IExpressionContext) {
 				p.PushNewRecursionContext(localctx, _startState, fhirpathParserRULE_expression)
 				p.SetState(74)
 
-				if !(p.Precpred(p.GetParserRuleContext(), 6)) {
-					p.SetError(antlr.NewFailedPredicateException(p, "p.Precpred(p.GetParserRuleContext(), 6)", ""))
+				if !(p.Precpred(p.GetParserRuleContext(), 8)) {
+					p.SetError(antlr.NewFailedPredicateException(p, "p.Precpred(p.GetParserRuleContext(), 8)", ""))
 					goto errorExit
 				}
 				{
 					p.SetState(75)
 					_la = p.GetTokenStream().LA(1)
 
-					if !(_la == fhirpathParserT__15 || _la == fhirpathParserT__16) {
+					if !(_la == fhirpathParserT__10 || _la == fhirpathParserT__11) {
 						p.GetErrorHandler().RecoverInline(p)
 					} else {
 						p.GetErrorHandler().ReportMatch(p)
@@ -1958,7 +1958,7 @@ func (p *fhirpathParser) Term() (localctx ITermContext) {
 	}
 
 	switch p.GetTokenStream().LA(1) {
-	case fhirpathParserT__7, fhirpathParserT__8, fhirpathParserT__15, fhirpathParserT__16, fhirpathParserT__21, fhirpathParserT__22, fhirpathParserT__23, fhirpathParserT__24, fhirpathParserT__25, fhirpathParserT__26, fhirpathParserT__34, fhirpathParserT__35, fhirpathParserT__36, fhirpathParserIDENTIFIER, fhirpathParserDELIMITEDIDENTIFIER:
+	case fhirpathParserT__10, fhirpathParserT__11, fhirpathParserT__21, fhirpathParserT__22, fhirpathParserT__34, fhirpathParserT__35, fhirpathParserT__36, fhirpathParserIDENTIFIER, fhirpathParserDELIMITEDIDENTIFIER:
 		localctx = NewInvocationTermContext(p, localctx)
 		p.EnterOuterAlt(localctx, 1)
 		{
@@ -1966,7 +1966,7 @@ func (p *fhirpathParser) Term() (localctx ITermContext) {
 			p.Invocation()
 		}
 
-	case fhirpathParserT__29, fhirpathParserT__31, fhirpathParserT__32, fhirpathParserSTRING, fhirpathParserNUMBER, fhirpathParserDATE, fhirpathParserDATETIME, fhirpathParserTIME:
+	case fhirpathParserT__29, fhirpathParserT__31, fhirpathParserT__32, fhirpathParserDATE, fhirpathParserDATETIME, fhirpathParserTIME, fhirpathParserSTRING, fhirpathParserNUMBER:
 		localctx = NewLiteralTermContext(p, localctx)
 		p.EnterOuterAlt(localctx, 2)
 		{
@@ -2574,7 +2574,7 @@ func (p *fhirpathParser) ExternalConstant() (localctx IExternalConstantContext) 
 	}
 
 	switch p.GetTokenStream().LA(1) {
-	case fhirpathParserT__7, fhirpathParserT__8, fhirpathParserT__15, fhirpathParserT__16, fhirpathParserT__21, fhirpathParserT__22, fhirpathParserT__23, fhirpathParserT__24, fhirpathParserT__25, fhirpathParserT__26, fhirpathParserIDENTIFIER, fhirpathParserDELIMITEDIDENTIFIER:
+	case fhirpathParserT__10, fhirpathParserT__11, fhirpathParserT__21, fhirpathParserT__22, fhirpathParserIDENTIFIER, fhirpathParserDELIMITEDIDENTIFIER:
 		{
 			p.SetState(103)
 			p.Identifier()
@@ -3035,7 +3035,7 @@ func (p *fhirpathParser) Function() (localctx IFunctionContext) {
 	}
 	_la = p.GetTokenStream().LA(1)
 
-	if (int64(_la) & ^0x3f) == 0 && ((int64(1)<<_la)&4575657493597979440) != 0 {
+	if (int64(_la) & ^0x3f) == 0 && ((int64(1)<<_la)&4575657493346129968) != 0 {
 		{
 			p.SetState(116)
 			p.ParamList()
@@ -4030,7 +4030,7 @@ func (p *fhirpathParser) Identifier() (localctx IIdentifierContext) {
 		p.SetState(152)
 		_la = p.GetTokenStream().LA(1)
 
-		if !((int64(_la) & ^0x3f) == 0 && ((int64(1)<<_la)&108086391321330432) != 0) {
+		if !((int64(_la) & ^0x3f) == 0 && ((int64(1)<<_la)&864691128467724288) != 0) {
 			p.GetErrorHandler().RecoverInline(p)
 		} else {
 			p.GetErrorHandler().ReportMatch(p)
@@ -4074,10 +4074,10 @@ func (p *fhirpathParser) Expression_Sempred(localctx antlr.RuleContext, predInde
 		return p.Precpred(p.GetParserRuleContext(), 9)
 
 	case 2:
-		return p.Precpred(p.GetParserRuleContext(), 8)
+		return p.Precpred(p.GetParserRuleContext(), 7)
 
 	case 3:
-		return p.Precpred(p.GetParserRuleContext(), 7)
+		return p.Precpred(p.GetParserRuleContext(), 6)
 
 	case 4:
 		return p.Precpred(p.GetParserRuleContext(), 5)
@@ -4101,7 +4101,7 @@ func (p *fhirpathParser) Expression_Sempred(localctx antlr.RuleContext, predInde
 		return p.Precpred(p.GetParserRuleContext(), 12)
 
 	case 11:
-		return p.Precpred(p.GetParserRuleContext(), 6)
+		return p.Precpred(p.GetParserRuleContext(), 8)
 
 	default:
 		panic("No predicate with index: " + fmt.Sprint(predIndex))
