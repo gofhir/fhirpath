@@ -13,7 +13,9 @@ replace github.com/gofhir/fhirpath => ../
 
 require (
 	github.com/gofhir/fhirpath v1.4.0
-	github.com/gofhir/models/r4 v1.2.0
+	github.com/gofhir/models/r4 v1.3.0
+	github.com/gofhir/models/r4b v1.3.0
+	github.com/gofhir/models/r5 v1.3.0
 )
 
 require (
