@@ -137,6 +137,15 @@ SHALL invariant on **every** DomainResource, reads:
 dom-3 raises an error on every resource it is applied to. FHIR publishes an
 invariant its own base language forbids, and an engine has to pick a side.
 
+This is not a lenient reading of an ambiguous rule. Checked against fhirpath.js
+5.1.0, the reference implementation, which follows the specification exactly:
+
+    dom-3 as published for R4  ->  Error: Expected singleton on left side of 'as'
+    dom-3 as published for R5  ->  [true]
+
+So a specification-exact engine cannot validate dom-3 on R4 at all, and R4 is
+what most deployments run.
+
 HL7 came to the same conclusion. In R5 the invariant reads `ofType(canonical)`
 where R4 read `as(canonical)` — the filtering function, which is what the
 expression meant all along:
