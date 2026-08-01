@@ -21,7 +21,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
-	ucumlib "github.com/gofhir/ucum/v2"
+	ucumlib "github.com/gofhir/ucum/v4"
 )
 
 // exactDigits bounds the decimal expansion of a conversion whose exact result is
