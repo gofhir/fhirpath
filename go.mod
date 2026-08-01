@@ -5,7 +5,7 @@ go 1.24.1
 require (
 	github.com/antlr4-go/antlr/v4 v4.13.1
 	github.com/buger/jsonparser v1.1.1
-	github.com/gofhir/ucum/v4 v4.0.0
+	github.com/gofhir/ucum/v4 v4.1.0
 	github.com/shopspring/decimal v1.4.0
 )
 
