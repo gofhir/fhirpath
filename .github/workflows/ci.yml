@@ -28,6 +28,35 @@ jobs:
           version: latest
           args: --timeout=5m
 
+  grammar:
+    name: Grammar
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: ${{ env.GO_VERSION }}
+
+      - name: Set up Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Cache ANTLR jar
+        uses: actions/cache@v4
+        with:
+          path: build
+          key: ${{ runner.os }}-antlr-${{ hashFiles('Makefile') }}
+
+      # Fails if parser/grammar was hand-edited or if grammar/fhirpath.g4 was
+      # changed without regenerating. The generated parser has no other source.
+      - name: Verify the parser matches the grammar
+        run: make generate-check
+
   test:
     name: Test
     runs-on: ubuntu-latest
@@ -53,6 +82,16 @@ jobs:
       - name: Run tests
         run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
 
+      # TestOfficialSuite already fails the run on a regression; this reports the
+      # standing conformance number in the job summary.
+      - name: Report conformance against the official FHIRPath suite
+        if: always()
+        run: |
+          go test -run TestOfficialSuite -v . 2>&1 \
+            | grep -E "official suite|skipped [0-9]" \
+            | sed 's/^[[:space:]]*conformance_test.go:[0-9]*: //' \
+            | tee -a "$GITHUB_STEP_SUMMARY"
+
       - name: Upload coverage
         uses: codecov/codecov-action@v5
         with:
@@ -62,7 +101,7 @@ jobs:
   build:
     name: Build
     runs-on: ubuntu-latest
-    needs: [lint, test]
+    needs: [lint, test, grammar]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
