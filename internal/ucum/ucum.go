@@ -1,239 +1,170 @@
-// Package ucum provides UCUM (Unified Code for Units of Measure) normalization
-// for FHIR quantity search parameters.
+// Package ucum adapts UCUM unit handling to the exact decimal arithmetic this
+// engine uses.
 //
-// UCUM is the standard unit system used in FHIR for quantities.
-// This package normalizes units to canonical base units to enable
-// cross-unit search (e.g., 10mg = 0.01g).
+// It holds no unit table of its own. Every question about a unit — is it valid,
+// is it commensurable with another, what converts one into the other, what unit
+// results from multiplying two — is answered by github.com/gofhir/ucum, which
+// parses the full UCUM grammar from the official definitions. That covers
+// prefixes, compound expressions such as mg/kg/d, annotations, and the special
+// scales where conversion is affine rather than a factor.
 //
-// Reference: https://ucum.org/ucum.html
+// Conversions run through the library's exact rational API so that results are
+// free of float64 rounding: 1 'L' is exactly 1000 'mL', which decides whether an
+// equality holds.
 package ucum
 
 import (
-	"strings"
+	"errors"
+	"fmt"
+	"math/big"
+	"sync"
+
+	"github.com/shopspring/decimal"
+
+	ucumlib "github.com/gofhir/ucum/v2"
 )
 
-// NormalizedQuantity represents a quantity normalized to canonical UCUM units.
-type NormalizedQuantity struct {
-	Value float64 // Normalized value in canonical units
-	Code  string  // Canonical unit code
+// exactDigits bounds the decimal expansion of a conversion whose exact result is
+// a repeating fraction — 100 '[degF]' in 'Cel' is 340/9. FHIR caps decimals at
+// 18 digits, so this leaves ample headroom before any value the engine can hold.
+const exactDigits = 34
+
+var (
+	serviceOnce sync.Once
+	service     ucumlib.ExactService
+	serviceErr  error
+)
+
+// exact returns the shared UCUM service, loading the definitions once. The
+// service is immutable after construction and safe for concurrent use.
+func exact() (ucumlib.ExactService, error) {
+	serviceOnce.Do(func() {
+		service, serviceErr = ucumlib.NewExact()
+	})
+	return service, serviceErr
 }
 
-// UnitConversion defines a conversion from a unit to its canonical form.
-type UnitConversion struct {
-	CanonicalCode string  // The canonical unit code (e.g., "g" for mass)
-	Factor        float64 // Multiply original value by this to get canonical
-}
-
-// canonicalUnits maps UCUM codes to their canonical conversions.
-// Organized by dimension (mass, length, volume, time, etc.)
-var canonicalUnits = map[string]UnitConversion{
-	// === MASS (canonical: g) ===
-	"kg":      {CanonicalCode: "g", Factor: 1000},
-	"g":       {CanonicalCode: "g", Factor: 1},
-	"mg":      {CanonicalCode: "g", Factor: 0.001},
-	"ug":      {CanonicalCode: "g", Factor: 0.000001},
-	"ng":      {CanonicalCode: "g", Factor: 0.000000001},
-	"pg":      {CanonicalCode: "g", Factor: 0.000000000001},
-	"lb":      {CanonicalCode: "g", Factor: 453.59237},    // avoirdupois pound
-	"oz":      {CanonicalCode: "g", Factor: 28.349523125}, // avoirdupois ounce
-	"[lb_av]": {CanonicalCode: "g", Factor: 453.59237},
-	"[oz_av]": {CanonicalCode: "g", Factor: 28.349523125},
-
-	// === LENGTH (canonical: m) ===
-	"km":     {CanonicalCode: "m", Factor: 1000},
-	"m":      {CanonicalCode: "m", Factor: 1},
-	"dm":     {CanonicalCode: "m", Factor: 0.1},
-	"cm":     {CanonicalCode: "m", Factor: 0.01},
-	"mm":     {CanonicalCode: "m", Factor: 0.001},
-	"um":     {CanonicalCode: "m", Factor: 0.000001},
-	"nm":     {CanonicalCode: "m", Factor: 0.000000001},
-	"[in_i]": {CanonicalCode: "m", Factor: 0.0254},   // international inch
-	"[ft_i]": {CanonicalCode: "m", Factor: 0.3048},   // international foot
-	"[yd_i]": {CanonicalCode: "m", Factor: 0.9144},   // international yard
-	"[mi_i]": {CanonicalCode: "m", Factor: 1609.344}, // international mile
-	"in":     {CanonicalCode: "m", Factor: 0.0254},
-	"ft":     {CanonicalCode: "m", Factor: 0.3048},
-
-	// === VOLUME (canonical: L) ===
-	"L":        {CanonicalCode: "L", Factor: 1},
-	"l":        {CanonicalCode: "L", Factor: 1},
-	"dL":       {CanonicalCode: "L", Factor: 0.1},
-	"dl":       {CanonicalCode: "L", Factor: 0.1},
-	"cL":       {CanonicalCode: "L", Factor: 0.01},
-	"cl":       {CanonicalCode: "L", Factor: 0.01},
-	"mL":       {CanonicalCode: "L", Factor: 0.001},
-	"ml":       {CanonicalCode: "L", Factor: 0.001},
-	"uL":       {CanonicalCode: "L", Factor: 0.000001},
-	"ul":       {CanonicalCode: "L", Factor: 0.000001},
-	"[gal_us]": {CanonicalCode: "L", Factor: 3.785411784},
-	"[qt_us]":  {CanonicalCode: "L", Factor: 0.946352946},
-	"[pt_us]":  {CanonicalCode: "L", Factor: 0.473176473},
-	"[foz_us]": {CanonicalCode: "L", Factor: 0.0295735295625},
-
-	// === TIME (canonical: s) ===
-	"a":   {CanonicalCode: "s", Factor: 31557600},    // Julian year
-	"mo":  {CanonicalCode: "s", Factor: 2629800},     // month (30.4375 days)
-	"wk":  {CanonicalCode: "s", Factor: 604800},      // week
-	"d":   {CanonicalCode: "s", Factor: 86400},       // day
-	"h":   {CanonicalCode: "s", Factor: 3600},        // hour
-	"min": {CanonicalCode: "s", Factor: 60},          // minute
-	"s":   {CanonicalCode: "s", Factor: 1},           // second
-	"ms":  {CanonicalCode: "s", Factor: 0.001},       // millisecond
-	"us":  {CanonicalCode: "s", Factor: 0.000001},    // microsecond
-	"ns":  {CanonicalCode: "s", Factor: 0.000000001}, // nanosecond
-
-	// === TEMPERATURE (canonical: K) ===
-	"K":      {CanonicalCode: "K", Factor: 1},   // Kelvin
-	"Cel":    {CanonicalCode: "Cel", Factor: 1}, // Celsius (special handling needed)
-	"[degF]": {CanonicalCode: "Cel", Factor: 1}, // Fahrenheit (special handling needed)
-
-	// === CONCENTRATION (mass/volume) ===
-	"g/L":   {CanonicalCode: "g/L", Factor: 1},
-	"mg/L":  {CanonicalCode: "g/L", Factor: 0.001},
-	"ug/L":  {CanonicalCode: "g/L", Factor: 0.000001},
-	"ng/L":  {CanonicalCode: "g/L", Factor: 0.000000001},
-	"g/dL":  {CanonicalCode: "g/L", Factor: 10},
-	"mg/dL": {CanonicalCode: "g/L", Factor: 0.01},
-	"ug/dL": {CanonicalCode: "g/L", Factor: 0.00001},
-	"g/mL":  {CanonicalCode: "g/L", Factor: 1000},
-	"mg/mL": {CanonicalCode: "g/L", Factor: 1},
-	"ug/mL": {CanonicalCode: "g/L", Factor: 0.001},
-
-	// === MOLAR CONCENTRATION (canonical: mol/L) ===
-	"mol/L":  {CanonicalCode: "mol/L", Factor: 1},
-	"mmol/L": {CanonicalCode: "mol/L", Factor: 0.001},
-	"umol/L": {CanonicalCode: "mol/L", Factor: 0.000001},
-	"nmol/L": {CanonicalCode: "mol/L", Factor: 0.000000001},
-	"pmol/L": {CanonicalCode: "mol/L", Factor: 0.000000000001},
-
-	// === PRESSURE (canonical: Pa) ===
-	"Pa":     {CanonicalCode: "Pa", Factor: 1},
-	"kPa":    {CanonicalCode: "Pa", Factor: 1000},
-	"mm[Hg]": {CanonicalCode: "Pa", Factor: 133.322387415},
-	"[psi]":  {CanonicalCode: "Pa", Factor: 6894.757293168},
-
-	// === COUNT/CELLS ===
-	"10*9/L":  {CanonicalCode: "10*9/L", Factor: 1},        // billions per liter (common for WBC)
-	"10*12/L": {CanonicalCode: "10*9/L", Factor: 1000},     // trillions per liter (common for RBC)
-	"10*6/L":  {CanonicalCode: "10*9/L", Factor: 0.001},    // millions per liter
-	"10*3/uL": {CanonicalCode: "10*9/L", Factor: 1},        // thousands per microliter = billions per liter
-	"/uL":     {CanonicalCode: "10*9/L", Factor: 0.000001}, // per microliter
-
-	// === PERCENTAGE ===
-	"%": {CanonicalCode: "%", Factor: 1},
-
-	// === RATE ===
-	"/min": {CanonicalCode: "/min", Factor: 1},          // per minute (heart rate, resp rate)
-	"/h":   {CanonicalCode: "/min", Factor: 1.0 / 60.0}, // per hour
-
-	// === INTERNATIONAL UNITS ===
-	"[IU]":     {CanonicalCode: "[IU]", Factor: 1},
-	"[IU]/L":   {CanonicalCode: "[IU]/L", Factor: 1},
-	"[IU]/mL":  {CanonicalCode: "[IU]/L", Factor: 1000},
-	"m[IU]/L":  {CanonicalCode: "[IU]/L", Factor: 0.001},
-	"m[IU]/mL": {CanonicalCode: "[IU]/L", Factor: 1},
-	"u[IU]/mL": {CanonicalCode: "[IU]/L", Factor: 0.001},
-
-	// === ENERGY ===
-	"J":     {CanonicalCode: "J", Factor: 1},
-	"kJ":    {CanonicalCode: "J", Factor: 1000},
-	"cal":   {CanonicalCode: "J", Factor: 4.184},
-	"kcal":  {CanonicalCode: "J", Factor: 4184},
-	"[Cal]": {CanonicalCode: "J", Factor: 4184},
-}
-
-// Normalize converts a quantity to its canonical UCUM form.
-// Returns the original values if the unit is not recognized.
-func Normalize(value float64, code string) NormalizedQuantity {
-	// Try exact match first
-	if conv, ok := canonicalUnits[code]; ok {
-		return NormalizedQuantity{
-			Value: value * conv.Factor,
-			Code:  conv.CanonicalCode,
-		}
+// Comparable reports whether two unit codes measure the same dimension, which is
+// what makes comparing or adding their quantities meaningful. Unknown or
+// malformed codes are not comparable to anything.
+func Comparable(from, to string) bool {
+	svc, err := exact()
+	if err != nil {
+		return false
 	}
-
-	// Try case-insensitive match for common variations
-	for ucumCode, conv := range canonicalUnits {
-		if strings.EqualFold(ucumCode, code) {
-			return NormalizedQuantity{
-				Value: value * conv.Factor,
-				Code:  conv.CanonicalCode,
-			}
-		}
-	}
-
-	// Unknown unit - return as-is
-	return NormalizedQuantity{
-		Value: value,
-		Code:  code,
-	}
+	comparable, err := svc.IsComparable(from, to)
+	return err == nil && comparable
 }
 
-// NormalizeWithSystem converts a quantity considering both system and code.
-// For UCUM system (http://unitsofmeasure.org), it applies normalization.
-// For other systems, it returns values unchanged.
-func NormalizeWithSystem(value float64, system, code string) NormalizedQuantity {
-	// Only normalize UCUM units
-	if system != "" && system != "http://unitsofmeasure.org" {
-		return NormalizedQuantity{
-			Value: value,
-			Code:  code,
-		}
-	}
-
-	return Normalize(value, code)
-}
-
-// ConversionFactor returns the multiplier that converts a value expressed in
-// code into its canonical unit, along with that canonical unit code.
-// known is false when the code is not in the conversion table, in which case no
-// conversion to any other unit is possible.
+// Convert expresses a value given in one unit in terms of another, exactly.
 //
-// Callers do the arithmetic themselves so that it can be carried out in decimal
-// rather than float64.
-func ConversionFactor(code string) (factor float64, canonical string, known bool) {
-	if conv, ok := canonicalUnits[code]; ok {
-		return conv.Factor, conv.CanonicalCode, true
+// Returns an error when the units are not commensurable or either is unknown.
+// Affine scales such as Cel and [degF] are handled: converting between them is
+// not a multiplication, and the library applies the offset.
+func Convert(value decimal.Decimal, from, to string) (decimal.Decimal, error) {
+	if from == to {
+		return value, nil
 	}
 
-	// Case-insensitive match for common variations
-	for ucumCode, conv := range canonicalUnits {
-		if strings.EqualFold(ucumCode, code) {
-			return conv.Factor, conv.CanonicalCode, true
+	svc, err := exact()
+	if err != nil {
+		return decimal.Decimal{}, err
+	}
+
+	converted, err := svc.ConvertRat(toRat(value), from, to)
+	if err != nil {
+		// Logarithmic and trigonometric scales have no exact rational form; the
+		// library's float path is the defined route for those.
+		if errors.Is(err, ucumlib.ErrNotRational) {
+			approximate, floatErr := svc.Convert(value.InexactFloat64(), from, to)
+			if floatErr != nil {
+				return decimal.Decimal{}, floatErr
+			}
+			return decimal.NewFromFloat(approximate), nil
 		}
+		return decimal.Decimal{}, err
 	}
 
-	return 1, code, false
+	return fromRat(converted)
 }
 
-// IsKnownUnit returns true if the unit code is recognized for normalization.
-func IsKnownUnit(code string) bool {
-	if _, ok := canonicalUnits[code]; ok {
-		return true
-	}
-
-	for ucumCode := range canonicalUnits {
-		if strings.EqualFold(ucumCode, code) {
-			return true
-		}
-	}
-
-	return false
+// Multiply combines two quantities, returning the value and the unit of the
+// product — 2 'cm' by 2 'm' is 0.04 'm2'.
+func Multiply(leftValue decimal.Decimal, leftUnit string, rightValue decimal.Decimal, rightUnit string) (decimal.Decimal, string, error) {
+	return combine(leftValue, leftUnit, rightValue, rightUnit, false)
 }
 
-// GetCanonicalUnit returns the canonical unit for a given code.
-// Returns the original code if not found.
-func GetCanonicalUnit(code string) string {
-	if conv, ok := canonicalUnits[code]; ok {
-		return conv.CanonicalCode
+// Divide divides one quantity by another, returning the value and the unit of
+// the quotient — 4 'g' by 2 'm' is 2 'g.m-1'.
+func Divide(leftValue decimal.Decimal, leftUnit string, rightValue decimal.Decimal, rightUnit string) (decimal.Decimal, string, error) {
+	return combine(leftValue, leftUnit, rightValue, rightUnit, true)
+}
+
+// combine performs the unit algebra for multiplication and division. The
+// library computes in float64 here, which is exact for the powers of ten that
+// unit prefixes contribute.
+func combine(leftValue decimal.Decimal, leftUnit string, rightValue decimal.Decimal, rightUnit string, divide bool) (decimal.Decimal, string, error) {
+	svc, err := exact()
+	if err != nil {
+		return decimal.Decimal{}, "", err
 	}
 
-	for ucumCode, conv := range canonicalUnits {
-		if strings.EqualFold(ucumCode, code) {
-			return conv.CanonicalCode
-		}
+	left := ucumlib.Pair{Value: leftValue.InexactFloat64(), Code: leftUnit}
+	right := ucumlib.Pair{Value: rightValue.InexactFloat64(), Code: rightUnit}
+
+	var result ucumlib.Pair
+	if divide {
+		result, err = svc.Divide(left, right)
+	} else {
+		result, err = svc.Multiply(left, right)
+	}
+	if err != nil {
+		return decimal.Decimal{}, "", err
 	}
 
-	return code
+	return decimal.NewFromFloat(result.Value), result.Code, nil
+}
+
+// Validate reports whether a code is a well-formed UCUM unit.
+func Validate(code string) error {
+	svc, err := exact()
+	if err != nil {
+		return err
+	}
+	return svc.Validate(code)
+}
+
+// toRat converts a decimal to an exact rational. A decimal's own text is an
+// exact base-ten representation, so no precision is lost.
+func toRat(d decimal.Decimal) *big.Rat {
+	rat, ok := new(big.Rat).SetString(d.String())
+	if !ok {
+		return new(big.Rat)
+	}
+	return rat
+}
+
+// fromRat converts an exact rational back to a decimal, expanding a repeating
+// fraction to exactDigits places.
+func fromRat(r *big.Rat) (decimal.Decimal, error) {
+	if r == nil {
+		return decimal.Decimal{}, fmt.Errorf("nil conversion result")
+	}
+
+	if r.IsInt() {
+		return decimal.NewFromBigInt(r.Num(), 0), nil
+	}
+
+	value, err := decimal.NewFromString(r.FloatString(exactDigits))
+	if err != nil {
+		return decimal.Decimal{}, err
+	}
+
+	// FloatString pads to the requested places; drop the padding so the value
+	// presents the precision it actually carries.
+	normalized, err := decimal.NewFromString(value.String())
+	if err != nil {
+		return value, nil
+	}
+	return normalized, nil
 }

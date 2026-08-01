@@ -51,14 +51,6 @@ testMod/testMod5
 testNEquality/testNEquality17
 testObservations/testPolymorphismAsB
 testObservations/testPolymorphismB
-testQuantity/testQuantity10
-testQuantity/testQuantity11
-testQuantity/testQuantity4
-testQuantity/testQuantity5
-testQuantity/testQuantity6
-testQuantity/testQuantity7
-testQuantity/testQuantity8
-testQuantity/testQuantity9
 testRepeat/testRepeat1
 testRepeat/testRepeat2
 testRepeat/testRepeat5
@@ -78,10 +70,8 @@ testTypes/testBooleanLiteralConvertsToQuantity
 testTypes/testQuantityLiteralConvertsToString
 testTypes/testStringDecimalLiteralConvertsToQuantityFalse
 testTypes/testStringIntegerLiteralToQuantity
-testTypes/testStringQuantityDayLiteralToQuantity
 testTypes/testStringQuantityMonthLiteralToQuantity
 testTypes/testStringQuantityWeekConvertsToQuantityFalse
-testTypes/testStringQuantityWeekLiteralToQuantity
 testTypes/testStringQuantityYearLiteralToQuantity
 testUnion/testUnion10
 testUnion/testUnion11

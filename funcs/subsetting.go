@@ -117,7 +117,7 @@ func fnTake(_ *eval.Context, input types.Collection, args []interface{}) (types.
 func fnSingle(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
 	single, err := input.Single()
 	if err != nil {
-		return nil, eval.NewEvalError(eval.ErrSingletonExpected, err.Error())
+		return nil, eval.NewEvalError(eval.ErrSingletonExpected, "%s", err)
 	}
 	return types.Collection{single}, nil
 }

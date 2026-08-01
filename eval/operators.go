@@ -41,6 +41,17 @@ func quantityOperands(left, right types.Value) (lq, rq types.Quantity, ok bool) 
 	return lq, rq, true
 }
 
+// bothQuantities matches two quantities, whose units combine rather than having
+// to agree.
+func bothQuantities(left, right types.Value) (lq, rq types.Quantity, ok bool) {
+	lq, lok := asQuantity(left)
+	rq, rok := asQuantity(right)
+	if !lok || !rok || lq.Unit() == "" || rq.Unit() == "" {
+		return types.Quantity{}, types.Quantity{}, false
+	}
+	return lq, rq, true
+}
+
 // quantityAndNumber matches a quantity scaled by a plain number, in either
 // order for multiplication. Division only ever has the quantity on the left,
 // which the caller enforces.
@@ -148,6 +159,11 @@ func Subtract(left, right types.Value) (types.Value, error) {
 
 // Multiply performs multiplication on two values.
 func Multiply(left, right types.Value) (types.Value, error) {
+	// Quantity * Quantity combines the units: 2 'cm' by 2 'm' is 0.04 'm2'
+	if lq, rq, ok := bothQuantities(left, right); ok {
+		return lq.MultiplyQuantity(rq)
+	}
+
 	// Quantity * number scales the value and keeps the unit
 	if q, factor, ok := quantityAndNumber(left, right); ok {
 		return q.Multiply(factor), nil
@@ -174,6 +190,11 @@ func Multiply(left, right types.Value) (types.Value, error) {
 
 // Divide performs division on two values.
 func Divide(left, right types.Value) (types.Value, error) {
+	// Quantity / Quantity combines the units: 4 'g' by 2 'm' is 2 'g.m-1'
+	if lq, rq, ok := bothQuantities(left, right); ok {
+		return lq.DivideQuantity(rq)
+	}
+
 	// Quantity / number scales the value and keeps the unit
 	if lq, converted := asQuantity(left); converted {
 		if n, isNumeric := right.(types.Numeric); isNumeric {
@@ -238,7 +259,7 @@ func Negate(value types.Value) (types.Value, error) {
 	case types.Decimal:
 		return v.Negate(), nil
 	}
-	return nil, NewEvalError(ErrType, "cannot negate "+value.Type())
+	return nil, NewEvalError(ErrType, "cannot negate %s", value.Type())
 }
 
 // Comparison operators

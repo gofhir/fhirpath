@@ -35,8 +35,8 @@ Measured against the official suite, in both configurations a caller can use:
 
 | Configuration | Passing |
 |---|---|
-| No FHIR model supplied | **840 of 928 (90.5%)** |
-| With the R4 model | **844 of 928 (90.9%)** |
+| No FHIR model supplied | **850 of 928 (91.6%)** |
+| With the R4 model | **854 of 928 (92.0%)** |
 
 ```sh
 make conformance          # prints both numbers
@@ -69,7 +69,7 @@ passing — so the list can only shrink, and it never lies about the number.
 |---|---|---|
 | `is()` / `as()` on FHIR primitives | 11 | `code` and `string` are distinct types; supplying a Model does not settle it |
 | Errors we should raise and don't | 23 | 12 `execution`, 11 `semantic`; the semantic ones need a Model |
-| Quantity conversion | ~12 | `toQuantity` on a bare number should carry unit `'1'`; string-to-quantity parsing |
+| Quantity conversion | ~6 | `toQuantity` on a bare number should carry unit `'1'`; string-to-quantity parsing |
 | `lowBoundary` / `highBoundary` | 8 | Three are a suite disagreement (see below); two assume `@2014-01-01T08` carries an implicit minute |
 
 Defined in 3.0.0 and entirely absent here: `coalesce`, `defineVariable`,
@@ -111,6 +111,10 @@ that only checked "does it compile" reported success:
   quietly produced `@1973-12-25`.
 - **Comparing temporals of different precisions raised an error**, failing the
   whole evaluation where the spec asks only for empty.
+- **Units came from a table of about sixty codes with no dimensional analysis.**
+  `Cel` and `[degF]` shared a canonical unit with a factor of one, so
+  `100 '[degF]' > 50 'Cel'` was silently `true` — 100 °F is 37.8 °C. Compound
+  units such as `mg/kg/d` were simply unknown.
 
 ## Decisions taken where the specification is silent
 
@@ -129,13 +133,12 @@ was reasoned or accidental.
 
 ## Upstream issues
 
-- **[`gofhir/ucum`](https://github.com/gofhir/ucum) exposes only `float64`.**
-  Its internals already compute with `big.Rat`; the precision is lost at the
-  public boundary (`1 mol/L → mmol/L` yields `1000.0000000000001`). Until it
-  exposes an exact API, [`internal/ucum`](internal/ucum) stays — a hardcoded
-  table of ~60 units with no dimensional analysis, in which `Cel` and `[degF]`
-  share a canonical unit with factor 1, so `100 '[degF]' > 50 'Cel'` is silently
-  `true`. An issue has been filed.
+- **Resolved.** `gofhir/ucum` exposed only `float64`, so an issue was filed
+  asking for exact arithmetic. `v2.2.0` added `ExactService` — `ConversionFactor`
+  returning a `*big.Rat`, `ConvertRat` covering the affine temperature scales,
+  and `ErrNotLinear`/`ErrNotRational` for the cases where no exact result exists
+  — plus `Divide` for unit algebra. The engine now depends on it and the
+  hardcoded unit table is gone.
 - **`gofhir/models` v1.0.0 ships no public packages** and its internals import
   another module's `internal/`, so it does not build. The usable models are the
   independently versioned submodules `models/r4`, `models/r4b`, `models/r5`

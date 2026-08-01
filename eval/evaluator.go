@@ -354,7 +354,7 @@ func (e *Evaluator) VisitExternalConstant(ctx *grammar.ExternalConstantContext) 
 	if url, ok := fhirConstantURL(name); ok {
 		return types.Collection{types.NewString(url)}
 	}
-	return NewEvalError(ErrInvalidPath, "undefined variable: %"+name)
+	return NewEvalError(ErrInvalidPath, "undefined variable: %%%s", name)
 }
 
 // fhirConstantURL resolves the parameterized FHIR environment variables

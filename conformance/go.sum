@@ -6,6 +6,8 @@ github.com/davecgh/go-spew v1.1.1 h1:vj9j/u1bqnvCEfJOwUhtlOARqs3+rkHYY13jYWTU97c
 github.com/davecgh/go-spew v1.1.1/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/gofhir/models/r4 v1.2.0 h1:cbkEMug9PPlfFaZcfbBCGFo7bNhItDwkbwRjsGn4OKY=
 github.com/gofhir/models/r4 v1.2.0/go.mod h1:+hrlmbgI4kFaCUx0mj3F4th9yn633HJhLWsf8TFWuWk=
+github.com/gofhir/ucum/v2 v2.2.0 h1:HAXbja6YTgZZxg3CKPm9Df4W5MeUXO3S11HJBuhir4E=
+github.com/gofhir/ucum/v2 v2.2.0/go.mod h1:Nq/YSZvj+U3fz2/VithcXc+rIgFFF2zidQL7t3DE4EM=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/shopspring/decimal v1.4.0 h1:bxl37RwXBklmTi0C79JfXCEBD1cqqHt0bbgBAGFp81k=

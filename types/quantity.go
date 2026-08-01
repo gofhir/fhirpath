@@ -67,29 +67,13 @@ func (q Quantity) Equal(other Value) bool {
 		return false
 	}
 
-	// Same unit - compare values directly
-	if q.unit == o.unit {
-		return q.value.Equal(o.value)
-	}
-
-	// Empty units - compare values directly
-	if q.unit == "" || o.unit == "" {
-		return q.value.Equal(o.value)
-	}
-
-	// Different units - use UCUM normalization
-	norm1 := q.Normalize()
-	norm2 := o.Normalize()
-
-	// Must have same canonical unit
-	if norm1.Code != norm2.Code {
+	// Convert through the same exact path comparison uses, so that units that
+	// convert — including calendar keywords against their UCUM codes — agree.
+	rhs, err := o.valueIn(q)
+	if err != nil {
 		return false
 	}
-
-	// Compare normalized values
-	val1 := decimal.NewFromFloat(norm1.Value)
-	val2 := decimal.NewFromFloat(norm2.Value)
-	return val1.Equal(val2)
+	return q.value.Equal(rhs)
 }
 
 // Equivalent checks equivalence with another value.
@@ -101,39 +85,27 @@ func (q Quantity) Equivalent(other Value) bool {
 		return false
 	}
 
-	// Empty units are compatible with anything - compare values directly
-	if q.unit == "" || o.unit == "" {
-		return q.value.Equal(o.value)
-	}
-
-	// Same unit - compare values directly
-	if strings.EqualFold(q.unit, o.unit) {
-		return q.value.Equal(o.value)
-	}
-
-	// Different units - try UCUM normalization
-	norm1 := q.Normalize()
-	norm2 := o.Normalize()
-
-	// Must have same canonical unit
-	if norm1.Code != norm2.Code {
+	rhs, err := o.valueIn(q)
+	if err != nil {
 		return false
 	}
 
-	// Compare normalized values with tolerance for floating point
-	diff := norm1.Value - norm2.Value
-	if diff < 0 {
-		diff = -diff
+	// Equivalence compares "on values rounded to the precision of the least
+	// precise operand", so 4 'g' ~ 4040 'mg': 4.040 g rounded to the whole
+	// gram the left side was written with is 4.
+	places := scaleOf(q.value)
+	if other := scaleOf(rhs); other < places {
+		places = other
 	}
-	// Use relative tolerance for comparison
-	maxVal := norm1.Value
-	if norm2.Value > maxVal {
-		maxVal = norm2.Value
+	return q.value.Round(places).Equal(rhs.Round(places))
+}
+
+// scaleOf returns how many fractional digits a value carries.
+func scaleOf(d decimal.Decimal) int32 {
+	if exponent := d.Exponent(); exponent < 0 {
+		return -exponent
 	}
-	if maxVal == 0 {
-		return diff == 0
-	}
-	return diff/maxVal < 1e-10
+	return 0
 }
 
 // String returns the string representation.
@@ -212,10 +184,31 @@ func (q Quantity) Comparable(other Quantity) bool {
 	if q.unit == other.unit || q.unit == "" || other.unit == "" {
 		return true
 	}
+	return ucum.Comparable(convertibleUnit(q.unit), convertibleUnit(other.unit))
+}
 
-	_, canonical, known := ucum.ConversionFactor(q.unit)
-	_, otherCanonical, otherKnown := ucum.ConversionFactor(other.unit)
-	return known && otherKnown && canonical == otherCanonical
+// calendarToUCUM maps the calendar duration keywords onto the UCUM codes they
+// convert to exactly, so that 7 days and 1 'wk' compare.
+//
+// Years and months are deliberately absent: a calendar year lands on the same
+// date a year later while a UCUM year is a fixed 365.25 days, and the
+// specification requires an explicit conversion to cross between them.
+var calendarToUCUM = map[string]string{
+	"week": "wk", "weeks": "wk",
+	"day": "d", "days": "d",
+	"hour": "h", "hours": "h",
+	"minute": "min", "minutes": "min",
+	"second": "s", "seconds": "s",
+	"millisecond": "ms", "milliseconds": "ms",
+}
+
+// convertibleUnit returns the unit to convert with, translating a calendar
+// keyword to its exact UCUM equivalent where one exists.
+func convertibleUnit(unit string) string {
+	if code, ok := calendarToUCUM[unit]; ok {
+		return code
+	}
+	return unit
 }
 
 // valueIn returns q's value expressed in target's unit.
@@ -226,15 +219,11 @@ func (q Quantity) valueIn(target Quantity) (decimal.Decimal, error) {
 		return q.value, nil
 	}
 
-	fromFactor, fromCanonical, fromKnown := ucum.ConversionFactor(q.unit)
-	toFactor, toCanonical, toKnown := ucum.ConversionFactor(target.unit)
-	if !fromKnown || !toKnown || fromCanonical != toCanonical {
+	converted, err := ucum.Convert(q.value, convertibleUnit(q.unit), convertibleUnit(target.unit))
+	if err != nil {
 		return decimal.Decimal{}, fmt.Errorf("%w: %s and %s", ErrIncompatibleUnits, target.unit, q.unit)
 	}
-
-	// value * fromFactor / toFactor, in decimal: 2 'g' as 'mg' is exactly 2000.
-	converted := q.value.Mul(decimal.NewFromFloat(fromFactor)).Div(decimal.NewFromFloat(toFactor))
-	return dropTrailingZeros(converted), nil
+	return converted, nil
 }
 
 // dropTrailingZeros returns the value at its natural scale. Division runs at a
@@ -247,12 +236,6 @@ func dropTrailingZeros(d decimal.Decimal) decimal.Decimal {
 		return d
 	}
 	return normalized
-}
-
-// Normalize returns the UCUM-normalized form of this quantity.
-func (q Quantity) Normalize() ucum.NormalizedQuantity {
-	val, _ := q.value.Float64()
-	return ucum.Normalize(val, q.unit)
 }
 
 // Add adds two quantities.
@@ -283,6 +266,29 @@ func (q Quantity) resultUnit(other Quantity) string {
 		return other.unit
 	}
 	return q.unit
+}
+
+// MultiplyQuantity multiplies two quantities, combining their units:
+// 2 'cm' by 2 'm' is 0.04 'm2'.
+func (q Quantity) MultiplyQuantity(other Quantity) (Quantity, error) {
+	value, unit, err := ucum.Multiply(q.value, q.unit, other.value, other.unit)
+	if err != nil {
+		return Quantity{}, fmt.Errorf("%w: %s and %s", ErrIncompatibleUnits, q.unit, other.unit)
+	}
+	return Quantity{value: value, unit: unit}, nil
+}
+
+// DivideQuantity divides two quantities, combining their units:
+// 4 'g' by 2 'm' is 2 'g.m-1'.
+func (q Quantity) DivideQuantity(other Quantity) (Quantity, error) {
+	if other.value.IsZero() {
+		return Quantity{}, fmt.Errorf("division by zero")
+	}
+	value, unit, err := ucum.Divide(q.value, q.unit, other.value, other.unit)
+	if err != nil {
+		return Quantity{}, fmt.Errorf("%w: %s and %s", ErrIncompatibleUnits, q.unit, other.unit)
+	}
+	return Quantity{value: value, unit: unit}, nil
 }
 
 // Multiply multiplies the quantity by a number.

@@ -730,14 +730,18 @@ func TestQuantity(t *testing.T) {
 
 	t.Run("equivalence", func(t *testing.T) {
 		q1, _ := NewQuantity("10 kg")
-		q2, _ := NewQuantity("10 KG")
 		q3, _ := NewQuantity("10")
 
-		if !q1.Equivalent(q2) {
-			t.Error("expected equivalent quantities (case insensitive)")
-		}
 		if !q1.Equivalent(q3) {
 			t.Error("expected equivalent with empty unit")
+		}
+
+		// UCUM codes are case sensitive by design — m is metre while M is not a
+		// unit at all, and mixing them up silently would be worse than saying
+		// the two cannot be compared.
+		wrongCase, _ := NewQuantity("10 KG")
+		if q1.Equivalent(wrongCase) {
+			t.Error("expected 'KG' not to be treated as 'kg': it is not a valid UCUM code")
 		}
 	})
 

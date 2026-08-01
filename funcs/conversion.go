@@ -526,11 +526,8 @@ func fnConvertsToQuantity(_ *eval.Context, input types.Collection, args []interf
 		if targetUnit == "" {
 			return types.Collection{types.NewBoolean(true)}, nil
 		}
-		// Check if units are compatible using UCUM normalization
-		sourceNorm := v.Normalize()
-		targetNorm := ucum.Normalize(1, targetUnit)
-		// Units are compatible if they normalize to the same canonical unit
-		return types.Collection{types.NewBoolean(sourceNorm.Code == targetNorm.Code)}, nil
+		// Convertible when the units measure the same dimension
+		return types.Collection{types.NewBoolean(ucum.Comparable(v.Unit(), targetUnit))}, nil
 	case types.Integer, types.Decimal:
 		// Integer/Decimal can always be converted to a quantity (with any unit)
 		return types.Collection{types.NewBoolean(true)}, nil
@@ -544,10 +541,7 @@ func fnConvertsToQuantity(_ *eval.Context, input types.Collection, args []interf
 		if targetUnit == "" {
 			return types.Collection{types.NewBoolean(true)}, nil
 		}
-		// Check unit compatibility
-		sourceNorm := q.Normalize()
-		targetNorm := ucum.Normalize(1, targetUnit)
-		return types.Collection{types.NewBoolean(sourceNorm.Code == targetNorm.Code)}, nil
+		return types.Collection{types.NewBoolean(ucum.Comparable(q.Unit(), targetUnit))}, nil
 	case *types.ObjectValue:
 		// FHIR Quantity as a JSON object
 		q, ok := v.ToQuantity()
@@ -557,9 +551,7 @@ func fnConvertsToQuantity(_ *eval.Context, input types.Collection, args []interf
 		if targetUnit == "" {
 			return types.Collection{types.NewBoolean(true)}, nil
 		}
-		sourceNorm := q.Normalize()
-		targetNorm := ucum.Normalize(1, targetUnit)
-		return types.Collection{types.NewBoolean(sourceNorm.Code == targetNorm.Code)}, nil
+		return types.Collection{types.NewBoolean(ucum.Comparable(q.Unit(), targetUnit))}, nil
 	default:
 		return types.Collection{types.NewBoolean(false)}, nil
 	}
