@@ -146,6 +146,23 @@ This is not a lenient reading of an ambiguous rule. Checked against fhirpath.js
 So a specification-exact engine cannot validate dom-3 on R4 at all, and R4 is
 what most deployments run.
 
+HAPI, the engine behind the official validator, resolves it by version:
+
+```java
+private void initFlags() {
+  if (!VersionUtilities.isR5Plus(worker.getVersion())) {
+    doNotEnforceAsCaseSensitive = true;
+    doNotEnforceAsSingletonRule = true;
+  }
+}
+```
+
+Before R5 it filters, exactly as this engine does; from R5 on it enforces the
+singleton rule. So the behaviour here matches the reference validator for R4 —
+which is the version the suite and most deployments use — and would need to
+become version-aware to match it for R5 as well. HAPI also enforces case
+sensitivity on type names only from R5 on.
+
 HL7 came to the same conclusion. In R5 the invariant reads `ofType(canonical)`
 where R4 read `as(canonical)` — the filtering function, which is what the
 expression meant all along:
