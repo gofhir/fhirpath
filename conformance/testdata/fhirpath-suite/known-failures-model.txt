@@ -33,9 +33,7 @@ testExtension/testExtension1
 testExtension/testExtension2
 testIif/testIif10
 testIif/testIif6
-testInheritance/testFHIRPathAsFunction11
 testInheritance/testFHIRPathAsFunction15
-testInheritance/testFHIRPathAsFunction16
 testInheritance/testFHIRPathAsFunction20
 testInheritance/testFHIRPathAsFunction21
 testInheritance/testFHIRPathAsFunction23

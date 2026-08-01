@@ -990,7 +990,7 @@ func (e *Evaluator) evaluateAsFunction(input types.Collection, typeExpr grammar.
 			actualType = obj.Type()
 		}
 
-		if TypeMatchesWithModel(actualType, typeName, e.ctx.model) {
+		if castMatches(item, actualType, typeName, e.ctx.model) {
 			result = append(result, item)
 		}
 	}
@@ -1043,7 +1043,7 @@ func (e *Evaluator) evaluateOfType(input types.Collection, typeExpr grammar.IExp
 			actualType = obj.Type()
 		}
 
-		if TypeMatchesWithModel(actualType, typeName, e.ctx.model) {
+		if castMatches(item, actualType, typeName, e.ctx.model) {
 			result = append(result, item)
 		}
 	}
@@ -1651,6 +1651,56 @@ func IsSubtypeOfWithModel(actualType, baseType string, model Model) bool {
 	return IsSubtypeOf(actualType, baseType)
 }
 
+// castMatches reports whether a value is of the requested type for the purpose
+// of as() and ofType(), which is stricter than is().
+//
+// FHIR states that "all primitives are considered to be independent types (so
+// markdown is not a subclass of string)", so casting a primitive requires the
+// type it was declared with: Patient.gender is a code, and gender.as(string)
+// yields empty even though is(string) is true — is() walks the type hierarchy
+// the StructureDefinitions describe, while a cast does not.
+//
+// Structured values keep hierarchy matching, so ofType(Quantity) still selects
+// an Age, and ofType(HumanName) a name.
+func castMatches(item types.Value, actualType, typeName string, model Model) bool {
+	if _, isObject := item.(*types.ObjectValue); isObject {
+		return TypeMatchesWithModel(actualType, typeName, model)
+	}
+
+	// Only a value that kept the type FHIR declared for it can be cast exactly.
+	// One reported as a system type — a String that no model narrowed to code or
+	// uri — carries no such claim, so it keeps the permissive match.
+	if systemTypeNames[actualType] {
+		return TypeMatchesWithModel(actualType, typeName, model)
+	}
+	return primitiveTypeMatches(actualType, typeName)
+}
+
+// systemTypeNames are the types FHIRPath declares itself, in its Literals
+// section. A value reporting one of these has no FHIR type of its own.
+var systemTypeNames = map[string]bool{
+	"Boolean":  true,
+	"String":   true,
+	"Integer":  true,
+	"Decimal":  true,
+	"Date":     true,
+	"DateTime": true,
+	"Time":     true,
+	"Quantity": true,
+}
+
+// primitiveTypeMatches compares a primitive's declared type against a requested
+// one, ignoring case and any model namespace, and without consulting the
+// hierarchy.
+func primitiveTypeMatches(actualType, typeName string) bool {
+	requested := typeName
+	if index := strings.LastIndex(requested, "."); index >= 0 {
+		// Strip a FHIR. or System. qualifier: the type still has to match
+		requested = requested[index+1:]
+	}
+	return strings.EqualFold(actualType, requested)
+}
+
 // TypeMatchesWithModel checks type matching using the model if available,
 // falling back to the built-in TypeMatches when model is nil.
 // When a model is present, it is authoritative for type hierarchy — only
@@ -1683,16 +1733,21 @@ func TypeMatchesWithModel(actualType, typeName string, model Model) bool {
 // typeMatchesSpecMaps checks if actualType matches typeName using the provided
 // FHIR-to-FHIRPath type mapping and namespace handling (System.*, FHIR.*).
 func typeMatchesSpecMaps(actualType, typeName, actualLower, typeNameLower string, specMap map[string]string) bool {
-	// Check if requesting a FHIR type that maps to a FHIRPath type
-	if fhirPathType, ok := specMap[typeNameLower]; ok {
-		if actualType == fhirPathType {
+	// A FHIR primitive converts implicitly to its system counterpart, so a
+	// FHIR.code is a System.String.
+	if fhirPathType, ok := specMap[actualLower]; ok {
+		if fhirPathType == typeName || strings.EqualFold(fhirPathType, typeName) {
 			return true
 		}
 	}
 
-	// Check reverse: if actual type is a FHIR type that maps to the requested FHIRPath type
-	if fhirPathType, ok := specMap[actualLower]; ok {
-		if fhirPathType == typeName || strings.EqualFold(fhirPathType, typeName) {
+	// Several FHIR primitives share one system type, so a System.String might be
+	// a code, a uri or an id. Answering yes is the useful guess while the engine
+	// does not carry the declared type on every primitive value — it does so
+	// only for the string-like ones. Until it does, ValueSet.version reports
+	// is(code) as true, which the official suite marks as wrong.
+	if fhirPathType, ok := specMap[typeNameLower]; ok {
+		if actualType == fhirPathType {
 			return true
 		}
 	}

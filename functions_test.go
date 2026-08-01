@@ -280,3 +280,61 @@ func TestCollectionEquality(t *testing.T) {
 		assertBooleanResult(t, evalOrFatal(t, simpleJSON, "nosuchfield ~ othermissing"), true)
 	})
 }
+
+// TestCastOnFHIRPrimitives covers is() and as()/ofType() over FHIR primitives,
+// which behave differently on purpose.
+//
+// FHIR states that "all primitives are considered to be independent types (so
+// markdown is not a subclass of string)". A cast therefore requires the type the
+// element was declared with, while is() walks the hierarchy the
+// StructureDefinitions describe.
+func TestCastOnFHIRPrimitives(t *testing.T) {
+	coding := []byte(`{"system":"http://loinc.org","code":"1234-5"}`)
+
+	t.Run("a cast requires the declared type", func(t *testing.T) {
+		// code is what the model declares, so that is what casting accepts
+		result, err := MustCompile("code.as(code)").EvaluateWithOptions(coding, WithModel(testModel{}))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertStringResult(t, result, "1234-5")
+
+		for _, expr := range []string{"code.as(string)", "code.ofType(string)", "code.as(id)"} {
+			t.Run(expr, func(t *testing.T) {
+				result, err := MustCompile(expr).EvaluateWithOptions(coding, WithModel(testModel{}))
+				if err != nil {
+					t.Fatalf("unexpected error: %v", err)
+				}
+				assertEmptyResult(t, result, expr)
+			})
+		}
+	})
+
+	t.Run("is walks the hierarchy", func(t *testing.T) {
+		// code derives from string in the StructureDefinitions, so is() says yes
+		// where a cast says no
+		result, err := MustCompile("code.is(string)").EvaluateWithOptions(coding, WithModel(testModel{}))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, true)
+	})
+
+	t.Run("structured values still cast by hierarchy", func(t *testing.T) {
+		// An Age is a Quantity, and ofType selects it as one
+		age := []byte(`{"resourceType":"Observation","valueAge":{"value":30,"code":"a"}}`)
+		result, err := MustCompile("valueAge.ofType(Quantity).count()").
+			EvaluateWithOptions(age, WithModel(testModel{}))
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertIntegerResult(t, result, 1)
+	})
+
+	t.Run("a value with only a system type keeps the permissive match", func(t *testing.T) {
+		// Without a model narrowing it, an instant reaches the engine as a
+		// DateTime and claims no FHIR type of its own
+		observation := []byte(`{"resourceType":"Observation","effectiveInstant":"2015-02-07T13:28:17Z"}`)
+		assertIntegerResult(t, evalOrFatal(t, observation, "Observation.effective.ofType(Instant).count()"), 1)
+	})
+}
