@@ -67,7 +67,7 @@ passing — so the list can only shrink, and it never lies about the number.
 
 | Block | Cases | Notes |
 |---|---|---|
-| `as()` on a multi-item collection | 1 | Deliberate divergence — see below |
+| `as()` on a multi-item collection | 1 | Applies from R5; the suite is R4 — see below |
 | `as()`/`ofType()` with an unknown type name | 2 | Should error; needs the model to be able to say whether a type exists |
 | `extension()` cases | 3 | Fail on the input, not on evaluation — see the testdata README |
 | Errors we should raise and don't | 23 | 12 `execution`, 11 `semantic`; the semantic ones need a Model |

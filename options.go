@@ -168,3 +168,12 @@ func (a *modelAdapter) ParentType(typeName string) string     { return a.model.P
 func (a *modelAdapter) IsSubtype(child, parent string) bool   { return a.model.IsSubtype(child, parent) }
 func (a *modelAdapter) ResolvePath(path string) string        { return a.model.ResolvePath(path) }
 func (a *modelAdapter) IsResource(typeName string) bool       { return a.model.IsResource(typeName) }
+
+// FHIRVersion forwards the version when the wrapped model declares one, and
+// returns "" otherwise, which the evaluator reads as pre-R5.
+func (a *modelAdapter) FHIRVersion() string {
+	if versioned, ok := a.model.(VersionedModel); ok {
+		return versioned.FHIRVersion()
+	}
+	return ""
+}

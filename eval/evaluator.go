@@ -980,21 +980,38 @@ func (e *Evaluator) evaluateAsFunction(input types.Collection, typeExpr grammar.
 		return InvalidArgumentsError("as", 1, 0)
 	}
 
-	// Filter collection by type (works for both singleton and collection input)
+	if err := e.checkAsSingleton(input); err != nil {
+		return err
+	}
+	return e.castCollection(input, typeName)
+}
+
+// checkAsSingleton enforces the rule that as() takes a single item, which
+// applies from R5 on.
+//
+// Before R5 it filters instead, and that is not a lenient reading: FHIR's own
+// dom-3 invariant is written as %resource.descendants().as(canonical), which
+// raises an error under the rule. The reference validator resolves it the same
+// way, disabling the rule below R5.
+func (e *Evaluator) checkAsSingleton(input types.Collection) error {
+	if len(input) > 1 && e.ctx.enforcesR5Rules() {
+		return SingletonError(len(input))
+	}
+	return nil
+}
+
+// castCollection keeps the items of a collection that are of the given type.
+func (e *Evaluator) castCollection(input types.Collection, typeName string) types.Collection {
 	result := types.Collection{}
 	for _, item := range input {
 		actualType := item.Type()
-
-		// For ObjectValue, get the specific type
 		if obj, ok := item.(*types.ObjectValue); ok {
 			actualType = obj.Type()
 		}
-
 		if castMatches(item, actualType, typeName, e.ctx.model) {
 			result = append(result, item)
 		}
 	}
-
 	return result
 }
 
@@ -1501,18 +1518,10 @@ func (e *Evaluator) VisitTypeExpression(ctx *grammar.TypeExpressionContext) inte
 		actualType := leftCol[0].Type()
 		return types.Collection{types.NewBoolean(TypeMatchesWithModel(actualType, typeName, e.ctx.model))}
 	case "as":
-		// as filters collections by type (consistent with evaluateAsFunction)
-		result := types.Collection{}
-		for _, item := range leftCol {
-			actualType := item.Type()
-			if obj, ok := item.(*types.ObjectValue); ok {
-				actualType = obj.Type()
-			}
-			if TypeMatchesWithModel(actualType, typeName, e.ctx.model) {
-				result = append(result, item)
-			}
+		if err := e.checkAsSingleton(leftCol); err != nil {
+			return err
 		}
-		return result
+		return e.castCollection(leftCol, typeName)
 	}
 
 	return types.Collection{}

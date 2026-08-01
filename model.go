@@ -54,6 +54,23 @@ type Model interface {
 	IsResource(typeName string) bool
 }
 
+// VersionedModel is an optional interface a [Model] may also implement to
+// declare which FHIR version it describes, as "4.0.1" or "R5".
+//
+// Some rules of the language changed with R5, and the reference validator
+// applies them by version rather than picking one reading. The clearest case is
+// the `as` operator: from R5 it must raise an error when its input holds more
+// than one item, while before R5 it filters — which is what FHIR's own dom-3
+// invariant relies on, since it is written as
+// %resource.descendants().as(canonical).
+//
+// A model that does not implement this interface is treated as pre-R5, which
+// keeps every existing caller on the behaviour it has today.
+type VersionedModel interface {
+	// FHIRVersion returns the FHIR version the model describes.
+	FHIRVersion() string
+}
+
 // WithModel sets the FHIR version-specific model for the evaluation.
 // When provided, the engine uses precise choice type lists, full type hierarchy,
 // and path-based type resolution instead of built-in heuristics.
