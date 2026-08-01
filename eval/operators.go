@@ -71,11 +71,52 @@ func quantityAndNumber(left, right types.Value) (q types.Quantity, factor decima
 
 // Arithmetic operators
 
+// shiftTemporal applies a duration to a Date or DateTime, which is the one
+// arithmetic both + and - share verbatim: the same operand pairing, the same
+// unit handling, differing only in direction.
+//
+// Reports false when the operands are not a temporal and a duration, leaving
+// the caller to carry on with its own dispatch.
+func shiftTemporal(left, right types.Value, subtract bool) (types.Value, bool, error) {
+	quantity, ok := right.(types.Quantity)
+	if !ok {
+		return nil, false, nil
+	}
+
+	amount := int(quantity.Value().IntPart())
+	unit := quantity.Unit()
+
+	switch temporal := left.(type) {
+	case types.Date:
+		if subtract {
+			result, err := temporal.SubtractDuration(amount, unit)
+			return result, true, err
+		}
+		result, err := temporal.AddDuration(amount, unit)
+		return result, true, err
+
+	case types.DateTime:
+		if subtract {
+			result, err := temporal.SubtractDuration(amount, unit)
+			return result, true, err
+		}
+		result, err := temporal.AddDuration(amount, unit)
+		return result, true, err
+	}
+
+	return nil, false, nil
+}
+
 // Add performs addition on two values.
 func Add(left, right types.Value) (types.Value, error) {
 	// FHIR quantity objects: route through Quantity arithmetic.
 	if lq, rq, ok := quantityOperands(left, right); ok {
 		return lq.Add(rq)
+	}
+
+	// Date and DateTime take a duration on the right
+	if result, ok, err := shiftTemporal(left, right, false); ok {
+		return result, err
 	}
 
 	switch l := left.(type) {
@@ -97,16 +138,6 @@ func Add(left, right types.Value) (types.Value, error) {
 		if r, ok := right.(types.String); ok {
 			return types.NewString(l.Value() + r.Value()), nil
 		}
-	case types.Date:
-		if q, ok := right.(types.Quantity); ok {
-			// Date + Quantity (duration)
-			return l.AddDuration(int(q.Value().IntPart()), q.Unit())
-		}
-	case types.DateTime:
-		if q, ok := right.(types.Quantity); ok {
-			// DateTime + Quantity (duration)
-			return l.AddDuration(int(q.Value().IntPart()), q.Unit())
-		}
 	case types.Quantity:
 		if r, ok := right.(types.Quantity); ok {
 			// Quantity + Quantity
@@ -123,6 +154,11 @@ func Subtract(left, right types.Value) (types.Value, error) {
 		return lq.Subtract(rq)
 	}
 
+	// Date and DateTime take a duration on the right
+	if result, ok, err := shiftTemporal(left, right, true); ok {
+		return result, err
+	}
+
 	switch l := left.(type) {
 	case types.Integer:
 		switch r := right.(type) {
@@ -137,16 +173,6 @@ func Subtract(left, right types.Value) (types.Value, error) {
 			return l.Subtract(r.ToDecimal()), nil
 		case types.Decimal:
 			return l.Subtract(r), nil
-		}
-	case types.Date:
-		if q, ok := right.(types.Quantity); ok {
-			// Date - Quantity (duration)
-			return l.SubtractDuration(int(q.Value().IntPart()), q.Unit())
-		}
-	case types.DateTime:
-		if q, ok := right.(types.Quantity); ok {
-			// DateTime - Quantity (duration)
-			return l.SubtractDuration(int(q.Value().IntPart()), q.Unit())
 		}
 	case types.Quantity:
 		if r, ok := right.(types.Quantity); ok {

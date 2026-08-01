@@ -34,8 +34,6 @@ func init() {
 }
 
 // fnLowBoundary returns the lowest possible value for the input based on its precision.
-//
-//nolint:dupl // mirrors fnHighBoundary intentionally; extracting shared logic would hurt readability
 func fnLowBoundary(_ *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
 	if input.Empty() {
 		return types.Collection{}, nil
@@ -47,8 +45,6 @@ func fnLowBoundary(_ *eval.Context, input types.Collection, args []interface{}) 
 }
 
 // fnHighBoundary returns the highest possible value for the input based on its precision.
-//
-//nolint:dupl // mirrors fnLowBoundary intentionally; extracting shared logic would hurt readability
 func fnHighBoundary(_ *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
 	if input.Empty() {
 		return types.Collection{}, nil
@@ -135,7 +131,10 @@ const (
 // Note this depends on the precision of the *input*, independent of the
 // precision requested for the output.
 func boundaryInterval(inputPrecision int) decimal.Decimal {
-	unit := decimal.New(1, int32(-inputPrecision))
+	// The precision counts the digits of a decimal as it was written, so it is
+	// bounded by the length of the expression being evaluated and cannot
+	// approach the width of the exponent shopspring takes.
+	unit := decimal.New(1, int32(-inputPrecision)) //nolint:gosec // digit count of a parsed literal
 	return unit.Div(decimal.NewFromInt(2))
 }
 
@@ -234,52 +233,80 @@ func dateBoundary(d types.Date, precision int, provided, low bool) (types.Collec
 // dateTimeBoundary returns one boundary of a DateTime at the requested digit
 // precision. Below a full date the result carries no time or timezone, so it is
 // rendered as a date.
+// temporalComponents holds a date and time broken into its parts, so the two
+// halves of a boundary calculation — completing what the value leaves unsaid,
+// and rendering it at the requested width — can be read separately.
+type temporalComponents struct {
+	year, month, day    int
+	hour, minute        int
+	second, millisecond int
+}
+
+// completeComponents fills in the components a value does not specify, pushing
+// each to the end of its range that the requested boundary calls for: the low
+// boundary of @2014 is the first instant of its January, the high boundary the
+// last of its December.
+func completeComponents(dt types.DateTime, low bool) temporalComponents {
+	c := temporalComponents{
+		year: dt.Year(), month: dt.Month(), day: dt.Day(),
+		hour: dt.Hour(), minute: dt.Minute(),
+		second: dt.Second(), millisecond: dt.Millisecond(),
+	}
+
+	if dt.Precision() < types.DTMonthPrecision {
+		c.month = boundaryMonth(low)
+	}
+	if dt.Precision() < types.DTDayPrecision {
+		// The day depends on the month, so it is filled after it
+		c.day = boundaryDay(c.year, c.month, low)
+	}
+	if dt.Precision() < types.DTHourPrecision {
+		c.hour = boundaryComponent(low, 23)
+	}
+	if dt.Precision() < types.DTMinutePrecision {
+		c.minute = boundaryComponent(low, 59)
+	}
+	if dt.Precision() < types.DTSecondPrecision {
+		c.second = boundaryComponent(low, 59)
+	}
+	if dt.Precision() < types.DTMillisPrecision {
+		c.millisecond = boundaryComponent(low, 999)
+	}
+
+	return c
+}
+
+// render writes the components out at the requested digit precision, reporting
+// false for a precision that names no temporal width.
+func (c temporalComponents) render(precision int) (string, bool) {
+	switch precision {
+	case digitsYear:
+		return fmt.Sprintf("%04d", c.year), true
+	case digitsMonth:
+		return fmt.Sprintf("%04d-%02d", c.year, c.month), true
+	case digitsDay:
+		return fmt.Sprintf("%04d-%02d-%02d", c.year, c.month, c.day), true
+	case digitsHour:
+		return fmt.Sprintf("%04d-%02d-%02dT%02d", c.year, c.month, c.day, c.hour), true
+	case digitsMinute:
+		return fmt.Sprintf("%04d-%02d-%02dT%02d:%02d", c.year, c.month, c.day, c.hour, c.minute), true
+	case digitsSecond:
+		return fmt.Sprintf("%04d-%02d-%02dT%02d:%02d:%02d",
+			c.year, c.month, c.day, c.hour, c.minute, c.second), true
+	case digitsMillisecond:
+		return fmt.Sprintf("%04d-%02d-%02dT%02d:%02d:%02d.%03d",
+			c.year, c.month, c.day, c.hour, c.minute, c.second, c.millisecond), true
+	}
+	return "", false
+}
+
 func dateTimeBoundary(dt types.DateTime, precision int, provided, low bool) (types.Collection, error) {
 	if !provided {
 		precision = digitsMillisecond
 	}
 
-	year, month, day := dt.Year(), dt.Month(), dt.Day()
-	hour, minute := dt.Hour(), dt.Minute()
-	second, millis := dt.Second(), dt.Millisecond()
-
-	if dt.Precision() < types.DTMonthPrecision {
-		month = boundaryMonth(low)
-	}
-	if dt.Precision() < types.DTDayPrecision {
-		day = boundaryDay(year, month, low)
-	}
-	if dt.Precision() < types.DTHourPrecision {
-		hour = boundaryComponent(low, 23)
-	}
-	if dt.Precision() < types.DTMinutePrecision {
-		minute = boundaryComponent(low, 59)
-	}
-	if dt.Precision() < types.DTSecondPrecision {
-		second = boundaryComponent(low, 59)
-	}
-	if dt.Precision() < types.DTMillisPrecision {
-		millis = boundaryComponent(low, 999)
-	}
-
-	var formatted string
-	switch precision {
-	case digitsYear:
-		formatted = fmt.Sprintf("%04d", year)
-	case digitsMonth:
-		formatted = fmt.Sprintf("%04d-%02d", year, month)
-	case digitsDay:
-		formatted = fmt.Sprintf("%04d-%02d-%02d", year, month, day)
-	case digitsHour:
-		formatted = fmt.Sprintf("%04d-%02d-%02dT%02d", year, month, day, hour)
-	case digitsMinute:
-		formatted = fmt.Sprintf("%04d-%02d-%02dT%02d:%02d", year, month, day, hour, minute)
-	case digitsSecond:
-		formatted = fmt.Sprintf("%04d-%02d-%02dT%02d:%02d:%02d", year, month, day, hour, minute, second)
-	case digitsMillisecond:
-		formatted = fmt.Sprintf("%04d-%02d-%02dT%02d:%02d:%02d.%03d",
-			year, month, day, hour, minute, second, millis)
-	default:
+	formatted, ok := completeComponents(dt, low).render(precision)
+	if !ok {
 		return types.Collection{}, nil
 	}
 
@@ -289,6 +316,8 @@ func dateTimeBoundary(dt types.DateTime, precision int, provided, low bool) (typ
 		formatted += boundaryTimezone(dt, low)
 	}
 
+	// Below an hour the result is a Date, which is a different type rather than
+	// a DateTime that happens to stop early
 	if precision <= digitsDay {
 		result, err := types.NewDate(formatted)
 		if err != nil {

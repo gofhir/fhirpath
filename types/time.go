@@ -106,7 +106,7 @@ func (t Time) Type() string {
 	if t.fhirType != "" {
 		return t.fhirType
 	}
-	return "Time"
+	return TypeNameTime
 }
 
 // Equal checks equality with another value.

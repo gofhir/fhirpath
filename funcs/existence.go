@@ -5,6 +5,12 @@ import (
 	"github.com/gofhir/fhirpath/types"
 )
 
+// The registration blocks across this package are alike by construction: each is
+// a table of one Register call per function, and dupl measures that shape rather
+// than any repeated logic. Folding them into a loop over a slice would trade a
+// readable table for an unreadable one.
+//
+//nolint:dupl // a declarative registration table, not duplicated logic
 func init() {
 	// Register existence functions
 	Register(FuncDef{

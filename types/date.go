@@ -92,7 +92,7 @@ func (d Date) Type() string {
 	if d.fhirType != "" {
 		return d.fhirType
 	}
-	return "Date"
+	return TypeNameDate
 }
 
 // Equal checks equality with another value.

@@ -36,14 +36,14 @@ const (
 )
 
 var diffPrecisionNames = map[string]diffPrecision{
-	"year":        precYear,
-	"month":       precMonth,
-	"week":        precWeek,
-	"day":         precDay,
-	"hour":        precHour,
-	"minute":      precMinute,
-	"second":      precSecond,
-	"millisecond": precMillisecond,
+	unitNameYear:        precYear,
+	unitNameMonth:       precMonth,
+	unitNameWeek:        precWeek,
+	unitNameDay:         precDay,
+	unitNameHour:        precHour,
+	unitNameMinute:      precMinute,
+	unitNameSecond:      precSecond,
+	unitNameMillisecond: precMillisecond,
 }
 
 // isTimeOfDay reports whether the precision names a component of the clock

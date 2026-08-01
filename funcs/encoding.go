@@ -245,32 +245,36 @@ func decodeJSONUnicode(runes []rune) (r rune, consumed int, ok bool) {
 	}
 	consumed = 4
 
-	if utf16.IsSurrogate(rune(first)) && len(runes) >= 10 &&
+	if utf16.IsSurrogate(first) && len(runes) >= 10 &&
 		runes[4] == '\\' && runes[5] == 'u' {
 		if second, ok := parseHex4(runes[6:]); ok {
-			if joined := utf16.DecodeRune(rune(first), rune(second)); joined != '�' {
+			if joined := utf16.DecodeRune(first, second); joined != '�' {
 				return joined, 10, true
 			}
 		}
 	}
-	return rune(first), consumed, true
+	return first, consumed, true
 }
 
 // parseHex4 parses exactly four hexadecimal digits.
-func parseHex4(runes []rune) (int, bool) {
+//
+// Four hex digits span 0x0000..0xFFFF, so the result is a code unit and is typed
+// as one: every caller wants a rune, and none of them has to widen an int and
+// hope it fits.
+func parseHex4(runes []rune) (rune, bool) {
 	if len(runes) < 4 {
 		return 0, false
 	}
-	value := 0
+	value := rune(0)
 	for _, r := range runes[:4] {
-		digit := 0
+		digit := rune(0)
 		switch {
 		case r >= '0' && r <= '9':
-			digit = int(r - '0')
+			digit = r - '0'
 		case r >= 'a' && r <= 'f':
-			digit = int(r-'a') + 10
+			digit = r - 'a' + 10
 		case r >= 'A' && r <= 'F':
-			digit = int(r-'A') + 10
+			digit = r - 'A' + 10
 		default:
 			return 0, false
 		}

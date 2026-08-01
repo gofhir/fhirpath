@@ -1752,51 +1752,62 @@ func (e *Evaluator) VisitTypeExpression(ctx *grammar.TypeExpressionContext) inte
 	return types.Collection{}
 }
 
+// The FHIR types this package tests against by name, rather than through the
+// model. Resource and DomainResource sit at the root of the resource hierarchy,
+// and the other three are the resources that skip DomainResource.
+const (
+	typeResource       = "Resource"
+	typeDomainResource = "DomainResource"
+	typeBundle         = "Bundle"
+	typeBinary         = "Binary"
+	typeParameters     = "Parameters"
+)
+
 // nonDomainResources contains FHIR resources that inherit directly from Resource,
 // not from DomainResource. All other resources inherit from DomainResource.
 var nonDomainResources = map[string]bool{
-	"Bundle":     true,
-	"Binary":     true,
-	"Parameters": true,
+	typeBundle:     true,
+	typeBinary:     true,
+	typeParameters: true,
 }
 
 // fhirPathSpecMap contains FHIRPath spec-stable primitive type mappings.
 // These are defined by the FHIRPath specification and are stable across FHIR versions.
 // Keys are lowercase FHIR type names, values are PascalCase FHIRPath type names.
 var fhirPathSpecMap = map[string]string{
-	"boolean":      "Boolean",
-	"string":       "String",
-	"integer":      "Integer",
-	"decimal":      "Decimal",
-	"date":         "Date",
-	"datetime":     "DateTime",
-	"time":         "Time",
-	"instant":      "DateTime",
-	"uri":          "String",
-	"url":          "String",
-	"canonical":    "String",
-	"base64binary": "String",
-	"code":         "String",
-	"id":           "String",
-	"markdown":     "String",
-	"oid":          "String",
-	"uuid":         "String",
-	"positiveint":  "Integer",
-	"unsignedint":  "Integer",
-	"integer64":    "Integer",
-	"quantity":     "Quantity",
-	"money":        "Quantity",
+	"boolean":      types.TypeNameBoolean,
+	"string":       types.TypeNameString,
+	"integer":      types.TypeNameInteger,
+	"decimal":      types.TypeNameDecimal,
+	"date":         types.TypeNameDate,
+	"datetime":     types.TypeNameDateTime,
+	"time":         types.TypeNameTime,
+	"instant":      types.TypeNameDateTime,
+	"uri":          types.TypeNameString,
+	"url":          types.TypeNameString,
+	"canonical":    types.TypeNameString,
+	"base64binary": types.TypeNameString,
+	"code":         types.TypeNameString,
+	"id":           types.TypeNameString,
+	"markdown":     types.TypeNameString,
+	"oid":          types.TypeNameString,
+	"uuid":         types.TypeNameString,
+	"positiveint":  types.TypeNameInteger,
+	"unsignedint":  types.TypeNameInteger,
+	"integer64":    types.TypeNameInteger,
+	"quantity":     types.TypeNameQuantity,
+	"money":        types.TypeNameQuantity,
 }
 
 // fhirVersionSpecificMap contains FHIR version-specific profiled type mappings.
 // These types are profiled Quantity subtypes that may vary across FHIR versions.
 // When a Model is available, these mappings are skipped in favor of model.IsSubtype().
 var fhirVersionSpecificMap = map[string]string{
-	"simplequantity": "Quantity",
-	"age":            "Quantity",
-	"count":          "Quantity",
-	"distance":       "Quantity",
-	"duration":       "Quantity",
+	"simplequantity": types.TypeNameQuantity,
+	"age":            types.TypeNameQuantity,
+	"count":          types.TypeNameQuantity,
+	"distance":       types.TypeNameQuantity,
+	"duration":       types.TypeNameQuantity,
 }
 
 // IsDomainResource returns true if the given resource type inherits from DomainResource.
@@ -1826,14 +1837,14 @@ func IsSubtypeOf(actualType, baseType string) bool {
 	}
 
 	// Check Resource base type - all resources inherit from Resource
-	if baseType == "Resource" || strings.EqualFold(baseType, "resource") {
+	if baseType == typeResource || strings.EqualFold(baseType, "resource") {
 		// Any non-empty type that looks like a resource type matches Resource
 		// Resource types are PascalCase and don't include primitives
 		return isPossibleResourceType(actualType)
 	}
 
 	// Check DomainResource base type
-	if baseType == "DomainResource" || strings.EqualFold(baseType, "domainresource") {
+	if baseType == typeDomainResource || strings.EqualFold(baseType, "domainresource") {
 		// Most resources inherit from DomainResource, except Bundle, Binary, Parameters
 		return isPossibleResourceType(actualType) && IsDomainResource(actualType)
 	}
@@ -1848,13 +1859,8 @@ func isPossibleResourceType(typeName string) bool {
 		return false
 	}
 
-	// Primitive types are not resources
-	primitiveTypes := map[string]bool{
-		"Boolean": true, "String": true, "Integer": true, "Decimal": true,
-		"Date": true, "DateTime": true, "Time": true, "Quantity": true,
-		"Object": true,
-	}
-	if primitiveTypes[typeName] {
+	// A System type is never a resource
+	if types.IsSystemTypeName(typeName) || typeName == "Object" {
 		return false
 	}
 
@@ -1904,23 +1910,10 @@ func castMatches(item types.Value, actualType, typeName string, model Model) boo
 	// Only a value that kept the type FHIR declared for it can be cast exactly.
 	// One reported as a system type — a String that no model narrowed to code or
 	// uri — carries no such claim, so it keeps the permissive match.
-	if systemTypeNames[actualType] {
+	if types.IsSystemTypeName(actualType) {
 		return TypeMatchesWithModel(actualType, typeName, model)
 	}
 	return primitiveTypeMatches(actualType, typeName)
-}
-
-// systemTypeNames are the types FHIRPath declares itself, in its Literals
-// section. A value reporting one of these has no FHIR type of its own.
-var systemTypeNames = map[string]bool{
-	"Boolean":  true,
-	"String":   true,
-	"Integer":  true,
-	"Decimal":  true,
-	"Date":     true,
-	"DateTime": true,
-	"Time":     true,
-	"Quantity": true,
 }
 
 // primitiveTypeMatches compares a primitive's declared type against a requested
@@ -1953,7 +1946,7 @@ func isFHIRPrimitiveName(typeName string) bool {
 // System.Patient names nothing; and a value carrying a FHIR type is not its
 // system counterpart, so a FHIR.boolean is not a System.Boolean.
 func matchesSystemType(actualType, systemType string) bool {
-	if !systemTypeNames[systemType] || isFHIRPrimitiveName(actualType) {
+	if !types.IsSystemTypeName(systemType) || isFHIRPrimitiveName(actualType) {
 		return false
 	}
 	return strings.EqualFold(actualType, systemType)
@@ -1976,7 +1969,7 @@ func TypeMatchesWithModel(actualType, typeName string, model Model) bool {
 	// It applies to primitives alone, which FHIR names in lower camel case. A
 	// complex type such as Quantity is spelled the same in both namespaces, and
 	// an Age is still a Quantity.
-	if systemTypeNames[typeName] && isFHIRPrimitiveName(actualType) {
+	if types.IsSystemTypeName(typeName) && isFHIRPrimitiveName(actualType) {
 		return false
 	}
 
@@ -2083,7 +2076,7 @@ var polymorphicTypeSuffixes = []string{
 	"Boolean", "Integer", "Integer64", "Decimal", "String", "Code", "Id", "Uri", "Url", "Canonical",
 	"Base64Binary", "Instant", "Date", "DateTime", "Time", "Oid", "Uuid", "Markdown", "PositiveInt", "UnsignedInt",
 	// Complex types
-	"Quantity", "CodeableConcept", "Coding", "Range", "Period", "Ratio", "RatioRange",
+	types.TypeNameQuantity, "CodeableConcept", "Coding", "Range", "Period", "Ratio", "RatioRange",
 	"Identifier", "Reference", "Attachment", "HumanName", "Address", "ContactPoint",
 	"Timing", "Signature", "Annotation", "SampledData", "Age", "Distance", "Duration",
 	"Count", "Money", "MoneyQuantity", "SimpleQuantity",
@@ -2285,7 +2278,10 @@ func unquoteString(s string) string {
 			b.WriteRune('\f')
 		case 'u':
 			if i+4 < len(runes) {
-				if code, err := strconv.ParseUint(string(runes[i+1:i+5]), 16, 32); err == nil {
+				// Four hex digits, so the escape denotes a 16-bit code unit;
+				// parsing it at that width is what makes the rune conversion
+				// exact rather than merely likely
+				if code, err := strconv.ParseUint(string(runes[i+1:i+5]), 16, 16); err == nil {
 					b.WriteRune(rune(code))
 					i += 4
 					continue

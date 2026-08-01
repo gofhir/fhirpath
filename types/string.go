@@ -33,7 +33,7 @@ func (s String) Type() string {
 	if s.fhirType != "" {
 		return s.fhirType
 	}
-	return "String"
+	return TypeNameString
 }
 
 // Equal returns true if other is a String with the same value.

@@ -60,21 +60,6 @@ const (
 	kindClassInfo      = "ClassInfo"
 )
 
-// systemTypeNames are the types FHIRPath defines in its own Literals section.
-// This is the type system of the language, not a FHIR version-specific list, so
-// it does not go stale: any other type name on a primitive value came from the
-// FHIR model (code, uri, id, markdown, ...).
-var systemTypeNames = map[string]bool{
-	"Boolean":  true,
-	"String":   true,
-	"Integer":  true,
-	"Decimal":  true,
-	"Date":     true,
-	"DateTime": true,
-	"Time":     true,
-	"Quantity": true,
-}
-
 // typeInfo is the serialized form of SimpleTypeInfo and ClassInfo. Empty fields
 // are omitted so that navigating them yields empty rather than a made-up value.
 type typeInfo struct {
@@ -118,7 +103,7 @@ func typeInfoOf(item types.Value, model eval.Model) (types.Value, error) {
 			// claiming it belongs to the FHIR namespace.
 			namespace = ""
 		}
-	case !systemTypeNames[name]:
+	case !types.IsSystemTypeName(name):
 		// A primitive carrying a FHIR type, e.g. code or uri. Per the FHIR
 		// specification these are distinct from their System counterparts.
 		namespace = namespaceFHIR

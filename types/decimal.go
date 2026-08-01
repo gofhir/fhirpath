@@ -8,9 +8,6 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// TypeNameDecimal is the FHIRPath type name for decimal values.
-const TypeNameDecimal = "Decimal"
-
 // Decimal represents a FHIRPath decimal value with arbitrary precision.
 type Decimal struct {
 	value    decimal.Decimal

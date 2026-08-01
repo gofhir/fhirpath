@@ -35,35 +35,53 @@ const (
 // week, ...) and mean "the same point in the next year or month". UCUM codes
 // name definite durations; those up to weeks convert exactly to days or smaller,
 // so they shift the same fields.
-var durationUnits = map[string]struct {
+// durationShift is how far, and along which field, one unit moves a temporal.
+type durationShift struct {
 	field      durationField
 	multiplier int
-}{
-	// Calendar units, singular and plural
-	"year":         {fieldYear, 1},
-	"years":        {fieldYear, 1},
-	"month":        {fieldMonth, 1},
-	"months":       {fieldMonth, 1},
-	"week":         {fieldDay, 7},
-	"weeks":        {fieldDay, 7},
-	"day":          {fieldDay, 1},
-	"days":         {fieldDay, 1},
-	"hour":         {fieldHour, 1},
-	"hours":        {fieldHour, 1},
-	"minute":       {fieldMinute, 1},
-	"minutes":      {fieldMinute, 1},
-	"second":       {fieldSecond, 1},
-	"seconds":      {fieldSecond, 1},
-	"millisecond":  {fieldMillisecond, 1},
-	"milliseconds": {fieldMillisecond, 1},
+}
 
-	// UCUM definite durations of a week or less
+// calendarShifts maps each calendar keyword onto the field it moves. Weeks are
+// the one keyword that is not a field of its own: a week is seven days, both to
+// the grammar and to the calendar.
+var calendarShifts = map[string]durationShift{
+	unitNameYear:        {fieldYear, 1},
+	unitNameMonth:       {fieldMonth, 1},
+	unitNameWeek:        {fieldDay, 7},
+	unitNameDay:         {fieldDay, 1},
+	unitNameHour:        {fieldHour, 1},
+	unitNameMinute:      {fieldMinute, 1},
+	unitNameSecond:      {fieldSecond, 1},
+	unitNameMillisecond: {fieldMillisecond, 1},
+}
+
+// ucumShifts maps the UCUM codes for definite durations of a week or less, which
+// convert exactly to days or smaller and so move the same fields. The UCUM codes
+// for years and months are deliberately absent: see ucumCalendarUnits.
+var ucumShifts = map[string]durationShift{
 	"wk":  {fieldDay, 7},
 	"d":   {fieldDay, 1},
 	"h":   {fieldHour, 1},
 	"min": {fieldMinute, 1},
 	"s":   {fieldSecond, 1},
 	"ms":  {fieldMillisecond, 1},
+}
+
+// durationUnits maps every unit that can shift a temporal value onto the field
+// it moves and by how much, taking the calendar keywords in both their singular
+// and plural spellings alongside the UCUM codes.
+var durationUnits = buildDurationUnits()
+
+func buildDurationUnits() map[string]durationShift {
+	units := make(map[string]durationShift, len(calendarShifts)*2+len(ucumShifts))
+	for name, shift := range calendarShifts {
+		units[name] = shift
+		units[name+"s"] = shift
+	}
+	for code, shift := range ucumShifts {
+		units[code] = shift
+	}
+	return units
 }
 
 // ucumCalendarUnits are the UCUM durations that have no exact calendar meaning.

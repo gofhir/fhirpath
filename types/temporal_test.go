@@ -736,7 +736,7 @@ func TestQuantity(t *testing.T) {
 			t.Error("expected equivalent with empty unit")
 		}
 
-		// UCUM codes are case sensitive by design — m is metre while M is not a
+		// UCUM codes are case sensitive by design — m is meter while M is not a
 		// unit at all, and mixing them up silently would be worse than saying
 		// the two cannot be compared.
 		wrongCase, _ := NewQuantity("10 KG")

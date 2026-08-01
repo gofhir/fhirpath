@@ -56,7 +56,7 @@ func NewQuantityFromDecimal(value decimal.Decimal, unit string) Quantity {
 
 // Type returns the type name.
 func (q Quantity) Type() string {
-	return "Quantity"
+	return TypeNameQuantity
 }
 
 // Equal checks equality with another value.
@@ -135,12 +135,13 @@ func (q Quantity) valueText() string {
 // calendarDurationUnits are the time-valued keywords the grammar accepts as an
 // unquoted unit (rules dateTimePrecision and pluralDateTimePrecision). Every
 // other unit is a UCUM code and is quoted.
-var calendarDurationUnits = map[string]bool{
-	"year": true, "month": true, "week": true, "day": true,
-	"hour": true, "minute": true, "second": true, "millisecond": true,
-	"years": true, "months": true, "weeks": true, "days": true,
-	"hours": true, "minutes": true, "seconds": true, "milliseconds": true,
-}
+var calendarDurationUnits = func() map[string]bool {
+	units := make(map[string]bool)
+	for _, name := range withPlurals(calendarUnitNames) {
+		units[name] = true
+	}
+	return units
+}()
 
 // IsEmpty returns false for Quantity.
 func (q Quantity) IsEmpty() bool {

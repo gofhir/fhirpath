@@ -23,7 +23,7 @@ func (b Boolean) Type() string {
 	if b.fhirType != "" {
 		return b.fhirType
 	}
-	return "Boolean"
+	return TypeNameBoolean
 }
 
 // Equal returns true if other is a Boolean with the same value.

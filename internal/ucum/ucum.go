@@ -52,8 +52,8 @@ func Comparable(from, to string) bool {
 	if err != nil {
 		return false
 	}
-	comparable, err := svc.IsComparable(from, to)
-	return err == nil && comparable
+	ok, err := svc.IsComparable(from, to)
+	return err == nil && ok
 }
 
 // Convert expresses a value given in one unit in terms of another, exactly.

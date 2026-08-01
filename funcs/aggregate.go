@@ -109,10 +109,7 @@ func typeResolver(ctx *eval.Context) types.ElementTypeResolver {
 	if ctx == nil {
 		return nil
 	}
-	if m := ctx.GetModel(); m != nil {
-		return m
-	}
-	return nil
+	return ctx.GetModel()
 }
 
 // fnChildren returns all direct children of the input.

@@ -285,7 +285,7 @@ func fnRound(_ *eval.Context, input types.Collection, args []interface{}) (types
 		} else if p < math.MinInt32 {
 			p = math.MinInt32
 		}
-		precision = int32(p) //nolint:gosec // bounds checked above
+		precision = int32(p)
 	}
 
 	switch v := input[0].(type) {

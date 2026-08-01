@@ -65,7 +65,7 @@ type Model interface {
 // %resource.descendants().as(canonical).
 //
 // A model that does not implement this interface is treated as pre-R5, which
-// keeps every existing caller on the behaviour it has today.
+// keeps every existing caller on the behavior it has today.
 type VersionedModel interface {
 	// FHIRVersion returns the FHIR version the model describes.
 	FHIRVersion() string

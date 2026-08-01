@@ -181,7 +181,7 @@ func (dt DateTime) Type() string {
 	if dt.fhirType != "" {
 		return dt.fhirType
 	}
-	return "DateTime"
+	return TypeNameDateTime
 }
 
 // Equal checks equality with another value.

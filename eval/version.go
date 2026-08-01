@@ -14,9 +14,9 @@ type versionedModel interface {
 // enforcesR5Rules reports whether the rules that changed in R5 apply.
 //
 // The reference validator settles these by version rather than choosing one
-// reading, because FHIR's own R4 invariants depend on the earlier behaviour: it
+// reading, because FHIR's own R4 invariants depend on the earlier behavior: it
 // disables the rule for anything below R5. A context with no model, or a model
-// that does not declare its version, is treated as pre-R5 — the behaviour every
+// that does not declare its version, is treated as pre-R5 — the behavior every
 // existing caller already has.
 func (c *Context) enforcesR5Rules() bool {
 	if c == nil || c.model == nil {

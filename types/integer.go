@@ -28,7 +28,7 @@ func (i Integer) Type() string {
 	if i.fhirType != "" {
 		return i.fhirType
 	}
-	return "Integer"
+	return TypeNameInteger
 }
 
 // Equal returns true if other is an Integer with the same value,
