@@ -771,9 +771,10 @@ func TestQuantity(t *testing.T) {
 	})
 
 	t.Run("string representation", func(t *testing.T) {
+		// A UCUM unit is quoted in FHIRPath literal notation
 		q1, _ := NewQuantity("10 kg")
-		if q1.String() != "10 kg" {
-			t.Errorf("expected '10 kg', got '%s'", q1.String())
+		if q1.String() != "10 'kg'" {
+			t.Errorf("expected \"10 'kg'\", got '%s'", q1.String())
 		}
 
 		q2, _ := NewQuantity("5")

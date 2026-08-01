@@ -1515,15 +1515,15 @@ func TestQuantityArithmetic(t *testing.T) {
 		expectErr bool
 	}{
 		// Quantity + Quantity same unit
-		{"quantity plus quantity same unit", 5, "mg", 3, "mg", "8 mg", false, false},
-		{"quantity minus quantity same unit", 10, "kg", 3, "kg", "7 kg", true, false},
+		{"quantity plus quantity same unit", 5, "mg", 3, "mg", "8 'mg'", false, false},
+		{"quantity minus quantity same unit", 10, "kg", 3, "kg", "7 'kg'", true, false},
 
 		// Quantity with empty unit
 		{"quantity plus quantity empty unit", 5, "", 3, "", "8", false, false},
 
 		// Commensurable units are converted into the left operand's unit
-		{"quantity plus commensurable unit", 5, "mg", 3, "g", "3005 mg", false, false},
-		{"quantity minus commensurable unit", 2, "g", 500, "mg", "1.5 g", true, false},
+		{"quantity plus commensurable unit", 5, "mg", 3, "g", "3005 'mg'", false, false},
+		{"quantity minus commensurable unit", 2, "g", 500, "mg", "1.5 'g'", true, false},
 
 		// Units of different dimensions cannot be combined
 		{"quantity plus incompatible units", 5, "mg", 3, "m", "", false, true},

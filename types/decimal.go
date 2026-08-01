@@ -90,6 +90,15 @@ func (d Decimal) ImplicitPrecision() int {
 		if idx := strings.Index(d.original, "."); idx >= 0 {
 			return len(d.original) - idx - 1
 		}
+		return 0
+	}
+
+	// A computed value has no original text, but its scale still records how
+	// many fractional digits it carries. Without this, negating a literal —
+	// which produces a computed value — would report a precision of zero, and
+	// (-1.587).lowBoundary() would bound it by 0.5 instead of 0.0005.
+	if exponent := d.value.Exponent(); exponent < 0 {
+		return int(-exponent)
 	}
 	return 0
 }
@@ -141,7 +150,17 @@ func (d Decimal) Divide(other Decimal) (Decimal, error) {
 
 // Negate returns the negation of the decimal.
 func (d Decimal) Negate() Decimal {
-	return Decimal{value: d.value.Neg()}
+	negated := Decimal{value: d.value.Neg()}
+
+	// Carry the original representation across, sign flipped, so that negation
+	// does not discard precision: -(120.50) must still present as -120.50.
+	if d.original != "" {
+		negated.original = strings.TrimPrefix(d.original, "-")
+		if !strings.HasPrefix(d.original, "-") {
+			negated.original = "-" + negated.original
+		}
+	}
+	return negated
 }
 
 // Abs returns the absolute value.

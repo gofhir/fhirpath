@@ -137,15 +137,37 @@ func (q Quantity) Equivalent(other Value) bool {
 }
 
 // String returns the string representation.
+// String returns the quantity in FHIRPath literal notation. A UCUM unit is
+// quoted — 1 'wk' — while a calendar duration keyword is not — 1 week — which is
+// how the grammar distinguishes the two.
 func (q Quantity) String() string {
+	value := q.valueText()
 	if q.unit == "" {
-		return q.value.String()
+		return value
 	}
-	// Use quotes if unit contains spaces
-	if strings.Contains(q.unit, " ") {
-		return fmt.Sprintf("%s '%s'", q.value.String(), q.unit)
+	if calendarDurationUnits[q.unit] {
+		return value + " " + q.unit
 	}
-	return fmt.Sprintf("%s %s", q.value.String(), q.unit)
+	return fmt.Sprintf("%s '%s'", value, q.unit)
+}
+
+// valueText renders the value keeping the scale it carries, so that a quantity
+// computed to a given precision presents it: 1.58650000 'cm', not 1.5865 'cm'.
+func (q Quantity) valueText() string {
+	if exponent := q.value.Exponent(); exponent < 0 {
+		return q.value.StringFixed(-exponent)
+	}
+	return q.value.String()
+}
+
+// calendarDurationUnits are the time-valued keywords the grammar accepts as an
+// unquoted unit (rules dateTimePrecision and pluralDateTimePrecision). Every
+// other unit is a UCUM code and is quoted.
+var calendarDurationUnits = map[string]bool{
+	"year": true, "month": true, "week": true, "day": true,
+	"hour": true, "minute": true, "second": true, "millisecond": true,
+	"years": true, "months": true, "weeks": true, "days": true,
+	"hours": true, "minutes": true, "seconds": true, "milliseconds": true,
 }
 
 // IsEmpty returns false for Quantity.
@@ -211,7 +233,20 @@ func (q Quantity) valueIn(target Quantity) (decimal.Decimal, error) {
 	}
 
 	// value * fromFactor / toFactor, in decimal: 2 'g' as 'mg' is exactly 2000.
-	return q.value.Mul(decimal.NewFromFloat(fromFactor)).Div(decimal.NewFromFloat(toFactor)), nil
+	converted := q.value.Mul(decimal.NewFromFloat(fromFactor)).Div(decimal.NewFromFloat(toFactor))
+	return dropTrailingZeros(converted), nil
+}
+
+// dropTrailingZeros returns the value at its natural scale. Division runs at a
+// fixed scale, so 3 'g' converted to 'mg' comes back as 3000.0000000000000000;
+// the zeros are an artifact of how the quotient was computed, not precision the
+// value carries, and they would otherwise be presented as significant.
+func dropTrailingZeros(d decimal.Decimal) decimal.Decimal {
+	normalized, err := decimal.NewFromString(d.String())
+	if err != nil {
+		return d
+	}
+	return normalized
 }
 
 // Normalize returns the UCUM-normalized form of this quantity.
@@ -260,5 +295,5 @@ func (q Quantity) Divide(divisor decimal.Decimal) (Quantity, error) {
 	if divisor.IsZero() {
 		return Quantity{}, fmt.Errorf("division by zero")
 	}
-	return Quantity{value: q.value.Div(divisor), unit: q.unit}, nil
+	return Quantity{value: dropTrailingZeros(q.value.Div(divisor)), unit: q.unit}, nil
 }

@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sort"
 	"strings"
 	"testing"
@@ -203,14 +204,32 @@ func compareOutputs(tc suiteCase, result Collection) error {
 // expectedValue normalizes a recorded output for comparison. The suite writes
 // temporal values in FHIRPath literal notation ("@1974-12-25"), while a value's
 // string form is the plain lexical value — the leading @ is notation, not data.
+//
+// Many cases declare no output type, so the notation is detected from the value
+// itself rather than trusted from the type attribute.
 func expectedValue(want suiteOutput) string {
 	value := strings.TrimSpace(want.Value)
 	switch want.Type {
 	case "date", "dateTime", "time":
-		return strings.TrimPrefix(value, "@")
+		return trimTemporalNotation(value)
+	case "":
+		if temporalLiteral.MatchString(value) {
+			return trimTemporalNotation(value)
+		}
 	}
 	return value
 }
+
+// trimTemporalNotation strips the literal markers from a temporal value. A time
+// carries two — "@T10:30" — of which only the digits are the value.
+func trimTemporalNotation(value string) string {
+	return strings.TrimPrefix(strings.TrimPrefix(value, "@"), "T")
+}
+
+// temporalLiteral matches the FHIRPath literal notation for a date, dateTime or
+// time, so that "@2014-01" is recognized while a string that merely starts with
+// an @ is left alone.
+var temporalLiteral = regexp.MustCompile(`^@(T\d{2}|\d{4})`)
 
 func outputValues(outputs []suiteOutput) []string {
 	values := make([]string, len(outputs))

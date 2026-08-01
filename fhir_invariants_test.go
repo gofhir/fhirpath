@@ -232,7 +232,7 @@ func TestQuantityObjectComparison(t *testing.T) {
 		assertBooleanResult(t, evalOrFatal(t, q, "$this <= 2 'g'"), true)
 		assertBooleanResult(t, evalOrFatal(t, q, "$this = 10 'mg'"), true)
 		assertBooleanResult(t, evalOrFatal(t, q, "$this ~ 0.01 'g'"), true)
-		assertStringResult(t, evalOrFatal(t, q, "$this.toQuantity().toString()"), "10 mg")
+		assertStringResult(t, evalOrFatal(t, q, "$this.toQuantity().toString()"), "10 'mg'")
 		assertBooleanResult(t, evalOrFatal(t, q, "$this.convertsToQuantity()"), true)
 		assertBooleanResult(t, evalOrFatal(t, q, "$this.convertsToQuantity('g')"), true)
 		assertBooleanResult(t, evalOrFatal(t, q, "$this.convertsToQuantity('m')"), false)
@@ -240,8 +240,8 @@ func TestQuantityObjectComparison(t *testing.T) {
 
 	t.Run("quantity objects support arithmetic", func(t *testing.T) {
 		rng := []byte(`{"low":{"value":1,"code":"mg"},"high":{"value":5,"code":"mg"}}`)
-		assertStringResult(t, evalOrFatal(t, rng, "(high - low).toString()"), "4 mg")
-		assertStringResult(t, evalOrFatal(t, rng, "(low + high).toString()"), "6 mg")
+		assertStringResult(t, evalOrFatal(t, rng, "(high - low).toString()"), "4 'mg'")
+		assertStringResult(t, evalOrFatal(t, rng, "(low + high).toString()"), "6 'mg'")
 	})
 
 	t.Run("incommensurable units yield empty, not an error", func(t *testing.T) {
@@ -253,10 +253,10 @@ func TestQuantityObjectComparison(t *testing.T) {
 
 	t.Run("quantity literals scale by a number", func(t *testing.T) {
 		// Documented in examples/quantities-and-units
-		assertStringResult(t, evalOrFatal(t, simpleJSON, "(250 'mg' * 4).toString()"), "1000 mg")
-		assertStringResult(t, evalOrFatal(t, simpleJSON, "(4 * 250 'mg').toString()"), "1000 mg")
-		assertStringResult(t, evalOrFatal(t, simpleJSON, "(1 'g' / 4).toString()"), "0.25 g")
-		assertStringResult(t, evalOrFatal(t, simpleJSON, "(1 'kg' - 200 'g').toString()"), "0.8 kg")
+		assertStringResult(t, evalOrFatal(t, simpleJSON, "(250 'mg' * 4).toString()"), "1000 'mg'")
+		assertStringResult(t, evalOrFatal(t, simpleJSON, "(4 * 250 'mg').toString()"), "1000 'mg'")
+		assertStringResult(t, evalOrFatal(t, simpleJSON, "(1 'g' / 4).toString()"), "0.25 'g'")
+		assertStringResult(t, evalOrFatal(t, simpleJSON, "(1 'kg' - 200 'g').toString()"), "0.8 'kg'")
 	})
 
 	t.Run("quantity literals with incommensurable units", func(t *testing.T) {
