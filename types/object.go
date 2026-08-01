@@ -483,34 +483,104 @@ func tryParseTemporalString(s string) Value {
 // jsonValueToFHIRValueWithType converts a JSON value to a FHIRPath Value,
 // using the FHIR type hint to parse strings as Date, DateTime, Time, etc.
 func jsonValueToFHIRValueWithType(data []byte, dataType jsonparser.ValueType, fhirType string) Value {
-	if dataType == jsonparser.String {
-		var s string
-		if err := json.Unmarshal(append([]byte{'"'}, append(data, '"')...), &s); err != nil {
-			s = string(data)
-		}
-		switch strings.ToLower(fhirType) {
-		case "date":
-			if d, err := NewDate(s); err == nil {
-				return d
-			}
-		case "datetime", "instant":
-			if dt, err := NewDateTime(s); err == nil {
-				return dt
-			}
-		case "time":
-			if t, err := NewTime(s); err == nil {
-				return t
-			}
-		case "uri", "url", "canonical", "oid", "uuid", "id", "code", "markdown", "base64binary":
-			return NewStringWithFHIRType(s, fhirType)
-		}
-		return NewString(s)
-	}
-	// For objects, propagate the FHIR type hint so Type() returns the correct type
+	// Objects carry the type so that Type() reports it
 	if dataType == jsonparser.Object && fhirType != "" {
 		return NewObjectValueWithType(data, fhirType)
 	}
-	return jsonValueToFHIRValue(data, dataType)
+
+	value := jsonValueToFHIRValue(data, dataType)
+	if value == nil || fhirType == "" {
+		return value
+	}
+
+	// A string may hold a date, a time or an instant, which the untyped path
+	// guesses at; the declared type decides.
+	if dataType == jsonparser.String {
+		if typed, ok := parseTypedString(data, fhirType); ok {
+			value = typed
+		}
+	}
+
+	return withFHIRType(value, fhirType)
+}
+
+// parseTypedString reads a JSON string as the temporal type the model declares,
+// rather than leaving it to pattern matching.
+func parseTypedString(data []byte, fhirType string) (Value, bool) {
+	var text string
+	if err := json.Unmarshal(append([]byte{'"'}, append(data, '"')...), &text); err != nil {
+		text = string(data)
+	}
+
+	switch strings.ToLower(fhirType) {
+	case "date":
+		if d, err := NewDate(text); err == nil {
+			return d, true
+		}
+	case "datetime", "instant":
+		if dt, err := NewDateTime(text); err == nil {
+			return dt, true
+		}
+	case "time":
+		if t, err := NewTime(text); err == nil {
+			return t, true
+		}
+	default:
+		// Anything else is a string in FHIR terms, even where the untyped path
+		// would have read it as a date
+		return NewString(text), true
+	}
+	return nil, false
+}
+
+// withFHIRType tags a primitive with the type FHIR declared for it. FHIR
+// primitives are types in their own right — FHIR.boolean is not System.Boolean —
+// so the value carries the name rather than being folded into the system type.
+func withFHIRType(value Value, fhirType string) Value {
+	switch v := value.(type) {
+	case String:
+		return v.WithFHIRType(fhirType)
+	case Boolean:
+		return v.WithFHIRType(fhirType)
+	case Integer:
+		return v.WithFHIRType(fhirType)
+	case Decimal:
+		return v.WithFHIRType(fhirType)
+	case Date:
+		return v.WithFHIRType(fhirType)
+	case DateTime:
+		return v.WithFHIRType(fhirType)
+	case Time:
+		return v.WithFHIRType(fhirType)
+	}
+	return value
+}
+
+// GetCollectionParsedAs retrieves a field as a Collection from a type read off a
+// polymorphic field name, such as the Oid in valueOid.
+//
+// Such a name is capitalized to form the field, while FHIR writes primitive type
+// names in lower camel case and complex ones capitalized. The value itself says
+// which it is — a primitive parses to a primitive — so the recorded type is
+// corrected accordingly rather than kept in the field's spelling.
+func (o *ObjectValue) GetCollectionParsedAs(field, suffix string) Collection {
+	collection := o.GetCollectionWithType(field, suffix)
+	for i, value := range collection {
+		if _, isObject := value.(*ObjectValue); isObject {
+			continue
+		}
+		collection[i] = withFHIRType(value, lowerFirst(suffix))
+	}
+	return collection
+}
+
+// lowerFirst converts a capitalized type name to the lower camel case FHIR uses
+// for primitive types: Oid to oid, Base64Binary to base64Binary.
+func lowerFirst(name string) string {
+	if name == "" {
+		return name
+	}
+	return strings.ToLower(name[:1]) + name[1:]
 }
 
 // GetCollectionWithType retrieves a field as a Collection, using the FHIR type hint

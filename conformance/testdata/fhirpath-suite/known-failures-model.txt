@@ -33,13 +33,10 @@ testExtension/testExtension1
 testExtension/testExtension2
 testIif/testIif10
 testIif/testIif6
-testInheritance/testFHIRPathAsFunction15
-testInheritance/testFHIRPathAsFunction20
 testInheritance/testFHIRPathAsFunction21
 testInheritance/testFHIRPathAsFunction23
 testInheritance/testFHIRPathAsFunction24
 testInheritance/testFHIRPathIsFunction10
-testInheritance/testFHIRPathIsFunction7
 testInheritance/testFHIRPathIsFunction8
 testInheritance/testFHIRPathIsFunction9
 testLiterals/testNotInvalid
@@ -57,13 +54,8 @@ testStartsWith/testStartsWithNonString1
 testSubSetOf/testSubSetOf1
 testSubSetOf/testSubSetOf3
 testSuperSetOf/testSuperSetOf1
-testType/testType10
-testType/testType12
-testType/testType14
 testType/testType19
-testType/testType22
 testType/testType23
-testType/testType9
 testTypes/testBooleanLiteralConvertsToQuantity
 testTypes/testQuantityLiteralConvertsToString
 testTypes/testStringDecimalLiteralConvertsToQuantityFalse

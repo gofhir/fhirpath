@@ -375,7 +375,7 @@ if result.Empty() {
 ## Specification Compliance
 
 Measured against the official HL7 test suite rather than asserted:
-**850 of 928 executed cases pass (91.6%)**, and 856 with the R4 model supplied. Run `make conformance` for the
+**851 of 928 executed cases pass (91.7%)**, and 864 with the R4 model supplied. Run `make conformance` for the
 current number, and see [CONFORMANCE.md](CONFORMANCE.md) for what is covered,
 what is missing, and which specification version applies to what.
 

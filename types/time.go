@@ -14,6 +14,7 @@ type Time struct {
 	second    int
 	millis    int
 	precision TimePrecision
+	fhirType  string // FHIR type when the value was read through a model
 }
 
 // TimePrecision indicates the precision of a time.
@@ -102,6 +103,9 @@ func NewTimeFromGoTime(t gotime.Time) Time {
 
 // Type returns the type name.
 func (t Time) Type() string {
+	if t.fhirType != "" {
+		return t.fhirType
+	}
 	return "Time"
 }
 
@@ -172,4 +176,12 @@ func (t Time) Compare(other Value) (int, error) {
 		return 0, fmt.Errorf("cannot compare Time with %s", other.Type())
 	}
 	return compareTemporalValues(t, other)
+}
+
+// WithFHIRType returns a copy that reports the FHIR type it was declared with.
+// FHIR primitives are types in their own right — a FHIR.boolean is not a
+// System.Boolean — so a value keeps the name the model gave it.
+func (t Time) WithFHIRType(fhirType string) Time {
+	t.fhirType = fhirType
+	return t
 }

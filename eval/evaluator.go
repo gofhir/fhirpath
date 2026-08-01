@@ -1701,6 +1701,30 @@ func primitiveTypeMatches(actualType, typeName string) bool {
 	return strings.EqualFold(actualType, requested)
 }
 
+// isFHIRPrimitiveName reports whether a type name is a FHIR primitive, which the
+// specification writes in lower camel case — boolean, dateTime, code — as
+// against the capitalized names of complex types and of the FHIRPath system
+// types.
+func isFHIRPrimitiveName(typeName string) bool {
+	if typeName == "" {
+		return false
+	}
+	first := typeName[0]
+	return first >= 'a' && first <= 'z'
+}
+
+// matchesSystemType reports whether a value is the named System type.
+//
+// Only the types FHIRPath declares itself live in that namespace, so
+// System.Patient names nothing; and a value carrying a FHIR type is not its
+// system counterpart, so a FHIR.boolean is not a System.Boolean.
+func matchesSystemType(actualType, systemType string) bool {
+	if !systemTypeNames[systemType] || isFHIRPrimitiveName(actualType) {
+		return false
+	}
+	return strings.EqualFold(actualType, systemType)
+}
+
 // TypeMatchesWithModel checks type matching using the model if available,
 // falling back to the built-in TypeMatches when model is nil.
 // When a model is present, it is authoritative for type hierarchy — only
@@ -1708,6 +1732,18 @@ func primitiveTypeMatches(actualType, typeName string) bool {
 func TypeMatchesWithModel(actualType, typeName string, model Model) bool {
 	if actualType == typeName {
 		return true
+	}
+
+	// A FHIR primitive is not the system type of the same shape: Patient.active
+	// is a FHIR.boolean, so is(Boolean) is false while is(boolean) is true. The
+	// names differ only in case, so this is settled before any case-insensitive
+	// comparison.
+	//
+	// It applies to primitives alone, which FHIR names in lower camel case. A
+	// complex type such as Quantity is spelled the same in both namespaces, and
+	// an Age is still a Quantity.
+	if systemTypeNames[typeName] && isFHIRPrimitiveName(actualType) {
+		return false
 	}
 
 	actualLower := strings.ToLower(actualType)
@@ -1754,10 +1790,7 @@ func typeMatchesSpecMaps(actualType, typeName, actualLower, typeNameLower string
 
 	// System type namespace handling (System.Boolean, System.String, etc.)
 	if strings.HasPrefix(typeNameLower, "system.") {
-		systemType := typeName[7:] // Remove "System." prefix
-		if strings.EqualFold(actualType, systemType) {
-			return true
-		}
+		return matchesSystemType(actualType, typeName[7:])
 	}
 
 	// FHIR namespace handling (FHIR.Patient, etc.)
@@ -1950,10 +1983,12 @@ func (e *Evaluator) resolvePolymorphicField(obj *types.ObjectValue, name, elemen
 		}
 	}
 
-	// Fallback: try each possible type suffix from the hardcoded list
+	// Fallback: try each possible type suffix from the hardcoded list. Without a
+	// model these are guesses at the field name, so they guide parsing but do
+	// not become the value's declared type.
 	for _, suffix := range polymorphicTypeSuffixes {
 		fieldName := name + suffix
-		children := obj.GetCollectionWithType(fieldName, suffix)
+		children := obj.GetCollectionParsedAs(fieldName, suffix)
 		if len(children) > 0 {
 			result = append(result, children...)
 			// Return on first match - polymorphic elements have only one variant

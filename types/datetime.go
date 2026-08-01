@@ -19,6 +19,7 @@ type DateTime struct {
 	tzOffset  int  // timezone offset in minutes
 	hasTZ     bool // whether timezone is specified
 	precision DateTimePrecision
+	fhirType  string // FHIR type when the value was read through a model
 }
 
 // DateTimePrecision indicates the precision of a datetime.
@@ -177,6 +178,9 @@ func NewDateTimeFromTime(t time.Time) DateTime {
 
 // Type returns the type name.
 func (dt DateTime) Type() string {
+	if dt.fhirType != "" {
+		return dt.fhirType
+	}
 	return "DateTime"
 }
 
@@ -341,4 +345,12 @@ func (dt DateTime) Compare(other Value) (int, error) {
 		}
 	}
 	return compareTemporalValues(dt, other)
+}
+
+// WithFHIRType returns a copy that reports the FHIR type it was declared with.
+// FHIR primitives are types in their own right — a FHIR.boolean is not a
+// System.Boolean — so a value keeps the name the model gave it.
+func (dt DateTime) WithFHIRType(fhirType string) DateTime {
+	dt.fhirType = fhirType
+	return dt
 }

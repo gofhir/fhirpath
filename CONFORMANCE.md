@@ -35,8 +35,8 @@ Measured against the official suite, in both configurations a caller can use:
 
 | Configuration | Passing |
 |---|---|
-| No FHIR model supplied | **850 of 928 (91.6%)** |
-| With the R4 model | **856 of 928 (92.2%)** |
+| No FHIR model supplied | **851 of 928 (91.7%)** |
+| With the R4 model | **864 of 928 (93.1%)** |
 
 ```sh
 make conformance          # prints both numbers
@@ -67,7 +67,8 @@ passing — so the list can only shrink, and it never lies about the number.
 
 | Block | Cases | Notes |
 |---|---|---|
-| `is()` / `as()` on FHIR primitives | 9 | Needs every primitive to carry its declared FHIR type — see below |
+| `as()` on a multi-item collection | 3 | The suite requires an error; this engine filters, a deliberate earlier change |
+| `extension()` cases | 3 | Fail on the input, not on evaluation — see the testdata README |
 | Errors we should raise and don't | 23 | 12 `execution`, 11 `semantic`; the semantic ones need a Model |
 | Quantity conversion | ~6 | `toQuantity` on a bare number should carry unit `'1'`; string-to-quantity parsing |
 | `lowBoundary` / `highBoundary` | 8 | Three are a suite disagreement (see below); two assume `@2014-01-01T08` carries an implicit minute |
@@ -116,26 +117,6 @@ that only checked "does it compile" reported success:
   `100 '[degF]' > 50 'Cel'` was silently `true` — 100 °F is 37.8 °C. Compound
   units such as `mg/kg/d` were simply unknown.
 
-## The next structural change: primitives carrying their FHIR type
-
-Nine remaining cases share one cause. A value read from JSON keeps the type FHIR
-declared for it only when it is string-like — `code`, `uri`, `id` — because those
-are the ones `jsonValueToFHIRValueWithType` preserves. Everything else arrives as
-the system type: a `boolean` becomes `System.Boolean`, an `instant` becomes
-`System.DateTime`.
-
-The suite asks for the FHIR type throughout:
-
-    Patient.active.type().name = 'boolean'   // we answer 'Boolean'
-    Patient.active.is(Boolean).not()         // FHIR.boolean is not System.Boolean
-    ValueSet.version.is(code)                // false: version is a string
-
-Closing it means carrying the declared type on every primitive value, and
-distinguishing `FHIR.boolean` from `System.Boolean` — which differ only in case.
-That reaches the whole type system, so it is worth doing deliberately rather than
-as a special case for each type that comes up. An earlier attempt to special-case
-`instant` was reverted for exactly that reason.
-
 ## Decisions taken where the specification is silent
 
 Recorded here and at the point of code, so nobody has to guess whether a choice
@@ -150,7 +131,9 @@ was reasoned or accidental.
 | Temporal comparison across precisions | Component by component, stopping at the first difference; empty only when everything shared matches | Not a judgement call — the spec states it, and it is why `now() > today()` is empty while `now() > @1974-12-25` is true |
 | `ofType()` on profiled subtypes without a Model | Keep structural inference | Nothing in the JSON distinguishes an `Age` from a `Quantity`; the information is in the model, not the document |
 | `=` and `~` between two quantity objects | Complex-type semantics, not quantity semantics | Comparing complex types compares children; only the object-vs-literal case converts |
-| `as()`/`ofType()` on a primitive | Requires the declared type; `is()` keeps hierarchy matching | FHIR: "all primitives are considered to be independent types (so markdown is not a subclass of string)". A value reporting only a system type has no declared type to enforce, so it keeps the permissive match |
+| `as()`/`ofType()` on a primitive | Requires the declared type; `is()` keeps hierarchy matching | FHIR: "all primitives are considered to be independent types (so markdown is not a subclass of string)" |
+| Telling `FHIR.boolean` from `System.Boolean` | By case: FHIR names primitives in lower camel case, FHIRPath capitalizes its own | The suite requires `active.is(boolean)` true and `active.is(Boolean)` false. Complex types such as `Quantity` are spelled alike in both namespaces, so the rule applies to primitives only |
+| Type of a polymorphic element without a model | Taken from the field name, corrected to FHIR's casing | `valueOid` states the element is an `oid`; that is information in the document, not a guess. The value itself says whether the type is primitive or complex |
 
 ## Upstream issues
 

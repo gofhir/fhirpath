@@ -155,3 +155,11 @@ func (s String) ToChars() Collection {
 	}
 	return result
 }
+
+// WithFHIRType returns a copy that reports the FHIR type it was declared with.
+// FHIR primitives are types in their own right — a FHIR.code is not a
+// System.String — so a value keeps the name the model gave it.
+func (s String) WithFHIRType(fhirType string) String {
+	s.fhirType = fhirType
+	return s
+}

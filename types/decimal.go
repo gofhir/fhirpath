@@ -15,6 +15,7 @@ const TypeNameDecimal = "Decimal"
 type Decimal struct {
 	value    decimal.Decimal
 	original string // original string representation for precision preservation (empty for computed values)
+	fhirType string // FHIR type when the value was read through a model
 }
 
 // NewDecimal creates a new Decimal from a string.
@@ -52,6 +53,9 @@ func (d Decimal) Value() decimal.Decimal {
 
 // Type returns "Decimal".
 func (d Decimal) Type() string {
+	if d.fhirType != "" {
+		return d.fhirType
+	}
 	return TypeNameDecimal
 }
 
@@ -245,4 +249,12 @@ func (d Decimal) ToInteger() (Integer, bool) {
 		return NewInteger(d.value.IntPart()), true
 	}
 	return Integer{}, false
+}
+
+// WithFHIRType returns a copy that reports the FHIR type it was declared with.
+// FHIR primitives are types in their own right — a FHIR.boolean is not a
+// System.Boolean — so a value keeps the name the model gave it.
+func (d Decimal) WithFHIRType(fhirType string) Decimal {
+	d.fhirType = fhirType
+	return d
 }

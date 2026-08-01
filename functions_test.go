@@ -1,6 +1,10 @@
 package fhirpath
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/gofhir/fhirpath/types"
+)
 
 // TestStringLiteralEscapes covers every escape sequence the FHIRPath String
 // section defines, plus its rule that a backslash beginning a non-escape
@@ -336,5 +340,56 @@ func TestCastOnFHIRPrimitives(t *testing.T) {
 		// DateTime and claims no FHIR type of its own
 		observation := []byte(`{"resourceType":"Observation","effectiveInstant":"2015-02-07T13:28:17Z"}`)
 		assertIntegerResult(t, evalOrFatal(t, observation, "Observation.effective.ofType(Instant).count()"), 1)
+	})
+}
+
+// TestFHIRPrimitivesAreDistinctTypes covers FHIR primitives keeping the type the
+// model declared for them, rather than being folded into the system type.
+//
+// FHIR and FHIRPath spell their type names differently — boolean against
+// Boolean — and the two are distinct: Patient.active is a FHIR.boolean, which is
+// not a System.Boolean even though it converts to one for arithmetic.
+func TestFHIRPrimitivesAreDistinctTypes(t *testing.T) {
+	patient := []byte(`{"resourceType":"Patient","active":true,"gender":"male","birthDate":"1974-12-25"}`)
+
+	withModel := func(t *testing.T, expr string) types.Collection {
+		t.Helper()
+		result, err := MustCompile(expr).EvaluateWithOptions(patient, WithModel(testModel{}))
+		if err != nil {
+			t.Fatalf("%s: unexpected error: %v", expr, err)
+		}
+		return result
+	}
+
+	t.Run("the value reports its FHIR type", func(t *testing.T) {
+		assertStringResult(t, withModel(t, "active.type().namespace"), "FHIR")
+		assertStringResult(t, withModel(t, "active.type().name"), "boolean")
+		assertStringResult(t, withModel(t, "gender.type().name"), "code")
+	})
+
+	t.Run("is() tells FHIR and System apart by case", func(t *testing.T) {
+		assertBooleanResult(t, withModel(t, "active.is(boolean)"), true)
+		assertBooleanResult(t, withModel(t, "active.is(FHIR.boolean)"), true)
+		assertBooleanResult(t, withModel(t, "active.is(Boolean)"), false)
+		assertBooleanResult(t, withModel(t, "active.is(System.Boolean)"), false)
+	})
+
+	t.Run("System names only the types FHIRPath declares", func(t *testing.T) {
+		// There is no System.Patient
+		assertBooleanResult(t, withModel(t, "$this.is(System.Patient)"), false)
+		assertBooleanResult(t, withModel(t, "$this.is(Patient)"), true)
+	})
+
+	t.Run("a literal has no FHIR type", func(t *testing.T) {
+		assertBooleanResult(t, evalOrFatal(t, simpleJSON, "true.is(Boolean)"), true)
+		assertBooleanResult(t, evalOrFatal(t, simpleJSON, "1.is(Integer)"), true)
+		assertStringResult(t, evalOrFatal(t, simpleJSON, "'x'.type().namespace"), "System")
+	})
+
+	t.Run("a polymorphic field name declares the element's type", func(t *testing.T) {
+		// valueOid holds an oid, which ofType(url) must not select
+		observation := []byte(`{"resourceType":"Observation","valueOid":"urn:oid:1.0"}`)
+		assertIntegerResult(t, evalOrFatal(t, observation, "Observation.value.ofType(oid).count()"), 1)
+		assertIntegerResult(t, evalOrFatal(t, observation, "Observation.value.ofType(url).count()"), 0)
 	})
 }

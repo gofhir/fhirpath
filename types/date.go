@@ -14,6 +14,7 @@ type Date struct {
 	month     int // 0 if not specified
 	day       int // 0 if not specified
 	precision DatePrecision
+	fhirType  string // FHIR type when the value was read through a model
 }
 
 // DatePrecision indicates the precision of a date.
@@ -88,6 +89,9 @@ func NewDateFromTime(t time.Time) Date {
 
 // Type returns the type name.
 func (d Date) Type() string {
+	if d.fhirType != "" {
+		return d.fhirType
+	}
 	return "Date"
 }
 
@@ -214,4 +218,12 @@ func (d Date) AddDuration(value int, unit string) (Date, error) {
 // SubtractDuration subtracts a duration from the date.
 func (d Date) SubtractDuration(value int, unit string) (Date, error) {
 	return d.AddDuration(-value, unit)
+}
+
+// WithFHIRType returns a copy that reports the FHIR type it was declared with.
+// FHIR primitives are types in their own right — a FHIR.boolean is not a
+// System.Boolean — so a value keeps the name the model gave it.
+func (d Date) WithFHIRType(fhirType string) Date {
+	d.fhirType = fhirType
+	return d
 }

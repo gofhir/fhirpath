@@ -38,6 +38,9 @@ var testTypeOf = map[string]string{
 	"Age.code":                       "code",
 	"Patient.contained":              "Resource",
 	"Patient.birthDate":              "date",
+	"Patient.active":                 "boolean",
+	"Patient.gender":                 "code",
+	"Patient.name":                   "HumanName",
 }
 
 var testParent = map[string]string{

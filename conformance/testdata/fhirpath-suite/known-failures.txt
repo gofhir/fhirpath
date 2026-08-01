@@ -67,7 +67,6 @@ testType/testType10
 testType/testType12
 testType/testType14
 testType/testType19
-testType/testType22
 testType/testType23
 testType/testType9
 testTypes/testBooleanLiteralConvertsToQuantity
