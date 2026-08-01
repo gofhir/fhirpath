@@ -77,19 +77,24 @@ func main() {
 
 ### Unidades Incompatibles
 
-Comparar cantidades con dimensiones incompatibles (por ejemplo, masa vs. longitud) retorna una colección vacía (ni verdadero ni falso), siguiendo la especificación FHIRPath:
+Ordenar cantidades con dimensiones incompatibles (por ejemplo, masa vs. longitud) retorna una colección vacía (ni verdadero ni falso), siguiendo la especificación FHIRPath: "operar sobre cantidades con unidades inválidas resulta en vacío (`{}`)".
 
 ```go
 empty := []byte(`{"resourceType": "Basic"}`)
 
 // Mass vs. length -- incompatible
-result, err := fhirpath.Evaluate(empty, "10 'kg' = 10 'm'")
+result, err := fhirpath.Evaluate(empty, "10 'kg' < 10 'm'")
 if err != nil {
     log.Fatal(err)
 }
-fmt.Println("kg = m result:", result)
-// Output: kg = m result: []
-// (empty collection -- comparison is undefined for incompatible units)
+fmt.Println("kg < m result:", result)
+// Output: kg < m result: []
+// (empty collection -- ordering is undefined for incompatible units)
+
+// La igualdad, en cambio, decide: unidades no convertibles simplemente no son iguales
+eq, _ := fhirpath.Evaluate(empty, "10 'kg' = 10 'm'")
+fmt.Println("kg = m result:", eq)
+// Output: kg = m result: [false]
 ```
 
 ## Aritmética de Cantidades
@@ -104,10 +109,11 @@ sum, _ := fhirpath.Evaluate(empty, "500 'mg' + 500 'mg'")
 fmt.Println("500 mg + 500 mg:", sum)
 // Output: 500 mg + 500 mg: [1000 'mg']
 
-// Subtraction
+// Subtraction: las unidades conmensurables se convierten a la unidad del operando
+// izquierdo, que es también la unidad del resultado
 diff, _ := fhirpath.Evaluate(empty, "1 'kg' - 200 'g'")
 fmt.Println("1 kg - 200 g:", diff)
-// Output: 1 kg - 200 g: [800 'g']
+// Output: 1 kg - 200 g: [0.8 kg]
 
 // Multiplication by a number
 product, _ := fhirpath.Evaluate(empty, "250 'mg' * 4")

@@ -64,6 +64,43 @@ Esto es una abreviatura de:
 Observation.value.ofType(Quantity).system = 'http://unitsofmeasure.org'
 ```
 
+Varios invariantes FHIR® marcados como SHALL dependen de ella, entre ellos `age-1`, `drt-1`, `cnt-3` y `dis-1`:
+
+```text
+// Invariante FHIR cnt-3 (Count)
+(code.exists() or value.empty()) and (system.empty() or system = %ucum) and (code.empty() or code = '1')
+```
+
+### %sct y %loinc
+
+Igual que `%ucum`, se resuelven a la URL canónica de un sistema de códigos:
+
+| Variable  | Valor                       |
+|-----------|-----------------------------|
+| `%sct`    | `'http://snomed.info/sct'`  |
+| `%loinc`  | `'http://loinc.org'`        |
+
+### %vs- y %ext-
+
+FHIR® define además dos formas parametrizadas que se expanden a una URL canónica:
+
+| Expresión                      | Valor                                                          |
+|--------------------------------|----------------------------------------------------------------|
+| `%'vs-administrative-gender'`  | `'http://hl7.org/fhir/ValueSet/administrative-gender'`         |
+| `%'ext-patient-birthTime'`     | `'http://hl7.org/fhir/StructureDefinition/patient-birthTime'`  |
+
+La especificación FHIR® las escribe con comillas dobles (`%"vs-[nombre]"`), forma que la gramática FHIRPath no acepta. Se deben usar comillas simples o acentos graves: `%'vs-nombre'` o ``%`vs-nombre` ``.
+
+### Sobrescribir una constante fija
+
+`%ucum`, `%sct` y `%loinc` se establecen en `eval.NewContext` antes de la evaluación, de modo que [`WithVariable`](#variables-personalizadas-con-withvariable) puede reemplazar cualquiera de ellas — útil para probar contra otro servidor de terminología:
+
+```go
+result, err := expr.EvaluateWithOptions(resource,
+    fhirpath.WithVariable("loinc", types.Collection{types.NewString("http://example.org/loinc")}),
+)
+```
+
 ## Variables Personalizadas con WithVariable()
 
 Se pueden inyectar variables de entorno propias en una evaluación utilizando la opción funcional `WithVariable`. Las variables personalizadas se acceden en expresiones FHIRPath mediante la sintaxis `%nombre`, igual que las variables incorporadas.
