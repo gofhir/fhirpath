@@ -163,12 +163,19 @@ which is the version the suite and most deployments use — and would need to
 become version-aware to match it for R5 as well. HAPI also enforces case
 sensitivity on type names only from R5 on.
 
-HL7 came to the same conclusion. In R5 the invariant reads `ofType(canonical)`
-where R4 read `as(canonical)` — the filtering function, which is what the
-expression meant all along:
+HL7 came to the same conclusion, in stages. The invariant is worded differently
+in each of the three versions:
 
-    R4   %resource.descendants().as(canonical)
-    R5   %resource.descendants().ofType(canonical)
+| | guard | operator | `where(... = '#')` clauses |
+|---|---|---|---|
+| R4 | — | `as()` | canonical, canonical — duplicated |
+| R4B | `id.exists()` | `as()` | canonical, uri — fixed |
+| R5 | — | `ofType()` | canonical, canonical — reintroduced |
+
+So R4B fixed a copy-paste defect and added a guard, and R5 switched to the
+filtering function while bringing the defect back. An engine has to evaluate
+whichever wording the resource's version publishes; `version_aware_test.go` runs
+all three against every model configuration.
 
 So the divergence is only needed for **R4** invariants. An engine targeting R5
 could follow the specification and still evaluate dom-3. This one sides with the
