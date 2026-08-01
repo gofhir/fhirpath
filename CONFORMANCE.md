@@ -67,7 +67,8 @@ passing — so the list can only shrink, and it never lies about the number.
 
 | Block | Cases | Notes |
 |---|---|---|
-| `as()` on a multi-item collection | 3 | The suite requires an error; this engine filters, a deliberate earlier change |
+| `as()` on a multi-item collection | 1 | Deliberate divergence — see below |
+| `as()`/`ofType()` with an unknown type name | 2 | Should error; needs the model to be able to say whether a type exists |
 | `extension()` cases | 3 | Fail on the input, not on evaluation — see the testdata README |
 | Errors we should raise and don't | 23 | 12 `execution`, 11 `semantic`; the semantic ones need a Model |
 | Quantity conversion | ~6 | `toQuantity` on a bare number should carry unit `'1'`; string-to-quantity parsing |
@@ -116,6 +117,29 @@ that only checked "does it compile" reported success:
   `Cel` and `[degF]` shared a canonical unit with a factor of one, so
   `100 '[degF]' > 50 'Cel'` was silently `true` — 100 °F is 37.8 °C. Compound
   units such as `mg/kg/d` were simply unknown.
+
+## A divergence taken on purpose: `as` over a collection
+
+The specification is unambiguous about the operator: "If there is more than one
+item in the input collection, the evaluator will throw an error." The official
+suite tests it (`Patient.name.as(HumanName).use`), and this engine does not
+comply — it filters by type, as `ofType()` does.
+
+That is deliberate, and the reason is FHIR's own normative content. `dom-3`, a
+SHALL invariant on **every** DomainResource, reads:
+
+    contained.where(('#'+id in (%resource.descendants().reference
+                              | %resource.descendants().as(canonical)
+                              | %resource.descendants().as(uri)
+                              | %resource.descendants().as(url))) ...
+
+`descendants()` returns hundreds of items, so under the specification's rule
+dom-3 raises an error on every resource it is applied to. FHIR publishes an
+invariant its own base language forbids, and an engine has to pick a side.
+
+This one sides with the invariant: validating real resources beats passing one
+suite case. Changing it would break `dom-3` for every DomainResource, which is
+why the earlier change (issue #7) is left standing.
 
 ## Decisions taken where the specification is silent
 
