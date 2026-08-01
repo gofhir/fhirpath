@@ -15,11 +15,12 @@ func init() {
 // have commensurable units, that is when comparing them is meaningful:
 // 1 'cm' is comparable to 1 '[in_i]' but not to 1 's'.
 //
-// This function is exercised by the official test suite but is not defined in
-// the FHIRPath 2.0.0 specification that the suite references, so its behavior
-// here follows the suite's cases.
+// Defined in the FHIRPath 3.0.0 specification, section comparable(), as
+// Standard for Trial Use: comparable means both have values and the units are
+// the same irrespective of system, or both carry code and system and the codes
+// are commensurable within it — 'd' and 'h', or '[in_i]' and 'cm'.
 //
-// Returns empty unless both sides are single quantities.
+// Returns empty unless both sides are single quantities, as the spec requires.
 func fnComparable(_ *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
 	if len(args) == 0 {
 		return nil, eval.InvalidArgumentsError("comparable", 1, 0)
