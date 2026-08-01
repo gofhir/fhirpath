@@ -374,17 +374,26 @@ if result.Empty() {
 
 ## Specification Compliance
 
-This implementation follows **FHIRPath Normative Release 2.0.0**:
+Measured against the official HL7 test suite rather than asserted:
+**747 of 928 executed cases pass (80.5%)**. Run `make conformance` for the
+current number, and see [CONFORMANCE.md](CONFORMANCE.md) for what is covered,
+what is missing, and which specification version applies to what.
+
+Implemented:
 
 - [x] Full type system (Boolean, Integer, Decimal, String, Date, DateTime, Time, Quantity)
 - [x] All operators (arithmetic, comparison, boolean, collection, type)
-- [x] All standard functions (40+ functions)
 - [x] UCUM unit normalization for Quantity comparisons
-- [x] Three-valued logic (empty propagation)
+- [x] Three-valued logic, with singleton evaluation where a Boolean is expected
 - [x] Lazy evaluation for `iif()`
 - [x] Polymorphic element resolution (value[x])
-- [x] Environment variables (%resource, %context)
+- [x] Environment variables (`%resource`, `%context`, `%rootResource`, `%ucum`, `%sct`, `%loinc`)
 - [x] Delimited identifiers (backticks)
+- [x] Reflection via `type()`
+
+Known gaps, with case counts, are listed in [CONFORMANCE.md](CONFORMANCE.md#remaining-gaps).
+The largest are boundary functions, temporal precision handling, and several
+functions defined in the in-development 3.0.0 specification.
 
 ## License
 
