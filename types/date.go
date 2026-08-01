@@ -170,78 +170,12 @@ func (d Date) ToTime() time.Time {
 // Implements the Comparable interface.
 // Returns empty (error) if precisions differ and comparison is ambiguous.
 func (d Date) Compare(other Value) (int, error) {
-	otherDate, ok := other.(Date)
-	if !ok {
-		return 0, fmt.Errorf("cannot compare Date with %s", other.Type())
-	}
-
-	// Check for ambiguous comparison due to different precisions
-	// According to FHIRPath spec, comparing dates with different precisions
-	// where the more precise date falls within the less precise date's range
-	// should return empty (represented as error here)
-	if d.precision != otherDate.precision {
-		// If years are different, we can still compare
-		if d.year != otherDate.year {
-			if d.year < otherDate.year {
-				return -1, nil
-			}
-			return 1, nil
-		}
-
-		// Years are equal but precisions differ
-		minPrecision := d.precision
-		if otherDate.precision < minPrecision {
-			minPrecision = otherDate.precision
-		}
-
-		// If one has only year precision, comparison is ambiguous
-		if minPrecision == YearPrecision {
-			return 0, fmt.Errorf("ambiguous comparison between dates with different precisions")
-		}
-
-		// Check months if both have at least month precision
-		if d.precision >= MonthPrecision && otherDate.precision >= MonthPrecision {
-			if d.month != otherDate.month {
-				if d.month < otherDate.month {
-					return -1, nil
-				}
-				return 1, nil
-			}
-		}
-
-		// If we get here, comparison is ambiguous
-		return 0, fmt.Errorf("ambiguous comparison between dates with different precisions")
-	}
-
-	// Same precision - direct comparison
-	if d.year < otherDate.year {
-		return -1, nil
-	}
-	if d.year > otherDate.year {
-		return 1, nil
-	}
-
-	// Compare months if both have at least month precision
-	if d.precision >= MonthPrecision {
-		if d.month < otherDate.month {
-			return -1, nil
-		}
-		if d.month > otherDate.month {
-			return 1, nil
+	if _, ok := other.(Date); !ok {
+		if _, isDateTime := other.(DateTime); !isDateTime {
+			return 0, fmt.Errorf("cannot compare Date with %s", other.Type())
 		}
 	}
-
-	// Compare days if both have day precision
-	if d.precision >= DayPrecision {
-		if d.day < otherDate.day {
-			return -1, nil
-		}
-		if d.day > otherDate.day {
-			return 1, nil
-		}
-	}
-
-	return 0, nil
+	return compareTemporalValues(d, other)
 }
 
 // AddDuration adds a duration (as Quantity with temporal unit) to the date.

@@ -35,8 +35,8 @@ Measured against the official suite, in both configurations a caller can use:
 
 | Configuration | Passing |
 |---|---|
-| No FHIR model supplied | **799 of 928 (86.1%)** |
-| With the R4 model | **803 of 928 (86.5%)** |
+| No FHIR model supplied | **831 of 928 (89.5%)** |
+| With the R4 model | **835 of 928 (90.0%)** |
 
 ```sh
 make conformance          # prints both numbers
@@ -67,7 +67,7 @@ passing — so the list can only shrink, and it never lies about the number.
 
 | Block | Cases | Notes |
 |---|---|---|
-| Temporal comparison and precision | ~35 | Needs semantics decided: what yields empty vs false across precisions |
+| Date arithmetic (`+`/`-` with durations) | ~12 | Adding a duration to a date does not shift it |
 | `is()` / `as()` on FHIR primitives | 11 | `code` and `string` are distinct types; supplying a Model does not settle it |
 | Errors we should raise and don't | 23 | 12 `execution`, 11 `semantic`; the semantic ones need a Model |
 | Quantity conversion | ~12 | `toQuantity` on a bare number should carry unit `'1'`; string-to-quantity parsing |
@@ -119,6 +119,7 @@ was reasoned or accidental.
 | `sort` direction syntax | Accept both `desc`/`asc` and the leading `-` | 3.0.0 defines `desc`; the suite tests `-` and marks those cases as prototype |
 | `type()` completeness | Emit `SimpleTypeInfo` and `ClassInfo`; omit `ClassInfo.element`, `ListTypeInfo`, `TupleTypeInfo` | They need element enumeration and declared cardinality, which the `Model` interface does not expose. Reading them off the instance would describe the value, not the type |
 | `type()` results per element | One per input element | 3.0.0 states this, then contradicts it in its own `ListTypeInfo` example |
+| Temporal comparison across precisions | Component by component, stopping at the first difference; empty only when everything shared matches | Not a judgement call — the spec states it, and it is why `now() > today()` is empty while `now() > @1974-12-25` is true |
 | `ofType()` on profiled subtypes without a Model | Keep structural inference | Nothing in the JSON distinguishes an `Age` from a `Quantity`; the information is in the model, not the document |
 | `=` and `~` between two quantity objects | Complex-type semantics, not quantity semantics | Comparing complex types compares children; only the object-vs-literal case converts |
 

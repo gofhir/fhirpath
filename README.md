@@ -375,7 +375,7 @@ if result.Empty() {
 ## Specification Compliance
 
 Measured against the official HL7 test suite rather than asserted:
-**799 of 928 executed cases pass (86.1%)**, and 803 with the R4 model supplied. Run `make conformance` for the
+**831 of 928 executed cases pass (89.5%)**, and 835 with the R4 model supplied. Run `make conformance` for the
 current number, and see [CONFORMANCE.md](CONFORMANCE.md) for what is covered,
 what is missing, and which specification version applies to what.
 
@@ -392,8 +392,8 @@ Implemented:
 - [x] Reflection via `type()`
 
 Known gaps, with case counts, are listed in [CONFORMANCE.md](CONFORMANCE.md#remaining-gaps).
-The largest are temporal precision handling, type hierarchy checks that need a
-Model, and several functions defined in the in-development 3.0.0 specification.
+The largest are date arithmetic, type checks on FHIR primitives, and several
+functions defined in the in-development 3.0.0 specification.
 
 ## License
 

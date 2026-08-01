@@ -35,8 +35,15 @@ const (
 )
 
 // DateTime regex pattern
+// The grammar's DATETIME is a date followed by 'T' and an optional time:
+//
+//	DATETIME : '@' DATEFORMAT 'T' (TIMEFORMAT TIMEZONEOFFSETFORMAT?)?
+//
+// so the marker may trail a date of any precision with no time after it —
+// @2015T, @2015-02T and @2015-02-04T are all DateTime values, distinct from the
+// Date literals @2015, @2015-02 and @2015-02-04.
 var dateTimePattern = regexp.MustCompile(
-	`^(\d{4})(?:-(\d{2})(?:-(\d{2})(?:T(\d{2})(?::(\d{2})(?::(\d{2})(?:\.(\d+))?)?)?)?)?)?(Z|[+-]\d{2}:\d{2})?$`,
+	`^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?(?:T(?:(\d{2})(?::(\d{2})(?::(\d{2})(?:\.(\d+))?)?)?)?)?(Z|[+-]\d{2}:\d{2})?$`,
 )
 
 // NewDateTime creates a DateTime from a string.
@@ -342,100 +349,10 @@ func (dt DateTime) SubtractDuration(value int, unit string) DateTime {
 // Implements the Comparable interface.
 // Returns error if precisions differ and comparison is ambiguous.
 func (dt DateTime) Compare(other Value) (int, error) {
-	otherDT, ok := other.(DateTime)
-	if !ok {
-		return 0, fmt.Errorf("cannot compare DateTime with %s", other.Type())
+	if _, ok := other.(DateTime); !ok {
+		if _, isDate := other.(Date); !isDate {
+			return 0, fmt.Errorf("cannot compare DateTime with %s", other.Type())
+		}
 	}
-
-	// Check for ambiguous comparison due to different precisions
-	if dt.precision != otherDT.precision {
-		// Compare at the lowest common precision
-		minPrecision := dt.precision
-		if otherDT.precision < minPrecision {
-			minPrecision = otherDT.precision
-		}
-
-		// Compare year
-		if dt.year != otherDT.year {
-			if dt.year < otherDT.year {
-				return -1, nil
-			}
-			return 1, nil
-		}
-
-		// Compare month if both have at least month precision
-		if minPrecision >= DTMonthPrecision {
-			if dt.month != otherDT.month {
-				if dt.month < otherDT.month {
-					return -1, nil
-				}
-				return 1, nil
-			}
-		} else {
-			return 0, fmt.Errorf("ambiguous comparison between datetimes with different precisions")
-		}
-
-		// Compare day if both have at least day precision
-		if minPrecision >= DTDayPrecision {
-			if dt.day != otherDT.day {
-				if dt.day < otherDT.day {
-					return -1, nil
-				}
-				return 1, nil
-			}
-		} else {
-			return 0, fmt.Errorf("ambiguous comparison between datetimes with different precisions")
-		}
-
-		// Compare hour if both have at least hour precision
-		if minPrecision >= DTHourPrecision {
-			if dt.hour != otherDT.hour {
-				if dt.hour < otherDT.hour {
-					return -1, nil
-				}
-				return 1, nil
-			}
-		} else {
-			return 0, fmt.Errorf("ambiguous comparison between datetimes with different precisions")
-		}
-
-		// Compare minute if both have at least minute precision
-		if minPrecision >= DTMinutePrecision {
-			if dt.minute != otherDT.minute {
-				if dt.minute < otherDT.minute {
-					return -1, nil
-				}
-				return 1, nil
-			}
-		} else {
-			return 0, fmt.Errorf("ambiguous comparison between datetimes with different precisions")
-		}
-
-		// Compare second if both have at least second precision
-		if minPrecision >= DTSecondPrecision {
-			if dt.second != otherDT.second {
-				if dt.second < otherDT.second {
-					return -1, nil
-				}
-				return 1, nil
-			}
-		} else {
-			return 0, fmt.Errorf("ambiguous comparison between datetimes with different precisions")
-		}
-
-		// If we get here, comparison is ambiguous at milliseconds level
-		return 0, fmt.Errorf("ambiguous comparison between datetimes with different precisions")
-	}
-
-	// Same precision - convert to time.Time and compare
-	t1 := dt.ToTime()
-	t2 := otherDT.ToTime()
-
-	if t1.Before(t2) {
-		return -1, nil
-	}
-	if t1.After(t2) {
-		return 1, nil
-	}
-	return 0, nil
+	return compareTemporalValues(dt, other)
 }
