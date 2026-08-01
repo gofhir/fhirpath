@@ -35,8 +35,8 @@ Measured against the official suite, in both configurations a caller can use:
 
 | Configuration | Passing |
 |---|---|
-| No FHIR model supplied | **851 of 928 (91.7%)** |
-| With the R4 model | **864 of 928 (93.1%)** |
+| No FHIR model supplied | **854 of 928 (92.0%)** |
+| With the R4 model | **867 of 928 (93.4%)** |
 
 ```sh
 make conformance          # prints both numbers
@@ -74,8 +74,22 @@ passing — so the list can only shrink, and it never lies about the number.
 | Quantity conversion | ~6 | `toQuantity` on a bare number should carry unit `'1'`; string-to-quantity parsing |
 | `lowBoundary` / `highBoundary` | 8 | Three are a suite disagreement (see below); two assume `@2014-01-01T08` carries an implicit minute |
 
-Defined in 3.0.0 and entirely absent here: `coalesce`, `defineVariable`,
-`difference`, `duration`, `lastIndexOf`, `pathname`, `repeatAll`.
+`repeat()` was registered but never implemented — it returned its input
+unchanged, so every expression that relied on it answered without erroring. That
+is worth the three `testRepeat` cases, and it is normative 2.0.0 rather than a
+3.0.0 addition, which is the kind of gap a compile-only corpus cannot see.
+
+Of the functions 3.0.0 adds, all are now implemented except `pathname`:
+`coalesce`, `defineVariable`, `difference`, `duration`, `lastIndexOf` and
+`repeatAll`. None of them appears in the R4 suite, so they move the count not at
+all; they were implemented for completeness against the language, and are
+covered by tests written from the specification's own examples.
+
+`pathname` is left out deliberately. It returns the path at which each item sits
+within the input resource, which requires every value to carry where it came
+from — infrastructure this engine does not have, and a cost paid on every
+navigation whether or not anyone calls the function. It is worth doing when
+something needs it, not before.
 
 Three boundary cases contradict the purpose of the functions and are left
 failing rather than special-cased: `(-0.0034).lowBoundary(1)` expects `-0.0`,

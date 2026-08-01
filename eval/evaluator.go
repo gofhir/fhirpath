@@ -78,6 +78,7 @@ type Context struct {
 	index              int
 	total              types.Value
 	variables          map[string]types.Collection
+	defined            map[string]types.Collection // variables introduced by defineVariable()
 	limits             map[string]int
 	goCtx              context.Context
 	resolver           Resolver
@@ -280,8 +281,63 @@ func (c *Context) SetVariable(name string, value types.Collection) {
 
 // GetVariable gets an external variable.
 func (c *Context) GetVariable(name string) (types.Collection, bool) {
+	// A variable introduced by defineVariable() takes precedence: it belongs to
+	// the expression currently being evaluated, which is narrower than the
+	// environment the caller set up.
+	if v, ok := c.defined[name]; ok {
+		return v, true
+	}
+
 	v, ok := c.variables[name]
 	return v, ok
+}
+
+// DefineVariable introduces a variable for the remainder of the current
+// expression scope, as defineVariable() does.
+//
+// Redefining a name already in scope is an error the specification calls for
+// explicitly: "If the name already exists in the current expression scope, the
+// evaluation will end and signal an error to the calling environment." That
+// covers the environment's own variables, so an expression cannot shadow
+// %resource or %context either.
+func (c *Context) DefineVariable(name string, value types.Collection) error {
+	if _, exists := c.defined[name]; exists {
+		return NewEvalError(ErrInvalidOperation, "variable %%%s is already defined in this scope", name)
+	}
+	if _, exists := c.variables[name]; exists {
+		return NewEvalError(ErrInvalidOperation, "variable %%%s is already defined by the evaluation environment", name)
+	}
+
+	if c.defined == nil {
+		c.defined = make(map[string]types.Collection, 1)
+	}
+	c.defined[name] = value
+	return nil
+}
+
+// enterIterationScope isolates the variables defined during one iteration of a
+// function that evaluates an expression per element, returning the call that
+// ends the scope.
+//
+// Without this, the second element of select(defineVariable('x')...) would find
+// x already defined and fail. The specification describes exactly this: "this
+// could be implemented using expression scoping on the variable stack and after
+// expression completion the temporary variable would be popped off the stack."
+//
+// Copies only when something is there to copy, so expressions that never call
+// defineVariable() pay a length check per element.
+func (c *Context) enterIterationScope() func() {
+	if len(c.defined) == 0 {
+		// Nothing defined yet, so ending the scope means discarding whatever the
+		// iteration introduces
+		return func() { c.defined = nil }
+	}
+
+	saved := make(map[string]types.Collection, len(c.defined))
+	for name, value := range c.defined {
+		saved[name] = value
+	}
+	return func() { c.defined = saved }
 }
 
 // NewEvaluator creates a new evaluator with the given context and function registry.
@@ -539,6 +595,28 @@ func (e *Evaluator) VisitFunctionInvocation(ctx *grammar.FunctionInvocationConte
 		if argCount >= 2 {
 			return e.evaluateIif(input, argExprs)
 		}
+	case "repeat":
+		// repeat() re-applies its projection to whatever the last round
+		// produced, so the expression has to be evaluated per element per round
+		if argCount > 0 {
+			return e.evaluateRepeat(input, argExprs[0], true)
+		}
+	case "repeatAll":
+		if argCount > 0 {
+			return e.evaluateRepeat(input, argExprs[0], false)
+		}
+	case "defineVariable":
+		// defineVariable() alters the scope the rest of the expression is
+		// evaluated in, which a function returning a collection cannot do
+		if argCount >= 1 {
+			return e.evaluateDefineVariable(input, argExprs)
+		}
+	case "coalesce":
+		// coalesce short-circuits: arguments after the first non-empty one are
+		// never evaluated
+		if argCount >= 1 {
+			return e.evaluateCoalesce(argExprs)
+		}
 	}
 
 	// Evaluate arguments normally
@@ -586,6 +664,7 @@ func (e *Evaluator) evaluateWhere(input types.Collection, criteria grammar.IExpr
 		oldThis := e.ctx.this
 		oldIndex := e.ctx.index
 		oldPath := e.ctx.path
+		endScope := e.ctx.enterIterationScope()
 		e.ctx.this = types.Collection{item}
 		e.ctx.index = i
 
@@ -596,6 +675,7 @@ func (e *Evaluator) evaluateWhere(input types.Collection, criteria grammar.IExpr
 		e.ctx.this = oldThis
 		e.ctx.index = oldIndex
 		e.ctx.path = oldPath
+		endScope()
 
 		if err, ok := criteriaResult.(error); ok {
 			return err
@@ -626,6 +706,7 @@ func (e *Evaluator) evaluateExists(input types.Collection, criteria grammar.IExp
 		oldThis := e.ctx.this
 		oldIndex := e.ctx.index
 		oldPath := e.ctx.path
+		endScope := e.ctx.enterIterationScope()
 		e.ctx.this = types.Collection{item}
 		e.ctx.index = i
 
@@ -636,6 +717,7 @@ func (e *Evaluator) evaluateExists(input types.Collection, criteria grammar.IExp
 		e.ctx.this = oldThis
 		e.ctx.index = oldIndex
 		e.ctx.path = oldPath
+		endScope()
 
 		if err, ok := criteriaResult.(error); ok {
 			return err
@@ -670,6 +752,7 @@ func (e *Evaluator) evaluateAll(input types.Collection, criteria grammar.IExpres
 		oldThis := e.ctx.this
 		oldIndex := e.ctx.index
 		oldPath := e.ctx.path
+		endScope := e.ctx.enterIterationScope()
 		e.ctx.this = types.Collection{item}
 		e.ctx.index = i
 
@@ -680,6 +763,7 @@ func (e *Evaluator) evaluateAll(input types.Collection, criteria grammar.IExpres
 		e.ctx.this = oldThis
 		e.ctx.index = oldIndex
 		e.ctx.path = oldPath
+		endScope()
 
 		if err, ok := criteriaResult.(error); ok {
 			return err
@@ -843,6 +927,7 @@ func (e *Evaluator) evaluateSelect(input types.Collection, projection grammar.IE
 		oldThis := e.ctx.this
 		oldIndex := e.ctx.index
 		oldPath := e.ctx.path
+		endScope := e.ctx.enterIterationScope()
 		e.ctx.this = types.Collection{item}
 		e.ctx.index = i
 
@@ -853,6 +938,7 @@ func (e *Evaluator) evaluateSelect(input types.Collection, projection grammar.IE
 		e.ctx.this = oldThis
 		e.ctx.index = oldIndex
 		e.ctx.path = oldPath
+		endScope()
 
 		if err, ok := projResult.(error); ok {
 			return err
@@ -915,6 +1001,7 @@ func (e *Evaluator) evaluateAggregate(input types.Collection, argExprs []grammar
 		}
 
 		// Set $this, $index, and $total for each iteration
+		endScope := e.ctx.enterIterationScope()
 		e.ctx.this = types.Collection{item}
 		e.ctx.index = i
 		if len(total) > 0 {
@@ -925,6 +1012,7 @@ func (e *Evaluator) evaluateAggregate(input types.Collection, argExprs []grammar
 
 		// Evaluate the aggregator expression
 		result := e.Visit(aggregator)
+		endScope()
 		if err, ok := result.(error); ok {
 			return err
 		}
@@ -1066,6 +1154,143 @@ func (e *Evaluator) evaluateOfType(input types.Collection, typeExpr grammar.IExp
 	}
 
 	return result
+}
+
+// evaluateRepeat applies a projection transitively: the projection runs over the
+// input, its results are collected, and the projection then runs over those
+// results, until a round produces nothing to carry forward.
+//
+// dedupe distinguishes the two functions the specification defines over this
+// machinery. repeat() adds an item only when the output does not already hold an
+// equal one — "as long as the projection yields new items (as determined by the
+// equals (=) operator)" — which is also what terminates it on cyclic data.
+// repeatAll() keeps duplicates, so only the absence of new results stops it;
+// the configured collection limit bounds the damage when the data cycles.
+func (e *Evaluator) evaluateRepeat(input types.Collection, projection grammar.IExpressionContext, dedupe bool) interface{} {
+	result := types.Collection{}
+	current := input
+
+	for round := 0; len(current) > 0; round++ {
+		if err := e.ctx.CheckCancellation(); err != nil {
+			return err
+		}
+
+		next := types.Collection{}
+		for i, item := range current {
+			oldThis := e.ctx.this
+			oldIndex := e.ctx.index
+			oldPath := e.ctx.path
+			endScope := e.ctx.enterIterationScope()
+			e.ctx.this = types.Collection{item}
+			// $index is undefined while a function iterates over its own output,
+			// so it keeps the position within the current round
+			e.ctx.index = i
+
+			projected := e.Visit(projection)
+
+			e.ctx.this = oldThis
+			e.ctx.index = oldIndex
+			e.ctx.path = oldPath
+			endScope()
+
+			if err, ok := projected.(error); ok {
+				return err
+			}
+
+			produced, ok := projected.(types.Collection)
+			if !ok {
+				continue
+			}
+
+			for _, candidate := range produced {
+				if dedupe && containsEqual(result, candidate) {
+					continue
+				}
+				result = append(result, candidate)
+				next = append(next, candidate)
+			}
+		}
+
+		if err := e.ctx.CheckCollectionSize(result); err != nil {
+			return err
+		}
+
+		current = next
+	}
+
+	return result
+}
+
+// containsEqual reports whether the collection already holds an item equal to
+// the candidate, under the equality the repeat() definition names.
+func containsEqual(collection types.Collection, candidate types.Value) bool {
+	for _, existing := range collection {
+		if existing.Equal(candidate) {
+			return true
+		}
+	}
+	return false
+}
+
+// evaluateDefineVariable binds a name for the remainder of the expression and
+// passes its input through unchanged.
+//
+// Signature: defineVariable(name [, projection]). The value is the projection
+// when given, otherwise the input collection itself. Either way the output is
+// the input, so the function is transparent to the chain it sits in — it is the
+// one function that exists for its effect on the context rather than its result.
+func (e *Evaluator) evaluateDefineVariable(input types.Collection, argExprs []grammar.IExpressionContext) interface{} {
+	nameResult := e.Visit(argExprs[0])
+	if err, ok := nameResult.(error); ok {
+		return err
+	}
+
+	nameCol, ok := nameResult.(types.Collection)
+	if !ok || len(nameCol) != 1 {
+		return NewEvalError(ErrInvalidArguments, "defineVariable() requires a single string name")
+	}
+	name, ok := nameCol[0].(types.String)
+	if !ok {
+		return NewEvalError(ErrInvalidArguments, "defineVariable() requires a string name, got %s", nameCol[0].Type())
+	}
+
+	value := input
+	if len(argExprs) > 1 {
+		projection := e.Visit(argExprs[1])
+		if err, ok := projection.(error); ok {
+			return err
+		}
+		if col, ok := projection.(types.Collection); ok {
+			value = col
+		} else {
+			value = types.Collection{}
+		}
+	}
+
+	if err := e.ctx.DefineVariable(name.Value(), value); err != nil {
+		return err
+	}
+
+	return input
+}
+
+// evaluateCoalesce returns the first argument that evaluates to a non-empty
+// collection, leaving the remaining arguments unevaluated.
+//
+// FHIRPath 3.0.0 requires this short-circuit explicitly: "arguments after the
+// first non-empty argument are not evaluated", on the same grounds as iif.
+func (e *Evaluator) evaluateCoalesce(argExprs []grammar.IExpressionContext) interface{} {
+	for _, argExpr := range argExprs {
+		result := e.Visit(argExpr)
+		if err, ok := result.(error); ok {
+			return err
+		}
+		if coll, ok := result.(types.Collection); ok && !coll.Empty() {
+			return coll
+		}
+	}
+
+	return types.Collection{}
 }
 
 // evaluateIif evaluates the iif() function with lazy evaluation.

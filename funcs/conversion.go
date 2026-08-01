@@ -21,6 +21,13 @@ func init() {
 	})
 
 	Register(FuncDef{
+		Name:    "coalesce",
+		MinArgs: 1,
+		MaxArgs: -1,
+		Fn:      fnCoalesce,
+	})
+
+	Register(FuncDef{
 		Name:    "toBoolean",
 		MinArgs: 0,
 		MaxArgs: 0,
@@ -131,6 +138,20 @@ func init() {
 		MaxArgs: 1,
 		Fn:      fnConvertsToQuantity,
 	})
+}
+
+// fnCoalesce returns the first argument that is not an empty collection.
+//
+// The evaluator intercepts coalesce() to evaluate the arguments lazily, as the
+// specification requires; this implementation is the fallback for callers that
+// arrive with the arguments already evaluated, and agrees with it on the result.
+func fnCoalesce(_ *eval.Context, _ types.Collection, args []interface{}) (types.Collection, error) {
+	for _, arg := range args {
+		if coll, ok := arg.(types.Collection); ok && !coll.Empty() {
+			return coll, nil
+		}
+	}
+	return types.Collection{}, nil
 }
 
 // fnIif returns the second argument if the first is true, otherwise the third.

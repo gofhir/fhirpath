@@ -45,6 +45,13 @@ func init() {
 	})
 
 	Register(FuncDef{
+		Name:    "lastIndexOf",
+		MinArgs: 1,
+		MaxArgs: 1,
+		Fn:      fnLastIndexOf,
+	})
+
+	Register(FuncDef{
 		Name:    "matchesFull",
 		MinArgs: 1,
 		MaxArgs: 1,
@@ -498,4 +505,39 @@ func toStringArg(arg interface{}) (string, bool) {
 	default:
 		return "", false
 	}
+}
+
+// fnLastIndexOf returns the 0-based index of the last occurrence of a substring,
+// or -1 when it does not occur.
+//
+// Per the FHIRPath 3.0.0 specification, the index counts characters — Unicode
+// scalar values, not bytes — and an empty substring returns the length of the
+// input.
+func fnLastIndexOf(_ *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
+	if input.Empty() {
+		return types.Collection{}, nil
+	}
+
+	str, ok := toString(input)
+	if !ok {
+		return types.Collection{}, nil
+	}
+
+	substring, ok := toStringArg(args[0])
+	if !ok {
+		return types.Collection{}, nil
+	}
+
+	runes := []rune(str)
+	if substring == "" {
+		return types.Collection{types.NewInteger(int64(len(runes)))}, nil
+	}
+
+	byteIndex := strings.LastIndex(str, substring)
+	if byteIndex < 0 {
+		return types.Collection{types.NewInteger(-1)}, nil
+	}
+
+	// Convert the byte offset to a character offset
+	return types.Collection{types.NewInteger(int64(len([]rune(str[:byteIndex]))))}, nil
 }

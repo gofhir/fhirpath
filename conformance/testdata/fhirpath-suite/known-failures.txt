@@ -55,9 +55,6 @@ testMod/testMod5
 testNEquality/testNEquality17
 testObservations/testPolymorphismAsB
 testObservations/testPolymorphismB
-testRepeat/testRepeat1
-testRepeat/testRepeat2
-testRepeat/testRepeat5
 testReplaceMatches/testReplaceMatches2
 testStartsWith/testStartsWithNonString1
 testSubSetOf/testSubSetOf1
