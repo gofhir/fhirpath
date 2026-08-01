@@ -31,7 +31,7 @@ Two further sources matter:
 
 ## Current conformance
 
-**747 of 928 executed cases (80.5%)**, measured against the official suite.
+**799 of 928 executed cases (86.1%)**, measured against the official suite.
 
 ```sh
 make conformance     # prints the number
@@ -51,15 +51,20 @@ passing — so the list can only shrink, and it never lies about the number.
 
 | Block | Cases | Notes |
 |---|---|---|
-| `lowBoundary` / `highBoundary` | 51 | Implemented, but computes the interval from the requested output precision instead of the input value's precision |
 | Temporal comparison and precision | ~35 | Needs semantics decided: what yields empty vs false across precisions |
 | `is()` and type hierarchy | 15 | Mostly resolvable only with a Model |
-| Quantity formatting and conversion | 21 | Literal form is `1 'wk'`, not `1 wk`; `toQuantity` on a bare number should carry unit `'1'` |
 | Errors we should raise and don't | 23 | 12 `execution`, 11 `semantic`; the semantic ones need a Model |
-| `precision()` | 5 | Defined in 3.0.0, not implemented |
+| Quantity conversion | ~12 | `toQuantity` on a bare number should carry unit `'1'`; string-to-quantity parsing |
+| `lowBoundary` / `highBoundary` | 8 | Three are a suite disagreement (see below); two assume `@2014-01-01T08` carries an implicit minute |
 
 Defined in 3.0.0 and entirely absent here: `coalesce`, `defineVariable`,
-`difference`, `duration`, `lastIndexOf`, `pathname`, `precision`, `repeatAll`.
+`difference`, `duration`, `lastIndexOf`, `pathname`, `repeatAll`.
+
+Three boundary cases contradict the purpose of the functions and are left
+failing rather than special-cased: `(-0.0034).lowBoundary(1)` expects `-0.0`,
+where rounding down to one digit gives `-0.1`. A lower bound that is greater
+than the value it bounds is not a lower bound, and the other twenty-odd cases
+round consistently, so these look like suite defects.
 
 ## What was wrong, and why nothing caught it
 
