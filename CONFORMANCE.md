@@ -137,9 +137,22 @@ SHALL invariant on **every** DomainResource, reads:
 dom-3 raises an error on every resource it is applied to. FHIR publishes an
 invariant its own base language forbids, and an engine has to pick a side.
 
-This one sides with the invariant: validating real resources beats passing one
-suite case. Changing it would break `dom-3` for every DomainResource, which is
-why the earlier change (issue #7) is left standing.
+HL7 came to the same conclusion. In R5 the invariant reads `ofType(canonical)`
+where R4 read `as(canonical)` — the filtering function, which is what the
+expression meant all along:
+
+    R4   %resource.descendants().as(canonical)
+    R5   %resource.descendants().ofType(canonical)
+
+So the divergence is only needed for **R4** invariants. An engine targeting R5
+could follow the specification and still evaluate dom-3. This one sides with the
+R4 invariant, since that is the version most deployments validate against, and
+one suite case is a smaller loss than dom-3 erroring on every DomainResource.
+
+Worth noting while reading dom-3: one clause is duplicated in both versions —
+`descendants().where(ofType(canonical) = '#').exists()` appears twice, where the
+symmetry with the first branch calls for `uri` and `url`. That defect is
+upstream and unrelated to this engine.
 
 ## Decisions taken where the specification is silent
 
