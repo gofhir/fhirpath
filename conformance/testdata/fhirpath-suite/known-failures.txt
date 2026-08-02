@@ -46,6 +46,4 @@ testReplaceMatches/testReplaceMatches2
 testType/testType10
 testType/testType12
 testType/testType14
-testType/testType19
-testType/testType23
 testType/testType9

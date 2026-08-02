@@ -1140,12 +1140,28 @@ func isTypeArg(typeArgs []int, index int) bool {
 // extractTypeNameFromExpr extracts a type name from a FHIRPath expression.
 // Handles identifiers like Composition, Patient, and qualified names like FHIR.Patient.
 func (e *Evaluator) extractTypeNameFromExpr(expr grammar.IExpressionContext) string {
-	// Get the text of the expression directly - this handles simple identifiers
-	text := expr.GetText()
-	if text != "" {
-		return text
+	// The text of the expression, which for a type specifier is the identifier
+	// or the qualified name as written
+	return stripDelimiters(expr.GetText())
+}
+
+// stripDelimiters removes the backticks around a delimited identifier, in each
+// part of a qualified name.
+//
+// The grammar admits DELIMITEDIDENTIFIER wherever it admits IDENTIFIER, which is
+// what lets a type whose name collides with a keyword be written at all. The
+// backticks are how the name is escaped, not part of it: FHIR.`Patient` names
+// the same type as FHIR.Patient.
+func stripDelimiters(name string) string {
+	if !strings.Contains(name, "`") {
+		return name
 	}
-	return ""
+
+	parts := strings.Split(name, ".")
+	for i, part := range parts {
+		parts[i] = strings.Trim(part, "`")
+	}
+	return strings.Join(parts, ".")
 }
 
 // evaluateOfType evaluates ofType() function - filters collection by type.

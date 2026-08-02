@@ -98,3 +98,32 @@ func TestSingletonRuleKeepsTheOtherBranches(t *testing.T) {
 		})
 	}
 }
+
+// TestDelimitedTypeNames checks that a type name written with backticks names
+// the same type as one written plainly.
+//
+// The grammar admits DELIMITEDIDENTIFIER wherever it admits IDENTIFIER, which is
+// what lets a type whose name collides with a keyword be written at all. The
+// backticks escape the name; they are not part of it.
+func TestDelimitedTypeNames(t *testing.T) {
+	patient := []byte(`{"resourceType":"Patient","name":[{"given":["Jim"]}]}`)
+
+	cases := []struct {
+		expr string
+		want string
+	}{
+		{"Patient.is(FHIR.`Patient`)", "true"},
+		{"Patient.is(FHIR.Patient)", "true"},
+		{"Patient.ofType(FHIR.`Patient`).type().name", "Patient"},
+		{"Patient.ofType(FHIR.Patient).type().name", "Patient"},
+		{"Patient.`name`.given.first()", "Jim"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.expr, func(t *testing.T) {
+			if got := evaluateScalar(t, tc.expr, patient); got != tc.want {
+				t.Errorf("%s = %s, want %s", tc.expr, got, tc.want)
+			}
+		})
+	}
+}
