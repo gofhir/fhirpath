@@ -411,58 +411,96 @@ func extractCodeValue(item types.Value) interface{} {
 	return nil
 }
 
-// fnConformsTo checks if a resource conforms to a specified profile.
-// Usage: resource.conformsTo('http://hl7.org/fhir/StructureDefinition/Patient')
-// Returns true if the resource conforms, false if not, empty if cannot be determined.
+// fnConformsTo reports whether the input conforms to a profile.
+//
+// FHIR defines the function, and defines it differently across versions. R4:
+// "If the structure cannot be resolved to a valid profile, an error is thrown.
+// If the input contains more than one element, an error is thrown. If the input
+// is empty, the result is empty." R5 softened the first of those to an empty
+// result, so an unresolvable profile is an error before R5 and unknown from R5
+// on — the same version split the as operator has.
+//
+// Conformance against a real profile needs a validator, which the caller
+// supplies. Without one, the base profiles are still resolvable: the canonical
+// URL of a resource type names a structure the model already knows, and
+// conforming to it is being of that type.
 func fnConformsTo(ctx *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
 	if input.Empty() {
 		return types.Collection{}, nil
 	}
+	if len(input) > 1 {
+		return nil, eval.NewEvalError(eval.ErrSingletonExpected,
+			"conformsTo() takes a single element, got %d", len(input))
+	}
 
-	// Get the profile URL from the argument
-	var profileURL string
-	if len(args) > 0 {
-		if col, ok := args[0].(types.Collection); ok && !col.Empty() {
-			if str, ok := col[0].(types.String); ok {
-				profileURL = str.Value()
+	profileURL, ok := toStringArg(args[0])
+	if !ok || profileURL == "" {
+		return types.Collection{}, nil
+	}
+
+	// A validator, when the caller supplied one, decides
+	if pv := ctx.GetProfileValidator(); pv != nil {
+		if obj, isObject := input[0].(*types.ObjectValue); isObject {
+			conforms, err := pv.ConformsTo(ctx.Context(), obj.Data(), profileURL)
+			if err == nil {
+				return types.Collection{types.NewBoolean(conforms)}, nil
 			}
 		}
 	}
 
-	if profileURL == "" {
-		return types.Collection{}, nil
-	}
-
-	// Get the profile validator
-	pv := ctx.GetProfileValidator()
-	if pv == nil {
-		// Without a profile validator, we can't validate conformance
-		// Return empty collection (unknown) as per FHIRPath spec
-		return types.Collection{}, nil
-	}
-
-	// Process the input - conformsTo typically operates on a single resource
-	for _, item := range input {
-		obj, ok := item.(*types.ObjectValue)
-		if !ok {
-			continue
-		}
-
-		// Get the raw JSON data for validation
-		resourceJSON := obj.Data()
-		if len(resourceJSON) == 0 {
-			continue
-		}
-
-		// Check conformance
-		conforms, err := pv.ConformsTo(ctx.Context(), resourceJSON, profileURL)
-		if err != nil {
-			// On error, return empty (unknown)
-			continue
-		}
-
+	// Otherwise the base profiles remain answerable
+	if conforms, resolved := conformsToBaseProfile(ctx, input[0], profileURL); resolved {
 		return types.Collection{types.NewBoolean(conforms)}, nil
 	}
 
-	return types.Collection{}, nil
+	return unresolvedProfile(ctx, profileURL)
+}
+
+// baseProfilePrefix is where FHIR publishes the structure definition of every
+// type it defines, so a URL under it names a type rather than a constraint.
+const baseProfilePrefix = "http://hl7.org/fhir/StructureDefinition/"
+
+// conformsToBaseProfile answers for a profile that is just a type, reporting
+// whether it could be resolved at all.
+//
+// Conforming to the base profile of a type is being of that type, or of one
+// derived from it — a Patient conforms to Patient and to DomainResource, and
+// not to Person.
+func conformsToBaseProfile(ctx *eval.Context, item types.Value, profileURL string) (conforms, resolved bool) {
+	if !strings.HasPrefix(profileURL, baseProfilePrefix) {
+		return false, false
+	}
+	typeName := strings.TrimPrefix(profileURL, baseProfilePrefix)
+
+	model := ctx.GetModel()
+	if model == nil {
+		return false, false
+	}
+	// The model reaches functions through an adapter that reports separately
+	// whether it could answer, so that a model unable to enumerate its types is
+	// not read as one in which no type exists
+	registry, ok := model.(interface {
+		LookupType(string) (known, supported bool)
+	})
+	if !ok {
+		return false, false
+	}
+	known, supported := registry.LookupType(typeName)
+	if !supported || !known {
+		// A model that cannot say whether the type exists cannot tell an
+		// unresolvable profile from one it simply does not match
+		return false, false
+	}
+
+	return model.IsSubtype(item.Type(), typeName), true
+}
+
+// unresolvedProfile reports a profile that could not be resolved, in the way the
+// evaluated version calls for.
+func unresolvedProfile(ctx *eval.Context, profileURL string) (types.Collection, error) {
+	if ctx.EnforcesR5Rules() {
+		return types.Collection{}, nil
+	}
+	return nil, eval.NewEvalError(eval.ErrInvalidArguments,
+		"conformsTo(): %q cannot be resolved to a valid profile", profileURL)
 }

@@ -9,7 +9,7 @@ type typeRegistryModel struct{ testModel }
 
 func (typeRegistryModel) HasType(name string) bool {
 	switch name {
-	case "Patient", "Observation", "HumanName", "Quantity", "Reference",
+	case "Patient", "Observation", "Person", "HumanName", "Quantity", "Reference",
 		"string", "code", "uri", "boolean", "dateTime",
 		"Element", "DomainResource", "Resource":
 		return true

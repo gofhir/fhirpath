@@ -12,9 +12,6 @@ testBasics/testSimpleFail
 testBasics/testSimpleWithWrongContext
 testCollectionBoolean/testCollectionBoolean1
 testCombine()/testCombine1
-testConformsTo/testConformsTo1
-testConformsTo/testConformsTo2
-testConformsTo/testConformsTo3
 testDollar/testDollarOrderNotAllowed
 testIif/testIif6
 testInheritance/testFHIRPathAsFunction21

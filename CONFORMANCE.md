@@ -35,8 +35,8 @@ Measured against the official suite, in both configurations a caller can use:
 
 | Configuration | Passing |
 |---|---|
-| No FHIR model supplied | **891 of 928 (96.0%)** |
-| With the R4 model | **906 of 928 (97.6%)** |
+| No FHIR model supplied | **892 of 928 (96.1%)** |
+| With the R4 model | **909 of 928 (98.0%)** |
 
 ```sh
 make conformance          # prints both numbers

@@ -30,6 +30,13 @@ type versionedModel interface {
 // disables the rule for anything below R5. A context with no model, or a model
 // that does not declare its version, is treated as pre-R5 — the behavior every
 // existing caller already has.
+// EnforcesR5Rules reports whether the rules that changed with R5 apply, which
+// depends on the version the model declares. Exported so that functions defined
+// outside this package can follow the same split.
+func (c *Context) EnforcesR5Rules() bool {
+	return c.enforcesR5Rules()
+}
+
 func (c *Context) enforcesR5Rules() bool {
 	if c == nil || c.model == nil {
 		return false
