@@ -501,8 +501,9 @@ func TestQuantityConversion(t *testing.T) {
 	t.Run("toQuantity from string", func(t *testing.T) {
 		fn, _ := Get("toQuantity")
 
-		// Simple quantity with unit
-		result, err := fn.Fn(ctx, types.Collection{types.NewString("5.5 mg")}, nil)
+		// The unit is quoted because a bare word would be read as a calendar
+		// duration keyword, and mg is not one
+		result, err := fn.Fn(ctx, types.Collection{types.NewString("5.5 'mg'")}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -545,25 +546,24 @@ func TestQuantityConversion(t *testing.T) {
 		if q.Value().String() != "42" {
 			t.Errorf("expected value 42, got %s", q.Value().String())
 		}
-		if q.Unit() != "" {
-			t.Errorf("expected empty unit, got '%s'", q.Unit())
+		// "the resulting quantity will have the UCUM default unit ('1')"
+		if q.Unit() != types.DefaultQuantityUnit {
+			t.Errorf("expected the default unit, got '%s'", q.Unit())
 		}
 	})
 
-	t.Run("toQuantity from integer with unit", func(t *testing.T) {
+	t.Run("toQuantity from integer into a dimensioned unit is empty", func(t *testing.T) {
 		fn, _ := Get("toQuantity")
 
+		// The number is a quantity in '1', which is dimensionless, so there is
+		// nothing to convert into centimeters: "45.toQuantity('m') // { } empty"
 		result, err := fn.Fn(ctx, types.Collection{types.NewInteger(100)},
 			[]interface{}{types.Collection{types.NewString("cm")}})
 		if err != nil {
 			t.Fatal(err)
 		}
-		q := result[0].(types.Quantity)
-		if q.Value().String() != "100" {
-			t.Errorf("expected value 100, got %s", q.Value().String())
-		}
-		if q.Unit() != "cm" {
-			t.Errorf("expected unit 'cm', got '%s'", q.Unit())
+		if !result.Empty() {
+			t.Errorf("expected empty, got %v", result)
 		}
 	})
 
@@ -575,15 +575,19 @@ func TestQuantityConversion(t *testing.T) {
 			t.Fatal(err)
 		}
 		q := result[0].(types.Quantity)
-		if q.Unit() != "" {
-			t.Errorf("expected empty unit, got '%s'", q.Unit())
+		if q.Unit() != types.DefaultQuantityUnit {
+			t.Errorf("expected the default unit, got '%s'", q.Unit())
 		}
 	})
 
-	t.Run("toQuantity from decimal with unit", func(t *testing.T) {
+	t.Run("toQuantity converts a quantity into the unit asked for", func(t *testing.T) {
 		fn, _ := Get("toQuantity")
 
-		result, err := fn.Fn(ctx, types.Collection{types.NewDecimalFromFloat(98.6)},
+		// A bare decimal cannot become degrees Fahrenheit — it is a quantity in
+		// the dimensionless '1'. A temperature can, and the value is converted
+		// rather than relabelled.
+		celsius, _ := types.NewQuantity("37 'Cel'")
+		result, err := fn.Fn(ctx, types.Collection{celsius},
 			[]interface{}{types.Collection{types.NewString("[degF]")}})
 		if err != nil {
 			t.Fatal(err)
@@ -591,6 +595,9 @@ func TestQuantityConversion(t *testing.T) {
 		q := result[0].(types.Quantity)
 		if q.Unit() != "[degF]" {
 			t.Errorf("expected unit '[degF]', got '%s'", q.Unit())
+		}
+		if q.Value().String() != "98.6" {
+			t.Errorf("expected 98.6, got %s", q.Value().String())
 		}
 	})
 
@@ -672,12 +679,37 @@ func TestQuantityConversion(t *testing.T) {
 	t.Run("convertsToQuantity from valid string", func(t *testing.T) {
 		fn, _ := Get("convertsToQuantity")
 
-		result, err := fn.Fn(ctx, types.Collection{types.NewString("10 kg")}, nil)
+		// Quoted, because a bare word is read as a calendar duration keyword
+		result, err := fn.Fn(ctx, types.Collection{types.NewString("10 'kg'")}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if !result[0].(types.Boolean).Bool() {
-			t.Error("expected '10 kg' to be convertible")
+			t.Error("expected \"10 'kg'\" to be convertible")
+		}
+	})
+
+	t.Run("convertsToQuantity from a bare UCUM code", func(t *testing.T) {
+		fn, _ := Get("convertsToQuantity")
+
+		result, err := fn.Fn(ctx, types.Collection{types.NewString("10 kg")}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result[0].(types.Boolean).Bool() {
+			t.Error("expected '10 kg' not to convert: kg is a UCUM code, not a calendar keyword")
+		}
+	})
+
+	t.Run("convertsToQuantity from a calendar keyword", func(t *testing.T) {
+		fn, _ := Get("convertsToQuantity")
+
+		result, err := fn.Fn(ctx, types.Collection{types.NewString("4 days")}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !result[0].(types.Boolean).Bool() {
+			t.Error("expected '4 days' to be convertible: the specification gives it as an example")
 		}
 	})
 
@@ -708,12 +740,14 @@ func TestQuantityConversion(t *testing.T) {
 	t.Run("convertsToQuantity from boolean", func(t *testing.T) {
 		fn, _ := Get("convertsToQuantity")
 
+		// "the item is a Boolean, where true results in the quantity 1.0 '1',
+		// and false results in the quantity 0.0 '1'"
 		result, err := fn.Fn(ctx, types.Collection{types.NewBoolean(true)}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if result[0].(types.Boolean).Bool() {
-			t.Error("expected boolean to not be convertible")
+		if !result[0].(types.Boolean).Bool() {
+			t.Error("expected a boolean to be convertible")
 		}
 	})
 }

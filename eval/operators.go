@@ -406,11 +406,43 @@ func Equal(left, right types.Collection) types.Collection {
 			continue
 		}
 
+		// Quantities whose units do not convert cannot be compared, which the
+		// specification treats as unknown rather than unequal — the same
+		// distinction it draws for temporals of different precision:
+		//
+		//	1 'cm' = 1 's'   // empty ; different dimensions
+		//	1 year = 1 'a'   // empty ; a calendar year is not a UCUM year
+		//	1 week = 1 'wk'  // true  ; these two are equal by definition
+		if lq, rq, ok := comparableQuantities(left[i], right[i]); ok {
+			if !lq.Comparable(rq) {
+				return types.EmptyCollection
+			}
+			if !lq.Equal(rq) {
+				return types.FalseCollection
+			}
+			continue
+		}
+
 		if !valuesEqual(left[i], right[i]) {
 			return types.FalseCollection
 		}
 	}
 	return types.TrueCollection
+}
+
+// comparableQuantities matches two values that are both quantities, whether
+// written as literals or read from FHIR data.
+//
+// This is wider than literalQuantityOperands, which requires exactly one side to
+// be a literal: equality has to reach the case where both are, since that is
+// where a calendar keyword meets a UCUM code.
+func comparableQuantities(left, right types.Value) (lq, rq types.Quantity, ok bool) {
+	lq, lok := asQuantity(left)
+	rq, rok := asQuantity(right)
+	if !lok || !rok {
+		return types.Quantity{}, types.Quantity{}, false
+	}
+	return lq, rq, true
 }
 
 // valuesEqual compares two single values for equality.

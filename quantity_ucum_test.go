@@ -49,8 +49,11 @@ func TestUCUMUnitHandling(t *testing.T) {
 	})
 
 	t.Run("UCUM codes are case sensitive", func(t *testing.T) {
-		// M is not a unit; treating it as m would be worse than refusing
+		// KG is not a unit; treating it as kg would be worse than refusing.
+		// An invalid unit makes the comparison unknown rather than false:
+		// "Attempting to operate on quantities with invalid units will result
+		// in empty".
 		expr := "1 'kg' = 1 'KG'"
-		assertBooleanResult(t, evalOrFatal(t, simpleJSON, expr), false)
+		assertEmptyResult(t, evalOrFatal(t, simpleJSON, expr), expr)
 	})
 }

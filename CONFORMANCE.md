@@ -35,8 +35,8 @@ Measured against the official suite, in both configurations a caller can use:
 
 | Configuration | Passing |
 |---|---|
-| No FHIR model supplied | **854 of 928 (92.0%)** |
-| With the R4 model | **867 of 928 (93.4%)** |
+| No FHIR model supplied | **861 of 928 (92.8%)** |
+| With the R4 model | **874 of 928 (94.2%)** |
 
 ```sh
 make conformance          # prints both numbers
@@ -71,7 +71,6 @@ passing — so the list can only shrink, and it never lies about the number.
 | `as()`/`ofType()` with an unknown type name | 2 | Should error; needs the model to be able to say whether a type exists |
 | `extension()` cases | 3 | Fail on the input, not on evaluation — see the testdata README |
 | Errors we should raise and don't | 23 | 12 `execution`, 11 `semantic`; the semantic ones need a Model |
-| Quantity conversion | ~6 | `toQuantity` on a bare number should carry unit `'1'`; string-to-quantity parsing |
 | `lowBoundary` / `highBoundary` | 8 | Three are a suite disagreement (see below); two assume `@2014-01-01T08` carries an implicit minute |
 
 `repeat()` was registered but never implemented — it returned its input

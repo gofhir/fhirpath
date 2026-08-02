@@ -263,8 +263,10 @@ func TestQuantityObjectComparison(t *testing.T) {
 		for _, expr := range []string{"10 'kg' < 10 'm'", "10 'kg' >= 10 'm'", "10 'kg' + 10 'm'"} {
 			assertEmptyResult(t, evalOrFatal(t, simpleJSON, expr), expr)
 		}
-		// Equality decides rather than propagating empty
-		assertBooleanResult(t, evalOrFatal(t, simpleJSON, "10 'kg' = 10 'm'"), false)
+		// Equality is unknown too, not false: "If this process returns empty
+		// (e.g. because the units are not valid, or not commensurable), then the
+		// result of the equality comparison is empty"
+		assertEmptyResult(t, evalOrFatal(t, simpleJSON, "10 'kg' = 10 'm'"), "10 'kg' = 10 'm'")
 	})
 
 	t.Run("objects that are not quantities are unaffected", func(t *testing.T) {

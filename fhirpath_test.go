@@ -837,13 +837,15 @@ func TestUCUMQuantityComparison(t *testing.T) {
 		assertBooleanResult(t, result, true)
 	})
 
-	t.Run("incompatible units return false", func(t *testing.T) {
+	t.Run("incompatible units are unknown, not unequal", func(t *testing.T) {
 		result, err := Evaluate(simpleJSON, "1 'kg' = 1 'm'")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		// Per FHIRPath spec: if units cannot be converted to same canonical form, result is false
-		assertBooleanResult(t, result, false)
+		// "1 'cm' = 1 's' // empty ({ }) ; different dimensions are not
+		// commensurable". There is no unit both values can be stated in, so the
+		// comparison has no answer rather than a negative one.
+		assertEmptyResult(t, result, "1 'kg' = 1 'm'")
 	})
 }
 
@@ -996,8 +998,21 @@ func TestConvertsToQuantityWithUnit(t *testing.T) {
 		assertBooleanResult(t, result, true)
 	})
 
-	t.Run("string quantity with compatible unit", func(t *testing.T) {
+	// A bare word in a quantity string is a calendar duration keyword, not a UCUM
+	// code — the pattern toQuantity() publishes names that group "time". So a
+	// UCUM code written without its quotes does not convert at all, which the
+	// conformance suite states directly: '1 wk'.convertsToQuantity().not() is
+	// true. What holds for wk holds for kg.
+	t.Run("a UCUM code written without quotes does not convert", func(t *testing.T) {
 		result, err := Evaluate(simpleJSON, "'5 kg'.convertsToQuantity('g')")
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		assertBooleanResult(t, result, false)
+	})
+
+	t.Run("the same code in quotes converts", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, `'5 \'kg\''.convertsToQuantity('g')`)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
@@ -1005,23 +1020,27 @@ func TestConvertsToQuantityWithUnit(t *testing.T) {
 	})
 
 	t.Run("string quantity with incompatible unit", func(t *testing.T) {
-		result, err := Evaluate(simpleJSON, "'5 kg'.convertsToQuantity('L')")
+		result, err := Evaluate(simpleJSON, `'5 \'kg\''.convertsToQuantity('L')`)
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		assertBooleanResult(t, result, false)
 	})
 
-	t.Run("integer always converts to quantity", func(t *testing.T) {
+	// A number converts to a quantity in the UCUM default unit, '1', which is
+	// dimensionless and so convertible to nothing else. The specification works
+	// this through: "45.toQuantity('m') // { } empty ; There is no conversion
+	// from the UCUM default unit to meters."
+	t.Run("a number does not convert into a dimensioned unit", func(t *testing.T) {
 		result, err := Evaluate(simpleJSON, "(42).convertsToQuantity('kg')")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		assertBooleanResult(t, result, true)
+		assertBooleanResult(t, result, false)
 	})
 
-	t.Run("decimal always converts to quantity", func(t *testing.T) {
-		result, err := Evaluate(simpleJSON, "(3.14).convertsToQuantity('m')")
+	t.Run("a number converts to a quantity when no unit is asked for", func(t *testing.T) {
+		result, err := Evaluate(simpleJSON, "(3.14).convertsToQuantity()")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
