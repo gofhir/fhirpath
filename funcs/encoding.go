@@ -50,8 +50,8 @@ func stringFuncArgs(input types.Collection, args []interface{}) (value, arg stri
 	if input.Empty() {
 		return "", "", false
 	}
-	value, ok = toString(input)
-	if !ok {
+	value, ok, err := toString(input)
+	if err != nil || !ok {
 		return "", "", false
 	}
 	if len(args) == 0 {

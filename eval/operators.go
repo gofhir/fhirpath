@@ -687,22 +687,38 @@ func Not(value types.Collection) types.Collection {
 
 // Concatenate performs string concatenation (& operator).
 // Unlike +, & treats empty as empty string.
-func Concatenate(left, right types.Collection) types.Collection {
-	var lStr, rStr string
-
-	if !left.Empty() {
-		if s, ok := left[0].(types.String); ok {
-			lStr = s.Value()
-		}
+func Concatenate(left, right types.Collection) (types.Collection, error) {
+	lStr, err := concatenationOperand(left)
+	if err != nil {
+		return nil, err
+	}
+	rStr, err := concatenationOperand(right)
+	if err != nil {
+		return nil, err
 	}
 
-	if !right.Empty() {
-		if s, ok := right[0].(types.String); ok {
-			rStr = s.Value()
-		}
+	return types.Collection{types.NewString(lStr + rStr)}, nil
+}
+
+// concatenationOperand reads one side of &, which differs from + in treating an
+// empty operand as an empty string rather than propagating empty. Everything
+// else follows the singleton rule: more than one item, or one that is not a
+// String, is an error rather than a value picked out of the collection.
+func concatenationOperand(operand types.Collection) (string, error) {
+	if operand.Empty() {
+		return "", nil
+	}
+	if len(operand) > 1 {
+		return "", NewEvalError(ErrSingletonExpected,
+			"the & operator expects a single String, got %d items", len(operand))
 	}
 
-	return types.Collection{types.NewString(lStr + rStr)}
+	value, ok := operand[0].(types.String)
+	if !ok {
+		return "", NewEvalError(ErrType,
+			"the & operator expects a String, got %s", operand[0].Type())
+	}
+	return value.Value(), nil
 }
 
 // Collection operators

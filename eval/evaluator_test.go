@@ -271,9 +271,23 @@ func TestOperators(t *testing.T) {
 	})
 
 	t.Run("string concatenation", func(t *testing.T) {
-		result := Concatenate(types.Collection{types.NewString("Hello")}, types.Collection{types.NewString(" World")})
+		result, err := Concatenate(types.Collection{types.NewString("Hello")}, types.Collection{types.NewString(" World")})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		if result[0].(types.String).Value() != "Hello World" {
 			t.Errorf("expected 'Hello World', got %v", result[0])
+		}
+	})
+
+	t.Run("concatenating a collection is an error", func(t *testing.T) {
+		// The singleton rule ends in an error rather than a choice of which
+		// item to concatenate
+		_, err := Concatenate(
+			types.Collection{types.NewString("a"), types.NewString("b")},
+			types.Collection{types.NewString("c")})
+		if err == nil {
+			t.Error("expected an error for a multi-item operand")
 		}
 	})
 
@@ -836,12 +850,18 @@ func TestCollectionOperatorEdgeCases(t *testing.T) {
 	})
 
 	t.Run("concatenate with empty", func(t *testing.T) {
-		result := Concatenate(types.EmptyCollection, types.Collection{types.NewString("world")})
+		result, err := Concatenate(types.EmptyCollection, types.Collection{types.NewString("world")})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		if result[0].(types.String).Value() != "world" {
 			t.Errorf("expected 'world', got %v", result[0])
 		}
 
-		result = Concatenate(types.Collection{types.NewString("hello")}, types.EmptyCollection)
+		result, err = Concatenate(types.Collection{types.NewString("hello")}, types.EmptyCollection)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		if result[0].(types.String).Value() != "hello" {
 			t.Errorf("expected 'hello', got %v", result[0])
 		}

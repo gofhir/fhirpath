@@ -179,8 +179,15 @@ func fnDescendants(ctx *eval.Context, input types.Collection, _ []interface{}) (
 
 // fnNot returns the boolean negation.
 func fnNot(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
-	// Singleton evaluation: a single non-Boolean node counts as true, so
-	// "reference.startsWith('#').not()" and "code.not()" both behave per spec.
+	// The singleton rule ends in an error for more than one item: which of them
+	// was meant to be negated is not something to guess at.
+	if len(input) > 1 {
+		return nil, eval.NewEvalError(eval.ErrSingletonExpected,
+			"not() expects a single item, got %d", len(input))
+	}
+
+	// A single non-Boolean node counts as true, so "reference.startsWith('#').not()"
+	// and "code.not()" both behave per spec.
 	val, ok := input.SingletonBoolean()
 	if !ok {
 		return types.Collection{}, nil

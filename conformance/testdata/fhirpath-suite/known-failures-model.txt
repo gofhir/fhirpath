@@ -14,13 +14,10 @@ testBasics/testSimpleFail
 testBasics/testSimpleWithWrongContext
 testCollectionBoolean/testCollectionBoolean1
 testCombine()/testCombine1
-testConcatenate/testConcatenate4
 testConformsTo/testConformsTo1
 testConformsTo/testConformsTo2
 testConformsTo/testConformsTo3
-testContainsString/testContainsNonString1
 testDollar/testDollarOrderNotAllowed
-testEndsWith/testEndsWithNonString1
 testEquality/testEquality23
 testExtension/testExtension1
 testExtension/testExtension2
@@ -32,12 +29,10 @@ testInheritance/testFHIRPathAsFunction24
 testInheritance/testFHIRPathIsFunction10
 testInheritance/testFHIRPathIsFunction8
 testInheritance/testFHIRPathIsFunction9
-testLiterals/testNotInvalid
 testMatches/testMatchesSingleLineMode1
 testNEquality/testNEquality17
 testObservations/testPolymorphismAsB
 testObservations/testPolymorphismB
 testReplaceMatches/testReplaceMatches2
-testStartsWith/testStartsWithNonString1
 testType/testType19
 testType/testType23

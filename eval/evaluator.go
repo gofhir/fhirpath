@@ -1544,7 +1544,11 @@ func (e *Evaluator) VisitAdditiveExpression(ctx *grammar.AdditiveExpressionConte
 
 	// String concatenation with & handles empty as empty string
 	if op == "&" {
-		return Concatenate(leftCol, rightCol)
+		result, err := Concatenate(leftCol, rightCol)
+		if err != nil {
+			return err
+		}
+		return result
 	}
 
 	// Empty propagation for + and -
