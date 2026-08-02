@@ -11,6 +11,9 @@ import (
 type Integer struct {
 	value    int64
 	fhirType string // FHIR type when the value was read through a model
+
+	// The FHIR element this value was read with, when it carried one
+	primitiveElement
 }
 
 // NewInteger creates a new Integer value.
@@ -151,5 +154,12 @@ func (i Integer) Sqrt() (Decimal, error) {
 // System.Boolean — so a value keeps the name the model gave it.
 func (i Integer) WithFHIRType(fhirType string) Integer {
 	i.fhirType = fhirType
+	return i
+}
+
+// WithElement returns a copy carrying the FHIR element that accompanied the
+// value in the JSON, which is where its extensions and id live.
+func (i Integer) WithElement(element *ObjectValue) Integer {
+	i.element = element
 	return i
 }

@@ -8,7 +8,6 @@ HighBoundary/HighBoundaryDecimal15
 HighBoundary/HighBoundaryDecimal16
 LowBoundary/LowBoundaryDecimal15
 from-Zulip/from-zulip-2
-miscEngineTests/testPrimitiveExtensions
 polymorphics/testPolymorphicsB
 testBasics/testSimpleFail
 testBasics/testSimpleWithWrongContext
@@ -19,8 +18,6 @@ testConformsTo/testConformsTo2
 testConformsTo/testConformsTo3
 testDollar/testDollarOrderNotAllowed
 testEquality/testEquality23
-testExtension/testExtension1
-testExtension/testExtension2
 testIif/testIif10
 testIif/testIif6
 testInheritance/testFHIRPathAsFunction21

@@ -271,20 +271,146 @@ func (o *ObjectValue) Get(field string) (Value, bool) {
 // If the field is an array, returns all elements.
 // If the field is a single value, returns a singleton collection.
 func (o *ObjectValue) GetCollection(field string) Collection {
+	return o.fieldCollection(field, jsonValueToFHIRValue)
+}
+
+// fieldCollection reads a field together with the FHIR element stored under the
+// same name prefixed with an underscore, which is how FHIR serializes a
+// primitive that carries extensions or an id.
+//
+//	"birthDate": "1974-12-25",
+//	"_birthDate": {"extension": [{"url": ".../patient-birthTime", ...}]}
+//
+// The two are one element, and the pairing is positional when both are arrays:
+//
+//	"given": [null, "James"],
+//	"_given": [{"extension": [...]}]
+//
+// A null in the value array is a position that has extensions but no value —
+// exactly what a data-absent-reason records. It is still an item of the
+// collection, so it is kept as its element alone, and hasValue() answers false
+// for it. Positions with neither a value nor an element are dropped.
+func (o *ObjectValue) fieldCollection(field string, parse func([]byte, jsonparser.ValueType) Value) Collection {
 	value, dataType, _, err := jsonparser.Get(o.data, field)
-	if err != nil {
+	elementData, elementType, _, elementErr := jsonparser.Get(o.data, "_"+field)
+
+	valueMissing := err != nil || dataType == jsonparser.NotExist
+	elementMissing := elementErr != nil || elementType == jsonparser.NotExist
+	if valueMissing && elementMissing {
 		return Collection{}
 	}
 
-	if dataType == jsonparser.Array {
-		return jsonArrayToCollection(value)
+	// A single value, with or without its element beside it
+	if dataType != jsonparser.Array && elementType != jsonparser.Array {
+		var element *ObjectValue
+		if !elementMissing && elementType == jsonparser.Object {
+			element = NewObjectValue(elementData)
+		}
+		return pairValueWithElement(value, dataType, valueMissing, element, parse)
 	}
 
-	v := jsonValueToFHIRValue(value, dataType)
-	if v == nil {
+	values := positionalEntries(value, dataType, valueMissing)
+	elements := positionalEntries(elementData, elementType, elementMissing)
+
+	length := len(values)
+	if len(elements) > length {
+		length = len(elements)
+	}
+
+	result := make(Collection, 0, length)
+	for i := 0; i < length; i++ {
+		var element *ObjectValue
+		if i < len(elements) && elements[i].dataType == jsonparser.Object {
+			element = NewObjectValue(elements[i].data)
+		}
+
+		var (
+			data    []byte
+			kind    jsonparser.ValueType
+			missing = i >= len(values)
+		)
+		if !missing {
+			data, kind = values[i].data, values[i].dataType
+		}
+
+		result = append(result, pairValueWithElement(data, kind, missing, element, parse)...)
+	}
+
+	return result
+}
+
+// pairValueWithElement turns one value and its element into the item, or items,
+// they stand for: the value carrying the element, the element alone when there
+// is no value, or nothing when there is neither.
+func pairValueWithElement(
+	data []byte,
+	dataType jsonparser.ValueType,
+	missing bool,
+	element *ObjectValue,
+	parse func([]byte, jsonparser.ValueType) Value,
+) Collection {
+	if missing || dataType == jsonparser.Null {
+		if element == nil {
+			return Collection{}
+		}
+		return Collection{element}
+	}
+
+	parsed := parse(data, dataType)
+	if parsed == nil {
 		return Collection{}
 	}
-	return Collection{v}
+	if element != nil {
+		parsed = withElement(parsed, element)
+	}
+	return Collection{parsed}
+}
+
+// jsonEntry is one element of a JSON array, kept with its type so that a null
+// can be told from an absent position.
+type jsonEntry struct {
+	data     []byte
+	dataType jsonparser.ValueType
+}
+
+// positionalEntries lists a JSON array's entries in order, preserving nulls.
+func positionalEntries(data []byte, dataType jsonparser.ValueType, missing bool) []jsonEntry {
+	if missing {
+		return nil
+	}
+	if dataType != jsonparser.Array {
+		return []jsonEntry{{data: data, dataType: dataType}}
+	}
+
+	var entries []jsonEntry
+	//nolint:errcheck // ArrayEach only errors on non-arrays, and this is one
+	jsonparser.ArrayEach(data, func(entry []byte, entryType jsonparser.ValueType, _ int, _ error) {
+		entries = append(entries, jsonEntry{data: entry, dataType: entryType})
+	})
+	return entries
+}
+
+// withElement returns the value carrying the given element, for the primitive
+// types that can hold one. Anything else is returned unchanged: a complex type
+// already holds its extensions among its own fields.
+func withElement(value Value, element *ObjectValue) Value {
+	switch v := value.(type) {
+	case String:
+		return v.WithElement(element)
+	case Boolean:
+		return v.WithElement(element)
+	case Integer:
+		return v.WithElement(element)
+	case Decimal:
+		return v.WithElement(element)
+	case Date:
+		return v.WithElement(element)
+	case DateTime:
+		return v.WithElement(element)
+	case Time:
+		return v.WithElement(element)
+	}
+	return value
 }
 
 // Keys returns all field names in the object.
@@ -586,32 +712,9 @@ func lowerFirst(name string) string {
 // GetCollectionWithType retrieves a field as a Collection, using the FHIR type hint
 // to properly parse string values as Date, DateTime, Time, etc.
 func (o *ObjectValue) GetCollectionWithType(field, fhirType string) Collection {
-	value, dataType, _, err := jsonparser.Get(o.data, field)
-	if err != nil {
-		return Collection{}
-	}
-
-	if dataType == jsonparser.Array {
-		return jsonArrayToCollectionWithType(value, fhirType)
-	}
-
-	v := jsonValueToFHIRValueWithType(value, dataType, fhirType)
-	if v == nil {
-		return Collection{}
-	}
-	return Collection{v}
-}
-
-func jsonArrayToCollectionWithType(data []byte, fhirType string) Collection {
-	var result Collection
-	//nolint:errcheck // ArrayEach only returns errors for non-arrays; data is already validated as array
-	jsonparser.ArrayEach(data, func(value []byte, dataType jsonparser.ValueType, _ int, _ error) {
-		v := jsonValueToFHIRValueWithType(value, dataType, fhirType)
-		if v != nil {
-			result = append(result, v)
-		}
+	return o.fieldCollection(field, func(data []byte, dataType jsonparser.ValueType) Value {
+		return jsonValueToFHIRValueWithType(data, dataType, fhirType)
 	})
-	return result
 }
 
 // jsonArrayToCollection converts a JSON array to a Collection.

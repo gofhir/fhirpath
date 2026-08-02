@@ -15,6 +15,9 @@ type Date struct {
 	day       int // 0 if not specified
 	precision DatePrecision
 	fhirType  string // FHIR type when the value was read through a model
+
+	// The FHIR element this value was read with, when it carried one
+	primitiveElement
 }
 
 // DatePrecision indicates the precision of a date.
@@ -231,6 +234,13 @@ func (d Date) SubtractDuration(value int, unit string) (Date, error) {
 // System.Boolean — so a value keeps the name the model gave it.
 func (d Date) WithFHIRType(fhirType string) Date {
 	d.fhirType = fhirType
+	return d
+}
+
+// WithElement returns a copy carrying the FHIR element that accompanied the
+// value in the JSON, which is where its extensions and id live.
+func (d Date) WithElement(element *ObjectValue) Date {
+	d.element = element
 	return d
 }
 

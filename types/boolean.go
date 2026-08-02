@@ -6,6 +6,9 @@ import "fmt"
 type Boolean struct {
 	value    bool
 	fhirType string // FHIR type when the value was read through a model
+
+	// The FHIR element this value was read with, when it carried one
+	primitiveElement
 }
 
 // NewBoolean creates a new Boolean value.
@@ -59,5 +62,12 @@ func (b Boolean) Not() Boolean {
 // System.Boolean — so a value keeps the name the model gave it.
 func (b Boolean) WithFHIRType(fhirType string) Boolean {
 	b.fhirType = fhirType
+	return b
+}
+
+// WithElement returns a copy carrying the FHIR element that accompanied the
+// value in the JSON, which is where its extensions and id live.
+func (b Boolean) WithElement(element *ObjectValue) Boolean {
+	b.element = element
 	return b
 }

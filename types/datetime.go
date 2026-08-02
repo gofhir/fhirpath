@@ -20,6 +20,9 @@ type DateTime struct {
 	hasTZ     bool // whether timezone is specified
 	precision DateTimePrecision
 	fhirType  string // FHIR type when the value was read through a model
+
+	// The FHIR element this value was read with, when it carried one
+	primitiveElement
 }
 
 // DateTimePrecision indicates the precision of a datetime.
@@ -359,6 +362,13 @@ func (dt DateTime) Compare(other Value) (int, error) {
 // System.Boolean — so a value keeps the name the model gave it.
 func (dt DateTime) WithFHIRType(fhirType string) DateTime {
 	dt.fhirType = fhirType
+	return dt
+}
+
+// WithElement returns a copy carrying the FHIR element that accompanied the
+// value in the JSON, which is where its extensions and id live.
+func (dt DateTime) WithElement(element *ObjectValue) DateTime {
+	dt.element = element
 	return dt
 }
 

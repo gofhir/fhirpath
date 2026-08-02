@@ -15,6 +15,9 @@ type Time struct {
 	millis    int
 	precision TimePrecision
 	fhirType  string // FHIR type when the value was read through a model
+
+	// The FHIR element this value was read with, when it carried one
+	primitiveElement
 }
 
 // TimePrecision indicates the precision of a time.
@@ -183,5 +186,12 @@ func (t Time) Compare(other Value) (int, error) {
 // System.Boolean — so a value keeps the name the model gave it.
 func (t Time) WithFHIRType(fhirType string) Time {
 	t.fhirType = fhirType
+	return t
+}
+
+// WithElement returns a copy carrying the FHIR element that accompanied the
+// value in the JSON, which is where its extensions and id live.
+func (t Time) WithElement(element *ObjectValue) Time {
+	t.element = element
 	return t
 }

@@ -134,7 +134,9 @@ func fnExtension(ctx *eval.Context, input types.Collection, args []interface{}) 
 	result := types.Collection{}
 
 	for _, item := range input {
-		obj, ok := item.(*types.ObjectValue)
+		// A primitive keeps its extensions in the element FHIR serializes
+		// beside it, so the element is what carries them — not the value
+		obj, ok := types.ElementOf(item)
 		if !ok {
 			continue
 		}

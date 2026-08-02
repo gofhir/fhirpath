@@ -13,6 +13,9 @@ type Decimal struct {
 	value    decimal.Decimal
 	original string // original string representation for precision preservation (empty for computed values)
 	fhirType string // FHIR type when the value was read through a model
+
+	// The FHIR element this value was read with, when it carried one
+	primitiveElement
 }
 
 // NewDecimal creates a new Decimal from a string.
@@ -298,5 +301,12 @@ func (d Decimal) ToInteger() (Integer, bool) {
 // System.Boolean — so a value keeps the name the model gave it.
 func (d Decimal) WithFHIRType(fhirType string) Decimal {
 	d.fhirType = fhirType
+	return d
+}
+
+// WithElement returns a copy carrying the FHIR element that accompanied the
+// value in the JSON, which is where its extensions and id live.
+func (d Decimal) WithElement(element *ObjectValue) Decimal {
+	d.element = element
 	return d
 }

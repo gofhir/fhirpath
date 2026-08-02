@@ -35,8 +35,8 @@ Measured against the official suite, in both configurations a caller can use:
 
 | Configuration | Passing |
 |---|---|
-| No FHIR model supplied | **883 of 928 (95.2%)** |
-| With the R4 model | **896 of 928 (96.6%)** |
+| No FHIR model supplied | **886 of 928 (95.5%)** |
+| With the R4 model | **899 of 928 (96.9%)** |
 
 ```sh
 make conformance          # prints both numbers
@@ -69,7 +69,6 @@ passing — so the list can only shrink, and it never lies about the number.
 |---|---|---|
 | `as()` on a multi-item collection | 1 | Applies from R5; the suite is R4 — see below |
 | `as()`/`ofType()` with an unknown type name | 2 | Should error; needs the model to be able to say whether a type exists |
-| Extensions on primitives | 3 | A FHIR primitive carries its extensions in a sibling `_name` field, which navigation does not read yet |
 | Errors we should raise and don't | 23 | 12 `execution`, 11 `semantic`; the semantic ones need a Model |
 | `lowBoundary` / `highBoundary` | 8 | Three are a suite disagreement (see below); two assume `@2014-01-01T08` carries an implicit minute |
 
