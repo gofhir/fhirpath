@@ -35,9 +35,26 @@ Five inputs have no published JSON equivalent (`parameters-example-types.xml`,
 logs each skip with its input file — coverage is reported, never quietly
 reduced.
 
-The same caveat as the R4 suite applies to the inputs taken from hl7.org: they
-are the published examples, and the suite's own copies are not guaranteed
-identical. They have not been diffed element by element here.
+## Where a published input differs from the suite's copy
+
+The inputs taken from hl7.org are the published examples, and the suite runs
+against the copies in `fhir-test-cases`. Two differences are known.
+
+`observation-example` — reconciled. The suite's copy carries an extension the
+published one does not, which three cases exercise; the JSON equivalent is in
+`input/observation-example.json`, transcribed from the XML. Every other element
+lines up.
+
+`valueset-example-expansion` — **not** reconciled. The published R5 resource has
+moved on from the suite's copy by more than one field: its `version` is `5.0.0`
+where the suite's is `20150622`, and it also carries a `title`, eight
+`valueCode` elements and nine more `code` elements that the suite's copy does
+not, while lacking its `profile`. Two cases assert the older version and are
+listed as known failures. Patching the single field they read would hide one
+difference and leave the rest, which is worse than recording that the input is
+not the suite's — closing this needs the XML converted whole.
+
+The remaining inputs have not been diffed element by element.
 
 ## Updating
 

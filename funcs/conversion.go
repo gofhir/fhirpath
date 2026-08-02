@@ -440,24 +440,41 @@ func fnToDateTime(_ *eval.Context, input types.Collection, _ []interface{}) (typ
 		return types.Collection{}, nil
 	}
 
-	if s, ok := input[0].(types.String); ok {
-		return types.Collection{s}, nil
+	switch v := input[0].(type) {
+	case types.DateTime:
+		return types.Collection{v}, nil
+
+	case types.Date:
+		// "the item is a Date, in which case the result is a DateTime with the
+		// year, month, and day of the Date, and the time components empty" —
+		// which is the same text, since a date has no time components to drop
+		converted, err := types.NewDateTime(v.String())
+		if err != nil {
+			return types.Collection{}, nil
+		}
+		return types.Collection{converted}, nil
+
+	case types.String:
+		converted, err := types.NewDateTime(v.Value())
+		if err != nil {
+			return types.Collection{}, nil
+		}
+		return types.Collection{converted}, nil
 	}
 
 	return types.Collection{}, nil
 }
 
 // fnConvertsToDateTime returns true if the input can be converted to datetime.
-func fnConvertsToDateTime(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
-	if input.Empty() {
-		return types.Collection{types.NewBoolean(false)}, nil
+//
+// Derived from toDateTime() rather than restated, so that the two cannot
+// disagree about what converts.
+func fnConvertsToDateTime(ctx *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
+	converted, err := fnToDateTime(ctx, input, args)
+	if err != nil {
+		return nil, err
 	}
-
-	if _, ok := input[0].(types.String); ok {
-		return types.Collection{types.NewBoolean(true)}, nil
-	}
-
-	return types.Collection{types.NewBoolean(false)}, nil
+	return types.Collection{types.NewBoolean(!converted.Empty())}, nil
 }
 
 // fnToTime converts the input to a time.
@@ -466,24 +483,28 @@ func fnToTime(_ *eval.Context, input types.Collection, _ []interface{}) (types.C
 		return types.Collection{}, nil
 	}
 
-	if s, ok := input[0].(types.String); ok {
-		return types.Collection{s}, nil
+	switch v := input[0].(type) {
+	case types.Time:
+		return types.Collection{v}, nil
+
+	case types.String:
+		converted, err := types.NewTime(v.Value())
+		if err != nil {
+			return types.Collection{}, nil
+		}
+		return types.Collection{converted}, nil
 	}
 
 	return types.Collection{}, nil
 }
 
 // fnConvertsToTime returns true if the input can be converted to time.
-func fnConvertsToTime(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
-	if input.Empty() {
-		return types.Collection{types.NewBoolean(false)}, nil
+func fnConvertsToTime(ctx *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
+	converted, err := fnToTime(ctx, input, args)
+	if err != nil {
+		return nil, err
 	}
-
-	if _, ok := input[0].(types.String); ok {
-		return types.Collection{types.NewBoolean(true)}, nil
-	}
-
-	return types.Collection{types.NewBoolean(false)}, nil
+	return types.Collection{types.NewBoolean(!converted.Empty())}, nil
 }
 
 // fnToQuantity converts the input to a quantity.

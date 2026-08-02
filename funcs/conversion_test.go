@@ -192,9 +192,25 @@ func TestConversionFunctions(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		// Current implementation returns String, not DateTime
-		if result[0].Type() != "String" {
-			t.Errorf("expected String type, got %s", result[0].Type())
+		// "the item is a String and is convertible to a DateTime" — a conversion
+		// that returns the string unchanged is not one
+		if result[0].Type() != types.TypeNameDateTime {
+			t.Errorf("expected DateTime, got %s", result[0].Type())
+		}
+		if result[0].String() != "2023-12-25T10:30:00" {
+			t.Errorf("value changed: %s", result[0].String())
+		}
+	})
+
+	t.Run("toDateTime from a string that is not one", func(t *testing.T) {
+		fn, _ := Get("toDateTime")
+
+		result, err := fn.Fn(ctx, types.Collection{types.NewString("not a datetime")}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !result.Empty() {
+			t.Errorf("expected empty, got %v", result)
 		}
 	})
 
@@ -217,9 +233,8 @@ func TestConversionFunctions(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		// Current implementation returns String, not Time
-		if result[0].Type() != "String" {
-			t.Errorf("expected String type, got %s", result[0].Type())
+		if result[0].Type() != types.TypeNameTime {
+			t.Errorf("expected Time, got %s", result[0].Type())
 		}
 	})
 
