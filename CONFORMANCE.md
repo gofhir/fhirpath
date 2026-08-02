@@ -97,6 +97,31 @@ where rounding down to one digit gives `-0.1`. A lower bound that is greater
 than the value it bounds is not a lower bound, and the other twenty-odd cases
 round consistently, so these look like suite defects.
 
+## Rules the FHIRPath suite does not reach
+
+Two defects came out of evaluating what gofhir/ucum's `fhir` package offers, and
+neither is visible to the conformance suite — the first because it is a FHIR
+rule rather than a FHIRPath one, the second because no case in the suite lands
+on it.
+
+**A FHIR Quantity did not map onto FHIRPath's calendar units.** FHIR R5, "Using
+FHIRPath with FHIR", requires that when a Quantity carrying a UCUM code is
+evaluated as a `System.Quantity`, its time-valued codes become calendar
+keywords: `a`→year, `mo`→month, `d`→day, `h`→hour, `min`→minute, `s`→second.
+Without it, `Patient.birthDate + Observation.value` failed on data FHIR
+considers well formed: the code stayed `'a'`, a definite 365.25 days, which
+cannot be added to a calendar and is required to raise an error. The mapping is
+what makes the value usable, and it is conditioned on the quantity declaring
+UCUM as its system — so without that system the value still, correctly, errors.
+
+**Calendar arithmetic normalized instead of clamping.** Adding a year to
+`@2016-02-29` gave `2017-03-01`, and a month to `@2014-01-31` gave `2014-03-03`.
+The specification says the opposite, in both the year and the month rows of its
+table: "If the month and day of the date or time value is not a valid date in
+the resulting year, the last day of the calendar month is used." The answers are
+now `2017-02-28` and `2014-02-28`. Go's `AddDate` normalizes, which is the
+behaviour that was inherited by writing the shift in terms of it.
+
 ## What was wrong, and why nothing caught it
 
 Every one of these produced an answer rather than an error, which is why a corpus

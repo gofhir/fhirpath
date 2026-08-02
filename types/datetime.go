@@ -289,7 +289,14 @@ func (dt DateTime) AddDuration(value int, unit string) (DateTime, error) {
 		return DateTime{}, err
 	}
 
-	shifted := dt.ToTime().AddDate(years, months, days)
+	// Years and months move the calendar components and clamp the day, which
+	// AddDate would instead roll into the next month
+	baseYear, baseMonth, baseDay := shiftCalendarMonths(dt.year, dt.monthOrFirst(), dt.dayOrFirst(), years, months)
+
+	base := dt.ToTime()
+	shifted := time.Date(baseYear, time.Month(baseMonth), baseDay,
+		base.Hour(), base.Minute(), base.Second(), base.Nanosecond(), base.Location()).
+		AddDate(0, 0, days)
 	if millis != 0 {
 		shifted = shifted.Add(time.Duration(millis) * time.Millisecond)
 	}
@@ -353,4 +360,21 @@ func (dt DateTime) Compare(other Value) (int, error) {
 func (dt DateTime) WithFHIRType(fhirType string) DateTime {
 	dt.fhirType = fhirType
 	return dt
+}
+
+// monthOrFirst returns the month, or January when the value is not specified to
+// a month; the result is trimmed back to the value's own precision afterwards.
+func (dt DateTime) monthOrFirst() int {
+	if dt.month == 0 {
+		return 1
+	}
+	return dt.month
+}
+
+// dayOrFirst returns the day, or the first of the month when unspecified.
+func (dt DateTime) dayOrFirst() int {
+	if dt.day == 0 {
+		return 1
+	}
+	return dt.day
 }

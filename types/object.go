@@ -678,10 +678,25 @@ func (o *ObjectValue) ToQuantity() (Quantity, bool) {
 	// while unit is a human-readable display ("milligram") that no unit
 	// conversion can interpret. Fall back to unit when there is no code.
 	unit := ""
+	hasCode := false
 	if codeBytes, _, _, err := jsonparser.Get(o.data, "code"); err == nil {
 		unit = string(codeBytes)
+		hasCode = true
 	} else if unitBytes, _, _, err := jsonparser.Get(o.data, "unit"); err == nil {
 		unit = string(unitBytes)
+	}
+
+	// FHIR maps time-valued UCUM codes onto FHIRPath's calendar keywords as part
+	// of this conversion, and conditions the mapping on the quantity declaring
+	// UCUM as its system: "The Mapping from FHIR Quantity to FHIRPath
+	// System.Quantity can only be applied if the FHIR Quantity has a UCUM code —
+	// i.e. a system of http://unitsofmeasure.org, and a code is present."
+	if hasCode {
+		if systemBytes, _, _, err := jsonparser.Get(o.data, "system"); err == nil && string(systemBytes) == UCUMSystem {
+			if keyword, mapped := CalendarUnitForUCUMCode(unit); mapped {
+				unit = keyword
+			}
+		}
 	}
 
 	return NewQuantityFromDecimal(val, unit), true

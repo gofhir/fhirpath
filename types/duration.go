@@ -3,6 +3,7 @@ package types
 import (
 	"errors"
 	"fmt"
+	"time"
 )
 
 // ErrCalendarConversionRequired reports that a UCUM year or month was used to
@@ -131,4 +132,42 @@ func durationParts(value int, unit string) (years, months, days, millis int, err
 		millis = amount
 	}
 	return years, months, days, millis, nil
+}
+
+// shiftCalendarMonths moves a year, month and day by whole years and months,
+// clamping the day to the end of the month it lands in.
+//
+// The clamp is what the specification asks for, in both the year and the month
+// rows of its arithmetic table: "If the month and day of the date or time value
+// is not a valid date in the resulting year, the last day of the calendar month
+// is used." Go's AddDate normalizes instead — it rolls 2017-02-29 forward to
+// 2017-03-01 — which is a different answer, and the wrong one here. Adding a
+// year to the 29th of February lands on the 28th, not in March.
+//
+// Days are not shifted here. They overflow month and year boundaries normally,
+// which the same table calls for, so they are left to ordinary date arithmetic.
+func shiftCalendarMonths(year, month, day, deltaYears, deltaMonths int) (shiftedYear, shiftedMonth, shiftedDay int) {
+	total := year*12 + (month - 1) + deltaYears*12 + deltaMonths
+
+	shiftedYear = total / 12
+	shiftedMonth = total%12 + 1
+	if total < 0 && total%12 != 0 {
+		// Go truncates division towards zero, which for a negative total would
+		// put the result a month into the following year
+		shiftedYear--
+		shiftedMonth += 12
+	}
+
+	shiftedDay = day
+	if last := daysInMonth(shiftedYear, shiftedMonth); shiftedDay > last {
+		shiftedDay = last
+	}
+
+	return shiftedYear, shiftedMonth, shiftedDay
+}
+
+// daysInMonth returns the length of a calendar month, which is where leap years
+// enter: day zero of the following month is the last day of this one.
+func daysInMonth(year, month int) int {
+	return time.Date(year, time.Month(month)+1, 0, 0, 0, 0, 0, time.UTC).Day()
 }

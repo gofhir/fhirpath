@@ -78,7 +78,11 @@ func quantityAndNumber(left, right types.Value) (q types.Quantity, factor decima
 // Reports false when the operands are not a temporal and a duration, leaving
 // the caller to carry on with its own dispatch.
 func shiftTemporal(left, right types.Value, subtract bool) (types.Value, bool, error) {
-	quantity, ok := right.(types.Quantity)
+	// asQuantity rather than a type assertion, so that a duration read from FHIR
+	// data works as well as a literal: Patient.birthDate + Observation.value is
+	// the ordinary way to write this, and the value arrives as a FHIR Quantity
+	// object rather than a System.Quantity.
+	quantity, ok := asQuantity(right)
 	if !ok {
 		return nil, false, nil
 	}

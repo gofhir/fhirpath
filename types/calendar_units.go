@@ -34,3 +34,39 @@ func withPlurals(names []string) []string {
 	}
 	return both
 }
+
+// UCUMSystem identifies UCUM as the code system of a FHIR Quantity.
+const UCUMSystem = "http://unitsofmeasure.org"
+
+// fhirQuantityCalendarUnits is the map FHIR applies when a FHIR Quantity is
+// evaluated as a FHIRPath System.Quantity.
+//
+// FHIR R5, "Using FHIRPath with FHIR", Use of FHIR Quantity: "As part of the
+// mapping, time-valued UCUM units are mapped to the calendar duration units
+// defined in FHIRPath, according to the following map".
+//
+// The map is FHIR's, and it is narrower than the set of UCUM durations this
+// package understands: 'wk' and 'ms' are absent from it, so a Quantity carrying
+// either keeps its UCUM code. That is not an oversight to correct here — a UCUM
+// week and a calendar week are the same span, so nothing turns on it, and a
+// mapping FHIR does not specify is not ours to invent.
+var fhirQuantityCalendarUnits = map[string]string{
+	"a":   unitNameYear,
+	"mo":  unitNameMonth,
+	"d":   unitNameDay,
+	"h":   unitNameHour,
+	"min": unitNameMinute,
+	"s":   unitNameSecond,
+}
+
+// CalendarUnitForUCUMCode returns the calendar duration keyword FHIR maps a
+// time-valued UCUM code onto, and whether the code is one it maps.
+//
+// This is what lets a Quantity read from FHIR data take part in date arithmetic
+// at all: a Quantity of 1 'a' would be refused, since a UCUM year is a definite
+// 365.25 days and cannot be added to a calendar, while the 1 year it maps to is
+// exactly what the calendar can add.
+func CalendarUnitForUCUMCode(code string) (string, bool) {
+	keyword, ok := fhirQuantityCalendarUnits[code]
+	return keyword, ok
+}

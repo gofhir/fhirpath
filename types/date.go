@@ -190,9 +190,15 @@ func (d Date) AddDuration(value int, unit string) (Date, error) {
 		return Date{}, err
 	}
 
+	// Years and months move the calendar components and clamp the day; days and
+	// below then shift from there, overflowing month and year boundaries as the
+	// specification's table describes.
+	baseYear, baseMonth, baseDay := shiftCalendarMonths(d.year, d.monthOrFirst(), d.dayOrFirst(), years, months)
+
 	// A date has no time of day, so a sub-day duration cannot move it. The
 	// specification keeps the value unchanged rather than rounding.
-	shifted := d.ToTime().AddDate(years, months, days)
+	shifted := time.Date(baseYear, time.Month(baseMonth), baseDay, 0, 0, 0, 0, time.UTC).
+		AddDate(0, 0, days)
 	if millis != 0 {
 		shifted = shifted.Add(time.Duration(millis) * time.Millisecond)
 	}
@@ -226,4 +232,22 @@ func (d Date) SubtractDuration(value int, unit string) (Date, error) {
 func (d Date) WithFHIRType(fhirType string) Date {
 	d.fhirType = fhirType
 	return d
+}
+
+// monthOrFirst returns the month, or January when the value is not specified to
+// a month. A shift reads every component, and the result is trimmed back to the
+// value's own precision afterwards.
+func (d Date) monthOrFirst() int {
+	if d.month == 0 {
+		return 1
+	}
+	return d.month
+}
+
+// dayOrFirst returns the day, or the first of the month when unspecified.
+func (d Date) dayOrFirst() int {
+	if d.day == 0 {
+		return 1
+	}
+	return d.day
 }
