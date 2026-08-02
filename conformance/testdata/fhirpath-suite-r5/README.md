@@ -38,12 +38,20 @@ reduced.
 ## Where a published input differs from the suite's copy
 
 The inputs taken from hl7.org are the published examples, and the suite runs
-against the copies in `fhir-test-cases`. Two differences are known.
+against the copies in `fhir-test-cases`. Three differences are known.
 
 `observation-example` — reconciled. The suite's copy carries an extension the
 published one does not, which three cases exercise; the JSON equivalent is in
 `input/observation-example.json`, transcribed from the XML. Every other element
 lines up.
+
+`conceptmap-example` — **not** reconciled, and the furthest apart of the three.
+The suite's copy has four groups, nine elements and thirteen targets; the
+published R5 resource has one, four and four. They are different resources, not
+two revisions of one. `dvConceptMapExample` asserts that a projection over them
+holds duplicates, which is true of the suite's copy and not of the published
+one, so the case is listed as a known failure. The expression itself evaluates
+correctly — it is the data that differs.
 
 `valueset-example-expansion` — **not** reconciled. The published R5 resource has
 moved on from the suite's copy by more than one field: its `version` is `5.0.0`

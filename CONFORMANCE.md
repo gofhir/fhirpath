@@ -106,6 +106,17 @@ the offset that makes the instant earliest, while the specification's example
 shows no offset at all. The suite's reading is the stricter one — a boundary
 should bound — and fhirpath.js omits the offset, so it fails that case.
 
+## Inputs that are not the suite's
+
+Three of the R5 inputs vendored from hl7.org have drifted from the copies the
+suite runs against, and the testdata README records each one. Two are left
+unreconciled on purpose: `valueset-example-expansion` differs in several fields
+at once, and `conceptmap-example` is a different resource altogether — four
+groups against one. Patching the single field a failing case reads would hide
+one difference while leaving the rest, and would leave the input looking aligned
+when it is not. Four cases fail for this reason, and the expressions in them
+evaluate correctly.
+
 ## Where the two suites disagree
 
 One case appears in both corpora with the same expression and different expected
