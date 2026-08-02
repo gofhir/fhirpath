@@ -20,14 +20,28 @@ that matches the resources this engine is tested against.
 
 ## A caveat on the converted inputs
 
-The five inputs taken from hl7.org are the *published* examples, while the suite
-runs against the copies in `fhir-test-cases`, and those are not always identical:
-`observation-example.xml` there carries an extension
-(`http://example.com/fhir/StructureDefinition/patient-age`) that the published
-example does not. Three cases exercise it and cannot pass with this input.
+The inputs taken from hl7.org are the *published* examples, while the suite runs
+against the copies in `fhir-test-cases`, and those are not always identical. One
+difference is known and has been reconciled: `observation-example.xml` there
+carries an extension the published example does not, which three cases exercise.
 
-Converting the suite's own XML resources to JSON would remove both this
-discrepancy and the skipped cases below. It needs a FHIR-aware converter, since
+```xml
+<extension url="http://example.com/fhir/StructureDefinition/patient-age">
+  <valueAge>
+    <value value="41" />
+    <system value="http://unitsofmeasure.org" />
+    <code value="a" />
+  </valueAge>
+</extension>
+```
+
+`input/observation-example.json` carries the JSON equivalent, transcribed from
+that element. Every other element of the two representations lines up, so this
+is the whole of the difference rather than a patch over an unknown one.
+
+The remaining inputs have not been diffed against the suite's copies element by
+element. Converting the suite's own XML resources wholesale would settle it, and
+would also close the skipped cases below; it needs a FHIR-aware converter, since
 XML gives no hint of which elements are arrays.
 
 ## Cases not executed

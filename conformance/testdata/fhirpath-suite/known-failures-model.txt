@@ -15,9 +15,6 @@ testCombine()/testCombine1
 testDollar/testDollarOrderNotAllowed
 testIif/testIif6
 testInheritance/testFHIRPathAsFunction21
-testInheritance/testFHIRPathIsFunction10
-testInheritance/testFHIRPathIsFunction8
-testInheritance/testFHIRPathIsFunction9
 testObservations/testPolymorphismAsB
 testObservations/testPolymorphismB
 testReplaceMatches/testReplaceMatches2
