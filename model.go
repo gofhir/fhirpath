@@ -71,6 +71,23 @@ type VersionedModel interface {
 	FHIRVersion() string
 }
 
+// TypeRegistry is an optional interface a [Model] may also implement to report
+// whether a name resolves to a type at all.
+//
+// The specification requires it for the type operators: "A type specifier is an
+// identifier that must resolve to the name of a type in a model." A name that
+// resolves to nothing is not a filter that matches nothing — Patient.gender.as(string1)
+// is an error, because string1 names no type — and only the model can tell the
+// two apart.
+//
+// A model that does not implement this interface has its type specifiers taken
+// at face value, which is the behavior every existing caller has today.
+type TypeRegistry interface {
+	// HasType reports whether the name resolves to a type this model declares.
+	// The name is unqualified: Patient rather than FHIR.Patient.
+	HasType(typeName string) bool
+}
+
 // WithModel sets the FHIR version-specific model for the evaluation.
 // When provided, the engine uses precise choice type lists, full type hierarchy,
 // and path-based type resolution instead of built-in heuristics.

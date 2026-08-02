@@ -177,3 +177,17 @@ func (a *modelAdapter) FHIRVersion() string {
 	}
 	return ""
 }
+
+// LookupType forwards a type-name lookup, reporting separately whether the
+// wrapped model could answer at all.
+//
+// The two results have to stay apart: a model that cannot enumerate its types
+// is not a model in which every type is missing, and collapsing the two would
+// turn every type specifier into an error.
+func (a *modelAdapter) LookupType(typeName string) (known, supported bool) {
+	registry, ok := a.model.(TypeRegistry)
+	if !ok {
+		return false, false
+	}
+	return registry.HasType(typeName), true
+}

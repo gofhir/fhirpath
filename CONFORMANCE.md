@@ -68,7 +68,7 @@ passing — so the list can only shrink, and it never lies about the number.
 | Block | Cases | Notes |
 |---|---|---|
 | `as()` on a multi-item collection | 1 | Applies from R5; the suite is R4 — see below |
-| `as()`/`ofType()` with an unknown type name | 2 | Should error; needs the model to be able to say whether a type exists |
+| `as()`/`ofType()` with an unknown type name | 2 | Implemented, waiting on a model that can enumerate its types — see below |
 | Errors we should raise and don't | 23 | 12 `execution`, 11 `semantic`; the semantic ones need a Model |
 | `lowBoundary` / `highBoundary` | 8 | Three are a suite disagreement (see below); two assume `@2014-01-01T08` carries an implicit minute |
 
@@ -129,6 +129,25 @@ table: "If the month and day of the date or time value is not a valid date in
 the resulting year, the last day of the calendar month is used." The answers are
 now `2017-02-28` and `2014-02-28`. Go's `AddDate` normalizes, which is the
 behaviour that was inherited by writing the shift in terms of it.
+
+## Waiting on the model
+
+A type specifier "must resolve to the name of a type in a model", so a name that
+resolves to nothing is an error rather than a filter that matches nothing. The
+engine enforces this through an optional `TypeRegistry` interface, and the two
+suite cases pass as soon as a model implements it — the same arrangement that
+`FHIRVersion()` went through.
+
+It cannot be derived from the `Model` contract as it stands. `ParentType` returns
+`""` for a name that does not exist, which distinguishes almost every case, but
+it returns `""` for the root types as well: `Element` and `Base` are real types
+with no parent. Filling in the roots by hand would be the kind of duplicated
+knowledge a generated model exists to avoid.
+
+Worth noting that fhirpath.js does not validate type specifiers at all — its
+`TypeInfo.isType` walks the hierarchy comparing names, so an unknown name simply
+matches nothing. This is a point where the specification and the conformance
+suite are explicit and the reference implementation is not.
 
 ## What was wrong, and why nothing caught it
 

@@ -5,6 +5,18 @@ import (
 	"strings"
 )
 
+// typeRegistry is implemented by a model that can say whether a name resolves to
+// one of its types.
+//
+// The second result separates "this model has no such type" from "this model
+// cannot answer", which a single bool would conflate — and conflating them would
+// make every type specifier an error against a model that does not carry the
+// list. The public side of this is fhirpath.TypeRegistry, where the interface is
+// documented; the adapter in the parent package translates between the two.
+type typeRegistry interface {
+	LookupType(typeName string) (known, supported bool)
+}
+
 // versionedModel is implemented by a model that declares which FHIR version it
 // describes. It mirrors fhirpath.VersionedModel across the package boundary.
 type versionedModel interface {

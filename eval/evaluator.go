@@ -1068,6 +1068,9 @@ func (e *Evaluator) evaluateIsFunction(input types.Collection, typeExpr grammar.
 	if typeName == "" {
 		return InvalidArgumentsError("is", 1, 0)
 	}
+	if err := e.checkTypeSpecifier("is", typeName); err != nil {
+		return err
+	}
 
 	// Get actual type - Type() already returns resourceType for ObjectValue
 	actualType := input[0].Type()
@@ -1090,6 +1093,9 @@ func (e *Evaluator) evaluateAsFunction(input types.Collection, typeExpr grammar.
 	typeName := e.extractTypeNameFromExpr(typeExpr)
 	if typeName == "" {
 		return InvalidArgumentsError("as", 1, 0)
+	}
+	if err := e.checkTypeSpecifier("as", typeName); err != nil {
+		return err
 	}
 
 	if err := e.checkAsSingleton(input); err != nil {
@@ -1176,6 +1182,9 @@ func (e *Evaluator) evaluateOfType(input types.Collection, typeExpr grammar.IExp
 	typeName := e.extractTypeNameFromExpr(typeExpr)
 	if typeName == "" {
 		return InvalidArgumentsError("ofType", 1, 0)
+	}
+	if err := e.checkTypeSpecifier("ofType", typeName); err != nil {
+		return err
 	}
 
 	result := types.Collection{}
@@ -1948,6 +1957,45 @@ func IsSubtypeOfWithModel(actualType, baseType string, model Model) bool {
 		return model.IsSubtype(actualType, baseType)
 	}
 	return IsSubtypeOf(actualType, baseType)
+}
+
+// checkTypeSpecifier reports an error when the name does not resolve to a type.
+//
+// "A type specifier is an identifier that must resolve to the name of a type in
+// a model." A name that resolves to nothing is not a filter that matches
+// nothing: Patient.gender.as(string1) is an error, because string1 names no
+// type, while Patient.gender.as(uri) is empty because gender is a code.
+//
+// Only the model can tell the two apart, and only if it can enumerate its types
+// — an optional interface, since the Model contract cannot answer this. Without
+// it the specifier is taken at face value, which is what every caller had
+// before.
+func (e *Evaluator) checkTypeSpecifier(function, typeName string) error {
+	registry, ok := e.ctx.model.(typeRegistry)
+	if !ok {
+		return nil
+	}
+
+	// The specifier may name its model: FHIR.Patient, System.String
+	name := typeName
+	if dot := strings.LastIndex(name, "."); dot >= 0 {
+		namespace := name[:dot]
+		name = name[dot+1:]
+
+		// A System type is the language's own, not the model's
+		if namespace == "System" {
+			return nil
+		}
+	}
+	if types.IsSystemTypeName(name) {
+		return nil
+	}
+
+	known, supported := registry.LookupType(name)
+	if supported && !known {
+		return NewEvalError(ErrType, "%s: %q does not resolve to a type in the model", function, typeName)
+	}
+	return nil
 }
 
 // castMatches reports whether a value is of the requested type for the purpose
