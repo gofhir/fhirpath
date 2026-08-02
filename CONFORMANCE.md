@@ -37,8 +37,8 @@ Measured against the official suite, in both configurations a caller can use:
 |---|---|
 | R4 suite, no FHIR model supplied | **894 of 928 (96.3%)** |
 | R4 suite, with the R4 model | **911 of 928 (98.2%)** |
-| R5 suite, no FHIR model supplied | **996 of 1037 (96.0%)** |
-| R5 suite, with the R5 model | **1013 of 1037 (97.7%)** |
+| R5 suite, no FHIR model supplied | **997 of 1037 (96.1%)** |
+| R5 suite, with the R5 model | **1014 of 1037 (97.8%)** |
 
 ```sh
 make conformance          # prints both numbers

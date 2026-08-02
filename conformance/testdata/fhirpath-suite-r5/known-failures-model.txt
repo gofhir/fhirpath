@@ -12,7 +12,6 @@ TerminologyTests/txTest01
 TerminologyTests/txTest02
 TerminologyTests/txTest03
 defineVariable/dvConceptMapExample
-miscEngineTests/testMultipleResolve
 polymorphics/testPolymorphicsB
 testBasics/testSimpleFail
 testBasics/testSimpleWithWrongContext
