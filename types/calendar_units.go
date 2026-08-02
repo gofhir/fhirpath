@@ -1,5 +1,7 @@
 package types
 
+import "github.com/shopspring/decimal"
+
 // The calendar unit keywords the grammar accepts as an unquoted unit, from the
 // rules dateTimePrecision and pluralDateTimePrecision.
 //
@@ -69,4 +71,20 @@ var fhirQuantityCalendarUnits = map[string]string{
 func CalendarUnitForUCUMCode(code string) (string, bool) {
 	keyword, ok := fhirQuantityCalendarUnits[code]
 	return keyword, ok
+}
+
+// SecondUnitMilliseconds converts a quantity given in seconds to whole
+// milliseconds, reporting false when the unit is not a second.
+//
+// This is the one place a duration's fractional part survives: "The decimal
+// portion of the time-valued quantity is only applied for second or millisecond
+// precisions; for all other precisions, the decimal portion is ignored, since
+// date/time arithmetic is performed with calendar duration semantics." So
+// 0.1 's' shifts by 100 milliseconds, while 7.9 days shifts by seven.
+func SecondUnitMilliseconds(value decimal.Decimal, unit string) (int, bool) {
+	switch unit {
+	case unitNameSecond, unitNameSecond + "s", "s":
+		return int(value.Mul(decimal.NewFromInt(1000)).IntPart()), true
+	}
+	return 0, false
 }

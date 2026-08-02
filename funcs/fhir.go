@@ -67,12 +67,6 @@ func fnResolve(ctx *eval.Context, input types.Collection, args []interface{}) (t
 	}
 
 	resolver := ctx.GetResolver()
-	if resolver == nil {
-		// Without a resolver, we can't resolve references
-		// Return empty collection as per FHIRPath spec
-		return types.Collection{}, nil
-	}
-
 	result := types.Collection{}
 
 	for _, item := range input {
@@ -94,6 +88,19 @@ func fnResolve(ctx *eval.Context, input types.Collection, args []interface{}) (t
 			continue
 		}
 
+		// A reference into the document being evaluated needs no resolver: the
+		// target is already here. Tried first, so that a contained resource
+		// resolves the same way whether or not the caller wired one up.
+		if local, found := resolveWithinDocument(ctx, reference); found {
+			result = append(result, local)
+			continue
+		}
+
+		// Anything else is somewhere the engine cannot reach on its own
+		if resolver == nil {
+			continue
+		}
+
 		// Resolve the reference
 		resourceJSON, err := resolver.Resolve(ctx.Context(), reference)
 		if err != nil {
@@ -111,6 +118,117 @@ func fnResolve(ctx *eval.Context, input types.Collection, args []interface{}) (t
 	}
 
 	return result, nil
+}
+
+// resolveWithinDocument finds the target of a reference inside the resource
+// being evaluated.
+//
+// FHIR writes two kinds of reference that point inward. A fragment — "#obs1" —
+// names a resource in the containing resource's contained list. A relative
+// reference — "Observation/obs1" — names an entry of the Bundle when the
+// document is one, matched on its fullUrl or on the resource's own type and id.
+//
+// Neither needs a resolver, and returning empty for them would be wrong rather
+// than merely limited: the data is right there, and an invariant like dom-3
+// that walks contained resources would silently pass on documents it should
+// reject.
+func resolveWithinDocument(ctx *eval.Context, reference string) (types.Value, bool) {
+	root := rootResourceOf(ctx)
+	if root == nil {
+		return nil, false
+	}
+
+	if strings.HasPrefix(reference, "#") {
+		return findContained(root, strings.TrimPrefix(reference, "#"))
+	}
+	return findBundleEntry(root, reference)
+}
+
+// rootResourceOf returns the resource the expression is being evaluated
+// against, which is where an inward reference is resolved from.
+func rootResourceOf(ctx *eval.Context) *types.ObjectValue {
+	for _, name := range []string{"rootResource", "resource"} {
+		if value, ok := ctx.GetVariable(name); ok && len(value) == 1 {
+			if obj, isObject := value[0].(*types.ObjectValue); isObject {
+				return obj
+			}
+		}
+	}
+
+	if root := ctx.Root(); len(root) == 1 {
+		if obj, isObject := root[0].(*types.ObjectValue); isObject {
+			return obj
+		}
+	}
+	return nil
+}
+
+// findContained looks for a contained resource by its id.
+func findContained(root *types.ObjectValue, id string) (types.Value, bool) {
+	if id == "" {
+		return nil, false
+	}
+
+	for _, candidate := range root.GetCollection("contained") {
+		obj, ok := candidate.(*types.ObjectValue)
+		if !ok {
+			continue
+		}
+		if stringField(obj, "id") == id {
+			return obj, true
+		}
+	}
+	return nil, false
+}
+
+// findBundleEntry looks for a Bundle entry by its fullUrl, or by the type and
+// id its resource carries.
+func findBundleEntry(root *types.ObjectValue, reference string) (types.Value, bool) {
+	if root.Type() != "Bundle" {
+		return nil, false
+	}
+
+	for _, entry := range root.GetCollection("entry") {
+		entryObj, isObject := entry.(*types.ObjectValue)
+		if !isObject {
+			continue
+		}
+
+		if stringField(entryObj, "fullUrl") == reference {
+			if resource, hasResource := entryObj.Get("resource"); hasResource {
+				return resource, true
+			}
+		}
+
+		resource, hasResource := entryObj.Get("resource")
+		if !hasResource {
+			continue
+		}
+		resourceObj, isResource := resource.(*types.ObjectValue)
+		if !isResource {
+			continue
+		}
+		if id := stringField(resourceObj, "id"); id != "" &&
+			reference == resourceObj.Type()+"/"+id {
+			return resourceObj, true
+		}
+	}
+
+	return nil, false
+}
+
+// stringField reads a field that holds a string, or "" when it is absent or
+// holds something else.
+func stringField(obj *types.ObjectValue, name string) string {
+	value, ok := obj.Get(name)
+	if !ok {
+		return ""
+	}
+	text, isString := value.(types.String)
+	if !isString {
+		return ""
+	}
+	return text.Value()
 }
 
 // fnExtension returns extensions matching the given URL.

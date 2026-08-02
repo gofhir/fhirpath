@@ -30,6 +30,7 @@ testInheritance/testFHIRPathIsFunction5
 testInheritance/testFHIRPathIsFunction7
 testObservations/testPolymorphismAsB
 testObservations/testPolymorphismB
+testPlus/testPlusDate19
 testReplaceMatches/testReplaceMatches2
 testType/testType10
 testType/testType12

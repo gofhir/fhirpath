@@ -357,6 +357,12 @@ func fnSubstring(_ *eval.Context, input types.Collection, args []interface{}) (t
 		return types.Collection{}, nil
 	}
 
+	// "If the input or start is empty, the result is empty" — an absent start is
+	// not a malformed call, so it is answered rather than refused
+	if col, isCollection := args[0].(types.Collection); isCollection && col.Empty() {
+		return types.Collection{}, nil
+	}
+
 	start, err := toInteger(args[0])
 	if err != nil {
 		return nil, err

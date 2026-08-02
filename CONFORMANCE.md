@@ -35,8 +35,10 @@ Measured against the official suite, in both configurations a caller can use:
 
 | Configuration | Passing |
 |---|---|
-| No FHIR model supplied | **895 of 928 (96.4%)** |
-| With the R4 model | **912 of 928 (98.3%)** |
+| R4 suite, no FHIR model supplied | **894 of 928 (96.3%)** |
+| R4 suite, with the R4 model | **911 of 928 (98.2%)** |
+| R5 suite, no FHIR model supplied | **997 of 1037 (96.1%)** |
+| R5 suite, with the R5 model | **1014 of 1037 (97.8%)** |
 
 ```sh
 make conformance          # prints both numbers
@@ -103,6 +105,54 @@ suite is followed: it expects `@2014-01-01T08.lowBoundary(17)` to carry `+14:00`
 the offset that makes the instant earliest, while the specification's example
 shows no offset at all. The suite's reading is the stricter one — a boundary
 should bound — and fhirpath.js omits the offset, so it fails that case.
+
+## Inputs that are not the suite's
+
+Three of the R5 inputs vendored from hl7.org have drifted from the copies the
+suite runs against, and the testdata README records each one. Two are left
+unreconciled on purpose: `valueset-example-expansion` differs in several fields
+at once, and `conceptmap-example` is a different resource altogether — four
+groups against one. Patching the single field a failing case reads would hide
+one difference while leaving the rest, and would leave the input looking aligned
+when it is not. Four cases fail for this reason, and the expressions in them
+evaluate correctly.
+
+## Where the two suites disagree
+
+One case appears in both corpora with the same expression and different expected
+results, and it is worth recording because the disagreement is HL7's own.
+
+    @1973-12-25T00:00:00.000+10:00 + 0.1 's'
+
+The R4 suite expects the fractional second to be dropped; the R5 suite expects
+`.100`. FHIRPath N1 — the version the R4 suite measures against — says "For
+precisions **above** seconds, the decimal portion of the time-valued quantity is
+ignored", which leaves the decimal in place at the level of seconds, and 3.0.0
+states the same rule the other way round: "only applied for second or
+millisecond precisions".
+
+Both specifications therefore call for `.100`, and the R5 suite was corrected to
+match. The R4 case is listed as a known failure rather than special-cased: an
+engine that dropped the decimal would be wrong under either specification, and
+the fix is worth five other cases in the R5 corpus.
+
+### conformsTo, where R5 disagrees with itself
+
+R4 says an unresolvable profile is an error; R5 says the result is empty. The
+engine follows the version the model declares, which is what the two
+specifications ask for.
+
+The R5 suite, however, marks `conformsTo('http://trash')` as
+`invalid="execution"` — an error, the R4 reading. So the R5 case fails here and
+is listed as a known failure. Following its own prose over its own suite is the
+same call made everywhere else in this file: the specification is the authority,
+the suite is evidence about it, and where they part company the reasoning is
+recorded rather than the number optimised.
+
+This one differs from the `+ 0.1 's'` case above in a way worth keeping straight.
+There, both specifications agreed and one suite was stale, so the suite was the
+thing to disregard. Here the two specifications disagree with each other, and
+the engine implements both — the disagreement is real, not a lag.
 
 ## Rules the FHIRPath suite does not reach
 

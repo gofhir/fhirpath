@@ -39,6 +39,7 @@ import (
 	"github.com/gofhir/fhirpath"
 	"github.com/gofhir/fhirpath/types"
 	"github.com/gofhir/models/r4"
+	"github.com/gofhir/models/r5"
 )
 
 var updateKnownFailures = flag.Bool("update-known-failures", false,
@@ -50,7 +51,13 @@ const (
 	suiteInputDir          = suiteDir + "/input"
 	knownFailuresFile      = suiteDir + "/known-failures.txt"
 	knownFailuresModelFile = suiteDir + "/known-failures-model.txt"
-	knownFailuresComment   = `# Cases from the official FHIRPath suite that this engine does not pass yet.
+
+	suiteDirR5               = "testdata/fhirpath-suite-r5"
+	suiteFileR5              = suiteDirR5 + "/tests-fhir-r5.xml"
+	suiteInputDirR5          = suiteDirR5 + "/input"
+	knownFailuresFileR5      = suiteDirR5 + "/known-failures.txt"
+	knownFailuresModelFileR5 = suiteDirR5 + "/known-failures-model.txt"
+	knownFailuresComment     = `# Cases from the official FHIRPath suite that this engine does not pass yet.
 # One "group/test" per line. Maintained by TestOfficialSuite; regenerate with
 #   go test -run TestOfficialSuite -update-known-failures
 # A line removed from here must stay passing; a new failure fails the build.
@@ -100,35 +107,79 @@ type variant struct {
 	evaluate     func(expr *fhirpath.Expression, resource []byte) (types.Collection, error)
 }
 
-func variants() []variant {
-	return []variant{
+// corpus is one published suite: the cases, the resources they run against, and
+// a baseline per variant.
+//
+// There are two, and they are not the same measurement. The R4 suite is what
+// the other engines report against and what most deployed data conforms to; the
+// R5 one is larger, covers functions R4 never exercised — defineVariable among
+// them — and evaluates under the rules that changed with R5.
+type corpus struct {
+	name     string
+	file     string
+	inputDir string
+	variants []variant
+}
+
+func corpora() []corpus {
+	return []corpus{
 		{
-			name:         "without model",
-			baselineFile: knownFailuresFile,
-			evaluate: func(expr *fhirpath.Expression, resource []byte) (types.Collection, error) {
-				return expr.Evaluate(resource)
+			name:     "r4",
+			file:     suiteFile,
+			inputDir: suiteInputDir,
+			variants: []variant{
+				{
+					name:         "without model",
+					baselineFile: knownFailuresFile,
+					evaluate: func(expr *fhirpath.Expression, resource []byte) (types.Collection, error) {
+						return expr.Evaluate(resource)
+					},
+				},
+				{
+					name:         "with r4 model",
+					baselineFile: knownFailuresModelFile,
+					evaluate: func(expr *fhirpath.Expression, resource []byte) (types.Collection, error) {
+						return expr.EvaluateWithOptions(resource, fhirpath.WithModel(r4.FHIRPathModel()))
+					},
+				},
 			},
 		},
 		{
-			name:         "with r4 model",
-			baselineFile: knownFailuresModelFile,
-			evaluate: func(expr *fhirpath.Expression, resource []byte) (types.Collection, error) {
-				return expr.EvaluateWithOptions(resource, fhirpath.WithModel(r4.FHIRPathModel()))
+			name:     "r5",
+			file:     suiteFileR5,
+			inputDir: suiteInputDirR5,
+			variants: []variant{
+				{
+					name:         "without model",
+					baselineFile: knownFailuresFileR5,
+					evaluate: func(expr *fhirpath.Expression, resource []byte) (types.Collection, error) {
+						return expr.Evaluate(resource)
+					},
+				},
+				{
+					name:         "with r5 model",
+					baselineFile: knownFailuresModelFileR5,
+					evaluate: func(expr *fhirpath.Expression, resource []byte) (types.Collection, error) {
+						return expr.EvaluateWithOptions(resource, fhirpath.WithModel(r5.FHIRPathModel()))
+					},
+				},
 			},
 		},
 	}
 }
 
 func TestOfficialSuite(t *testing.T) {
-	for _, v := range variants() {
-		t.Run(v.name, func(t *testing.T) {
-			runSuite(t, v)
-		})
+	for _, c := range corpora() {
+		for _, v := range c.variants {
+			t.Run(c.name+"/"+v.name, func(t *testing.T) {
+				runSuite(t, c, v)
+			})
+		}
 	}
 }
 
-func runSuite(t *testing.T, v variant) {
-	data, err := os.ReadFile(suiteFile)
+func runSuite(t *testing.T, c corpus, v variant) {
+	data, err := os.ReadFile(c.file)
 	if err != nil {
 		t.Fatalf("read suite: %v", err)
 	}
@@ -138,7 +189,7 @@ func runSuite(t *testing.T, v variant) {
 		t.Fatalf("parse suite: %v", err)
 	}
 
-	inputs := newInputLoader(t)
+	inputs := newInputLoader(t, c.inputDir)
 	known := loadKnownFailures(t, v.baselineFile)
 
 	var (
@@ -180,8 +231,8 @@ func runSuite(t *testing.T, v variant) {
 
 	// Coverage is reported, never silently reduced: a case the harness could not
 	// run is as important as one that failed.
-	t.Logf("official suite (%s): %d/%d executed cases pass (%.1f%%), %d known failures",
-		v.name, passed, executed, 100*float64(passed)/float64(executed), len(failures))
+	t.Logf("official suite %s (%s): %d/%d executed cases pass (%.1f%%), %d known failures",
+		c.name, v.name, passed, executed, 100*float64(passed)/float64(executed), len(failures))
 	for file, n := range skippedByInput {
 		t.Logf("skipped %d case(s): no JSON available for input %q", n, file)
 	}
@@ -289,11 +340,12 @@ func outputValues(outputs []suiteOutput) []string {
 // holds the published JSON equivalent under the same base name.
 type inputLoader struct {
 	t     *testing.T
+	dir   string
 	cache map[string][]byte
 }
 
-func newInputLoader(t *testing.T) *inputLoader {
-	return &inputLoader{t: t, cache: map[string][]byte{}}
+func newInputLoader(t *testing.T, dir string) *inputLoader {
+	return &inputLoader{t: t, dir: dir, cache: map[string][]byte{}}
 }
 
 func (l *inputLoader) load(name string) ([]byte, bool) {
@@ -307,7 +359,7 @@ func (l *inputLoader) load(name string) ([]byte, bool) {
 	}
 
 	base := strings.TrimSuffix(strings.TrimSuffix(name, ".xml"), ".json")
-	data, err := os.ReadFile(filepath.Join(suiteInputDir, base+".json"))
+	data, err := os.ReadFile(filepath.Join(l.dir, base+".json"))
 	if err != nil {
 		l.cache[name] = nil
 		return nil, false

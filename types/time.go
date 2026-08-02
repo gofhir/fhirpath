@@ -195,3 +195,56 @@ func (t Time) WithElement(element *ObjectValue) Time {
 	t.element = element
 	return t
 }
+
+// millisecondsPerDay is the length of the cycle a Time value wraps around.
+const millisecondsPerDay = 24 * 60 * 60 * 1000
+
+// AddDuration shifts a time of day, wrapping around the day.
+//
+// "As Time is cyclic, using arithmetic operations + or - on Time types can
+// result in overflowing the time value, which will wrap around the beginning of
+// the day. So adding 1 hour to @T23:30:00 will wrap around to @T00:30:00, which
+// is consistent with the behavior of DateTime values."
+//
+// A time carries no date, so only the clock units apply. Adding a day to a time
+// of day names no value, and the specification says so: "This includes
+// attempting to add date components to a Time."
+func (t Time) AddDuration(value int, unit string) (Time, error) {
+	years, months, days, millis, err := durationParts(value, unit)
+	if err != nil {
+		return Time{}, err
+	}
+	if years != 0 || months != 0 || days != 0 {
+		return Time{}, fmt.Errorf("%w: %q shifts a date, and a time has none",
+			ErrDateComponentOnTime, unit)
+	}
+
+	shifted := t.millisecondsOfDay() + millis
+
+	// Go's remainder keeps the sign of the dividend, so a subtraction that runs
+	// past midnight would land on a negative clock
+	shifted %= millisecondsPerDay
+	if shifted < 0 {
+		shifted += millisecondsPerDay
+	}
+
+	return Time{
+		hour:      shifted / (60 * 60 * 1000),
+		minute:    shifted / (60 * 1000) % 60,
+		second:    shifted / 1000 % 60,
+		millis:    shifted % 1000,
+		precision: t.precision,
+		fhirType:  t.fhirType,
+	}, nil
+}
+
+// SubtractDuration shifts a time of day backwards, wrapping around the day.
+func (t Time) SubtractDuration(value int, unit string) (Time, error) {
+	return t.AddDuration(-value, unit)
+}
+
+// millisecondsOfDay is the time of day as a single number, which is what makes
+// the wrap a remainder rather than a carry through four components.
+func (t Time) millisecondsOfDay() int {
+	return ((t.hour*60+t.minute)*60+t.second)*1000 + t.millis
+}
