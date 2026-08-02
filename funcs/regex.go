@@ -42,6 +42,10 @@ func NewRegexCache(limit, maxLen int, timeout time.Duration) *RegexCache {
 	}
 }
 
+// singleLineMode makes . match every character including a newline, which is
+// the mode FHIRPath regular expressions run in.
+const singleLineMode = "(?s)"
+
 // Compile compiles a regex pattern with caching and complexity validation.
 func (c *RegexCache) Compile(pattern string) (*regexp.Regexp, error) {
 	// ReDoS protection: check pattern length
@@ -64,8 +68,15 @@ func (c *RegexCache) Compile(pattern string) (*regexp.Regexp, error) {
 	}
 	c.mu.RUnlock()
 
-	// Compile the pattern
-	re, err := regexp.Compile(pattern)
+	// Compile the pattern in the mode the specification fixes: "Regular
+	// expressions should function consistently, regardless of any culture- and
+	// locale-specific settings in the environment, should be case-sensitive,
+	// use 'single line' mode and allow Unicode characters."
+	//
+	// Single line mode is what makes . match a newline, which Go leaves off by
+	// default. Without it 'A\nB'.matches('A.*B') is false, and a value that
+	// spans lines — an address, a narrative — cannot be matched across them.
+	re, err := regexp.Compile(singleLineMode + pattern)
 	if err != nil {
 		return nil, eval.NewEvalError(eval.ErrInvalidExpression, "invalid regex: %s", err.Error())
 	}

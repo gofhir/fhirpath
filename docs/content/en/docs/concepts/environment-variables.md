@@ -64,6 +64,43 @@ This is shorthand for:
 Observation.value.ofType(Quantity).system = 'http://unitsofmeasure.org'
 ```
 
+Several FHIR® invariants marked SHALL depend on it, among them `age-1`, `drt-1`, `cnt-3` and `dis-1`:
+
+```text
+// FHIR invariant cnt-3 (Count)
+(code.exists() or value.empty()) and (system.empty() or system = %ucum) and (code.empty() or code = '1')
+```
+
+### %sct and %loinc
+
+Like `%ucum`, these resolve to the canonical URL of a code system:
+
+| Variable  | Value                       |
+|-----------|-----------------------------|
+| `%sct`    | `'http://snomed.info/sct'`  |
+| `%loinc`  | `'http://loinc.org'`        |
+
+### %vs- and %ext-
+
+FHIR® also defines two parameterized forms that expand to a canonical URL:
+
+| Expression                     | Value                                                          |
+|--------------------------------|----------------------------------------------------------------|
+| `%'vs-administrative-gender'`  | `'http://hl7.org/fhir/ValueSet/administrative-gender'`         |
+| `%'ext-patient-birthTime'`     | `'http://hl7.org/fhir/StructureDefinition/patient-birthTime'`  |
+
+The FHIR® specification writes these with double quotes (`%"vs-[name]"`), which the FHIRPath grammar does not accept. Use single quotes or backticks instead: `%'vs-name'` or ``%`vs-name` ``.
+
+### Overriding a fixed constant
+
+`%ucum`, `%sct` and `%loinc` are set by `eval.NewContext` before evaluation, so [`WithVariable`](#custom-variables-with-withvariable) can replace any of them — useful for testing against a different terminology server:
+
+```go
+result, err := expr.EvaluateWithOptions(resource,
+    fhirpath.WithVariable("loinc", types.Collection{types.NewString("http://example.org/loinc")}),
+)
+```
+
 ## Custom Variables with WithVariable()
 
 You can inject your own environment variables into an evaluation using the `WithVariable` functional option. Custom variables are accessed in FHIRPath expressions via the `%name` syntax, just like built-in variables.

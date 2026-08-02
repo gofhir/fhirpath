@@ -6,9 +6,18 @@ package fhirpath
 // and path-based type inference. When nil (the default), the engine falls
 // back to its built-in heuristics.
 //
-// This interface is satisfied by gofhir/models/r4.FHIRPathModelData (and the
-// r4b/r5 equivalents) via Go's structural typing — no import dependency is
-// required between the two packages.
+// This interface is satisfied by the model returned from
+// gofhir/models/r4.FHIRPathModel() (and the r4b/r5 equivalents) via Go's
+// structural typing — no import dependency is required between the two
+// packages:
+//
+//	import "github.com/gofhir/models/r4"
+//
+//	result, err := expr.EvaluateWithOptions(resource,
+//	    fhirpath.WithModel(r4.FHIRPathModel()))
+//
+// Note that FHIRPathModelData is the struct type; FHIRPathModel() is the
+// accessor that returns the populated instance.
 type Model interface {
 	// ChoiceTypes returns the permitted type suffixes for a polymorphic
 	// element path. For example, "Observation.value" might return
@@ -43,6 +52,40 @@ type Model interface {
 
 	// IsResource reports whether the given type name is a known FHIR resource type.
 	IsResource(typeName string) bool
+}
+
+// VersionedModel is an optional interface a [Model] may also implement to
+// declare which FHIR version it describes, as "4.0.1" or "R5".
+//
+// Some rules of the language changed with R5, and the reference validator
+// applies them by version rather than picking one reading. The clearest case is
+// the `as` operator: from R5 it must raise an error when its input holds more
+// than one item, while before R5 it filters — which is what FHIR's own dom-3
+// invariant relies on, since it is written as
+// %resource.descendants().as(canonical).
+//
+// A model that does not implement this interface is treated as pre-R5, which
+// keeps every existing caller on the behavior it has today.
+type VersionedModel interface {
+	// FHIRVersion returns the FHIR version the model describes.
+	FHIRVersion() string
+}
+
+// TypeRegistry is an optional interface a [Model] may also implement to report
+// whether a name resolves to a type at all.
+//
+// The specification requires it for the type operators: "A type specifier is an
+// identifier that must resolve to the name of a type in a model." A name that
+// resolves to nothing is not a filter that matches nothing — Patient.gender.as(string1)
+// is an error, because string1 names no type — and only the model can tell the
+// two apart.
+//
+// A model that does not implement this interface has its type specifiers taken
+// at face value, which is the behavior every existing caller has today.
+type TypeRegistry interface {
+	// HasType reports whether the name resolves to a type this model declares.
+	// The name is unqualified: Patient rather than FHIR.Patient.
+	HasType(typeName string) bool
 }
 
 // WithModel sets the FHIR version-specific model for the evaluation.

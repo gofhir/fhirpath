@@ -14,6 +14,10 @@ type Date struct {
 	month     int // 0 if not specified
 	day       int // 0 if not specified
 	precision DatePrecision
+	fhirType  string // FHIR type when the value was read through a model
+
+	// The FHIR element this value was read with, when it carried one
+	primitiveElement
 }
 
 // DatePrecision indicates the precision of a date.
@@ -88,7 +92,10 @@ func NewDateFromTime(t time.Time) Date {
 
 // Type returns the type name.
 func (d Date) Type() string {
-	return "Date"
+	if d.fhirType != "" {
+		return d.fhirType
+	}
+	return TypeNameDate
 }
 
 // Equal checks equality with another value.
@@ -170,107 +177,43 @@ func (d Date) ToTime() time.Time {
 // Implements the Comparable interface.
 // Returns empty (error) if precisions differ and comparison is ambiguous.
 func (d Date) Compare(other Value) (int, error) {
-	otherDate, ok := other.(Date)
-	if !ok {
-		return 0, fmt.Errorf("cannot compare Date with %s", other.Type())
-	}
-
-	// Check for ambiguous comparison due to different precisions
-	// According to FHIRPath spec, comparing dates with different precisions
-	// where the more precise date falls within the less precise date's range
-	// should return empty (represented as error here)
-	if d.precision != otherDate.precision {
-		// If years are different, we can still compare
-		if d.year != otherDate.year {
-			if d.year < otherDate.year {
-				return -1, nil
-			}
-			return 1, nil
-		}
-
-		// Years are equal but precisions differ
-		minPrecision := d.precision
-		if otherDate.precision < minPrecision {
-			minPrecision = otherDate.precision
-		}
-
-		// If one has only year precision, comparison is ambiguous
-		if minPrecision == YearPrecision {
-			return 0, fmt.Errorf("ambiguous comparison between dates with different precisions")
-		}
-
-		// Check months if both have at least month precision
-		if d.precision >= MonthPrecision && otherDate.precision >= MonthPrecision {
-			if d.month != otherDate.month {
-				if d.month < otherDate.month {
-					return -1, nil
-				}
-				return 1, nil
-			}
-		}
-
-		// If we get here, comparison is ambiguous
-		return 0, fmt.Errorf("ambiguous comparison between dates with different precisions")
-	}
-
-	// Same precision - direct comparison
-	if d.year < otherDate.year {
-		return -1, nil
-	}
-	if d.year > otherDate.year {
-		return 1, nil
-	}
-
-	// Compare months if both have at least month precision
-	if d.precision >= MonthPrecision {
-		if d.month < otherDate.month {
-			return -1, nil
-		}
-		if d.month > otherDate.month {
-			return 1, nil
+	if _, ok := other.(Date); !ok {
+		if _, isDateTime := other.(DateTime); !isDateTime {
+			return 0, fmt.Errorf("cannot compare Date with %s", other.Type())
 		}
 	}
-
-	// Compare days if both have day precision
-	if d.precision >= DayPrecision {
-		if d.day < otherDate.day {
-			return -1, nil
-		}
-		if d.day > otherDate.day {
-			return 1, nil
-		}
-	}
-
-	return 0, nil
+	return compareTemporalValues(d, other)
 }
 
 // AddDuration adds a duration (as Quantity with temporal unit) to the date.
 // Supported units: year(s), month(s), week(s), day(s)
-func (d Date) AddDuration(value int, unit string) Date {
-	t := d.ToTime()
+func (d Date) AddDuration(value int, unit string) (Date, error) {
+	years, months, days, millis, err := durationParts(value, unit)
+	if err != nil {
+		return Date{}, err
+	}
 
-	switch unit {
-	case "year", "years", "'year'", "'years'":
-		t = t.AddDate(value, 0, 0)
-	case "month", "months", "'month'", "'months'":
-		t = t.AddDate(0, value, 0)
-	case "week", "weeks", "'week'", "'weeks'":
-		t = t.AddDate(0, 0, value*7)
-	case "day", "days", "'day'", "'days'":
-		t = t.AddDate(0, 0, value)
-	default:
-		// For unsupported units, return unchanged
-		return d
+	// Years and months move the calendar components and clamp the day; days and
+	// below then shift from there, overflowing month and year boundaries as the
+	// specification's table describes.
+	baseYear, baseMonth, baseDay := shiftCalendarMonths(d.year, d.monthOrFirst(), d.dayOrFirst(), years, months)
+
+	// A date has no time of day, so a sub-day duration cannot move it. The
+	// specification keeps the value unchanged rather than rounding.
+	shifted := time.Date(baseYear, time.Month(baseMonth), baseDay, 0, 0, 0, 0, time.UTC).
+		AddDate(0, 0, days)
+	if millis != 0 {
+		shifted = shifted.Add(time.Duration(millis) * time.Millisecond)
 	}
 
 	result := Date{
-		year:      t.Year(),
-		month:     int(t.Month()),
-		day:       t.Day(),
+		year:      shifted.Year(),
+		month:     int(shifted.Month()),
+		day:       shifted.Day(),
 		precision: d.precision,
 	}
 
-	// Adjust precision
+	// A shift never makes the value more precise than it was
 	if d.precision < MonthPrecision {
 		result.month = 0
 	}
@@ -278,10 +221,43 @@ func (d Date) AddDuration(value int, unit string) Date {
 		result.day = 0
 	}
 
-	return result
+	return result, nil
 }
 
 // SubtractDuration subtracts a duration from the date.
-func (d Date) SubtractDuration(value int, unit string) Date {
+func (d Date) SubtractDuration(value int, unit string) (Date, error) {
 	return d.AddDuration(-value, unit)
+}
+
+// WithFHIRType returns a copy that reports the FHIR type it was declared with.
+// FHIR primitives are types in their own right — a FHIR.boolean is not a
+// System.Boolean — so a value keeps the name the model gave it.
+func (d Date) WithFHIRType(fhirType string) Date {
+	d.fhirType = fhirType
+	return d
+}
+
+// WithElement returns a copy carrying the FHIR element that accompanied the
+// value in the JSON, which is where its extensions and id live.
+func (d Date) WithElement(element *ObjectValue) Date {
+	d.element = element
+	return d
+}
+
+// monthOrFirst returns the month, or January when the value is not specified to
+// a month. A shift reads every component, and the result is trimmed back to the
+// value's own precision afterwards.
+func (d Date) monthOrFirst() int {
+	if d.month == 0 {
+		return 1
+	}
+	return d.month
+}
+
+// dayOrFirst returns the day, or the first of the month when unspecified.
+func (d Date) dayOrFirst() int {
+	if d.day == 0 {
+		return 1
+	}
+	return d.day
 }

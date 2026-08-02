@@ -24,342 +24,412 @@ func init() {
 		MaxArgs: 1,
 		Fn:      fnHighBoundary,
 	})
+
+	Register(FuncDef{
+		Name:    "precision",
+		MinArgs: 0,
+		MaxArgs: 0,
+		Fn:      fnPrecision,
+	})
 }
 
 // fnLowBoundary returns the lowest possible value for the input based on its precision.
-//
-//nolint:dupl // mirrors fnHighBoundary intentionally; extracting shared logic would hurt readability
 func fnLowBoundary(_ *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
 	if input.Empty() {
 		return types.Collection{}, nil
 	}
 
-	precision := extractPrecisionArg(args)
+	precision, provided := extractPrecisionArg(args)
 
-	switch v := input[0].(type) {
-	case types.Date:
-		return lowBoundaryDate(v)
-	case types.DateTime:
-		return lowBoundaryDateTime(v)
-	case types.Time:
-		return lowBoundaryTime(v)
-	case types.Decimal:
-		if precision < 0 {
-			precision = v.ImplicitPrecision()
-			if precision == 0 {
-				return types.Collection{}, nil
-			}
-		}
-		return lowBoundaryDecimal(v, precision)
-	case types.Integer:
-		return types.Collection{v}, nil
-	case types.Quantity:
-		if precision < 0 {
-			precision = inferQuantityPrecision(v)
-			if precision == 0 {
-				return types.Collection{}, nil
-			}
-		}
-		return lowBoundaryQuantity(v, precision)
-	default:
-		return types.Collection{}, nil
-	}
+	return boundaryOf(input[0], precision, provided, true)
 }
 
 // fnHighBoundary returns the highest possible value for the input based on its precision.
-//
-//nolint:dupl // mirrors fnLowBoundary intentionally; extracting shared logic would hurt readability
 func fnHighBoundary(_ *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
 	if input.Empty() {
 		return types.Collection{}, nil
 	}
 
-	precision := extractPrecisionArg(args)
+	precision, provided := extractPrecisionArg(args)
 
-	switch v := input[0].(type) {
-	case types.Date:
-		return highBoundaryDate(v)
-	case types.DateTime:
-		return highBoundaryDateTime(v)
-	case types.Time:
-		return highBoundaryTime(v)
+	return boundaryOf(input[0], precision, provided, false)
+}
+
+// boundaryOf dispatches a boundary computation by input type. low selects which
+// end of the interval to return.
+//
+// Integer is included for language consistency, as the specification notes,
+// even though a discrete domain makes the result trivial: it is treated as a
+// decimal with no fractional digits, so 1.lowBoundary() is 0.5.
+func boundaryOf(value types.Value, precision int, provided, low bool) (types.Collection, error) {
+	switch v := value.(type) {
 	case types.Decimal:
-		if precision < 0 {
-			precision = v.ImplicitPrecision()
-			if precision == 0 {
-				return types.Collection{}, nil
-			}
-		}
-		return highBoundaryDecimal(v, precision)
+		return decimalBoundary(v.Value(), v.ImplicitPrecision(), decimalPrecisionOr(precision, provided), low)
 	case types.Integer:
-		return types.Collection{v}, nil
+		return decimalBoundary(decimal.NewFromInt(v.Value()), 0, decimalPrecisionOr(precision, provided), low)
 	case types.Quantity:
-		if precision < 0 {
-			precision = inferQuantityPrecision(v)
-			if precision == 0 {
-				return types.Collection{}, nil
-			}
-		}
-		return highBoundaryQuantity(v, precision)
+		return quantityBoundary(v, precision, provided, low)
+	case types.Date:
+		return dateBoundary(v, precision, provided, low)
+	case types.DateTime:
+		return dateTimeBoundary(v, precision, provided, low)
+	case types.Time:
+		return timeBoundary(v, precision, provided, low)
 	default:
 		return types.Collection{}, nil
 	}
 }
 
+// decimalPrecisionOr resolves the output precision for decimal boundaries,
+// applying the type's default when none was requested.
+func decimalPrecisionOr(precision int, provided bool) int {
+	if !provided {
+		return defaultDecimalBoundaryPrecision
+	}
+	return precision
+}
+
 // extractPrecisionArg extracts the optional integer precision argument.
-// Returns -1 if no precision argument is provided.
-func extractPrecisionArg(args []interface{}) int {
+// provided is false when the call had no argument, which is distinct from an
+// argument of -1: the first means "use the type's default precision", the second
+// is an invalid precision and yields empty.
+func extractPrecisionArg(args []interface{}) (precision int, provided bool) {
 	if len(args) == 0 {
-		return -1
+		return 0, false
 	}
 	if col, ok := args[0].(types.Collection); ok && !col.Empty() {
 		if intVal, ok := col[0].(types.Integer); ok {
-			return int(intVal.Value())
+			return int(intVal.Value()), true
 		}
 	}
-	return -1
-}
-
-// --- Date boundaries ---
-
-func lowBoundaryDate(d types.Date) (types.Collection, error) {
-	year := d.Year()
-	month := d.Month()
-	day := d.Day()
-
-	switch d.Precision() {
-	case types.YearPrecision:
-		month = 1
-		day = 1
-	case types.MonthPrecision:
-		day = 1
-	}
-
-	result, err := types.NewDate(fmt.Sprintf("%04d-%02d-%02d", year, month, day))
-	if err != nil {
-		return types.Collection{}, nil
-	}
-	return types.Collection{result}, nil
-}
-
-func highBoundaryDate(d types.Date) (types.Collection, error) {
-	year := d.Year()
-	month := d.Month()
-	day := d.Day()
-
-	switch d.Precision() {
-	case types.YearPrecision:
-		month = 12
-		day = 31
-	case types.MonthPrecision:
-		day = daysInMonth(year, month)
-	}
-
-	result, err := types.NewDate(fmt.Sprintf("%04d-%02d-%02d", year, month, day))
-	if err != nil {
-		return types.Collection{}, nil
-	}
-	return types.Collection{result}, nil
-}
-
-// --- DateTime boundaries ---
-
-func lowBoundaryDateTime(dt types.DateTime) (types.Collection, error) {
-	year := dt.Year()
-	month := dt.Month()
-	day := dt.Day()
-	hour := dt.Hour()
-	minute := dt.Minute()
-	second := dt.Second()
-	millis := dt.Millisecond()
-
-	p := dt.Precision()
-
-	if p < types.DTMonthPrecision {
-		month = 1
-	}
-	if p < types.DTDayPrecision {
-		day = 1
-	}
-	// Hour, minute, second, millis default to 0 which is the low boundary
-
-	if p >= types.DTMillisPrecision {
-		// Already at maximum precision, return as-is
-		return types.Collection{dt}, nil
-	}
-
-	// Build the lowest boundary datetime string
-	s := fmt.Sprintf("%04d-%02d-%02dT%02d:%02d:%02d.%03d",
-		year, month, day, hour, minute, second, millis)
-
-	// Per FHIRPath spec, lowBoundary preserves existing TZ,
-	// or adds +14:00 (earliest timezone) when no TZ is specified
-	if dt.HasTZ() {
-		s += formatTZOffset(dt.TZOffset())
-	} else {
-		s += "+14:00"
-	}
-
-	result, err := types.NewDateTime(s)
-	if err != nil {
-		return types.Collection{}, nil
-	}
-	return types.Collection{result}, nil
-}
-
-func highBoundaryDateTime(dt types.DateTime) (types.Collection, error) {
-	year := dt.Year()
-	month := dt.Month()
-	day := dt.Day()
-	hour := dt.Hour()
-	minute := dt.Minute()
-	second := dt.Second()
-	millis := dt.Millisecond()
-
-	p := dt.Precision()
-
-	if p >= types.DTMillisPrecision {
-		return types.Collection{dt}, nil
-	}
-
-	if p < types.DTMonthPrecision {
-		month = 12
-	}
-	if p < types.DTDayPrecision {
-		// Use last day of the resolved month
-		m := month
-		if m == 0 {
-			m = 12
-		}
-		day = daysInMonth(year, m)
-	}
-	if p < types.DTHourPrecision {
-		hour = 23
-	}
-	if p < types.DTMinutePrecision {
-		minute = 59
-	}
-	if p < types.DTSecondPrecision {
-		second = 59
-	}
-	if p < types.DTMillisPrecision {
-		millis = 999
-	}
-
-	s := fmt.Sprintf("%04d-%02d-%02dT%02d:%02d:%02d.%03d",
-		year, month, day, hour, minute, second, millis)
-
-	// Per FHIRPath spec, highBoundary preserves existing TZ,
-	// or adds -12:00 (latest timezone) when no TZ is specified
-	if dt.HasTZ() {
-		s += formatTZOffset(dt.TZOffset())
-	} else {
-		s += "-12:00"
-	}
-
-	result, err := types.NewDateTime(s)
-	if err != nil {
-		return types.Collection{}, nil
-	}
-	return types.Collection{result}, nil
-}
-
-// --- Time boundaries ---
-
-func lowBoundaryTime(t types.Time) (types.Collection, error) {
-	hour := t.Hour()
-	minute := t.Minute()
-	second := t.Second()
-	millis := t.Millisecond()
-
-	if t.Precision() >= types.MillisPrecision {
-		return types.Collection{t}, nil
-	}
-
-	// minute, second, millis default to 0 which is the low boundary
-	s := fmt.Sprintf("%02d:%02d:%02d.%03d", hour, minute, second, millis)
-	result, err := types.NewTime(s)
-	if err != nil {
-		return types.Collection{}, nil
-	}
-	return types.Collection{result}, nil
-}
-
-func highBoundaryTime(t types.Time) (types.Collection, error) {
-	hour := t.Hour()
-	minute := t.Minute()
-	second := t.Second()
-	millis := t.Millisecond()
-
-	if t.Precision() >= types.MillisPrecision {
-		return types.Collection{t}, nil
-	}
-
-	if t.Precision() < types.MinutePrecision {
-		minute = 59
-	}
-	if t.Precision() < types.SecondPrecision {
-		second = 59
-	}
-	if t.Precision() < types.MillisPrecision {
-		millis = 999
-	}
-
-	s := fmt.Sprintf("%02d:%02d:%02d.%03d", hour, minute, second, millis)
-	result, err := types.NewTime(s)
-	if err != nil {
-		return types.Collection{}, nil
-	}
-	return types.Collection{result}, nil
+	return 0, false
 }
 
 // --- Decimal boundaries ---
 
-func lowBoundaryDecimal(d types.Decimal, precision int) (types.Collection, error) {
-	// Subtract half the precision unit from the value
-	half := decimal.NewFromFloat(0.5)
-	offset := half.Mul(decimal.NewFromInt(10).Pow(decimal.NewFromInt(int64(-precision))))
-	result := d.Value().Sub(offset)
-	dec, err := types.NewDecimal(result.String())
-	if err != nil {
-		return types.Collection{}, nil
-	}
-	return types.Collection{dec}, nil
+// Boundary precision, per the FHIRPath 3.0.0 specification:
+//
+//	"If no precision is specified, the greatest precision of the type of the
+//	 input value is used (i.e. at least 8 for Decimal, 4 for Date, at least 17
+//	 for DateTime, and at least 9 for Time)."
+//
+//	"If the precision is greater than the maximum possible precision of the
+//	 implementation, the result is empty."
+//
+// The maximum is therefore ours to set. FHIR bounds the decimal type — "decimals
+// in FHIR cannot have more than 18 digits and a decimal point" — so that is the
+// limit applied here.
+const (
+	defaultDecimalBoundaryPrecision = 8
+	maxDecimalBoundaryPrecision     = 18
+)
+
+// boundaryInterval returns half of the last significant unit of value, which is
+// how far the true value may lie from what was written: a value given to three
+// decimal places, 1.587, stands for anything within 0.0005 of it.
+//
+// Note this depends on the precision of the *input*, independent of the
+// precision requested for the output.
+func boundaryInterval(inputPrecision int) decimal.Decimal {
+	// The precision counts the digits of a decimal as it was written, so it is
+	// bounded by the length of the expression being evaluated and cannot
+	// approach the width of the exponent shopspring takes.
+	unit := decimal.New(1, int32(-inputPrecision)) //nolint:gosec // digit count of a parsed literal
+	return unit.Div(decimal.NewFromInt(2))
 }
 
-func highBoundaryDecimal(d types.Decimal, precision int) (types.Collection, error) {
-	// Add half the precision unit to the value
-	half := decimal.NewFromFloat(0.5)
-	offset := half.Mul(decimal.NewFromInt(10).Pow(decimal.NewFromInt(int64(-precision))))
-	result := d.Value().Add(offset)
-	dec, err := types.NewDecimal(result.String())
+// decimalBoundary computes one boundary of a decimal value and renders it at the
+// requested precision. low selects the lower boundary, rounding away from the
+// value in that direction so that the result still bounds it.
+func decimalBoundary(value decimal.Decimal, inputPrecision, outputPrecision int, low bool) (types.Collection, error) {
+	if outputPrecision < 0 || outputPrecision > maxDecimalBoundaryPrecision {
+		return types.Collection{}, nil
+	}
+
+	interval := boundaryInterval(inputPrecision)
+	places := int32(outputPrecision)
+
+	var bounded decimal.Decimal
+	if low {
+		bounded = value.Sub(interval).RoundFloor(places)
+	} else {
+		bounded = value.Add(interval).RoundCeil(places)
+	}
+
+	// StringFixed pads to exactly the requested precision, which is significant:
+	// 1.587.lowBoundary() is 1.58650000, not 1.5865.
+	result, err := types.NewDecimal(bounded.StringFixed(places))
 	if err != nil {
 		return types.Collection{}, nil
 	}
-	return types.Collection{dec}, nil
+	return types.Collection{result}, nil
+}
+
+// --- Temporal boundaries ---
+//
+// Temporal precision is expressed in digits, counting the significant digits of
+// the value: 4 is a year, 6 year and month, 8 a full date, then 10, 12 and 14
+// add hours, minutes and seconds, and 17 adds milliseconds. Time counts from the
+// hour instead: 2, 4, 6 and 9.
+//
+// A boundary fills the components the value does not carry with their lowest or
+// highest possible value, then presents the result at the requested precision.
+
+// Digit counts for each temporal precision.
+const (
+	digitsYear        = 4
+	digitsMonth       = 6
+	digitsDay         = 8
+	digitsHour        = 10
+	digitsMinute      = 12
+	digitsSecond      = 14
+	digitsMillisecond = 17
+
+	digitsTimeHour        = 2
+	digitsTimeMinute      = 4
+	digitsTimeSecond      = 6
+	digitsTimeMillisecond = 9
+
+	// Timezones that bound an instant whose offset is unknown: the earliest
+	// place on earth reaches a wall-clock time first, the latest one last.
+	earliestTimezone = "+14:00"
+	latestTimezone   = "-12:00"
+)
+
+// dateBoundary returns one boundary of a Date at the requested digit precision.
+func dateBoundary(d types.Date, precision int, provided, low bool) (types.Collection, error) {
+	if !provided {
+		precision = digitsDay
+	}
+
+	year, month, day := d.Year(), d.Month(), d.Day()
+
+	if d.Precision() < types.MonthPrecision {
+		month = boundaryMonth(low)
+	}
+	if d.Precision() < types.DayPrecision {
+		day = boundaryDay(year, month, low)
+	}
+
+	var formatted string
+	switch precision {
+	case digitsYear:
+		formatted = fmt.Sprintf("%04d", year)
+	case digitsMonth:
+		formatted = fmt.Sprintf("%04d-%02d", year, month)
+	case digitsDay:
+		formatted = fmt.Sprintf("%04d-%02d-%02d", year, month, day)
+	default:
+		return types.Collection{}, nil
+	}
+
+	result, err := types.NewDate(formatted)
+	if err != nil {
+		return types.Collection{}, nil
+	}
+	return types.Collection{result}, nil
+}
+
+// dateTimeBoundary returns one boundary of a DateTime at the requested digit
+// precision. Below a full date the result carries no time or timezone, so it is
+// rendered as a date.
+// temporalComponents holds a date and time broken into its parts, so the two
+// halves of a boundary calculation — completing what the value leaves unsaid,
+// and rendering it at the requested width — can be read separately.
+type temporalComponents struct {
+	year, month, day    int
+	hour, minute        int
+	second, millisecond int
+}
+
+// completeComponents fills in the components a value does not specify, pushing
+// each to the end of its range that the requested boundary calls for: the low
+// boundary of @2014 is the first instant of its January, the high boundary the
+// last of its December.
+func completeComponents(dt types.DateTime, low bool) temporalComponents {
+	c := temporalComponents{
+		year: dt.Year(), month: dt.Month(), day: dt.Day(),
+		hour: dt.Hour(), minute: dt.Minute(),
+		second: dt.Second(), millisecond: dt.Millisecond(),
+	}
+
+	if dt.Precision() < types.DTMonthPrecision {
+		c.month = boundaryMonth(low)
+	}
+	if dt.Precision() < types.DTDayPrecision {
+		// The day depends on the month, so it is filled after it
+		c.day = boundaryDay(c.year, c.month, low)
+	}
+	if dt.Precision() < types.DTHourPrecision {
+		c.hour = boundaryComponent(low, 23)
+	}
+	if dt.Precision() < types.DTMinutePrecision {
+		c.minute = boundaryComponent(low, 59)
+	}
+	if dt.Precision() < types.DTSecondPrecision {
+		c.second = boundaryComponent(low, 59)
+	}
+	if dt.Precision() < types.DTMillisPrecision {
+		c.millisecond = boundaryComponent(low, 999)
+	}
+
+	return c
+}
+
+// render writes the components out at the requested digit precision, reporting
+// false for a precision that names no temporal width.
+func (c temporalComponents) render(precision int) (string, bool) {
+	switch precision {
+	case digitsYear:
+		return fmt.Sprintf("%04d", c.year), true
+	case digitsMonth:
+		return fmt.Sprintf("%04d-%02d", c.year, c.month), true
+	case digitsDay:
+		return fmt.Sprintf("%04d-%02d-%02d", c.year, c.month, c.day), true
+	case digitsHour:
+		return fmt.Sprintf("%04d-%02d-%02dT%02d", c.year, c.month, c.day, c.hour), true
+	case digitsMinute:
+		return fmt.Sprintf("%04d-%02d-%02dT%02d:%02d", c.year, c.month, c.day, c.hour, c.minute), true
+	case digitsSecond:
+		return fmt.Sprintf("%04d-%02d-%02dT%02d:%02d:%02d",
+			c.year, c.month, c.day, c.hour, c.minute, c.second), true
+	case digitsMillisecond:
+		return fmt.Sprintf("%04d-%02d-%02dT%02d:%02d:%02d.%03d",
+			c.year, c.month, c.day, c.hour, c.minute, c.second, c.millisecond), true
+	}
+	return "", false
+}
+
+func dateTimeBoundary(dt types.DateTime, precision int, provided, low bool) (types.Collection, error) {
+	if !provided {
+		precision = digitsMillisecond
+	}
+
+	formatted, ok := completeComponents(dt, low).render(precision)
+	if !ok {
+		return types.Collection{}, nil
+	}
+
+	// A timezone only applies once the result carries a time of day. When the
+	// value has none, the boundary is the widest possible instant.
+	if precision >= digitsHour {
+		formatted += boundaryTimezone(dt, low)
+	}
+
+	// Below an hour the result is a Date, which is a different type rather than
+	// a DateTime that happens to stop early
+	if precision <= digitsDay {
+		result, err := types.NewDate(formatted)
+		if err != nil {
+			return types.Collection{}, nil
+		}
+		return types.Collection{result}, nil
+	}
+
+	result, err := types.NewDateTime(formatted)
+	if err != nil {
+		return types.Collection{}, nil
+	}
+	return types.Collection{result}, nil
+}
+
+// timeBoundary returns one boundary of a Time at the requested digit precision.
+func timeBoundary(t types.Time, precision int, provided, low bool) (types.Collection, error) {
+	if !provided {
+		precision = digitsTimeMillisecond
+	}
+
+	hour, minute := t.Hour(), t.Minute()
+	second, millis := t.Second(), t.Millisecond()
+
+	if t.Precision() < types.MinutePrecision {
+		minute = boundaryComponent(low, 59)
+	}
+	if t.Precision() < types.SecondPrecision {
+		second = boundaryComponent(low, 59)
+	}
+	if t.Precision() < types.MillisPrecision {
+		millis = boundaryComponent(low, 999)
+	}
+
+	var formatted string
+	switch precision {
+	case digitsTimeHour:
+		formatted = fmt.Sprintf("%02d", hour)
+	case digitsTimeMinute:
+		formatted = fmt.Sprintf("%02d:%02d", hour, minute)
+	case digitsTimeSecond:
+		formatted = fmt.Sprintf("%02d:%02d:%02d", hour, minute, second)
+	case digitsTimeMillisecond:
+		formatted = fmt.Sprintf("%02d:%02d:%02d.%03d", hour, minute, second, millis)
+	default:
+		return types.Collection{}, nil
+	}
+
+	result, err := types.NewTime(formatted)
+	if err != nil {
+		return types.Collection{}, nil
+	}
+	return types.Collection{result}, nil
+}
+
+// boundaryComponent returns the lowest or highest value a time component can
+// take, given that the value did not specify it.
+func boundaryComponent(low bool, highest int) int {
+	if low {
+		return 0
+	}
+	return highest
+}
+
+func boundaryMonth(low bool) int {
+	if low {
+		return 1
+	}
+	return 12
+}
+
+func boundaryDay(year, month int, low bool) int {
+	if low {
+		return 1
+	}
+	return daysInMonth(year, month)
+}
+
+// boundaryTimezone keeps the value's own offset when it has one; otherwise the
+// boundary spans every possible offset.
+func boundaryTimezone(dt types.DateTime, low bool) string {
+	if dt.HasTZ() {
+		return formatTZOffset(dt.TZOffset())
+	}
+	if low {
+		return earliestTimezone
+	}
+	return latestTimezone
 }
 
 // --- Quantity boundaries ---
 
-func lowBoundaryQuantity(q types.Quantity, precision int) (types.Collection, error) {
-	half := decimal.NewFromFloat(0.5)
-	offset := half.Mul(decimal.NewFromInt(10).Pow(decimal.NewFromInt(int64(-precision))))
-	newVal := q.Value().Sub(offset)
-	return types.Collection{types.NewQuantityFromDecimal(newVal, q.Unit())}, nil
+// quantityBoundary bounds the quantity's value and keeps its unit.
+func quantityBoundary(q types.Quantity, precision int, provided, low bool) (types.Collection, error) {
+	bounded, err := decimalBoundary(q.Value(), quantityPrecision(q), decimalPrecisionOr(precision, provided), low)
+	if err != nil || bounded.Empty() {
+		return types.Collection{}, err
+	}
+
+	value, ok := bounded[0].(types.Decimal)
+	if !ok {
+		return types.Collection{}, nil
+	}
+	return types.Collection{types.NewQuantityFromDecimal(value.Value(), q.Unit())}, nil
 }
 
-func highBoundaryQuantity(q types.Quantity, precision int) (types.Collection, error) {
-	half := decimal.NewFromFloat(0.5)
-	offset := half.Mul(decimal.NewFromInt(10).Pow(decimal.NewFromInt(int64(-precision))))
-	newVal := q.Value().Add(offset)
-	return types.Collection{types.NewQuantityFromDecimal(newVal, q.Unit())}, nil
-}
-
-// inferQuantityPrecision infers decimal precision from a Quantity's value.
-func inferQuantityPrecision(q types.Quantity) int {
-	exp := q.Value().Exponent()
-	if exp < 0 {
-		return int(-exp)
+// quantityPrecision returns the number of fractional digits the quantity's
+// value carries. It reads the scale rather than the rendered text, which
+// normalizes 1.0 to 1 and would report no fractional digits at all.
+func quantityPrecision(q types.Quantity) int {
+	if exponent := q.Value().Exponent(); exponent < 0 {
+		return int(-exponent)
 	}
 	return 0
 }
@@ -381,4 +451,84 @@ func formatTZOffset(offsetMinutes int) string {
 		offset = -offset
 	}
 	return fmt.Sprintf("%s%02d:%02d", sign, offset/60, offset%60)
+}
+
+// --- precision() ---
+
+// fnPrecision returns the number of digits of precision the input carries.
+//
+// Defined in the FHIRPath 3.0.0 specification as Standard for Trial Use, and
+// usable with Decimal, Date, DateTime and Time. For a decimal it counts the
+// digits after the decimal point — 1.58700 has five, trailing zeros included,
+// because they are significant. For a temporal value it counts the significant
+// digits of the value itself: @2014 has four, @T10:30 has four, and
+// @T10:30:00.000 has nine.
+//
+// Returns empty for empty input or for a type without a notion of precision.
+func fnPrecision(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
+	if input.Empty() {
+		return types.Collection{}, nil
+	}
+
+	var digits int
+	switch v := input[0].(type) {
+	case types.Decimal:
+		digits = v.ImplicitPrecision()
+	case types.Integer:
+		// Implicitly converted to a decimal, which has no fractional digits
+		digits = 0
+	case types.Date:
+		digits = datePrecisionDigits(v.Precision())
+	case types.DateTime:
+		digits = dateTimePrecisionDigits(v.Precision())
+	case types.Time:
+		digits = timePrecisionDigits(v.Precision())
+	default:
+		return types.Collection{}, nil
+	}
+
+	return types.Collection{types.NewInteger(int64(digits))}, nil
+}
+
+func datePrecisionDigits(p types.DatePrecision) int {
+	switch p {
+	case types.YearPrecision:
+		return digitsYear
+	case types.MonthPrecision:
+		return digitsMonth
+	default:
+		return digitsDay
+	}
+}
+
+func dateTimePrecisionDigits(p types.DateTimePrecision) int {
+	switch p {
+	case types.DTYearPrecision:
+		return digitsYear
+	case types.DTMonthPrecision:
+		return digitsMonth
+	case types.DTDayPrecision:
+		return digitsDay
+	case types.DTHourPrecision:
+		return digitsHour
+	case types.DTMinutePrecision:
+		return digitsMinute
+	case types.DTSecondPrecision:
+		return digitsSecond
+	default:
+		return digitsMillisecond
+	}
+}
+
+func timePrecisionDigits(p types.TimePrecision) int {
+	switch p {
+	case types.HourPrecision:
+		return digitsTimeHour
+	case types.MinutePrecision:
+		return digitsTimeMinute
+	case types.SecondPrecision:
+		return digitsTimeSecond
+	default:
+		return digitsTimeMillisecond
+	}
 }

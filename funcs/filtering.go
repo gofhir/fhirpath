@@ -29,11 +29,43 @@ func init() {
 	})
 
 	Register(FuncDef{
+		Name:    "repeatAll",
+		MinArgs: 1,
+		MaxArgs: 1,
+		Fn:      fnRepeatAll,
+	})
+
+	Register(FuncDef{
+		Name:    "defineVariable",
+		MinArgs: 1,
+		MaxArgs: 2,
+		Fn:      fnDefineVariable,
+	})
+
+	Register(FuncDef{
 		Name:    "ofType",
 		MinArgs: 1,
 		MaxArgs: 1,
 		Fn:      fnOfType,
 	})
+
+	// sort() takes any number of ordering keys, each evaluated per element.
+	// The evaluator intercepts it to bind $this; this registration makes the
+	// name known and its arity checked.
+	Register(FuncDef{
+		Name:    "sort",
+		MinArgs: 0,
+		MaxArgs: -1,
+		Fn:      fnSort,
+	})
+}
+
+// fnSort is a placeholder: sort() is evaluated by the evaluator, which needs the
+// unevaluated criteria to bind $this and to read a leading minus as a descending
+// marker. Reached only if called without that interception, where the input is
+// already the answer for a collection of fewer than two elements.
+func fnSort(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
+	return input, nil
 }
 
 // fnWhere filters the collection based on a criteria expression.
@@ -81,13 +113,30 @@ func fnSelect(ctx *eval.Context, input types.Collection, args []interface{}) (ty
 }
 
 // fnRepeat repeatedly applies an expression until no new results are found.
-func fnRepeat(ctx *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
+// The evaluator handles repeat(), repeatAll() and defineVariable() itself: the
+// first two re-evaluate their projection over each round of results, and the
+// third alters the scope the rest of the expression sees. Neither is expressible
+// as a function over already-evaluated arguments. These registrations declare the
+// arity, and pass the input through if reached by a caller that bypasses the
+// evaluator.
+func fnRepeat(_ *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
 	if len(args) == 0 {
 		return nil, eval.InvalidArgumentsError("repeat", 1, 0)
 	}
+	return input, nil
+}
 
-	// This requires special handling in the evaluator for recursive evaluation
-	// For now, return the input
+func fnRepeatAll(_ *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
+	if len(args) == 0 {
+		return nil, eval.InvalidArgumentsError("repeatAll", 1, 0)
+	}
+	return input, nil
+}
+
+func fnDefineVariable(_ *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
+	if len(args) == 0 {
+		return nil, eval.InvalidArgumentsError("defineVariable", 1, 0)
+	}
 	return input, nil
 }
 

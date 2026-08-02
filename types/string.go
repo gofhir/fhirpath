@@ -9,6 +9,9 @@ import (
 type String struct {
 	value    string
 	fhirType string // optional FHIR type (e.g., "Oid", "Url", "Uuid", "Id") for subtype discrimination
+
+	// The FHIR element this value was read with, when it carried one
+	primitiveElement
 }
 
 // NewString creates a new String value.
@@ -33,7 +36,7 @@ func (s String) Type() string {
 	if s.fhirType != "" {
 		return s.fhirType
 	}
-	return "String"
+	return TypeNameString
 }
 
 // Equal returns true if other is a String with the same value.
@@ -154,4 +157,19 @@ func (s String) ToChars() Collection {
 		result[i] = NewString(string(r))
 	}
 	return result
+}
+
+// WithFHIRType returns a copy that reports the FHIR type it was declared with.
+// FHIR primitives are types in their own right — a FHIR.code is not a
+// System.String — so a value keeps the name the model gave it.
+func (s String) WithFHIRType(fhirType string) String {
+	s.fhirType = fhirType
+	return s
+}
+
+// WithElement returns a copy carrying the FHIR element that accompanied the
+// value in the JSON, which is where its extensions and id live.
+func (s String) WithElement(element *ObjectValue) String {
+	s.element = element
+	return s
 }

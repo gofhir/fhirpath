@@ -5,6 +5,12 @@ import (
 	"github.com/gofhir/fhirpath/types"
 )
 
+// The registration blocks across this package are alike by construction: each is
+// a table of one Register call per function, and dupl measures that shape rather
+// than any repeated logic. Folding them into a loop over a slice would trade a
+// readable table for an unreadable one.
+//
+//nolint:dupl // a declarative registration table, not duplicated logic
 func init() {
 	// Register existence functions
 	Register(FuncDef{
@@ -118,14 +124,36 @@ func fnAll(ctx *eval.Context, input types.Collection, args []interface{}) (types
 
 // fnAllTrue returns true if all items are boolean true.
 func fnAllTrue(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
+	if err := requireBooleans("allTrue", input); err != nil {
+		return nil, err
+	}
 	if input.Empty() || input.AllTrue() {
 		return types.TrueCollection, nil
 	}
 	return types.FalseCollection, nil
 }
 
+// requireBooleans enforces the input each of these four functions is defined
+// over: "Takes a collection of Boolean values".
+//
+// A non-Boolean item is not a false one. Reading it as false would answer
+// (true | 'foo').allTrue() with a confident no, when what happened is that the
+// collection was never the kind of thing the function accepts.
+func requireBooleans(name string, input types.Collection) error {
+	for _, item := range input {
+		if _, ok := item.(types.Boolean); !ok {
+			return eval.NewEvalError(eval.ErrType,
+				"%s() takes a collection of Boolean values, and found %s", name, item.Type())
+		}
+	}
+	return nil
+}
+
 // fnAnyTrue returns true if any item is boolean true.
 func fnAnyTrue(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
+	if err := requireBooleans("anyTrue", input); err != nil {
+		return nil, err
+	}
 	if !input.Empty() && input.AnyTrue() {
 		return types.TrueCollection, nil
 	}
@@ -134,6 +162,9 @@ func fnAnyTrue(_ *eval.Context, input types.Collection, _ []interface{}) (types.
 
 // fnAllFalse returns true if all items are boolean false.
 func fnAllFalse(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
+	if err := requireBooleans("allFalse", input); err != nil {
+		return nil, err
+	}
 	if input.Empty() || input.AllFalse() {
 		return types.TrueCollection, nil
 	}
@@ -142,6 +173,9 @@ func fnAllFalse(_ *eval.Context, input types.Collection, _ []interface{}) (types
 
 // fnAnyFalse returns true if any item is boolean false.
 func fnAnyFalse(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
+	if err := requireBooleans("anyFalse", input); err != nil {
+		return nil, err
+	}
 	if !input.Empty() && input.AnyFalse() {
 		return types.TrueCollection, nil
 	}

@@ -14,6 +14,10 @@ type Time struct {
 	second    int
 	millis    int
 	precision TimePrecision
+	fhirType  string // FHIR type when the value was read through a model
+
+	// The FHIR element this value was read with, when it carried one
+	primitiveElement
 }
 
 // TimePrecision indicates the precision of a time.
@@ -102,7 +106,10 @@ func NewTimeFromGoTime(t gotime.Time) Time {
 
 // Type returns the type name.
 func (t Time) Type() string {
-	return "Time"
+	if t.fhirType != "" {
+		return t.fhirType
+	}
+	return TypeNameTime
 }
 
 // Equal checks equality with another value.
@@ -168,89 +175,23 @@ func (t Time) Millisecond() int { return t.millis }
 // Implements the Comparable interface.
 // Returns error if precisions differ and comparison is ambiguous.
 func (t Time) Compare(other Value) (int, error) {
-	otherTime, ok := other.(Time)
-	if !ok {
+	if _, ok := other.(Time); !ok {
 		return 0, fmt.Errorf("cannot compare Time with %s", other.Type())
 	}
+	return compareTemporalValues(t, other)
+}
 
-	// Check for ambiguous comparison due to different precisions
-	if t.precision != otherTime.precision {
-		// Compare at the lowest common precision
-		minPrecision := t.precision
-		if otherTime.precision < minPrecision {
-			minPrecision = otherTime.precision
-		}
+// WithFHIRType returns a copy that reports the FHIR type it was declared with.
+// FHIR primitives are types in their own right — a FHIR.boolean is not a
+// System.Boolean — so a value keeps the name the model gave it.
+func (t Time) WithFHIRType(fhirType string) Time {
+	t.fhirType = fhirType
+	return t
+}
 
-		// Compare hour
-		if t.hour != otherTime.hour {
-			if t.hour < otherTime.hour {
-				return -1, nil
-			}
-			return 1, nil
-		}
-
-		// Compare minute if both have at least minute precision
-		if minPrecision >= MinutePrecision {
-			if t.minute != otherTime.minute {
-				if t.minute < otherTime.minute {
-					return -1, nil
-				}
-				return 1, nil
-			}
-		} else {
-			return 0, fmt.Errorf("ambiguous comparison between times with different precisions")
-		}
-
-		// Compare second if both have at least second precision
-		if minPrecision >= SecondPrecision {
-			if t.second != otherTime.second {
-				if t.second < otherTime.second {
-					return -1, nil
-				}
-				return 1, nil
-			}
-		} else {
-			return 0, fmt.Errorf("ambiguous comparison between times with different precisions")
-		}
-
-		// If we get here, comparison is ambiguous at milliseconds level
-		return 0, fmt.Errorf("ambiguous comparison between times with different precisions")
-	}
-
-	// Same precision - direct comparison
-	if t.hour < otherTime.hour {
-		return -1, nil
-	}
-	if t.hour > otherTime.hour {
-		return 1, nil
-	}
-
-	if t.precision >= MinutePrecision {
-		if t.minute < otherTime.minute {
-			return -1, nil
-		}
-		if t.minute > otherTime.minute {
-			return 1, nil
-		}
-	}
-
-	if t.precision >= SecondPrecision {
-		if t.second < otherTime.second {
-			return -1, nil
-		}
-		if t.second > otherTime.second {
-			return 1, nil
-		}
-	}
-
-	if t.precision >= MillisPrecision {
-		if t.millis < otherTime.millis {
-			return -1, nil
-		}
-		if t.millis > otherTime.millis {
-			return 1, nil
-		}
-	}
-
-	return 0, nil
+// WithElement returns a copy carrying the FHIR element that accompanied the
+// value in the JSON, which is where its extensions and id live.
+func (t Time) WithElement(element *ObjectValue) Time {
+	t.element = element
+	return t
 }

@@ -1,0 +1,20 @@
+# Cases from the official FHIRPath suite that this engine does not pass yet.
+# One "group/test" per line. Maintained by TestOfficialSuite; regenerate with
+#   go test -run TestOfficialSuite -update-known-failures
+# A line removed from here must stay passing; a new failure fails the build.
+HighBoundary/HighBoundaryDateTimeMillisecond1
+HighBoundary/HighBoundaryDateTimeMillisecond3
+HighBoundary/HighBoundaryDecimal15
+HighBoundary/HighBoundaryDecimal16
+LowBoundary/LowBoundaryDecimal15
+polymorphics/testPolymorphicsB
+testBasics/testSimpleFail
+testBasics/testSimpleWithWrongContext
+testCollectionBoolean/testCollectionBoolean1
+testCombine()/testCombine1
+testDollar/testDollarOrderNotAllowed
+testIif/testIif6
+testInheritance/testFHIRPathAsFunction21
+testObservations/testPolymorphismAsB
+testObservations/testPolymorphismB
+testReplaceMatches/testReplaceMatches2

@@ -9,7 +9,11 @@ import (
 
 // Integer represents a FHIRPath integer value.
 type Integer struct {
-	value int64
+	value    int64
+	fhirType string // FHIR type when the value was read through a model
+
+	// The FHIR element this value was read with, when it carried one
+	primitiveElement
 }
 
 // NewInteger creates a new Integer value.
@@ -24,7 +28,10 @@ func (i Integer) Value() int64 {
 
 // Type returns "Integer".
 func (i Integer) Type() string {
-	return "Integer"
+	if i.fhirType != "" {
+		return i.fhirType
+	}
+	return TypeNameInteger
 }
 
 // Equal returns true if other is an Integer with the same value,
@@ -140,4 +147,19 @@ func (i Integer) Sqrt() (Decimal, error) {
 		return Decimal{}, fmt.Errorf("cannot take square root of negative number")
 	}
 	return NewDecimalFromFloat(math.Sqrt(float64(i.value))), nil
+}
+
+// WithFHIRType returns a copy that reports the FHIR type it was declared with.
+// FHIR primitives are types in their own right — a FHIR.boolean is not a
+// System.Boolean — so a value keeps the name the model gave it.
+func (i Integer) WithFHIRType(fhirType string) Integer {
+	i.fhirType = fhirType
+	return i
+}
+
+// WithElement returns a copy carrying the FHIR element that accompanied the
+// value in the JSON, which is where its extensions and id live.
+func (i Integer) WithElement(element *ObjectValue) Integer {
+	i.element = element
+	return i
 }

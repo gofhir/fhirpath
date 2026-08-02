@@ -271,9 +271,23 @@ func TestOperators(t *testing.T) {
 	})
 
 	t.Run("string concatenation", func(t *testing.T) {
-		result := Concatenate(types.Collection{types.NewString("Hello")}, types.Collection{types.NewString(" World")})
+		result, err := Concatenate(types.Collection{types.NewString("Hello")}, types.Collection{types.NewString(" World")})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		if result[0].(types.String).Value() != "Hello World" {
 			t.Errorf("expected 'Hello World', got %v", result[0])
+		}
+	})
+
+	t.Run("concatenating a collection is an error", func(t *testing.T) {
+		// The singleton rule ends in an error rather than a choice of which
+		// item to concatenate
+		_, err := Concatenate(
+			types.Collection{types.NewString("a"), types.NewString("b")},
+			types.Collection{types.NewString("c")})
+		if err == nil {
+			t.Error("expected an error for a multi-item operand")
 		}
 	})
 
@@ -620,27 +634,32 @@ func TestOperatorErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("integer divide type errors", func(t *testing.T) {
-		_, err := IntegerDivide(types.NewDecimalFromFloat(10.5), types.NewInteger(3))
-		if err == nil {
-			t.Error("expected error for decimal div integer")
+	// div and mod are "supported for Integer, Long and Decimal", and the
+	// specification works through 5.5 div 0.7 // 7 (decimal), so a decimal
+	// operand is not a type error. A non-numeric one still is.
+	t.Run("integer divide accepts decimals", func(t *testing.T) {
+		result, err := IntegerDivide(types.NewDecimalFromFloat(10.5), types.NewInteger(3))
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		} else if result.String() != "3" {
+			t.Errorf("10.5 div 3 = %s, want 3", result.String())
 		}
 
-		_, err = IntegerDivide(types.NewInteger(10), types.NewDecimalFromFloat(3.5))
-		if err == nil {
-			t.Error("expected error for integer div decimal")
+		if _, err := IntegerDivide(types.NewString("x"), types.NewInteger(3)); err == nil {
+			t.Error("expected an error for a non-numeric operand")
 		}
 	})
 
-	t.Run("modulo type errors", func(t *testing.T) {
-		_, err := Modulo(types.NewDecimalFromFloat(10.5), types.NewInteger(3))
-		if err == nil {
-			t.Error("expected error for decimal mod integer")
+	t.Run("modulo accepts decimals", func(t *testing.T) {
+		result, err := Modulo(types.NewDecimalFromFloat(10.5), types.NewInteger(3))
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		} else if result.String() != "1.5" {
+			t.Errorf("10.5 mod 3 = %s, want 1.5", result.String())
 		}
 
-		_, err = Modulo(types.NewInteger(10), types.NewDecimalFromFloat(3.5))
-		if err == nil {
-			t.Error("expected error for integer mod decimal")
+		if _, err := Modulo(types.NewString("x"), types.NewInteger(3)); err == nil {
+			t.Error("expected an error for a non-numeric operand")
 		}
 	})
 
@@ -714,35 +733,54 @@ func TestErrorMethods(t *testing.T) {
 	})
 }
 
+// TestBooleanLogicEdgeCases covers the FHIRPath "Singleton Evaluation of
+// Collections" rule: where a Boolean is expected, a single node of any other
+// type evaluates to true.
 func TestBooleanLogicEdgeCases(t *testing.T) {
-	t.Run("and with non-boolean", func(t *testing.T) {
+	assertBool := func(t *testing.T, result types.Collection, expected bool) {
+		t.Helper()
+		if len(result) != 1 {
+			t.Fatalf("expected singleton result, got %v", result)
+		}
+		b, ok := result[0].(types.Boolean)
+		if !ok {
+			t.Fatalf("expected Boolean, got %s", result[0].Type())
+		}
+		if b.Bool() != expected {
+			t.Errorf("expected %v, got %v", expected, b.Bool())
+		}
+	}
+
+	t.Run("and with non-boolean singleton is true", func(t *testing.T) {
 		result := And(
 			types.Collection{types.NewInteger(1)},
 			types.Collection{types.NewBoolean(true)},
 		)
-		if !result.Empty() {
-			t.Error("expected empty for and with non-boolean")
-		}
+		assertBool(t, result, true)
 	})
 
-	t.Run("or with non-boolean", func(t *testing.T) {
+	t.Run("and with non-boolean singleton and false", func(t *testing.T) {
+		result := And(
+			types.Collection{types.NewInteger(1)},
+			types.Collection{types.NewBoolean(false)},
+		)
+		assertBool(t, result, false)
+	})
+
+	t.Run("or with non-boolean singleton is true", func(t *testing.T) {
 		result := Or(
 			types.Collection{types.NewBoolean(false)},
 			types.Collection{types.NewInteger(1)},
 		)
-		if !result.Empty() {
-			t.Error("expected empty for or with non-boolean")
-		}
+		assertBool(t, result, true)
 	})
 
-	t.Run("xor with non-boolean", func(t *testing.T) {
+	t.Run("xor with non-boolean singleton", func(t *testing.T) {
 		result := Xor(
 			types.Collection{types.NewInteger(1)},
 			types.Collection{types.NewBoolean(true)},
 		)
-		if !result.Empty() {
-			t.Error("expected empty for xor with non-boolean")
-		}
+		assertBool(t, result, false)
 	})
 
 	t.Run("not with multiple values", func(t *testing.T) {
@@ -752,12 +790,42 @@ func TestBooleanLogicEdgeCases(t *testing.T) {
 		}
 	})
 
-	t.Run("not with non-boolean", func(t *testing.T) {
+	t.Run("not with non-boolean singleton", func(t *testing.T) {
 		result := Not(types.Collection{types.NewInteger(1)})
+		assertBool(t, result, false)
+	})
+
+	t.Run("and with empty is empty", func(t *testing.T) {
+		result := And(types.Collection{}, types.Collection{types.NewBoolean(true)})
 		if !result.Empty() {
-			t.Error("expected empty for not with non-boolean")
+			t.Error("expected empty for and with empty operand")
 		}
 	})
+
+	t.Run("or with multiple values is empty", func(t *testing.T) {
+		result := Or(
+			types.Collection{types.NewBoolean(false), types.NewBoolean(false)},
+			types.Collection{types.NewBoolean(false)},
+		)
+		if !result.Empty() {
+			t.Error("expected empty for or with a non-singleton operand")
+		}
+	})
+}
+
+// assertBoolCollection checks that a result is the expected singleton Boolean.
+func assertBoolCollection(t *testing.T, result types.Collection, expected bool) {
+	t.Helper()
+	if len(result) != 1 {
+		t.Fatalf("expected singleton Boolean, got %v", result)
+	}
+	b, ok := result[0].(types.Boolean)
+	if !ok {
+		t.Fatalf("expected Boolean, got %s", result[0].Type())
+	}
+	if b.Bool() != expected {
+		t.Errorf("expected %v, got %v", expected, b.Bool())
+	}
 }
 
 func TestCollectionOperatorEdgeCases(t *testing.T) {
@@ -782,33 +850,57 @@ func TestCollectionOperatorEdgeCases(t *testing.T) {
 	})
 
 	t.Run("concatenate with empty", func(t *testing.T) {
-		result := Concatenate(types.EmptyCollection, types.Collection{types.NewString("world")})
+		result, err := Concatenate(types.EmptyCollection, types.Collection{types.NewString("world")})
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		if result[0].(types.String).Value() != "world" {
 			t.Errorf("expected 'world', got %v", result[0])
 		}
 
-		result = Concatenate(types.Collection{types.NewString("hello")}, types.EmptyCollection)
+		result, err = Concatenate(types.Collection{types.NewString("hello")}, types.EmptyCollection)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
 		if result[0].(types.String).Value() != "hello" {
 			t.Errorf("expected 'hello', got %v", result[0])
 		}
 	})
 
-	t.Run("equal with multiple elements", func(t *testing.T) {
+	// Collections of different lengths are not equal, which the spec states is
+	// false rather than empty: "if the collections have a different number of
+	// items to compare, the result will be false".
+	t.Run("equal with differing lengths is false", func(t *testing.T) {
 		result := Equal(
 			types.Collection{types.NewInteger(1), types.NewInteger(2)},
 			types.Collection{types.NewInteger(1)},
 		)
-		if !result.Empty() {
-			t.Error("expected empty for equal with multiple elements on left")
-		}
+		assertBoolCollection(t, result, false)
 
 		result = Equal(
 			types.Collection{types.NewInteger(1)},
 			types.Collection{types.NewInteger(1), types.NewInteger(2)},
 		)
-		if !result.Empty() {
-			t.Error("expected empty for equal with multiple elements on right")
-		}
+		assertBoolCollection(t, result, false)
+	})
+
+	// Collections of the same length compare item by item, in order.
+	t.Run("equal compares collections item by item", func(t *testing.T) {
+		same := types.Collection{types.NewInteger(1), types.NewInteger(2), types.NewInteger(3)}
+		assertBoolCollection(t, Equal(same, same), true)
+
+		reordered := types.Collection{types.NewInteger(3), types.NewInteger(2), types.NewInteger(1)}
+		assertBoolCollection(t, Equal(same, reordered), false)
+	})
+
+	// Equivalence over collections ignores order.
+	t.Run("equivalent ignores order for collections", func(t *testing.T) {
+		same := types.Collection{types.NewInteger(1), types.NewInteger(2), types.NewInteger(3)}
+		reordered := types.Collection{types.NewInteger(3), types.NewInteger(1), types.NewInteger(2)}
+		assertBoolCollection(t, Equivalent(same, reordered), true)
+
+		different := types.Collection{types.NewInteger(1), types.NewInteger(2), types.NewInteger(9)}
+		assertBoolCollection(t, Equivalent(same, different), false)
 	})
 
 	t.Run("not equal with empty", func(t *testing.T) {
@@ -1307,7 +1399,11 @@ func TestDateArithmetic(t *testing.T) {
 		// Date + years
 		{"date plus 1 year", "2020-01-01", 1, "year", "2021-01-01", false},
 		{"date plus 2 years", "2020-01-01", 2, "years", "2022-01-01", false},
-		{"date plus years quoted", "2020-01-01", 1, "'year'", "2021-01-01", false},
+		// UCUM definite durations of a week or less shift the same fields as the
+		// calendar keywords
+		{"date plus UCUM days", "2020-01-01", 1, "d", "2020-01-02", false},
+		{"date plus UCUM weeks", "2020-01-01", 1, "wk", "2020-01-08", false},
+		{"date minus UCUM days", "2020-01-02", 1, "d", "2020-01-01", true},
 
 		// Date + months
 		{"date plus 1 month", "2020-01-15", 1, "month", "2020-02-15", false},
@@ -1448,14 +1544,18 @@ func TestQuantityArithmetic(t *testing.T) {
 		expectErr bool
 	}{
 		// Quantity + Quantity same unit
-		{"quantity plus quantity same unit", 5, "mg", 3, "mg", "8 mg", false, false},
-		{"quantity minus quantity same unit", 10, "kg", 3, "kg", "7 kg", true, false},
+		{"quantity plus quantity same unit", 5, "mg", 3, "mg", "8 'mg'", false, false},
+		{"quantity minus quantity same unit", 10, "kg", 3, "kg", "7 'kg'", true, false},
 
 		// Quantity with empty unit
 		{"quantity plus quantity empty unit", 5, "", 3, "", "8", false, false},
 
-		// Incompatible units
-		{"quantity plus incompatible units", 5, "mg", 3, "kg", "", false, true},
+		// Commensurable units are converted into the left operand's unit
+		{"quantity plus commensurable unit", 5, "mg", 3, "g", "3005 'mg'", false, false},
+		{"quantity minus commensurable unit", 2, "g", 500, "mg", "1.5 'g'", true, false},
+
+		// Units of different dimensions cannot be combined
+		{"quantity plus incompatible units", 5, "mg", 3, "m", "", false, true},
 	}
 
 	for _, tt := range tests {
@@ -1502,14 +1602,14 @@ func TestQuantityArithmetic(t *testing.T) {
 
 func TestQuantityComparison(t *testing.T) {
 	tests := []struct {
-		name      string
-		q1Value   int64
-		q1Unit    string
-		q2Value   int64
-		q2Unit    string
-		op        string
-		expected  bool
-		expectErr bool
+		name        string
+		q1Value     int64
+		q1Unit      string
+		q2Value     int64
+		q2Unit      string
+		op          string
+		expected    bool
+		expectEmpty bool
 	}{
 		// Greater than
 		{"10 kg > 5 kg", 10, "kg", 5, "kg", ">", true, false},
@@ -1539,8 +1639,9 @@ func TestQuantityComparison(t *testing.T) {
 		{"10 kg > 5 mg (UCUM)", 10, "kg", 5, "mg", ">", true, false},
 		{"5 mg > 10 kg (UCUM)", 5, "mg", 10, "kg", ">", false, false},
 
-		// Truly incompatible units (mass vs length)
-		{"incompatible units error", 10, "kg", 5, "m", ">", false, true},
+		// Truly incompatible units (mass vs length): the FHIRPath spec says
+		// operating on quantities with invalid units results in empty
+		{"incompatible units yield empty", 10, "kg", 5, "m", ">", false, true},
 	}
 
 	for _, tt := range tests {
@@ -1568,15 +1669,15 @@ func TestQuantityComparison(t *testing.T) {
 				result, err = LessOrEqual(q1, q2)
 			}
 
-			if tt.expectErr {
-				if err == nil {
-					t.Fatalf("expected error, got nil")
-				}
-				return
-			}
-
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
+			}
+
+			if tt.expectEmpty {
+				if !result.Empty() {
+					t.Fatalf("expected empty collection, got %v", result)
+				}
+				return
 			}
 
 			if result.Empty() {

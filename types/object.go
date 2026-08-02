@@ -85,8 +85,11 @@ func (o *ObjectValue) inferType() string {
 }
 
 // inferQuantityType checks if the object is a Quantity type.
+// The value must be numeric: an Identifier also carries "value" and "system",
+// but its value is a string, and misreading it as a Quantity made
+// identifier.ofType(Identifier) return nothing.
 func (o *ObjectValue) inferQuantityType() string {
-	if o.hasField("value") {
+	if o.hasNumberField("value") {
 		if o.hasField("unit") || o.hasField("code") || o.hasField("system") {
 			return typeQuantity
 		}
@@ -191,6 +194,12 @@ func (o *ObjectValue) hasStringField(name string) bool {
 	return err == nil && dataType == jsonparser.String
 }
 
+// hasNumberField checks if a field exists and is a number.
+func (o *ObjectValue) hasNumberField(name string) bool {
+	_, dataType, _, err := jsonparser.Get(o.data, name)
+	return err == nil && dataType == jsonparser.Number
+}
+
 func (o *ObjectValue) hasHumanNameFields() bool {
 	return o.hasField("family") || o.hasArrayField("given")
 }
@@ -262,20 +271,146 @@ func (o *ObjectValue) Get(field string) (Value, bool) {
 // If the field is an array, returns all elements.
 // If the field is a single value, returns a singleton collection.
 func (o *ObjectValue) GetCollection(field string) Collection {
+	return o.fieldCollection(field, jsonValueToFHIRValue)
+}
+
+// fieldCollection reads a field together with the FHIR element stored under the
+// same name prefixed with an underscore, which is how FHIR serializes a
+// primitive that carries extensions or an id.
+//
+//	"birthDate": "1974-12-25",
+//	"_birthDate": {"extension": [{"url": ".../patient-birthTime", ...}]}
+//
+// The two are one element, and the pairing is positional when both are arrays:
+//
+//	"given": [null, "James"],
+//	"_given": [{"extension": [...]}]
+//
+// A null in the value array is a position that has extensions but no value —
+// exactly what a data-absent-reason records. It is still an item of the
+// collection, so it is kept as its element alone, and hasValue() answers false
+// for it. Positions with neither a value nor an element are dropped.
+func (o *ObjectValue) fieldCollection(field string, parse func([]byte, jsonparser.ValueType) Value) Collection {
 	value, dataType, _, err := jsonparser.Get(o.data, field)
-	if err != nil {
+	elementData, elementType, _, elementErr := jsonparser.Get(o.data, "_"+field)
+
+	valueMissing := err != nil || dataType == jsonparser.NotExist
+	elementMissing := elementErr != nil || elementType == jsonparser.NotExist
+	if valueMissing && elementMissing {
 		return Collection{}
 	}
 
-	if dataType == jsonparser.Array {
-		return jsonArrayToCollection(value)
+	// A single value, with or without its element beside it
+	if dataType != jsonparser.Array && elementType != jsonparser.Array {
+		var element *ObjectValue
+		if !elementMissing && elementType == jsonparser.Object {
+			element = NewObjectValue(elementData)
+		}
+		return pairValueWithElement(value, dataType, valueMissing, element, parse)
 	}
 
-	v := jsonValueToFHIRValue(value, dataType)
-	if v == nil {
+	values := positionalEntries(value, dataType, valueMissing)
+	elements := positionalEntries(elementData, elementType, elementMissing)
+
+	length := len(values)
+	if len(elements) > length {
+		length = len(elements)
+	}
+
+	result := make(Collection, 0, length)
+	for i := 0; i < length; i++ {
+		var element *ObjectValue
+		if i < len(elements) && elements[i].dataType == jsonparser.Object {
+			element = NewObjectValue(elements[i].data)
+		}
+
+		var (
+			data    []byte
+			kind    jsonparser.ValueType
+			missing = i >= len(values)
+		)
+		if !missing {
+			data, kind = values[i].data, values[i].dataType
+		}
+
+		result = append(result, pairValueWithElement(data, kind, missing, element, parse)...)
+	}
+
+	return result
+}
+
+// pairValueWithElement turns one value and its element into the item, or items,
+// they stand for: the value carrying the element, the element alone when there
+// is no value, or nothing when there is neither.
+func pairValueWithElement(
+	data []byte,
+	dataType jsonparser.ValueType,
+	missing bool,
+	element *ObjectValue,
+	parse func([]byte, jsonparser.ValueType) Value,
+) Collection {
+	if missing || dataType == jsonparser.Null {
+		if element == nil {
+			return Collection{}
+		}
+		return Collection{element}
+	}
+
+	parsed := parse(data, dataType)
+	if parsed == nil {
 		return Collection{}
 	}
-	return Collection{v}
+	if element != nil {
+		parsed = withElement(parsed, element)
+	}
+	return Collection{parsed}
+}
+
+// jsonEntry is one element of a JSON array, kept with its type so that a null
+// can be told from an absent position.
+type jsonEntry struct {
+	data     []byte
+	dataType jsonparser.ValueType
+}
+
+// positionalEntries lists a JSON array's entries in order, preserving nulls.
+func positionalEntries(data []byte, dataType jsonparser.ValueType, missing bool) []jsonEntry {
+	if missing {
+		return nil
+	}
+	if dataType != jsonparser.Array {
+		return []jsonEntry{{data: data, dataType: dataType}}
+	}
+
+	var entries []jsonEntry
+	//nolint:errcheck // ArrayEach only errors on non-arrays, and this is one
+	jsonparser.ArrayEach(data, func(entry []byte, entryType jsonparser.ValueType, _ int, _ error) {
+		entries = append(entries, jsonEntry{data: entry, dataType: entryType})
+	})
+	return entries
+}
+
+// withElement returns the value carrying the given element, for the primitive
+// types that can hold one. Anything else is returned unchanged: a complex type
+// already holds its extensions among its own fields.
+func withElement(value Value, element *ObjectValue) Value {
+	switch v := value.(type) {
+	case String:
+		return v.WithElement(element)
+	case Boolean:
+		return v.WithElement(element)
+	case Integer:
+		return v.WithElement(element)
+	case Decimal:
+		return v.WithElement(element)
+	case Date:
+		return v.WithElement(element)
+	case DateTime:
+		return v.WithElement(element)
+	case Time:
+		return v.WithElement(element)
+	}
+	return value
 }
 
 // Keys returns all field names in the object.
@@ -305,6 +440,97 @@ func (o *ObjectValue) Children() Collection {
 		return nil
 	})
 	return result
+}
+
+// ElementTypeResolver resolves a FHIR element path to its type, e.g.
+// "Observation.subject" to "Reference". It is the single slice of the engine's
+// FHIR model that type-aware child navigation needs, declared here so that this
+// package stays independent of the evaluator.
+type ElementTypeResolver interface {
+	TypeOf(path string) string
+}
+
+// TypedChild is a child value together with the FHIR path it was reached by, so
+// that a recursive walk (descendants()) can keep resolving types as it descends.
+type TypedChild struct {
+	Value Value
+	Path  string
+}
+
+// TypedChildren returns the object's children with their FHIR types resolved
+// through res, which makes the model — not structural inference — decide what
+// each child is. A child whose type the model does not know falls back to
+// inference, exactly like [ObjectValue.Children].
+//
+// basePath is this object's FHIR path (e.g. "Observation.component"); it may be
+// empty, in which case only the object's own type is used to resolve children.
+func (o *ObjectValue) TypedChildren(basePath string, res ElementTypeResolver) []TypedChild {
+	var result []TypedChild
+
+	//nolint:errcheck // ObjectEach only returns errors for non-objects; o.data is always a valid object
+	jsonparser.ObjectEach(o.data, func(key []byte, value []byte, dataType jsonparser.ValueType, _ int) error {
+		name := string(key)
+		childPath, fhirType := o.childElement(basePath, name, res)
+
+		appendChild := func(data []byte, dt jsonparser.ValueType) {
+			var v Value
+			if fhirType != "" {
+				v = jsonValueToFHIRValueWithType(data, dt, fhirType)
+			} else {
+				v = jsonValueToFHIRValue(data, dt)
+			}
+			if v != nil {
+				result = append(result, TypedChild{Value: v, Path: childPath})
+			}
+		}
+
+		if dataType == jsonparser.Array {
+			//nolint:errcheck // ArrayEach only returns errors for non-arrays; value is already an array
+			jsonparser.ArrayEach(value, func(item []byte, itemType jsonparser.ValueType, _ int, _ error) {
+				appendChild(item, itemType)
+			})
+			return nil
+		}
+		appendChild(value, dataType)
+		return nil
+	})
+
+	return result
+}
+
+// childElement resolves a named child's FHIR type and the path it should carry
+// onward. It tries both ways a FHIR model indexes elements: a complex type or
+// resource indexes its own elements ("Identifier.system", "Observation.subject"),
+// while a backbone element only exists beneath the path it was reached by
+// ("Observation.component.valueQuantity").
+//
+// The returned path is the one that resolved, so a recursive walk keeps a path
+// the model can still answer for. fhirType is "" when there is no resolver or
+// the model knows neither form, leaving the caller on structural inference.
+func (o *ObjectValue) childElement(basePath, name string, res ElementTypeResolver) (childPath, fhirType string) {
+	candidates := make([]string, 0, 2)
+
+	// The object's own type covers complex types and contained resources, whose
+	// type comes from resourceType.
+	if t := o.Type(); t != "" && t != typeObject {
+		candidates = append(candidates, t+"."+name)
+	}
+	if basePath != "" {
+		candidates = append(candidates, basePath+"."+name)
+	}
+
+	if res != nil {
+		for _, candidate := range candidates {
+			if t := res.TypeOf(candidate); t != "" {
+				return candidate, t
+			}
+		}
+	}
+
+	if len(candidates) > 0 {
+		return candidates[0], ""
+	}
+	return name, ""
 }
 
 // jsonValueToFHIRValue converts a JSON value to a FHIRPath Value.
@@ -383,65 +609,112 @@ func tryParseTemporalString(s string) Value {
 // jsonValueToFHIRValueWithType converts a JSON value to a FHIRPath Value,
 // using the FHIR type hint to parse strings as Date, DateTime, Time, etc.
 func jsonValueToFHIRValueWithType(data []byte, dataType jsonparser.ValueType, fhirType string) Value {
-	if dataType == jsonparser.String {
-		var s string
-		if err := json.Unmarshal(append([]byte{'"'}, append(data, '"')...), &s); err != nil {
-			s = string(data)
-		}
-		switch strings.ToLower(fhirType) {
-		case "date":
-			if d, err := NewDate(s); err == nil {
-				return d
-			}
-		case "datetime", "instant":
-			if dt, err := NewDateTime(s); err == nil {
-				return dt
-			}
-		case "time":
-			if t, err := NewTime(s); err == nil {
-				return t
-			}
-		case "uri", "url", "canonical", "oid", "uuid", "id", "code", "markdown", "base64binary":
-			return NewStringWithFHIRType(s, fhirType)
-		}
-		return NewString(s)
-	}
-	// For objects, propagate the FHIR type hint so Type() returns the correct type
+	// Objects carry the type so that Type() reports it
 	if dataType == jsonparser.Object && fhirType != "" {
 		return NewObjectValueWithType(data, fhirType)
 	}
-	return jsonValueToFHIRValue(data, dataType)
+
+	value := jsonValueToFHIRValue(data, dataType)
+	if value == nil || fhirType == "" {
+		return value
+	}
+
+	// A string may hold a date, a time or an instant, which the untyped path
+	// guesses at; the declared type decides.
+	if dataType == jsonparser.String {
+		if typed, ok := parseTypedString(data, fhirType); ok {
+			value = typed
+		}
+	}
+
+	return withFHIRType(value, fhirType)
+}
+
+// parseTypedString reads a JSON string as the temporal type the model declares,
+// rather than leaving it to pattern matching.
+func parseTypedString(data []byte, fhirType string) (Value, bool) {
+	var text string
+	if err := json.Unmarshal(append([]byte{'"'}, append(data, '"')...), &text); err != nil {
+		text = string(data)
+	}
+
+	switch strings.ToLower(fhirType) {
+	case "date":
+		if d, err := NewDate(text); err == nil {
+			return d, true
+		}
+	case "datetime", "instant":
+		if dt, err := NewDateTime(text); err == nil {
+			return dt, true
+		}
+	case "time":
+		if t, err := NewTime(text); err == nil {
+			return t, true
+		}
+	default:
+		// Anything else is a string in FHIR terms, even where the untyped path
+		// would have read it as a date
+		return NewString(text), true
+	}
+	return nil, false
+}
+
+// withFHIRType tags a primitive with the type FHIR declared for it. FHIR
+// primitives are types in their own right — FHIR.boolean is not System.Boolean —
+// so the value carries the name rather than being folded into the system type.
+func withFHIRType(value Value, fhirType string) Value {
+	switch v := value.(type) {
+	case String:
+		return v.WithFHIRType(fhirType)
+	case Boolean:
+		return v.WithFHIRType(fhirType)
+	case Integer:
+		return v.WithFHIRType(fhirType)
+	case Decimal:
+		return v.WithFHIRType(fhirType)
+	case Date:
+		return v.WithFHIRType(fhirType)
+	case DateTime:
+		return v.WithFHIRType(fhirType)
+	case Time:
+		return v.WithFHIRType(fhirType)
+	}
+	return value
+}
+
+// GetCollectionParsedAs retrieves a field as a Collection from a type read off a
+// polymorphic field name, such as the Oid in valueOid.
+//
+// Such a name is capitalized to form the field, while FHIR writes primitive type
+// names in lower camel case and complex ones capitalized. The value itself says
+// which it is — a primitive parses to a primitive — so the recorded type is
+// corrected accordingly rather than kept in the field's spelling.
+func (o *ObjectValue) GetCollectionParsedAs(field, suffix string) Collection {
+	collection := o.GetCollectionWithType(field, suffix)
+	for i, value := range collection {
+		if _, isObject := value.(*ObjectValue); isObject {
+			continue
+		}
+		collection[i] = withFHIRType(value, lowerFirst(suffix))
+	}
+	return collection
+}
+
+// lowerFirst converts a capitalized type name to the lower camel case FHIR uses
+// for primitive types: Oid to oid, Base64Binary to base64Binary.
+func lowerFirst(name string) string {
+	if name == "" {
+		return name
+	}
+	return strings.ToLower(name[:1]) + name[1:]
 }
 
 // GetCollectionWithType retrieves a field as a Collection, using the FHIR type hint
 // to properly parse string values as Date, DateTime, Time, etc.
 func (o *ObjectValue) GetCollectionWithType(field, fhirType string) Collection {
-	value, dataType, _, err := jsonparser.Get(o.data, field)
-	if err != nil {
-		return Collection{}
-	}
-
-	if dataType == jsonparser.Array {
-		return jsonArrayToCollectionWithType(value, fhirType)
-	}
-
-	v := jsonValueToFHIRValueWithType(value, dataType, fhirType)
-	if v == nil {
-		return Collection{}
-	}
-	return Collection{v}
-}
-
-func jsonArrayToCollectionWithType(data []byte, fhirType string) Collection {
-	var result Collection
-	//nolint:errcheck // ArrayEach only returns errors for non-arrays; data is already validated as array
-	jsonparser.ArrayEach(data, func(value []byte, dataType jsonparser.ValueType, _ int, _ error) {
-		v := jsonValueToFHIRValueWithType(value, dataType, fhirType)
-		if v != nil {
-			result = append(result, v)
-		}
+	return o.fieldCollection(field, func(data []byte, dataType jsonparser.ValueType) Value {
+		return jsonValueToFHIRValueWithType(data, dataType, fhirType)
 	})
-	return result
 }
 
 // jsonArrayToCollection converts a JSON array to a Collection.
@@ -504,12 +777,29 @@ func (o *ObjectValue) ToQuantity() (Quantity, bool) {
 		return Quantity{}, false
 	}
 
-	// Try to get the unit - can be "unit" or "code" field
+	// Prefer "code" over "unit": code carries the computable UCUM symbol ("mg"),
+	// while unit is a human-readable display ("milligram") that no unit
+	// conversion can interpret. Fall back to unit when there is no code.
 	unit := ""
-	if unitBytes, _, _, err := jsonparser.Get(o.data, "unit"); err == nil {
-		unit = string(unitBytes)
-	} else if codeBytes, _, _, err := jsonparser.Get(o.data, "code"); err == nil {
+	hasCode := false
+	if codeBytes, _, _, err := jsonparser.Get(o.data, "code"); err == nil {
 		unit = string(codeBytes)
+		hasCode = true
+	} else if unitBytes, _, _, err := jsonparser.Get(o.data, "unit"); err == nil {
+		unit = string(unitBytes)
+	}
+
+	// FHIR maps time-valued UCUM codes onto FHIRPath's calendar keywords as part
+	// of this conversion, and conditions the mapping on the quantity declaring
+	// UCUM as its system: "The Mapping from FHIR Quantity to FHIRPath
+	// System.Quantity can only be applied if the FHIR Quantity has a UCUM code —
+	// i.e. a system of http://unitsofmeasure.org, and a code is present."
+	if hasCode {
+		if systemBytes, _, _, err := jsonparser.Get(o.data, "system"); err == nil && string(systemBytes) == UCUMSystem {
+			if keyword, mapped := CalendarUnitForUCUMCode(unit); mapped {
+				unit = keyword
+			}
+		}
 	}
 
 	return NewQuantityFromDecimal(val, unit), true

@@ -1062,13 +1062,16 @@ func TestOfTypePolymorphic(t *testing.T) {
 		wantFirst string
 		wantType  string
 	}{
+		// A polymorphic field name states the element's FHIR type, and FHIR
+		// writes primitive type names in lower camel case: valueDateTime holds a
+		// dateTime, which is a distinct type from System.DateTime.
 		{
 			name:      "ofType(DateTime) on valueDateTime",
 			resource:  `{"resourceType":"Observation","valueDateTime":"2023-02-08"}`,
 			expr:      "Observation.value.ofType(DateTime)",
 			wantCount: 1,
 			wantFirst: "2023-02-08",
-			wantType:  "DateTime",
+			wantType:  "dateTime",
 		},
 		{
 			name:      "ofType(Date) on valueDate",
@@ -1076,7 +1079,7 @@ func TestOfTypePolymorphic(t *testing.T) {
 			expr:      "Observation.value.ofType(Date)",
 			wantCount: 1,
 			wantFirst: "2023-06-15",
-			wantType:  "Date",
+			wantType:  "date",
 		},
 		{
 			name:      "ofType(Time) on valueTime",
@@ -1084,7 +1087,7 @@ func TestOfTypePolymorphic(t *testing.T) {
 			expr:      "Observation.value.ofType(Time)",
 			wantCount: 1,
 			wantFirst: "18:12:00",
-			wantType:  "Time",
+			wantType:  "time",
 		},
 		{
 			name:      "ofType(Instant) on effectiveInstant",
@@ -1092,7 +1095,7 @@ func TestOfTypePolymorphic(t *testing.T) {
 			expr:      "Observation.effective.ofType(Instant)",
 			wantCount: 1,
 			wantFirst: "2015-02-07T13:28:17.239+02:00",
-			wantType:  "DateTime",
+			wantType:  "instant",
 		},
 		{
 			name:      "ofType(String) on valueString still works",
@@ -1100,7 +1103,7 @@ func TestOfTypePolymorphic(t *testing.T) {
 			expr:      "Observation.value.ofType(String)",
 			wantCount: 1,
 			wantFirst: "hello",
-			wantType:  "String",
+			wantType:  "string",
 		},
 		{
 			name:      "ofType(Quantity) on valueQuantity",

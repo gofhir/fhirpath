@@ -8,13 +8,14 @@ import (
 	"github.com/shopspring/decimal"
 )
 
-// TypeNameDecimal is the FHIRPath type name for decimal values.
-const TypeNameDecimal = "Decimal"
-
 // Decimal represents a FHIRPath decimal value with arbitrary precision.
 type Decimal struct {
 	value    decimal.Decimal
 	original string // original string representation for precision preservation (empty for computed values)
+	fhirType string // FHIR type when the value was read through a model
+
+	// The FHIR element this value was read with, when it carried one
+	primitiveElement
 }
 
 // NewDecimal creates a new Decimal from a string.
@@ -36,6 +37,11 @@ func NewDecimalFromFloat(v float64) Decimal {
 	return Decimal{value: decimal.NewFromFloat(v)}
 }
 
+// NewDecimalFromDecimal wraps an already-exact decimal value.
+func NewDecimalFromDecimal(v decimal.Decimal) Decimal {
+	return Decimal{value: v}
+}
+
 // MustDecimal creates a new Decimal, panicking on error.
 func MustDecimal(s string) Decimal {
 	d, err := NewDecimal(s)
@@ -52,6 +58,9 @@ func (d Decimal) Value() decimal.Decimal {
 
 // Type returns "Decimal".
 func (d Decimal) Type() string {
+	if d.fhirType != "" {
+		return d.fhirType
+	}
 	return TypeNameDecimal
 }
 
@@ -66,9 +75,49 @@ func (d Decimal) Equal(other Value) bool {
 	return false
 }
 
-// Equivalent is the same as Equal for decimals.
+// Equivalent compares two decimals at the precision of the less precise one.
+//
+// "Decimal: values must be equal, comparison is done on values rounded to the
+// precision of the least precise operand. Trailing zeroes after the decimal are
+// ignored in determining precision."
+//
+// This is what separates ~ from =: 1.2 / 1.8 is 0.666..., which equals nothing,
+// but is equivalent to 0.67 because 0.67 is given to two places and the quotient
+// rounded to two places is 0.67.
 func (d Decimal) Equivalent(other Value) bool {
-	return d.Equal(other)
+	var o Decimal
+	switch v := other.(type) {
+	case Decimal:
+		o = v
+	case Integer:
+		o = v.ToDecimal()
+	default:
+		return false
+	}
+
+	places := d.significantPlaces()
+	if theirs := o.significantPlaces(); theirs < places {
+		places = theirs
+	}
+
+	return d.value.Round(places).Equal(o.value.Round(places))
+}
+
+// significantPlaces counts the digits after the decimal point that carry
+// precision, which excludes trailing zeroes: 1.10 is given to one place, not
+// two.
+func (d Decimal) significantPlaces() int32 {
+	// The canonical rendering drops trailing zeroes, so its exponent is the
+	// count that remains
+	normalized, err := decimal.NewFromString(d.value.String())
+	if err != nil {
+		normalized = d.value
+	}
+
+	if exponent := normalized.Exponent(); exponent < 0 {
+		return -exponent
+	}
+	return 0
 }
 
 // String returns the decimal string representation. For values created from
@@ -90,6 +139,15 @@ func (d Decimal) ImplicitPrecision() int {
 		if idx := strings.Index(d.original, "."); idx >= 0 {
 			return len(d.original) - idx - 1
 		}
+		return 0
+	}
+
+	// A computed value has no original text, but its scale still records how
+	// many fractional digits it carries. Without this, negating a literal —
+	// which produces a computed value — would report a precision of zero, and
+	// (-1.587).lowBoundary() would bound it by 0.5 instead of 0.0005.
+	if exponent := d.value.Exponent(); exponent < 0 {
+		return int(-exponent)
 	}
 	return 0
 }
@@ -141,7 +199,17 @@ func (d Decimal) Divide(other Decimal) (Decimal, error) {
 
 // Negate returns the negation of the decimal.
 func (d Decimal) Negate() Decimal {
-	return Decimal{value: d.value.Neg()}
+	negated := Decimal{value: d.value.Neg()}
+
+	// Carry the original representation across, sign flipped, so that negation
+	// does not discard precision: -(120.50) must still present as -120.50.
+	if d.original != "" {
+		negated.original = strings.TrimPrefix(d.original, "-")
+		if !strings.HasPrefix(d.original, "-") {
+			negated.original = "-" + negated.original
+		}
+	}
+	return negated
 }
 
 // Abs returns the absolute value.
@@ -226,4 +294,19 @@ func (d Decimal) ToInteger() (Integer, bool) {
 		return NewInteger(d.value.IntPart()), true
 	}
 	return Integer{}, false
+}
+
+// WithFHIRType returns a copy that reports the FHIR type it was declared with.
+// FHIR primitives are types in their own right — a FHIR.boolean is not a
+// System.Boolean — so a value keeps the name the model gave it.
+func (d Decimal) WithFHIRType(fhirType string) Decimal {
+	d.fhirType = fhirType
+	return d
+}
+
+// WithElement returns a copy carrying the FHIR element that accompanied the
+// value in the JSON, which is where its extensions and id live.
+func (d Decimal) WithElement(element *ObjectValue) Decimal {
+	d.element = element
+	return d
 }

@@ -7,7 +7,6 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/gofhir/fhirpath/eval"
-	"github.com/gofhir/fhirpath/internal/ucum"
 	"github.com/gofhir/fhirpath/types"
 )
 
@@ -18,6 +17,13 @@ func init() {
 		MinArgs: 2,
 		MaxArgs: 3,
 		Fn:      fnIif,
+	})
+
+	Register(FuncDef{
+		Name:    "coalesce",
+		MinArgs: 1,
+		MaxArgs: -1,
+		Fn:      fnCoalesce,
 	})
 
 	Register(FuncDef{
@@ -133,6 +139,20 @@ func init() {
 	})
 }
 
+// fnCoalesce returns the first argument that is not an empty collection.
+//
+// The evaluator intercepts coalesce() to evaluate the arguments lazily, as the
+// specification requires; this implementation is the fallback for callers that
+// arrive with the arguments already evaluated, and agrees with it on the result.
+func fnCoalesce(_ *eval.Context, _ types.Collection, args []interface{}) (types.Collection, error) {
+	for _, arg := range args {
+		if coll, ok := arg.(types.Collection); ok && !coll.Empty() {
+			return coll, nil
+		}
+	}
+	return types.Collection{}, nil
+}
+
 // fnIif returns the second argument if the first is true, otherwise the third.
 func fnIif(_ *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
 	if len(args) < 2 {
@@ -142,11 +162,7 @@ func fnIif(_ *eval.Context, input types.Collection, args []interface{}) (types.C
 	// Evaluate the condition
 	condition := false
 	if cond, ok := args[0].(types.Collection); ok {
-		if !cond.Empty() {
-			if b, ok := cond[0].(types.Boolean); ok {
-				condition = b.Bool()
-			}
-		}
+		condition, _ = cond.SingletonBoolean()
 	}
 
 	if condition {
@@ -347,7 +363,25 @@ func fnToString(_ *eval.Context, input types.Collection, _ []interface{}) (types
 		return types.Collection{}, nil
 	}
 
+	if !convertsToString(input[0]) {
+		return types.Collection{}, nil
+	}
 	return types.Collection{types.NewString(input[0].String())}, nil
+}
+
+// convertsToString reports whether a value is one of the types toString()
+// renders: "a String ... an Integer, Long, Decimal, Date, Time, DateTime, or
+// Quantity ... a Boolean". Anything else is empty, and so does not convert.
+//
+// Shared by toString() and convertsToString() so that the answer and the
+// prediction of the answer cannot come apart.
+func convertsToString(value types.Value) bool {
+	switch value.(type) {
+	case types.String, types.Boolean, types.Integer, types.Decimal,
+		types.Date, types.Time, types.DateTime, types.Quantity:
+		return true
+	}
+	return false
 }
 
 // fnConvertsToString returns true if the input can be converted to string.
@@ -356,13 +390,7 @@ func fnConvertsToString(_ *eval.Context, input types.Collection, _ []interface{}
 		return types.Collection{types.NewBoolean(false)}, nil
 	}
 
-	// All primitive types can be converted to string
-	switch input[0].(type) {
-	case types.String, types.Boolean, types.Integer, types.Decimal:
-		return types.Collection{types.NewBoolean(true)}, nil
-	default:
-		return types.Collection{types.NewBoolean(false)}, nil
-	}
+	return types.Collection{types.NewBoolean(convertsToString(input[0]))}, nil
 }
 
 // fnToDate converts the input to a date.
@@ -464,88 +492,100 @@ func fnToQuantity(_ *eval.Context, input types.Collection, args []interface{}) (
 	if input.Empty() {
 		return types.Collection{}, nil
 	}
-
-	// Get optional unit from arguments
-	unit := ""
-	if len(args) > 0 {
-		if argCol, ok := args[0].(types.Collection); ok && !argCol.Empty() {
-			if s, ok := argCol[0].(types.String); ok {
-				unit = s.Value()
-			}
-		}
+	if len(input) > 1 {
+		return nil, eval.NewEvalError(eval.ErrSingletonExpected,
+			"toQuantity() requires a singleton input, got %d items", len(input))
 	}
 
-	item := input[0]
-
-	switch v := item.(type) {
-	case types.Quantity:
-		return types.Collection{v}, nil
-	case types.Integer:
-		q := types.NewQuantityFromDecimal(decimal.NewFromInt(v.Value()), unit)
-		return types.Collection{q}, nil
-	case types.Decimal:
-		q := types.NewQuantityFromDecimal(v.Value(), unit)
-		return types.Collection{q}, nil
-	case types.String:
-		// Try to parse as quantity string like "5.5 mg" or "10 'kg'"
-		q, err := types.NewQuantity(v.Value())
-		if err != nil {
-			return types.Collection{}, nil
-		}
-		return types.Collection{q}, nil
-	default:
+	quantity, ok := quantityOf(input[0])
+	if !ok {
 		return types.Collection{}, nil
 	}
+
+	// Without a unit argument the quantity stands as it is
+	unit, provided := quantityUnitArg(args)
+	if !provided {
+		return types.Collection{quantity}, nil
+	}
+
+	// With one, the value is converted rather than relabelled: 52 'cm' in
+	// meters is 0.52 'm', and a value that cannot be converted is empty
+	converted, ok := quantity.ConvertTo(unit)
+	if !ok {
+		return types.Collection{}, nil
+	}
+	return types.Collection{converted}, nil
+}
+
+// quantityOf converts a single value to a Quantity, following the list
+// toQuantity() gives: a number takes the UCUM default unit, a Boolean becomes
+// one or zero of it, a string is parsed, and a quantity is already one.
+func quantityOf(item types.Value) (types.Quantity, bool) {
+	switch v := item.(type) {
+	case types.Quantity:
+		return v, true
+
+	case types.Integer:
+		return types.NewQuantityFromDecimal(decimal.NewFromInt(v.Value()), types.DefaultQuantityUnit), true
+
+	case types.Decimal:
+		return types.NewQuantityFromDecimal(v.Value(), types.DefaultQuantityUnit), true
+
+	case types.Boolean:
+		// "true results in the quantity 1.0 '1', and false results in the
+		// quantity 0.0 '1'"
+		magnitude := "0.0"
+		if v.Bool() {
+			magnitude = "1.0"
+		}
+		value, err := decimal.NewFromString(magnitude)
+		if err != nil {
+			return types.Quantity{}, false
+		}
+		return types.NewQuantityFromDecimal(value, types.DefaultQuantityUnit), true
+
+	case types.String:
+		return types.ParseQuantityString(v.Value())
+
+	case *types.ObjectValue:
+		// FHIR Quantity (and Age, Duration, SimpleQuantity, ...) as a JSON object
+		return v.ToQuantity()
+	}
+
+	return types.Quantity{}, false
+}
+
+// quantityUnitArg reads the optional unit argument, reporting whether one was
+// given at all — an absent unit and an empty one lead to different results.
+func quantityUnitArg(args []interface{}) (string, bool) {
+	if len(args) == 0 {
+		return "", false
+	}
+	argCol, ok := args[0].(types.Collection)
+	if !ok || argCol.Empty() {
+		return "", false
+	}
+	unit, ok := argCol[0].(types.String)
+	if !ok {
+		return "", false
+	}
+	return unit.Value(), true
 }
 
 // fnConvertsToQuantity returns true if the input can be converted to quantity.
 // If a unit argument is provided, returns true only if the quantity can be converted to that unit.
-func fnConvertsToQuantity(_ *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
+func fnConvertsToQuantity(ctx *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
 	if input.Empty() {
 		return types.Collection{types.NewBoolean(false)}, nil
 	}
 
-	// Get optional target unit from arguments
-	targetUnit := ""
-	if len(args) > 0 {
-		if argCol, ok := args[0].(types.Collection); ok && !argCol.Empty() {
-			if s, ok := argCol[0].(types.String); ok {
-				targetUnit = s.Value()
-			}
-		}
+	// Derived from toQuantity() rather than restated, so that the two cannot
+	// disagree about what converts. This function answers exactly "would
+	// toQuantity() return something", which is what the specification defines it
+	// to mean.
+	converted, err := fnToQuantity(ctx, input, args)
+	if err != nil {
+		return nil, err
 	}
-
-	item := input[0]
-
-	switch v := item.(type) {
-	case types.Quantity:
-		// If no target unit specified, any quantity converts
-		if targetUnit == "" {
-			return types.Collection{types.NewBoolean(true)}, nil
-		}
-		// Check if units are compatible using UCUM normalization
-		sourceNorm := v.Normalize()
-		targetNorm := ucum.Normalize(1, targetUnit)
-		// Units are compatible if they normalize to the same canonical unit
-		return types.Collection{types.NewBoolean(sourceNorm.Code == targetNorm.Code)}, nil
-	case types.Integer, types.Decimal:
-		// Integer/Decimal can always be converted to a quantity (with any unit)
-		return types.Collection{types.NewBoolean(true)}, nil
-	case types.String:
-		// Try to parse as quantity string
-		q, err := types.NewQuantity(v.Value())
-		if err != nil {
-			return types.Collection{types.NewBoolean(false)}, nil
-		}
-		// If no target unit, just check if it parses
-		if targetUnit == "" {
-			return types.Collection{types.NewBoolean(true)}, nil
-		}
-		// Check unit compatibility
-		sourceNorm := q.Normalize()
-		targetNorm := ucum.Normalize(1, targetUnit)
-		return types.Collection{types.NewBoolean(sourceNorm.Code == targetNorm.Code)}, nil
-	default:
-		return types.Collection{types.NewBoolean(false)}, nil
-	}
+	return types.Collection{types.NewBoolean(!converted.Empty())}, nil
 }

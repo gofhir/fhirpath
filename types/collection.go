@@ -112,8 +112,11 @@ func (c Collection) IsDistinct() bool {
 // Duplicates are removed.
 func (c Collection) Union(other Collection) Collection {
 	result := make(Collection, 0, len(c)+len(other))
-	result = append(result, c...)
-	for _, item := range other {
+
+	// "Merge the two collections into a single collection, eliminating any
+	// duplicate values" — of the merged collection, so a duplicate already
+	// present in the input goes too: 1.combine(1).union(2) holds two items.
+	for _, item := range append(append(Collection{}, c...), other...) {
 		if !result.Contains(item) {
 			result = append(result, item)
 		}
@@ -177,6 +180,24 @@ func (c Collection) ToBoolean() (bool, error) {
 		return b.Bool(), nil
 	}
 	return false, fmt.Errorf("cannot convert %s to boolean", c[0].Type())
+}
+
+// SingletonBoolean applies the FHIRPath "Singleton Evaluation of Collections"
+// rule for operations that expect a Boolean input: a single Boolean node
+// evaluates to its value, and a single node of any other type evaluates to
+// true. FHIR invariants rely on this — age-1 opens with "(code or
+// value.empty())", where code is a string.
+//
+// ok is false when the collection is empty or holds more than one item; callers
+// propagate empty in that case.
+func (c Collection) SingletonBoolean() (value, ok bool) {
+	if len(c) != 1 {
+		return false, false
+	}
+	if b, isBool := c[0].(Boolean); isBool {
+		return b.Bool(), true
+	}
+	return true, true
 }
 
 // AllTrue returns true if all items are boolean true.

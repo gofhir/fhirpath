@@ -119,57 +119,85 @@ func TestLowBoundary(t *testing.T) {
 		}
 	})
 
-	// Decimal tests
-	t.Run("decimal with precision 1", func(t *testing.T) {
-		// 1.0.lowBoundary(1) = 1.0 - 0.05 = 0.95
-		d, _ := types.NewDecimal("1.0")
-		args := []interface{}{types.Collection{types.NewInteger(1)}}
+	// Decimal tests.
+	//
+	// Two precisions are at play and must not be conflated: the precision of the
+	// *input* fixes how wide the interval is (1.0 stands for anything within
+	// 0.05), while the argument only says how many digits to present.
+	lowDecimal := func(t *testing.T, value string, args []interface{}) string {
+		t.Helper()
+		d, err := types.NewDecimal(value)
+		if err != nil {
+			t.Fatalf("parse %s: %v", value, err)
+		}
 		result, err := fn.Fn(ctx, types.Collection{d}, args)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if result[0].String() != "0.95" {
-			t.Errorf("expected 0.95, got %s", result[0].String())
-		}
-	})
-
-	t.Run("decimal infers precision from representation", func(t *testing.T) {
-		// 1.0 has implicit precision 1, so lowBoundary() infers precision=1
-		// 1.0.lowBoundary() = 1.0 - 0.05 = 0.95
-		d, _ := types.NewDecimal("1.0")
-		result, err := fn.Fn(ctx, types.Collection{d}, nil)
-		if err != nil {
-			t.Fatal(err)
-		}
 		if result.Empty() {
-			t.Fatal("expected non-empty result for decimal with implicit precision")
+			return ""
 		}
-		if result[0].String() != "0.95" {
-			t.Errorf("expected 0.95, got %s", result[0].String())
+		return result[0].String()
+	}
+
+	precisionArg := func(p int64) []interface{} {
+		return []interface{}{types.Collection{types.NewInteger(p)}}
+	}
+
+	t.Run("output precision does not change the interval", func(t *testing.T) {
+		// 1.0 - 0.05 = 0.95, presented with one digit and rounded down to stay
+		// a lower bound
+		if got := lowDecimal(t, "1.0", precisionArg(1)); got != "0.9" {
+			t.Errorf("expected 0.9, got %s", got)
 		}
 	})
 
-	t.Run("integer-like decimal no precision returns empty", func(t *testing.T) {
-		// "1" has no decimal places, so precision=0 → returns empty
-		d, _ := types.NewDecimal("1")
-		result, err := fn.Fn(ctx, types.Collection{d}, nil)
-		if err != nil {
-			t.Fatal(err)
+	t.Run("default precision pads to eight digits", func(t *testing.T) {
+		// Per the specification, absent an argument the greatest precision of
+		// the type is used: at least 8 for Decimal
+		if got := lowDecimal(t, "1.0", nil); got != "0.95000000" {
+			t.Errorf("expected 0.95000000, got %s", got)
 		}
-		if !result.Empty() {
-			t.Error("expected empty for decimal without fractional precision")
+	})
+
+	t.Run("a decimal without fractional digits still has a boundary", func(t *testing.T) {
+		// The suite's 1.toDecimal().lowBoundary() is 0.50000000
+		if got := lowDecimal(t, "1", nil); got != "0.50000000" {
+			t.Errorf("expected 0.50000000, got %s", got)
+		}
+	})
+
+	t.Run("specification examples", func(t *testing.T) {
+		cases := []struct {
+			value    string
+			args     []interface{}
+			expected string
+		}{
+			{"1.587", nil, "1.58650000"},
+			{"1.587", precisionArg(6), "1.586500"},
+			{"1.587", precisionArg(2), "1.58"},
+			{"1.587", precisionArg(0), "1"},
+			// A precision beyond what the implementation supports yields empty
+			{"1.587", precisionArg(-1), ""},
+			{"1.587", precisionArg(39), ""},
+		}
+		for _, tc := range cases {
+			if got := lowDecimal(t, tc.value, tc.args); got != tc.expected {
+				t.Errorf("%s.lowBoundary(%v): expected %q, got %q",
+					tc.value, tc.args, tc.expected, got)
+			}
 		}
 	})
 
 	// Integer tests
-	t.Run("integer returns itself", func(t *testing.T) {
-		i := types.NewInteger(42)
-		result, err := fn.Fn(ctx, types.Collection{i}, nil)
+	t.Run("integer is bounded as a decimal", func(t *testing.T) {
+		// Defined on integer for language consistency: 1.lowBoundary() is 0.5
+		result, err := fn.Fn(ctx, types.Collection{types.NewInteger(1)}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if result[0].(types.Integer).Value() != 42 {
-			t.Errorf("expected 42, got %d", result[0].(types.Integer).Value())
+		if result.Empty() || result[0].String() != "0.50000000" {
+			t.Errorf("expected 0.50000000, got %v", result)
 		}
 	})
 }
@@ -273,16 +301,17 @@ func TestHighBoundary(t *testing.T) {
 	})
 
 	// Decimal tests
-	t.Run("decimal with precision 1", func(t *testing.T) {
-		// 1.0.highBoundary(1) = 1.0 + 0.05 = 1.05
+	t.Run("output precision does not change the interval", func(t *testing.T) {
+		// 1.0 + 0.05 = 1.05, presented with one digit and rounded up to stay an
+		// upper bound
 		d, _ := types.NewDecimal("1.0")
 		args := []interface{}{types.Collection{types.NewInteger(1)}}
 		result, err := fn.Fn(ctx, types.Collection{d}, args)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if result[0].String() != "1.05" {
-			t.Errorf("expected 1.05, got %s", result[0].String())
+		if result[0].String() != "1.1" {
+			t.Errorf("expected 1.1, got %s", result[0].String())
 		}
 	})
 
@@ -296,8 +325,8 @@ func TestHighBoundary(t *testing.T) {
 			t.Fatal(err)
 		}
 		qty := result[0].(types.Quantity)
-		if qty.Value().String() != "1.05" {
-			t.Errorf("expected 1.05 mg, got %s %s", qty.Value().String(), qty.Unit())
+		if qty.Value().String() != "1.1" {
+			t.Errorf("expected 1.1 mg, got %s %s", qty.Value().String(), qty.Unit())
 		}
 		if qty.Unit() != "mg" {
 			t.Errorf("expected unit mg, got %s", qty.Unit())

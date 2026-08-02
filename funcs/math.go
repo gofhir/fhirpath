@@ -125,7 +125,12 @@ func fnAbs(_ *eval.Context, input types.Collection, _ []interface{}) (types.Coll
 		}
 		return types.Collection{types.NewInteger(val)}, nil
 	case types.Decimal:
-		return types.Collection{types.NewDecimalFromFloat(math.Abs(v.Value().InexactFloat64()))}, nil
+		// Through the decimal's own absolute value rather than a float, which
+		// would round: abs() must not change the number it is given
+		return types.Collection{types.NewDecimalFromDecimal(v.Value().Abs())}, nil
+	case types.Quantity:
+		// "abs() : Integer | Decimal | Quantity" — the unit is carried through
+		return types.Collection{v.Abs()}, nil
 	default:
 		return types.Collection{}, nil
 	}
@@ -285,7 +290,7 @@ func fnRound(_ *eval.Context, input types.Collection, args []interface{}) (types
 		} else if p < math.MinInt32 {
 			p = math.MinInt32
 		}
-		precision = int32(p) //nolint:gosec // bounds checked above
+		precision = int32(p)
 	}
 
 	switch v := input[0].(type) {

@@ -45,6 +45,20 @@ func init() {
 	})
 
 	Register(FuncDef{
+		Name:    "lastIndexOf",
+		MinArgs: 1,
+		MaxArgs: 1,
+		Fn:      fnLastIndexOf,
+	})
+
+	Register(FuncDef{
+		Name:    "matchesFull",
+		MinArgs: 1,
+		MaxArgs: 1,
+		Fn:      fnMatchesFull,
+	})
+
+	Register(FuncDef{
 		Name:    "replaceMatches",
 		MinArgs: 2,
 		MaxArgs: 2,
@@ -121,7 +135,10 @@ func fnStartsWith(_ *eval.Context, input types.Collection, args []interface{}) (
 		return types.Collection{}, nil
 	}
 
-	str, ok := toString(input)
+	str, ok, err := toString(input)
+	if err != nil {
+		return nil, err
+	}
 	if !ok {
 		return types.Collection{}, nil
 	}
@@ -140,7 +157,10 @@ func fnEndsWith(_ *eval.Context, input types.Collection, args []interface{}) (ty
 		return types.Collection{}, nil
 	}
 
-	str, ok := toString(input)
+	str, ok, err := toString(input)
+	if err != nil {
+		return nil, err
+	}
 	if !ok {
 		return types.Collection{}, nil
 	}
@@ -159,7 +179,10 @@ func fnContains(_ *eval.Context, input types.Collection, args []interface{}) (ty
 		return types.Collection{}, nil
 	}
 
-	str, ok := toString(input)
+	str, ok, err := toString(input)
+	if err != nil {
+		return nil, err
+	}
 	if !ok {
 		return types.Collection{}, nil
 	}
@@ -178,7 +201,10 @@ func fnReplace(_ *eval.Context, input types.Collection, args []interface{}) (typ
 		return types.Collection{}, nil
 	}
 
-	str, ok := toString(input)
+	str, ok, err := toString(input)
+	if err != nil {
+		return nil, err
+	}
 	if !ok {
 		return types.Collection{}, nil
 	}
@@ -204,7 +230,10 @@ func fnMatches(ctx *eval.Context, input types.Collection, args []interface{}) (t
 		return types.Collection{}, nil
 	}
 
-	str, ok := toString(input)
+	str, ok, err := toString(input)
+	if err != nil {
+		return nil, err
+	}
 	if !ok {
 		return types.Collection{}, nil
 	}
@@ -223,6 +252,40 @@ func fnMatches(ctx *eval.Context, input types.Collection, args []interface{}) (t
 	return types.Collection{types.NewBoolean(matched)}, nil
 }
 
+// fnMatchesFull returns true when the pattern matches the entire input string,
+// as opposed to matches(), which succeeds on any substring match.
+//
+// The pattern is anchored to the whole input, so a pattern that only describes
+// part of it fails even if it is present: 'a/Library/b'.matchesFull('Library')
+// is false, while 'a/Library/b'.matchesFull('.*Library.*') is true.
+func fnMatchesFull(ctx *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
+	if input.Empty() {
+		return types.Collection{}, nil
+	}
+
+	str, ok, err := toString(input)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return types.Collection{}, nil
+	}
+
+	pattern, ok := toStringArg(args[0])
+	if !ok {
+		return types.Collection{}, nil
+	}
+
+	// \A and \z anchor to the whole text regardless of any line anchors inside
+	// the pattern, so an already-anchored pattern keeps its own meaning.
+	matched, err := DefaultRegexCache.MatchWithTimeout(ctx.Context(), `\A(?:`+pattern+`)\z`, str)
+	if err != nil {
+		return nil, err
+	}
+
+	return types.Collection{types.NewBoolean(matched)}, nil
+}
+
 // fnReplaceMatches replaces regex matches with substitution.
 // Uses cached regex compilation with ReDoS protection.
 func fnReplaceMatches(ctx *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
@@ -230,7 +293,10 @@ func fnReplaceMatches(ctx *eval.Context, input types.Collection, args []interfac
 		return types.Collection{}, nil
 	}
 
-	str, ok := toString(input)
+	str, ok, err := toString(input)
+	if err != nil {
+		return nil, err
+	}
 	if !ok {
 		return types.Collection{}, nil
 	}
@@ -260,7 +326,10 @@ func fnIndexOf(_ *eval.Context, input types.Collection, args []interface{}) (typ
 		return types.Collection{}, nil
 	}
 
-	str, ok := toString(input)
+	str, ok, err := toString(input)
+	if err != nil {
+		return nil, err
+	}
 	if !ok {
 		return types.Collection{}, nil
 	}
@@ -280,7 +349,10 @@ func fnSubstring(_ *eval.Context, input types.Collection, args []interface{}) (t
 		return types.Collection{}, nil
 	}
 
-	str, ok := toString(input)
+	str, ok, err := toString(input)
+	if err != nil {
+		return nil, err
+	}
 	if !ok {
 		return types.Collection{}, nil
 	}
@@ -316,7 +388,10 @@ func fnLower(_ *eval.Context, input types.Collection, _ []interface{}) (types.Co
 		return types.Collection{}, nil
 	}
 
-	str, ok := toString(input)
+	str, ok, err := toString(input)
+	if err != nil {
+		return nil, err
+	}
 	if !ok {
 		return types.Collection{}, nil
 	}
@@ -330,7 +405,10 @@ func fnUpper(_ *eval.Context, input types.Collection, _ []interface{}) (types.Co
 		return types.Collection{}, nil
 	}
 
-	str, ok := toString(input)
+	str, ok, err := toString(input)
+	if err != nil {
+		return nil, err
+	}
 	if !ok {
 		return types.Collection{}, nil
 	}
@@ -344,7 +422,10 @@ func fnToChars(_ *eval.Context, input types.Collection, _ []interface{}) (types.
 		return types.Collection{}, nil
 	}
 
-	str, ok := toString(input)
+	str, ok, err := toString(input)
+	if err != nil {
+		return nil, err
+	}
 	if !ok {
 		return types.Collection{}, nil
 	}
@@ -363,7 +444,10 @@ func fnSplit(_ *eval.Context, input types.Collection, args []interface{}) (types
 		return types.Collection{}, nil
 	}
 
-	str, ok := toString(input)
+	str, ok, err := toString(input)
+	if err != nil {
+		return nil, err
+	}
 	if !ok {
 		return types.Collection{}, nil
 	}
@@ -413,7 +497,10 @@ func fnTrim(_ *eval.Context, input types.Collection, _ []interface{}) (types.Col
 		return types.Collection{}, nil
 	}
 
-	str, ok := toString(input)
+	str, ok, err := toString(input)
+	if err != nil {
+		return nil, err
+	}
 	if !ok {
 		return types.Collection{}, nil
 	}
@@ -427,7 +514,10 @@ func fnLength(_ *eval.Context, input types.Collection, _ []interface{}) (types.C
 		return types.Collection{}, nil
 	}
 
-	str, ok := toString(input)
+	str, ok, err := toString(input)
+	if err != nil {
+		return nil, err
+	}
 	if !ok {
 		return types.Collection{}, nil
 	}
@@ -437,22 +527,49 @@ func fnLength(_ *eval.Context, input types.Collection, _ []interface{}) (types.C
 
 // Helper functions
 
-// toString extracts a string from a collection's first element.
-func toString(col types.Collection) (string, bool) {
+// toString reads the String a function's input must be, under the rule the
+// specification states for passing a collection where a single item is
+// expected:
+//
+//	IF the collection contains a single node AND the node's value can be
+//	implicitly converted to the expected input type THEN the collection
+//	evaluates to the value of that single node
+//	ELSE IF the collection is empty THEN ... an empty collection
+//	ELSE the evaluation will end and signal an error
+//
+// So a collection of two strings is an error rather than a guess at which one
+// was meant, and a node that is not a String — a whole Identifier, say — is an
+// error rather than its JSON rendered as text. Nothing converts implicitly to
+// String: an Integer is not one.
+//
+// present is false with no error when the input is empty, which callers turn
+// into an empty result.
+func toString(col types.Collection) (value string, present bool, err error) {
 	if col.Empty() {
-		return "", false
+		return "", false, nil
 	}
-	if s, ok := col[0].(types.String); ok {
-		return s.Value(), true
+	if len(col) > 1 {
+		return "", false, eval.NewEvalError(eval.ErrSingletonExpected,
+			"expected a single String, got %d items", len(col))
 	}
-	return col[0].String(), true
+
+	s, ok := col[0].(types.String)
+	if !ok {
+		return "", false, eval.NewEvalError(eval.ErrType,
+			"expected a String, got %s", col[0].Type())
+	}
+	return s.Value(), true, nil
 }
 
 // toStringArg extracts a string from an argument.
 func toStringArg(arg interface{}) (string, bool) {
 	switch v := arg.(type) {
 	case types.Collection:
-		return toString(v)
+		value, ok, err := toString(v)
+		if err != nil {
+			return "", false
+		}
+		return value, ok
 	case types.String:
 		return v.Value(), true
 	case string:
@@ -460,4 +577,42 @@ func toStringArg(arg interface{}) (string, bool) {
 	default:
 		return "", false
 	}
+}
+
+// fnLastIndexOf returns the 0-based index of the last occurrence of a substring,
+// or -1 when it does not occur.
+//
+// Per the FHIRPath 3.0.0 specification, the index counts characters — Unicode
+// scalar values, not bytes — and an empty substring returns the length of the
+// input.
+func fnLastIndexOf(_ *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
+	if input.Empty() {
+		return types.Collection{}, nil
+	}
+
+	str, ok, err := toString(input)
+	if err != nil {
+		return nil, err
+	}
+	if !ok {
+		return types.Collection{}, nil
+	}
+
+	substring, ok := toStringArg(args[0])
+	if !ok {
+		return types.Collection{}, nil
+	}
+
+	runes := []rune(str)
+	if substring == "" {
+		return types.Collection{types.NewInteger(int64(len(runes)))}, nil
+	}
+
+	byteIndex := strings.LastIndex(str, substring)
+	if byteIndex < 0 {
+		return types.Collection{types.NewInteger(-1)}, nil
+	}
+
+	// Convert the byte offset to a character offset
+	return types.Collection{types.NewInteger(int64(len([]rune(str[:byteIndex]))))}, nil
 }

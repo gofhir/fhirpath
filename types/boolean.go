@@ -4,7 +4,11 @@ import "fmt"
 
 // Boolean represents a FHIRPath boolean value.
 type Boolean struct {
-	value bool
+	value    bool
+	fhirType string // FHIR type when the value was read through a model
+
+	// The FHIR element this value was read with, when it carried one
+	primitiveElement
 }
 
 // NewBoolean creates a new Boolean value.
@@ -19,7 +23,10 @@ func (b Boolean) Bool() bool {
 
 // Type returns "Boolean".
 func (b Boolean) Type() string {
-	return "Boolean"
+	if b.fhirType != "" {
+		return b.fhirType
+	}
+	return TypeNameBoolean
 }
 
 // Equal returns true if other is a Boolean with the same value.
@@ -48,4 +55,19 @@ func (b Boolean) IsEmpty() bool {
 // Not returns the logical negation.
 func (b Boolean) Not() Boolean {
 	return NewBoolean(!b.value)
+}
+
+// WithFHIRType returns a copy that reports the FHIR type it was declared with.
+// FHIR primitives are types in their own right — a FHIR.boolean is not a
+// System.Boolean — so a value keeps the name the model gave it.
+func (b Boolean) WithFHIRType(fhirType string) Boolean {
+	b.fhirType = fhirType
+	return b
+}
+
+// WithElement returns a copy carrying the FHIR element that accompanied the
+// value in the JSON, which is where its extensions and id live.
+func (b Boolean) WithElement(element *ObjectValue) Boolean {
+	b.element = element
+	return b
 }

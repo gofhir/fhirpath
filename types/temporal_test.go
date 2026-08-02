@@ -614,13 +614,28 @@ func TestTime(t *testing.T) {
 		}
 	})
 
-	t.Run("compare different precision - second vs millisecond ambiguous", func(t *testing.T) {
+	// Seconds and milliseconds are a single precision compared as a decimal, so
+	// they decide the comparison rather than making it unknown. The spec's own
+	// example: @T10:30:00 > @T10:30:00.0 is false, not empty.
+	t.Run("second and millisecond are one precision", func(t *testing.T) {
 		t1, _ := NewTime("10:30:45")
 		t2, _ := NewTime("10:30:45.100")
 
-		_, err := t1.Compare(t2)
-		if err == nil {
-			t.Error("expected ambiguous comparison error")
+		cmp, err := t1.Compare(t2)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cmp != -1 {
+			t.Errorf("expected 10:30:45 < 10:30:45.100, got %d", cmp)
+		}
+
+		equal, _ := NewTime("10:30:45.000")
+		cmp, err = t1.Compare(equal)
+		if err != nil {
+			t.Fatalf("unexpected error: %v", err)
+		}
+		if cmp != 0 {
+			t.Errorf("expected 10:30:45 = 10:30:45.000, got %d", cmp)
 		}
 	})
 
@@ -715,14 +730,18 @@ func TestQuantity(t *testing.T) {
 
 	t.Run("equivalence", func(t *testing.T) {
 		q1, _ := NewQuantity("10 kg")
-		q2, _ := NewQuantity("10 KG")
 		q3, _ := NewQuantity("10")
 
-		if !q1.Equivalent(q2) {
-			t.Error("expected equivalent quantities (case insensitive)")
-		}
 		if !q1.Equivalent(q3) {
 			t.Error("expected equivalent with empty unit")
+		}
+
+		// UCUM codes are case sensitive by design — m is meter while M is not a
+		// unit at all, and mixing them up silently would be worse than saying
+		// the two cannot be compared.
+		wrongCase, _ := NewQuantity("10 KG")
+		if q1.Equivalent(wrongCase) {
+			t.Error("expected 'KG' not to be treated as 'kg': it is not a valid UCUM code")
 		}
 	})
 
@@ -771,9 +790,10 @@ func TestQuantity(t *testing.T) {
 	})
 
 	t.Run("string representation", func(t *testing.T) {
+		// A UCUM unit is quoted in FHIRPath literal notation
 		q1, _ := NewQuantity("10 kg")
-		if q1.String() != "10 kg" {
-			t.Errorf("expected '10 kg', got '%s'", q1.String())
+		if q1.String() != "10 'kg'" {
+			t.Errorf("expected \"10 'kg'\", got '%s'", q1.String())
 		}
 
 		q2, _ := NewQuantity("5")

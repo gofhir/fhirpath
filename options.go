@@ -168,3 +168,26 @@ func (a *modelAdapter) ParentType(typeName string) string     { return a.model.P
 func (a *modelAdapter) IsSubtype(child, parent string) bool   { return a.model.IsSubtype(child, parent) }
 func (a *modelAdapter) ResolvePath(path string) string        { return a.model.ResolvePath(path) }
 func (a *modelAdapter) IsResource(typeName string) bool       { return a.model.IsResource(typeName) }
+
+// FHIRVersion forwards the version when the wrapped model declares one, and
+// returns "" otherwise, which the evaluator reads as pre-R5.
+func (a *modelAdapter) FHIRVersion() string {
+	if versioned, ok := a.model.(VersionedModel); ok {
+		return versioned.FHIRVersion()
+	}
+	return ""
+}
+
+// LookupType forwards a type-name lookup, reporting separately whether the
+// wrapped model could answer at all.
+//
+// The two results have to stay apart: a model that cannot enumerate its types
+// is not a model in which every type is missing, and collapsing the two would
+// turn every type specifier into an error.
+func (a *modelAdapter) LookupType(typeName string) (known, supported bool) {
+	registry, ok := a.model.(TypeRegistry)
+	if !ok {
+		return false, false
+	}
+	return registry.HasType(typeName), true
+}

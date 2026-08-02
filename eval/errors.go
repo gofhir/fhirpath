@@ -125,27 +125,27 @@ func (e *EvalError) WithUnderlying(err error) *EvalError {
 
 // ParseError creates a parsing error.
 func ParseError(message string) *EvalError {
-	return NewEvalError(ErrParse, message)
+	return NewEvalError(ErrParse, "%s", message)
 }
 
 // TypeError creates a type mismatch error.
 func TypeError(expected, actual, operation string) *EvalError {
-	return NewEvalError(ErrType, fmt.Sprintf("expected %s, got %s in %s", expected, actual, operation))
+	return NewEvalError(ErrType, "expected %s, got %s in %s", expected, actual, operation)
 }
 
 // SingletonError creates a singleton expected error.
 func SingletonError(count int) *EvalError {
-	return NewEvalError(ErrSingletonExpected, fmt.Sprintf("expected single value, got %d elements", count))
+	return NewEvalError(ErrSingletonExpected, "expected single value, got %d elements", count)
 }
 
 // FunctionNotFoundError creates a function not found error.
 func FunctionNotFoundError(name string) *EvalError {
-	return NewEvalError(ErrFunctionNotFound, fmt.Sprintf("unknown function '%s'", name))
+	return NewEvalError(ErrFunctionNotFound, "unknown function '%s'", name)
 }
 
 // InvalidArgumentsError creates an invalid arguments error.
 func InvalidArgumentsError(funcName string, expected, actual int) *EvalError {
-	return NewEvalError(ErrInvalidArguments, fmt.Sprintf("function '%s' expects %d arguments, got %d", funcName, expected, actual))
+	return NewEvalError(ErrInvalidArguments, "function '%s' expects %d arguments, got %d", funcName, expected, actual)
 }
 
 // DivisionByZeroError creates a division by zero error.
@@ -155,10 +155,10 @@ func DivisionByZeroError() *EvalError {
 
 // InvalidPathError creates an invalid path error.
 func InvalidPathError(path string) *EvalError {
-	return NewEvalError(ErrInvalidPath, fmt.Sprintf("invalid path '%s'", path))
+	return NewEvalError(ErrInvalidPath, "invalid path '%s'", path)
 }
 
 // InvalidOperationError creates an invalid operation error.
 func InvalidOperationError(op, leftType, rightType string) *EvalError {
-	return NewEvalError(ErrInvalidOperation, fmt.Sprintf("cannot apply '%s' to %s and %s", op, leftType, rightType))
+	return NewEvalError(ErrInvalidOperation, "cannot apply '%s' to %s and %s", op, leftType, rightType)
 }

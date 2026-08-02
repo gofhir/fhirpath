@@ -19,6 +19,10 @@ type DateTime struct {
 	tzOffset  int  // timezone offset in minutes
 	hasTZ     bool // whether timezone is specified
 	precision DateTimePrecision
+	fhirType  string // FHIR type when the value was read through a model
+
+	// The FHIR element this value was read with, when it carried one
+	primitiveElement
 }
 
 // DateTimePrecision indicates the precision of a datetime.
@@ -35,8 +39,15 @@ const (
 )
 
 // DateTime regex pattern
+// The grammar's DATETIME is a date followed by 'T' and an optional time:
+//
+//	DATETIME : '@' DATEFORMAT 'T' (TIMEFORMAT TIMEZONEOFFSETFORMAT?)?
+//
+// so the marker may trail a date of any precision with no time after it —
+// @2015T, @2015-02T and @2015-02-04T are all DateTime values, distinct from the
+// Date literals @2015, @2015-02 and @2015-02-04.
 var dateTimePattern = regexp.MustCompile(
-	`^(\d{4})(?:-(\d{2})(?:-(\d{2})(?:T(\d{2})(?::(\d{2})(?::(\d{2})(?:\.(\d+))?)?)?)?)?)?(Z|[+-]\d{2}:\d{2})?$`,
+	`^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?(?:T(?:(\d{2})(?::(\d{2})(?::(\d{2})(?:\.(\d+))?)?)?)?)?(Z|[+-]\d{2}:\d{2})?$`,
 )
 
 // NewDateTime creates a DateTime from a string.
@@ -170,7 +181,10 @@ func NewDateTimeFromTime(t time.Time) DateTime {
 
 // Type returns the type name.
 func (dt DateTime) Type() string {
-	return "DateTime"
+	if dt.fhirType != "" {
+		return dt.fhirType
+	}
+	return TypeNameDateTime
 }
 
 // Equal checks equality with another value.
@@ -272,45 +286,38 @@ func (dt DateTime) Millisecond() int { return dt.millis }
 
 // AddDuration adds a duration (as Quantity with temporal unit) to the datetime.
 // Supported units: year(s), month(s), week(s), day(s), hour(s), minute(s), second(s), millisecond(s)
-func (dt DateTime) AddDuration(value int, unit string) DateTime {
-	t := dt.ToTime()
+func (dt DateTime) AddDuration(value int, unit string) (DateTime, error) {
+	years, months, days, millis, err := durationParts(value, unit)
+	if err != nil {
+		return DateTime{}, err
+	}
 
-	switch unit {
-	case "year", "years", "'year'", "'years'":
-		t = t.AddDate(value, 0, 0)
-	case "month", "months", "'month'", "'months'":
-		t = t.AddDate(0, value, 0)
-	case "week", "weeks", "'week'", "'weeks'":
-		t = t.AddDate(0, 0, value*7)
-	case "day", "days", "'day'", "'days'":
-		t = t.AddDate(0, 0, value)
-	case "hour", "hours", "'hour'", "'hours'":
-		t = t.Add(time.Duration(value) * time.Hour)
-	case "minute", "minutes", "'minute'", "'minutes'":
-		t = t.Add(time.Duration(value) * time.Minute)
-	case "second", "seconds", "'second'", "'seconds'":
-		t = t.Add(time.Duration(value) * time.Second)
-	case "millisecond", "milliseconds", "'millisecond'", "'milliseconds'", "ms":
-		t = t.Add(time.Duration(value) * time.Millisecond)
-	default:
-		// For unsupported units, return unchanged
-		return dt
+	// Years and months move the calendar components and clamp the day, which
+	// AddDate would instead roll into the next month
+	baseYear, baseMonth, baseDay := shiftCalendarMonths(dt.year, dt.monthOrFirst(), dt.dayOrFirst(), years, months)
+
+	base := dt.ToTime()
+	shifted := time.Date(baseYear, time.Month(baseMonth), baseDay,
+		base.Hour(), base.Minute(), base.Second(), base.Nanosecond(), base.Location()).
+		AddDate(0, 0, days)
+	if millis != 0 {
+		shifted = shifted.Add(time.Duration(millis) * time.Millisecond)
 	}
 
 	result := DateTime{
-		year:      t.Year(),
-		month:     int(t.Month()),
-		day:       t.Day(),
-		hour:      t.Hour(),
-		minute:    t.Minute(),
-		second:    t.Second(),
-		millis:    t.Nanosecond() / 1000000,
+		year:      shifted.Year(),
+		month:     int(shifted.Month()),
+		day:       shifted.Day(),
+		hour:      shifted.Hour(),
+		minute:    shifted.Minute(),
+		second:    shifted.Second(),
+		millis:    shifted.Nanosecond() / 1000000,
 		tzOffset:  dt.tzOffset,
 		hasTZ:     dt.hasTZ,
 		precision: dt.precision,
 	}
 
-	// Adjust precision - zero out components beyond precision
+	// A shift never makes the value more precise than it was
 	if dt.precision < DTMonthPrecision {
 		result.month = 0
 	}
@@ -330,11 +337,11 @@ func (dt DateTime) AddDuration(value int, unit string) DateTime {
 		result.millis = 0
 	}
 
-	return result
+	return result, nil
 }
 
 // SubtractDuration subtracts a duration from the datetime.
-func (dt DateTime) SubtractDuration(value int, unit string) DateTime {
+func (dt DateTime) SubtractDuration(value int, unit string) (DateTime, error) {
 	return dt.AddDuration(-value, unit)
 }
 
@@ -342,100 +349,42 @@ func (dt DateTime) SubtractDuration(value int, unit string) DateTime {
 // Implements the Comparable interface.
 // Returns error if precisions differ and comparison is ambiguous.
 func (dt DateTime) Compare(other Value) (int, error) {
-	otherDT, ok := other.(DateTime)
-	if !ok {
-		return 0, fmt.Errorf("cannot compare DateTime with %s", other.Type())
+	if _, ok := other.(DateTime); !ok {
+		if _, isDate := other.(Date); !isDate {
+			return 0, fmt.Errorf("cannot compare DateTime with %s", other.Type())
+		}
 	}
+	return compareTemporalValues(dt, other)
+}
 
-	// Check for ambiguous comparison due to different precisions
-	if dt.precision != otherDT.precision {
-		// Compare at the lowest common precision
-		minPrecision := dt.precision
-		if otherDT.precision < minPrecision {
-			minPrecision = otherDT.precision
-		}
+// WithFHIRType returns a copy that reports the FHIR type it was declared with.
+// FHIR primitives are types in their own right — a FHIR.boolean is not a
+// System.Boolean — so a value keeps the name the model gave it.
+func (dt DateTime) WithFHIRType(fhirType string) DateTime {
+	dt.fhirType = fhirType
+	return dt
+}
 
-		// Compare year
-		if dt.year != otherDT.year {
-			if dt.year < otherDT.year {
-				return -1, nil
-			}
-			return 1, nil
-		}
+// WithElement returns a copy carrying the FHIR element that accompanied the
+// value in the JSON, which is where its extensions and id live.
+func (dt DateTime) WithElement(element *ObjectValue) DateTime {
+	dt.element = element
+	return dt
+}
 
-		// Compare month if both have at least month precision
-		if minPrecision >= DTMonthPrecision {
-			if dt.month != otherDT.month {
-				if dt.month < otherDT.month {
-					return -1, nil
-				}
-				return 1, nil
-			}
-		} else {
-			return 0, fmt.Errorf("ambiguous comparison between datetimes with different precisions")
-		}
-
-		// Compare day if both have at least day precision
-		if minPrecision >= DTDayPrecision {
-			if dt.day != otherDT.day {
-				if dt.day < otherDT.day {
-					return -1, nil
-				}
-				return 1, nil
-			}
-		} else {
-			return 0, fmt.Errorf("ambiguous comparison between datetimes with different precisions")
-		}
-
-		// Compare hour if both have at least hour precision
-		if minPrecision >= DTHourPrecision {
-			if dt.hour != otherDT.hour {
-				if dt.hour < otherDT.hour {
-					return -1, nil
-				}
-				return 1, nil
-			}
-		} else {
-			return 0, fmt.Errorf("ambiguous comparison between datetimes with different precisions")
-		}
-
-		// Compare minute if both have at least minute precision
-		if minPrecision >= DTMinutePrecision {
-			if dt.minute != otherDT.minute {
-				if dt.minute < otherDT.minute {
-					return -1, nil
-				}
-				return 1, nil
-			}
-		} else {
-			return 0, fmt.Errorf("ambiguous comparison between datetimes with different precisions")
-		}
-
-		// Compare second if both have at least second precision
-		if minPrecision >= DTSecondPrecision {
-			if dt.second != otherDT.second {
-				if dt.second < otherDT.second {
-					return -1, nil
-				}
-				return 1, nil
-			}
-		} else {
-			return 0, fmt.Errorf("ambiguous comparison between datetimes with different precisions")
-		}
-
-		// If we get here, comparison is ambiguous at milliseconds level
-		return 0, fmt.Errorf("ambiguous comparison between datetimes with different precisions")
+// monthOrFirst returns the month, or January when the value is not specified to
+// a month; the result is trimmed back to the value's own precision afterwards.
+func (dt DateTime) monthOrFirst() int {
+	if dt.month == 0 {
+		return 1
 	}
+	return dt.month
+}
 
-	// Same precision - convert to time.Time and compare
-	t1 := dt.ToTime()
-	t2 := otherDT.ToTime()
-
-	if t1.Before(t2) {
-		return -1, nil
+// dayOrFirst returns the day, or the first of the month when unspecified.
+func (dt DateTime) dayOrFirst() int {
+	if dt.day == 0 {
+		return 1
 	}
-	if t1.After(t2) {
-		return 1, nil
-	}
-	return 0, nil
+	return dt.day
 }
