@@ -36,7 +36,7 @@ Measured against the official suite, in both configurations a caller can use:
 | Configuration | Passing |
 |---|---|
 | No FHIR model supplied | **886 of 928 (95.5%)** |
-| With the R4 model | **899 of 928 (96.9%)** |
+| With the R4 model | **901 of 928 (97.1%)** |
 
 ```sh
 make conformance          # prints both numbers
@@ -68,7 +68,6 @@ passing — so the list can only shrink, and it never lies about the number.
 | Block | Cases | Notes |
 |---|---|---|
 | `as()` on a multi-item collection | 1 | Applies from R5; the suite is R4 — see below |
-| `as()`/`ofType()` with an unknown type name | 2 | Implemented, waiting on a model that can enumerate its types — see below |
 | Errors we should raise and don't | 23 | 12 `execution`, 11 `semantic`; the semantic ones need a Model |
 | `lowBoundary` / `highBoundary` | 8 | Three are a suite disagreement (see below); two assume `@2014-01-01T08` carries an implicit minute |
 
@@ -130,19 +129,14 @@ the resulting year, the last day of the calendar month is used." The answers are
 now `2017-02-28` and `2014-02-28`. Go's `AddDate` normalizes, which is the
 behaviour that was inherited by writing the shift in terms of it.
 
-## Waiting on the model
+## Type specifiers
 
 A type specifier "must resolve to the name of a type in a model", so a name that
 resolves to nothing is an error rather than a filter that matches nothing. The
-engine enforces this through an optional `TypeRegistry` interface, and the two
-suite cases pass as soon as a model implements it — the same arrangement that
-`FHIRVersion()` went through.
-
-It cannot be derived from the `Model` contract as it stands. `ParentType` returns
-`""` for a name that does not exist, which distinguishes almost every case, but
-it returns `""` for the root types as well: `Element` and `Base` are real types
-with no parent. Filling in the roots by hand would be the kind of duplicated
-knowledge a generated model exists to avoid.
+engine reads this through the optional `TypeRegistry` interface, which the
+published models implement from r4/v1.4.0 — `conformance/version_test.go` checks
+all three, including the root types `Element` and `Resource` that no other method
+on `Model` can recognize, since they have no parent.
 
 Worth noting that fhirpath.js does not validate type specifiers at all — its
 `TypeInfo.isType` walks the hierarchy comparing names, so an unknown name simply

@@ -106,3 +106,55 @@ func TestDom3WithPublishedModels(t *testing.T) {
 		}
 	}
 }
+
+// TestPublishedModelsResolveTypeNames checks the type registry against the
+// published models, which is what decides whether a type specifier is refused.
+//
+// The engine reads this through the optional TypeRegistry interface, so a model
+// that does not implement it leaves specifiers taken at face value. This is the
+// check that the published models do implement it, and answer as the
+// specification's type system requires.
+func TestPublishedModelsResolveTypeNames(t *testing.T) {
+	for _, m := range []struct {
+		name  string
+		model fhirpath.Model
+	}{
+		{"r4", r4.FHIRPathModel()},
+		{"r4b", r4b.FHIRPathModel()},
+		{"r5", r5.FHIRPathModel()},
+	} {
+		t.Run(m.name, func(t *testing.T) {
+			registry, ok := m.model.(fhirpath.TypeRegistry)
+			if !ok {
+				t.Fatalf("%s model cannot resolve type names", m.name)
+			}
+
+			for _, known := range []string{
+				"Patient", "Observation", // resources
+				"HumanName", "Quantity", "Reference", // data types
+				"string", "code", "dateTime", "boolean", // primitives
+				"Element", "Resource", "DomainResource", // the root types, which
+				// have no parent and so cannot be recognized by ParentType alone
+			} {
+				if !registry.HasType(known) {
+					t.Errorf("%q should resolve to a type", known)
+				}
+			}
+
+			for _, unknown := range []string{"string1", "Patint", "Nonsense", ""} {
+				if registry.HasType(unknown) {
+					t.Errorf("%q should not resolve to a type", unknown)
+				}
+			}
+
+			// FHIR spells resources capitalized and primitives in lower camel
+			// case, and the two are distinct types, so the lookup is not
+			// case-insensitive
+			for _, wrongCase := range []string{"patient", "STRING", "humanname"} {
+				if registry.HasType(wrongCase) {
+					t.Errorf("%q should not resolve: type names are case sensitive", wrongCase)
+				}
+			}
+		})
+	}
+}

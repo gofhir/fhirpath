@@ -21,8 +21,6 @@ testEquality/testEquality23
 testIif/testIif10
 testIif/testIif6
 testInheritance/testFHIRPathAsFunction21
-testInheritance/testFHIRPathAsFunction23
-testInheritance/testFHIRPathAsFunction24
 testInheritance/testFHIRPathIsFunction10
 testInheritance/testFHIRPathIsFunction8
 testInheritance/testFHIRPathIsFunction9
