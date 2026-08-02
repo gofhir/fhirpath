@@ -35,8 +35,8 @@ Measured against the official suite, in both configurations a caller can use:
 
 | Configuration | Passing |
 |---|---|
-| No FHIR model supplied | **886 of 928 (95.5%)** |
-| With the R4 model | **901 of 928 (97.1%)** |
+| No FHIR model supplied | **891 of 928 (96.0%)** |
+| With the R4 model | **906 of 928 (97.6%)** |
 
 ```sh
 make conformance          # prints both numbers
@@ -68,7 +68,7 @@ passing — so the list can only shrink, and it never lies about the number.
 | Block | Cases | Notes |
 |---|---|---|
 | `as()` on a multi-item collection | 1 | Applies from R5; the suite is R4 — see below |
-| Errors we should raise and don't | 23 | 12 `execution`, 11 `semantic`; the semantic ones need a Model |
+| Errors we should raise and don't | 8 | All `semantic`: they need compile-time typing, which this engine does not do. fhirpath.js does not raise them either |
 | `lowBoundary` / `highBoundary` | 8 | Three are a suite disagreement (see below); two assume `@2014-01-01T08` carries an implicit minute |
 
 `repeat()` was registered but never implemented — it returned its input

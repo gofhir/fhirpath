@@ -7,7 +7,6 @@ HighBoundary/HighBoundaryDateTimeMillisecond3
 HighBoundary/HighBoundaryDecimal15
 HighBoundary/HighBoundaryDecimal16
 LowBoundary/LowBoundaryDecimal15
-from-Zulip/from-zulip-2
 polymorphics/testPolymorphicsB
 testBasics/testSimpleFail
 testBasics/testSimpleWithWrongContext
@@ -17,15 +16,11 @@ testConformsTo/testConformsTo1
 testConformsTo/testConformsTo2
 testConformsTo/testConformsTo3
 testDollar/testDollarOrderNotAllowed
-testEquality/testEquality23
-testIif/testIif10
 testIif/testIif6
 testInheritance/testFHIRPathAsFunction21
 testInheritance/testFHIRPathIsFunction10
 testInheritance/testFHIRPathIsFunction8
 testInheritance/testFHIRPathIsFunction9
-testMatches/testMatchesSingleLineMode1
-testNEquality/testNEquality17
 testObservations/testPolymorphismAsB
 testObservations/testPolymorphismB
 testReplaceMatches/testReplaceMatches2

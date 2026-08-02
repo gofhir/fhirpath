@@ -68,6 +68,19 @@ func compareTemporal(left, right temporalValue) (int, error) {
 		right = right.inUTC()
 	}
 
+	// "To support comparison of DateTime values, either both values have no
+	// timezone offset specified, or both values are converted to a common
+	// timezone offset."
+	//
+	// Neither holds when one side carries an offset and the other does not:
+	// there is nothing to convert the bare value into. The answer is unknown
+	// rather than false, because the missing offset could be any of them —
+	// @2012-04-15T15:00:00Z and @2012-04-15T10:00:00 are the same instant at
+	// UTC-5 and different ones anywhere else.
+	if left.hasOffset != right.hasOffset && left.unit >= unitHour && right.unit >= unitHour {
+		return 0, ErrPrecisionMismatch
+	}
+
 	shared := left.unit
 	if right.unit < shared {
 		shared = right.unit

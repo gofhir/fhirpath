@@ -1345,9 +1345,17 @@ func (e *Evaluator) evaluateCoalesce(argExprs []grammar.IExpressionContext) inte
 // evaluateIif evaluates the iif() function with lazy evaluation.
 // Only the matching branch is evaluated, preventing errors from the other branch.
 // Signature: iif(criterion, true-result [, otherwise-result])
-func (e *Evaluator) evaluateIif(_ types.Collection, argExprs []grammar.IExpressionContext) interface{} {
+func (e *Evaluator) evaluateIif(input types.Collection, argExprs []grammar.IExpressionContext) interface{} {
 	if len(argExprs) < 2 {
 		return InvalidArgumentsError("iif", 2, len(argExprs))
+	}
+
+	// "Unlike most other functions it can be called with no context ... or with
+	// a single item context. If the input collection contains multiple items,
+	// the evaluation of the expression will end and signal an error."
+	if len(input) > 1 {
+		return NewEvalError(ErrSingletonExpected,
+			"iif() takes a single item as its context, got %d", len(input))
 	}
 
 	// Evaluate the criterion (first argument)
