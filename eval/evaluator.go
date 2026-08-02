@@ -649,7 +649,10 @@ func (e *Evaluator) VisitFunctionInvocation(ctx *grammar.FunctionInvocationConte
 				continue
 			}
 
-			result := e.Visit(argExpr)
+			// Each argument is its own scope, so two of them may define the same
+			// name without colliding: 'aaa'.replace(defineVariable('param','aaa')
+			// .select(%param), defineVariable('param','bbb').select(%param))
+			result := e.visitInScope(argExpr)
 			if err, ok := result.(error); ok {
 				e.ctx.this = restore
 				return err
@@ -1289,7 +1292,10 @@ func containsEqual(collection types.Collection, candidate types.Value) bool {
 // the input, so the function is transparent to the chain it sits in — it is the
 // one function that exists for its effect on the context rather than its result.
 func (e *Evaluator) evaluateDefineVariable(input types.Collection, argExprs []grammar.IExpressionContext) interface{} {
-	nameResult := e.Visit(argExprs[0])
+	// Each argument gets its own scope, as it would through the ordinary call
+	// path: the name and the value may each define variables of their own, and
+	// two of them may use the same name without colliding.
+	nameResult := e.visitInScope(argExprs[0])
 	if err, ok := nameResult.(error); ok {
 		return err
 	}
@@ -1305,7 +1311,7 @@ func (e *Evaluator) evaluateDefineVariable(input types.Collection, argExprs []gr
 
 	value := input
 	if len(argExprs) > 1 {
-		projection := e.Visit(argExprs[1])
+		projection := e.visitInScope(argExprs[1])
 		if err, ok := projection.(error); ok {
 			return err
 		}
@@ -1330,7 +1336,7 @@ func (e *Evaluator) evaluateDefineVariable(input types.Collection, argExprs []gr
 // first non-empty argument are not evaluated", on the same grounds as iif.
 func (e *Evaluator) evaluateCoalesce(argExprs []grammar.IExpressionContext) interface{} {
 	for _, argExpr := range argExprs {
-		result := e.Visit(argExpr)
+		result := e.visitInScope(argExpr)
 		if err, ok := result.(error); ok {
 			return err
 		}
@@ -1359,7 +1365,7 @@ func (e *Evaluator) evaluateIif(input types.Collection, argExprs []grammar.IExpr
 	}
 
 	// Evaluate the criterion (first argument)
-	criterionResult := e.Visit(argExprs[0])
+	criterionResult := e.visitInScope(argExprs[0])
 	if err, ok := criterionResult.(error); ok {
 		return err
 	}
@@ -1373,7 +1379,7 @@ func (e *Evaluator) evaluateIif(input types.Collection, argExprs []grammar.IExpr
 	// Lazily evaluate only the matching branch
 	if criterion {
 		// Evaluate and return true-result (second argument)
-		result := e.Visit(argExprs[1])
+		result := e.visitInScope(argExprs[1])
 		if err, ok := result.(error); ok {
 			return err
 		}
@@ -1385,7 +1391,7 @@ func (e *Evaluator) evaluateIif(input types.Collection, argExprs []grammar.IExpr
 
 	// Evaluate and return otherwise-result (third argument) if provided
 	if len(argExprs) > 2 {
-		result := e.Visit(argExprs[2])
+		result := e.visitInScope(argExprs[2])
 		if err, ok := result.(error); ok {
 			return err
 		}
@@ -1616,19 +1622,39 @@ func (e *Evaluator) VisitAdditiveExpression(ctx *grammar.AdditiveExpressionConte
 
 // VisitUnionExpression visits expr | expr.
 func (e *Evaluator) VisitUnionExpression(ctx *grammar.UnionExpressionContext) interface{} {
-	left := e.Visit(ctx.Expression(0))
+	// Each branch is its own scope. A variable defined in one is not in scope in
+	// the other, and defining the same name in both is not a redefinition — the
+	// two never coexist. Without this,
+	//
+	//	defineVariable('n1', name.first()).select(%n1.given) |
+	//	defineVariable('n1', name.skip(1).first()).select(%n1.given)
+	//
+	// fails on the second branch as though n1 were already taken, and
+	//
+	//	defineVariable('n1', 'v1').active | defineVariable('n2', 'v2').select(%n1)
+	//
+	// reads n1 from a branch it does not belong to instead of failing.
+	left := e.visitInScope(ctx.Expression(0))
 	if err, ok := left.(error); ok {
 		return err
 	}
 	leftCol := left.(types.Collection)
 
-	right := e.Visit(ctx.Expression(1))
+	right := e.visitInScope(ctx.Expression(1))
 	if err, ok := right.(error); ok {
 		return err
 	}
 	rightCol := right.(types.Collection)
 
 	return Union(leftCol, rightCol)
+}
+
+// visitInScope evaluates an expression with its own variable scope, so that a
+// name it defines does not outlive it or reach a sibling.
+func (e *Evaluator) visitInScope(expr grammar.IExpressionContext) interface{} {
+	endScope := e.ctx.enterIterationScope()
+	defer endScope()
+	return e.Visit(expr)
 }
 
 // VisitInequalityExpression visits comparison expressions.
