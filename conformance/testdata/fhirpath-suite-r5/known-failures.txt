@@ -40,14 +40,8 @@ testInheritance/testFHIRPathIsFunction5
 testInheritance/testFHIRPathIsFunction7
 testInheritance/testFHIRPathIsFunction8
 testInheritance/testFHIRPathIsFunction9
-testMinus/testMinus7
-testMinus/testMinus8
 testObservations/testPolymorphismAsB
 testObservations/testPolymorphismB
-testPlus/testPlusDate19
-testPlus/testPlusTime1
-testPlus/testPlusTime2
-testPlus/testPlusTime3
 testReplaceMatches/testReplaceMatches2
 testSubstring/testSubstring12
 testType/testType10

@@ -35,10 +35,10 @@ Measured against the official suite, in both configurations a caller can use:
 
 | Configuration | Passing |
 |---|---|
-| R4 suite, no FHIR model supplied | **895 of 928 (96.4%)** |
-| R4 suite, with the R4 model | **912 of 928 (98.3%)** |
-| R5 suite, no FHIR model supplied | **978 of 1037 (94.3%)** |
-| R5 suite, with the R5 model | **995 of 1037 (95.9%)** |
+| R4 suite, no FHIR model supplied | **894 of 928 (96.3%)** |
+| R4 suite, with the R4 model | **911 of 928 (98.2%)** |
+| R5 suite, no FHIR model supplied | **984 of 1037 (94.9%)** |
+| R5 suite, with the R5 model | **1001 of 1037 (96.5%)** |
 
 ```sh
 make conformance          # prints both numbers
@@ -105,6 +105,25 @@ suite is followed: it expects `@2014-01-01T08.lowBoundary(17)` to carry `+14:00`
 the offset that makes the instant earliest, while the specification's example
 shows no offset at all. The suite's reading is the stricter one — a boundary
 should bound — and fhirpath.js omits the offset, so it fails that case.
+
+## Where the two suites disagree
+
+One case appears in both corpora with the same expression and different expected
+results, and it is worth recording because the disagreement is HL7's own.
+
+    @1973-12-25T00:00:00.000+10:00 + 0.1 's'
+
+The R4 suite expects the fractional second to be dropped; the R5 suite expects
+`.100`. FHIRPath N1 — the version the R4 suite measures against — says "For
+precisions **above** seconds, the decimal portion of the time-valued quantity is
+ignored", which leaves the decimal in place at the level of seconds, and 3.0.0
+states the same rule the other way round: "only applied for second or
+millisecond precisions".
+
+Both specifications therefore call for `.100`, and the R5 suite was corrected to
+match. The R4 case is listed as a known failure rather than special-cased: an
+engine that dropped the decimal would be wrong under either specification, and
+the fix is worth five other cases in the R5 corpus.
 
 ## Rules the FHIRPath suite does not reach
 

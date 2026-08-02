@@ -17,4 +17,5 @@ testIif/testIif6
 testInheritance/testFHIRPathAsFunction21
 testObservations/testPolymorphismAsB
 testObservations/testPolymorphismB
+testPlus/testPlusDate19
 testReplaceMatches/testReplaceMatches2

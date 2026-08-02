@@ -6,6 +6,15 @@ import (
 	"time"
 )
 
+// ErrDateComponentOnTime reports an attempt to shift a time of day by a unit
+// that measures the calendar.
+//
+// A time carries no date, so there is nothing for a day or a month to move.
+// "If there is more than one item, an item of an incompatible type, or an
+// unsupported unit for the type, the evaluation of the expression will end and
+// signal an error ... This includes attempting to add date components to a Time."
+var ErrDateComponentOnTime = errors.New("a date component cannot shift a time")
+
 // ErrCalendarConversionRequired reports that a UCUM year or month was used to
 // shift a date or time.
 //

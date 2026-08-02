@@ -90,6 +90,12 @@ func shiftTemporal(left, right types.Value, subtract bool) (types.Value, bool, e
 	amount := int(quantity.Value().IntPart())
 	unit := quantity.Unit()
 
+	// A duration in seconds keeps its fractional part, as milliseconds; every
+	// coarser unit drops it, since the shift is by whole calendar periods
+	if millis, ok := types.SecondUnitMilliseconds(quantity.Value(), unit); ok {
+		amount, unit = millis, "millisecond"
+	}
+
 	switch temporal := left.(type) {
 	case types.Date:
 		if subtract {
@@ -100,6 +106,15 @@ func shiftTemporal(left, right types.Value, subtract bool) (types.Value, bool, e
 		return result, true, err
 
 	case types.DateTime:
+		if subtract {
+			result, err := temporal.SubtractDuration(amount, unit)
+			return result, true, err
+		}
+		result, err := temporal.AddDuration(amount, unit)
+		return result, true, err
+
+	case types.Time:
+		// A time of day is cyclic: shifting past either end of the day wraps
 		if subtract {
 			result, err := temporal.SubtractDuration(amount, unit)
 			return result, true, err
