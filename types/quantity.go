@@ -237,6 +237,17 @@ var calendarDurationUnits = func() map[string]bool {
 	return units
 }()
 
+// Negate returns the quantity with its value's sign flipped, keeping the unit:
+// a negative mass is still a mass.
+func (q Quantity) Negate() Quantity {
+	return Quantity{value: q.value.Neg(), unit: q.unit}
+}
+
+// Abs returns the quantity with a non-negative value, keeping the unit.
+func (q Quantity) Abs() Quantity {
+	return Quantity{value: q.value.Abs(), unit: q.unit}
+}
+
 // IsEmpty returns false for Quantity.
 func (q Quantity) IsEmpty() bool {
 	return false

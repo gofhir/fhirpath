@@ -78,6 +78,7 @@ type Context struct {
 	index              int
 	total              types.Value
 	variables          map[string]types.Collection
+	outer              types.Collection            // scope a function's arguments are evaluated in
 	defined            map[string]types.Collection // variables introduced by defineVariable()
 	limits             map[string]int
 	goCtx              context.Context
@@ -315,29 +316,40 @@ func (c *Context) DefineVariable(name string, value types.Collection) error {
 	return nil
 }
 
-// enterIterationScope isolates the variables defined during one iteration of a
-// function that evaluates an expression per element, returning the call that
-// ends the scope.
+// enterIterationScope opens the scope one element of an iteration is evaluated
+// in, returning the call that closes it.
 //
-// Without this, the second element of select(defineVariable('x')...) would find
-// x already defined and fail. The specification describes exactly this: "this
-// could be implemented using expression scoping on the variable stack and after
-// expression completion the temporary variable would be popped off the stack."
+// Two things belong to that scope. Variables defined inside it are discarded at
+// the end, so the second element of select(defineVariable('x')...) does not find
+// x already defined — the specification describes exactly this: "the temporary
+// variable would be popped off the stack". And the scope a function's arguments
+// are navigated from becomes the element itself, so that in
+// where(substring($this.length()-3) = 'ter') the argument reads the item under
+// test rather than whatever preceded the iteration.
 //
-// Copies only when something is there to copy, so expressions that never call
-// defineVariable() pay a length check per element.
+// Variables are copied only when there are any, so an expression that never
+// calls defineVariable() pays a length check per element.
 func (c *Context) enterIterationScope() func() {
+	outer := c.outer
+	c.outer = nil
+
 	if len(c.defined) == 0 {
 		// Nothing defined yet, so ending the scope means discarding whatever the
 		// iteration introduces
-		return func() { c.defined = nil }
+		return func() {
+			c.defined = nil
+			c.outer = outer
+		}
 	}
 
 	saved := make(map[string]types.Collection, len(c.defined))
 	for name, value := range c.defined {
 		saved[name] = value
 	}
-	return func() { c.defined = saved }
+	return func() {
+		c.defined = saved
+		c.outer = outer
+	}
 }
 
 // NewEvaluator creates a new evaluator with the given context and function registry.
@@ -619,20 +631,32 @@ func (e *Evaluator) VisitFunctionInvocation(ctx *grammar.FunctionInvocationConte
 		}
 	}
 
-	// Evaluate arguments normally
+	// Evaluate arguments in the scope the invocation sits in, not in its input
 	args := make([]interface{}, argCount)
-	for i, argExpr := range argExprs {
-		if isTypeArg(fn.TypeArgs, i) {
-			// Extract type name from AST instead of evaluating as expression
-			typeName := e.extractTypeNameFromExpr(argExpr)
-			args[i] = types.Collection{types.NewString(typeName)}
-		} else {
+	if argCount > 0 {
+		argThis := e.ctx.this
+		if e.ctx.outer != nil {
+			argThis = e.ctx.outer
+		}
+
+		restore := e.ctx.this
+		e.ctx.this = argThis
+		for i, argExpr := range argExprs {
+			if isTypeArg(fn.TypeArgs, i) {
+				// Extract type name from AST instead of evaluating as expression
+				typeName := e.extractTypeNameFromExpr(argExpr)
+				args[i] = types.Collection{types.NewString(typeName)}
+				continue
+			}
+
 			result := e.Visit(argExpr)
 			if err, ok := result.(error); ok {
+				e.ctx.this = restore
 				return err
 			}
 			args[i] = result
 		}
+		e.ctx.this = restore
 	}
 
 	// Call the function
@@ -1372,10 +1396,20 @@ func (e *Evaluator) VisitInvocationExpression(ctx *grammar.InvocationExpressionC
 	// Save current this and path, set new this
 	oldThis := e.ctx.this
 	oldPath := e.ctx.path
+	oldOuter := e.ctx.outer
+
+	// A function's input is what precedes the dot, but its arguments are not
+	// navigated from there: in name.given.combine(name.family), family belongs
+	// to name, not to given. The specification's own conformance suite fixes
+	// this — it gives combine(name.family) and combine($this.name.family) the
+	// same expected result — so the scope in force before the dot is kept for
+	// the arguments to be evaluated in.
+	e.ctx.outer = oldThis
 	e.ctx.this = baseCol
 	defer func() {
 		e.ctx.this = oldThis
 		e.ctx.path = oldPath
+		e.ctx.outer = oldOuter
 	}()
 
 	// Evaluate the invocation
@@ -1482,6 +1516,11 @@ func (e *Evaluator) VisitMultiplicativeExpression(ctx *grammar.MultiplicativeExp
 	}
 
 	if err != nil {
+		// A zero divisor is not an error: "12 / 0 // empty ({ })", and the same
+		// for div and mod
+		if errors.Is(err, ErrDivideByZero) {
+			return types.Collection{}
+		}
 		return err
 	}
 	return types.Collection{result}

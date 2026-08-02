@@ -112,8 +112,11 @@ func (c Collection) IsDistinct() bool {
 // Duplicates are removed.
 func (c Collection) Union(other Collection) Collection {
 	result := make(Collection, 0, len(c)+len(other))
-	result = append(result, c...)
-	for _, item := range other {
+
+	// "Merge the two collections into a single collection, eliminating any
+	// duplicate values" — of the merged collection, so a duplicate already
+	// present in the input goes too: 1.combine(1).union(2) holds two items.
+	for _, item := range append(append(Collection{}, c...), other...) {
 		if !result.Contains(item) {
 			result = append(result, item)
 		}

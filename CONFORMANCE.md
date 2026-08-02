@@ -35,8 +35,8 @@ Measured against the official suite, in both configurations a caller can use:
 
 | Configuration | Passing |
 |---|---|
-| No FHIR model supplied | **861 of 928 (92.8%)** |
-| With the R4 model | **874 of 928 (94.2%)** |
+| No FHIR model supplied | **876 of 928 (94.4%)** |
+| With the R4 model | **889 of 928 (95.8%)** |
 
 ```sh
 make conformance          # prints both numbers
@@ -90,11 +90,21 @@ from — infrastructure this engine does not have, and a cost paid on every
 navigation whether or not anyone calls the function. It is worth doing when
 something needs it, not before.
 
-Three boundary cases contradict the purpose of the functions and are left
-failing rather than special-cased: `(-0.0034).lowBoundary(1)` expects `-0.0`,
-where rounding down to one digit gives `-0.1`. A lower bound that is greater
-than the value it bounds is not a lower bound, and the other twenty-odd cases
-round consistently, so these look like suite defects.
+Five boundary cases are left failing, and running them through fhirpath.js
+settles why. Three are decimal: `(-0.0034).lowBoundary(1)` expects `-0.0`, where
+rounding down to one digit gives `-0.1`. fhirpath.js answers `-0.1` as well —
+its implementation is the same algorithm, ROUND_FLOOR against a half-unit taken
+from the decimal places — and it matches the specification's own worked examples,
+`(-1.587).lowBoundary(2) // -1.59` among them. The other two are temporal:
+`@2014-01-01T08.highBoundary(17)` is expected to be `08:00:59.999`, leaving the
+minute at zero while maximizing the second. fhirpath.js gives `08:59:59.999`, as
+this engine does, which is the greatest value the hour can hold.
+
+Where the suite and the specification's examples disagree about timezones, the
+suite is followed: it expects `@2014-01-01T08.lowBoundary(17)` to carry `+14:00`,
+the offset that makes the instant earliest, while the specification's example
+shows no offset at all. The suite's reading is the stricter one — a boundary
+should bound — and fhirpath.js omits the offset, so it fails that case.
 
 ## Rules the FHIRPath suite does not reach
 

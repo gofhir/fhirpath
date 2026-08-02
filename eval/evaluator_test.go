@@ -620,27 +620,32 @@ func TestOperatorErrors(t *testing.T) {
 		}
 	})
 
-	t.Run("integer divide type errors", func(t *testing.T) {
-		_, err := IntegerDivide(types.NewDecimalFromFloat(10.5), types.NewInteger(3))
-		if err == nil {
-			t.Error("expected error for decimal div integer")
+	// div and mod are "supported for Integer, Long and Decimal", and the
+	// specification works through 5.5 div 0.7 // 7 (decimal), so a decimal
+	// operand is not a type error. A non-numeric one still is.
+	t.Run("integer divide accepts decimals", func(t *testing.T) {
+		result, err := IntegerDivide(types.NewDecimalFromFloat(10.5), types.NewInteger(3))
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		} else if result.String() != "3" {
+			t.Errorf("10.5 div 3 = %s, want 3", result.String())
 		}
 
-		_, err = IntegerDivide(types.NewInteger(10), types.NewDecimalFromFloat(3.5))
-		if err == nil {
-			t.Error("expected error for integer div decimal")
+		if _, err := IntegerDivide(types.NewString("x"), types.NewInteger(3)); err == nil {
+			t.Error("expected an error for a non-numeric operand")
 		}
 	})
 
-	t.Run("modulo type errors", func(t *testing.T) {
-		_, err := Modulo(types.NewDecimalFromFloat(10.5), types.NewInteger(3))
-		if err == nil {
-			t.Error("expected error for decimal mod integer")
+	t.Run("modulo accepts decimals", func(t *testing.T) {
+		result, err := Modulo(types.NewDecimalFromFloat(10.5), types.NewInteger(3))
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+		} else if result.String() != "1.5" {
+			t.Errorf("10.5 mod 3 = %s, want 1.5", result.String())
 		}
 
-		_, err = Modulo(types.NewInteger(10), types.NewDecimalFromFloat(3.5))
-		if err == nil {
-			t.Error("expected error for integer mod decimal")
+		if _, err := Modulo(types.NewString("x"), types.NewInteger(3)); err == nil {
+			t.Error("expected an error for a non-numeric operand")
 		}
 	})
 

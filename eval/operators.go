@@ -252,33 +252,95 @@ func Divide(left, right types.Value) (types.Value, error) {
 		return nil, InvalidOperationError("/", left.Type(), right.Type())
 	}
 
+	if rDec.Value().IsZero() {
+		return nil, ErrDivideByZero
+	}
 	return lDec.Divide(rDec)
 }
 
-// IntegerDivide performs integer division (div operator).
+// ErrDivideByZero reports a division whose divisor is zero.
+//
+// The specification does not treat this as an error: "12 / 0 // empty ({ })",
+// and likewise for div and mod. Callers translate this sentinel into an empty
+// collection, the same way an incommensurable unit comparison is translated.
+var ErrDivideByZero = errors.New("division by zero")
+
+// IntegerDivide performs truncated division (div operator).
+//
+// "Performs truncated division of the left operand by the right operand
+// (supported for Integer, Long and Decimal) ... The resulting datatype is the
+// same as the input datatype", so 5 div 2 is an Integer and 5.5 div 0.7 a
+// Decimal.
 func IntegerDivide(left, right types.Value) (types.Value, error) {
-	l, ok := left.(types.Integer)
+	if l, ok := left.(types.Integer); ok {
+		if r, ok := right.(types.Integer); ok {
+			if r.Value() == 0 {
+				return nil, ErrDivideByZero
+			}
+			return l.Div(r)
+		}
+	}
+
+	l, r, ok := decimalOperands(left, right)
 	if !ok {
 		return nil, InvalidOperationError("div", left.Type(), right.Type())
 	}
-	r, ok := right.(types.Integer)
-	if !ok {
-		return nil, InvalidOperationError("div", left.Type(), right.Type())
+	if r.Value().IsZero() {
+		return nil, ErrDivideByZero
 	}
-	return l.Div(r)
+
+	quotient, err := l.Divide(r)
+	if err != nil {
+		return nil, err
+	}
+	return types.NewDecimalFromInt(quotient.Truncate().Value()), nil
 }
 
-// Modulo performs modulo operation (mod operator).
+// Modulo computes the remainder of the truncated division, over the same types
+// div accepts.
 func Modulo(left, right types.Value) (types.Value, error) {
-	l, ok := left.(types.Integer)
+	if l, ok := left.(types.Integer); ok {
+		if r, ok := right.(types.Integer); ok {
+			if r.Value() == 0 {
+				return nil, ErrDivideByZero
+			}
+			return l.Mod(r)
+		}
+	}
+
+	l, r, ok := decimalOperands(left, right)
 	if !ok {
 		return nil, InvalidOperationError("mod", left.Type(), right.Type())
 	}
-	r, ok := right.(types.Integer)
-	if !ok {
-		return nil, InvalidOperationError("mod", left.Type(), right.Type())
+	if r.Value().IsZero() {
+		return nil, ErrDivideByZero
 	}
-	return l.Mod(r)
+
+	// The remainder of the truncated division: l - trunc(l/r)*r
+	quotient, err := l.Divide(r)
+	if err != nil {
+		return nil, err
+	}
+	whole := types.NewDecimalFromInt(quotient.Truncate().Value())
+	return l.Subtract(whole.Multiply(r)), nil
+}
+
+// decimalOperands widens two numeric values to Decimal, which is the implicit
+// conversion the arithmetic operators are defined over.
+func decimalOperands(left, right types.Value) (l, r types.Decimal, ok bool) {
+	toDecimal := func(v types.Value) (types.Decimal, bool) {
+		switch n := v.(type) {
+		case types.Decimal:
+			return n, true
+		case types.Integer:
+			return n.ToDecimal(), true
+		}
+		return types.Decimal{}, false
+	}
+
+	l, lok := toDecimal(left)
+	r, rok := toDecimal(right)
+	return l, r, lok && rok
 }
 
 // Negate negates a numeric value.
@@ -287,6 +349,9 @@ func Negate(value types.Value) (types.Value, error) {
 	case types.Integer:
 		return v.Negate(), nil
 	case types.Decimal:
+		return v.Negate(), nil
+	case types.Quantity:
+		// A quantity negates by its value, keeping its unit: -5.5 'mg'
 		return v.Negate(), nil
 	}
 	return nil, NewEvalError(ErrType, "cannot negate %s", value.Type())
