@@ -744,29 +744,41 @@ func Union(left, right types.Collection) types.Collection {
 }
 
 // In checks if left is in right collection.
-func In(left, right types.Collection) types.Collection {
+func In(left, right types.Collection) (types.Collection, error) {
+	// "If the left-hand side of the operator is empty, the result is empty"
 	if left.Empty() {
-		return types.EmptyCollection
+		return types.EmptyCollection, nil
 	}
+
+	// "If the left operand has multiple items, an exception is thrown." Which of
+	// them was to be looked for is not something to guess at, and answering
+	// empty would read as "not found".
 	if len(left) != 1 {
-		return types.EmptyCollection
+		return nil, NewEvalError(ErrSingletonExpected,
+			"the in operator takes a single item on the left, got %d", len(left))
 	}
+
+	// "if the right-hand side is empty, the result is false" — which Contains
+	// answers on its own, an empty collection holding nothing
 	if right.Contains(left[0]) {
-		return types.TrueCollection
+		return types.TrueCollection, nil
 	}
-	return types.FalseCollection
+	return types.FalseCollection, nil
 }
 
 // Contains checks if left collection contains right.
-func Contains(left, right types.Collection) types.Collection {
+func Contains(left, right types.Collection) (types.Collection, error) {
+	// The converse of in, and the same rules with the sides exchanged
 	if right.Empty() {
-		return types.EmptyCollection
+		return types.EmptyCollection, nil
 	}
 	if len(right) != 1 {
-		return types.EmptyCollection
+		return nil, NewEvalError(ErrSingletonExpected,
+			"the contains operator takes a single item on the right, got %d", len(right))
 	}
+
 	if left.Contains(right[0]) {
-		return types.TrueCollection
+		return types.TrueCollection, nil
 	}
-	return types.FalseCollection
+	return types.FalseCollection, nil
 }

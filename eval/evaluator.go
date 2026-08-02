@@ -1751,14 +1751,23 @@ func (e *Evaluator) VisitMembershipExpression(ctx *grammar.MembershipExpressionC
 
 	op := ctx.GetChild(1).(antlr.TerminalNode).GetText()
 
+	var (
+		result types.Collection
+		err    error
+	)
 	switch op {
 	case "in":
-		return In(leftCol, rightCol)
+		result, err = In(leftCol, rightCol)
 	case "contains":
-		return Contains(leftCol, rightCol)
+		result, err = Contains(leftCol, rightCol)
+	default:
+		return types.Collection{}
 	}
 
-	return types.Collection{}
+	if err != nil {
+		return err
+	}
+	return result
 }
 
 // VisitAndExpression visits expr and expr.

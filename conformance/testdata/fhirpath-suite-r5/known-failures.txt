@@ -22,7 +22,6 @@ testConformsTo/testConformsTo1
 testConformsTo/testConformsTo2
 testDollar/testDollarOrderNotAllowed
 testIif/testIif6
-testIn/testIn5
 testInheritance/testFHIRPathAsFunction11
 testInheritance/testFHIRPathAsFunction13
 testInheritance/testFHIRPathAsFunction14

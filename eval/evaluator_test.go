@@ -259,12 +259,12 @@ func TestOperators(t *testing.T) {
 			t.Errorf("expected 3 elements, got %d", result.Count())
 		}
 
-		resultCol := In(types.Collection{types.NewInteger(2)}, c1)
+		resultCol, _ := In(types.Collection{types.NewInteger(2)}, c1)
 		if !resultCol[0].(types.Boolean).Bool() {
 			t.Error("expected 2 in [1,2] to be true")
 		}
 
-		resultCol = Contains(c1, types.Collection{types.NewInteger(1)})
+		resultCol, _ = Contains(c1, types.Collection{types.NewInteger(1)})
 		if !resultCol[0].(types.Boolean).Bool() {
 			t.Error("expected [1,2] contains 1 to be true")
 		}
@@ -452,13 +452,13 @@ func TestOperators(t *testing.T) {
 		}
 
 		// In with empty
-		result = In(empty, types.Collection{types.NewInteger(1)})
+		result, _ = In(empty, types.Collection{types.NewInteger(1)})
 		if !result.Empty() {
 			t.Error("expected empty for in with empty left")
 		}
 
 		// Contains with empty
-		result = Contains(types.Collection{types.NewInteger(1)}, empty)
+		result, _ = Contains(types.Collection{types.NewInteger(1)}, empty)
 		if !result.Empty() {
 			t.Error("expected empty for contains with empty right")
 		}
@@ -830,22 +830,26 @@ func assertBoolCollection(t *testing.T, result types.Collection, expected bool) 
 
 func TestCollectionOperatorEdgeCases(t *testing.T) {
 	t.Run("in with multiple left values", func(t *testing.T) {
-		result := In(
+		// "If the left operand has multiple items, an exception is thrown" —
+		// which of them to look for is not something to guess at
+		_, err := In(
 			types.Collection{types.NewInteger(1), types.NewInteger(2)},
 			types.Collection{types.NewInteger(1), types.NewInteger(2), types.NewInteger(3)},
 		)
-		if !result.Empty() {
-			t.Error("expected empty for in with multiple left values")
+		if err == nil {
+			t.Error("expected an error for in with multiple left values")
 		}
 	})
 
 	t.Run("contains with multiple right values", func(t *testing.T) {
-		result := Contains(
+		// "If the right operand has multiple items, an exception is thrown",
+		// the converse of the rule in states for its left operand
+		_, err := Contains(
 			types.Collection{types.NewInteger(1), types.NewInteger(2), types.NewInteger(3)},
 			types.Collection{types.NewInteger(1), types.NewInteger(2)},
 		)
-		if !result.Empty() {
-			t.Error("expected empty for contains with multiple right values")
+		if err == nil {
+			t.Error("expected an error for contains with multiple right values")
 		}
 	})
 
@@ -1176,7 +1180,7 @@ func TestInContainsOperators(t *testing.T) {
 	t.Run("in true cases", func(t *testing.T) {
 		collection := types.Collection{types.NewInteger(1), types.NewInteger(2), types.NewInteger(3)}
 
-		result := In(types.Collection{types.NewInteger(2)}, collection)
+		result, _ := In(types.Collection{types.NewInteger(2)}, collection)
 		if !result[0].(types.Boolean).Bool() {
 			t.Error("expected 2 in [1,2,3] = true")
 		}
@@ -1185,7 +1189,7 @@ func TestInContainsOperators(t *testing.T) {
 	t.Run("in false cases", func(t *testing.T) {
 		collection := types.Collection{types.NewInteger(1), types.NewInteger(2), types.NewInteger(3)}
 
-		result := In(types.Collection{types.NewInteger(5)}, collection)
+		result, _ := In(types.Collection{types.NewInteger(5)}, collection)
 		if result[0].(types.Boolean).Bool() {
 			t.Error("expected 5 in [1,2,3] = false")
 		}
@@ -1194,7 +1198,7 @@ func TestInContainsOperators(t *testing.T) {
 	t.Run("contains true cases", func(t *testing.T) {
 		collection := types.Collection{types.NewInteger(1), types.NewInteger(2), types.NewInteger(3)}
 
-		result := Contains(collection, types.Collection{types.NewInteger(2)})
+		result, _ := Contains(collection, types.Collection{types.NewInteger(2)})
 		if !result[0].(types.Boolean).Bool() {
 			t.Error("expected [1,2,3] contains 2 = true")
 		}
@@ -1203,7 +1207,7 @@ func TestInContainsOperators(t *testing.T) {
 	t.Run("contains false cases", func(t *testing.T) {
 		collection := types.Collection{types.NewInteger(1), types.NewInteger(2), types.NewInteger(3)}
 
-		result := Contains(collection, types.Collection{types.NewInteger(5)})
+		result, _ := Contains(collection, types.Collection{types.NewInteger(5)})
 		if result[0].(types.Boolean).Bool() {
 			t.Error("expected [1,2,3] contains 5 = false")
 		}

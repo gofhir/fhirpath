@@ -37,8 +37,8 @@ Measured against the official suite, in both configurations a caller can use:
 |---|---|
 | R4 suite, no FHIR model supplied | **894 of 928 (96.3%)** |
 | R4 suite, with the R4 model | **911 of 928 (98.2%)** |
-| R5 suite, no FHIR model supplied | **995 of 1037 (95.9%)** |
-| R5 suite, with the R5 model | **1012 of 1037 (97.6%)** |
+| R5 suite, no FHIR model supplied | **996 of 1037 (96.0%)** |
+| R5 suite, with the R5 model | **1013 of 1037 (97.7%)** |
 
 ```sh
 make conformance          # prints both numbers
@@ -124,6 +124,24 @@ Both specifications therefore call for `.100`, and the R5 suite was corrected to
 match. The R4 case is listed as a known failure rather than special-cased: an
 engine that dropped the decimal would be wrong under either specification, and
 the fix is worth five other cases in the R5 corpus.
+
+### conformsTo, where R5 disagrees with itself
+
+R4 says an unresolvable profile is an error; R5 says the result is empty. The
+engine follows the version the model declares, which is what the two
+specifications ask for.
+
+The R5 suite, however, marks `conformsTo('http://trash')` as
+`invalid="execution"` — an error, the R4 reading. So the R5 case fails here and
+is listed as a known failure. Following its own prose over its own suite is the
+same call made everywhere else in this file: the specification is the authority,
+the suite is evidence about it, and where they part company the reasoning is
+recorded rather than the number optimised.
+
+This one differs from the `+ 0.1 's'` case above in a way worth keeping straight.
+There, both specifications agreed and one suite was stale, so the suite was the
+thing to disregard. Here the two specifications disagree with each other, and
+the engine implements both — the disagreement is real, not a lag.
 
 ## Rules the FHIRPath suite does not reach
 
