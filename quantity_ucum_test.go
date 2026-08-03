@@ -57,3 +57,41 @@ func TestUCUMUnitHandling(t *testing.T) {
 		assertEmptyResult(t, evalOrFatal(t, simpleJSON, expr), expr)
 	})
 }
+
+// TestPrefixOnASpecialUnit covers a prefix applied to a unit on an affine
+// scale, which UCUM §22.4 says multiplies the argument of the scale's function
+// rather than its result.
+//
+// A milli-Celsius is a thousandth of a degree Celsius, not a thousandth of the
+// distance from absolute zero. Read the other way, 1 'mCel' came out as
+// -272.87585 'Cel', which is not a temperature anyone wrote down. No conformance
+// case covers this, so the check lives here.
+func TestPrefixOnASpecialUnit(t *testing.T) {
+	cases := []struct {
+		expr string
+		want string
+	}{
+		{"1 'mCel'.toQuantity('Cel')", "0.001 'Cel'"},
+		{"1 'kCel'.toQuantity('Cel')", "1000 'Cel'"},
+
+		// Crossing to a linear scale still applies the offset, once
+		{"1 'cCel'.toQuantity('K')", "273.16 'K'"},
+		{"0 'Cel'.toQuantity('K')", "273.15 'K'"},
+
+		// The unprefixed conversions are unchanged
+		{"0 'Cel'.toQuantity('[degF]')", "32 '[degF]'"},
+		{"37 'Cel'.toQuantity('[degF]')", "98.6 '[degF]'"},
+		// Parenthesised because unary minus binds looser than the invocation:
+		// -40 'Cel'.toQuantity(...) negates the converted 104, and -40 °C being
+		// -40 °F is the point of the case
+		{"(-40 'Cel').toQuantity('[degF]')", "-40 '[degF]'"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.expr, func(t *testing.T) {
+			if got := evaluateScalar(t, tc.expr, simpleJSON); got != tc.want {
+				t.Errorf("%s = %s, want %s", tc.expr, got, tc.want)
+			}
+		})
+	}
+}
