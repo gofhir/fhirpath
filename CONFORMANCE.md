@@ -36,9 +36,9 @@ Measured against the official suite, in both configurations a caller can use:
 | Configuration | Passing |
 |---|---|
 | R4 suite, no FHIR model supplied | **894 of 928 (96.3%)** |
-| R4 suite, with the R4 model | **911 of 928 (98.2%)** |
+| R4 suite, with the R4 model | **919 of 928 (99.0%)** |
 | R5 suite, no FHIR model supplied | **997 of 1037 (96.1%)** |
-| R5 suite, with the R5 model | **1014 of 1037 (97.8%)** |
+| R5 suite, with the R5 model | **1022 of 1037 (98.6%)** |
 
 ```sh
 make conformance          # prints both numbers
@@ -70,7 +70,6 @@ passing — so the list can only shrink, and it never lies about the number.
 | Block | Cases | Notes |
 |---|---|---|
 | `as()` on a multi-item collection | 1 | Applies from R5; the suite is R4 — see below |
-| Errors we should raise and don't | 8 | All `semantic`: they need compile-time typing, which this engine does not do. fhirpath.js does not raise them either |
 | `lowBoundary` / `highBoundary` | 8 | Three are a suite disagreement (see below); two assume `@2014-01-01T08` carries an implicit minute |
 
 `repeat()` was registered but never implemented — it returned its input
@@ -105,6 +104,31 @@ suite is followed: it expects `@2014-01-01T08.lowBoundary(17)` to carry `+14:00`
 the offset that makes the instant earliest, while the specification's example
 shows no offset at all. The suite's reading is the stricter one — a boundary
 should bound — and fhirpath.js omits the offset, so it fails that case.
+
+## Static analysis
+
+A semantic fault is one that evaluation cannot see. `Patient.name.given1`
+evaluates to empty against a document that has no such value — the right answer
+to the question asked — and is still wrong, because `given1` is not an element
+of `HumanName` in any document. A typo in an invariant behaves exactly like a
+constraint that happens not to fire.
+
+`Expression.Analyze(model, contextType)` reports these before evaluation. It
+covers three rules: navigation the model contradicts, a positional read of a
+collection with no defined order (`children().skip(1)`), and an `iif` criterion
+that cannot be a Boolean. It is opt-in and separate from evaluation, which stays
+lenient — the suite has cases that assert both readings of
+`Observation.valueQuantity.exists()`, one as a semantic error and one under
+`mode="lenient/polymorphics"` expecting an answer.
+
+The analysis is conservative by design: it reports only what the model makes
+certain and stops following a branch as soon as the type becomes unknown. A
+false positive rejects an expression that works, which is worse than missing a
+fault — the analysis exists to catch typos, not to become one. Silence means
+"nothing provably wrong", not "correct".
+
+fhirpath.js does not do this, so it is a second point where the engine goes
+past the reference implementation while following the specification.
 
 ## Inputs that are not the suite's
 
