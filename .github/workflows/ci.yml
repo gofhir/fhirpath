@@ -3,8 +3,10 @@ name: CI
 on:
   push:
     branches: [main]
+  # Every pull request, not only those targeting main. A stacked pull request —
+  # one whose base is another branch under review — got no checks at all under
+  # `branches: [main]`, so the change nobody had verified was the one on top.
   pull_request:
-    branches: [main]
 
 env:
   GO_VERSION: "1.24"
