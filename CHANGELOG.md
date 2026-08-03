@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.5.3](https://github.com/gofhir/fhirpath/compare/v1.5.2...v1.5.3) (2026-08-03)
+
+
+### Bug Fixes
+
+* string functions count characters, and substring no longer panics ([#25](https://github.com/gofhir/fhirpath/issues/25)) ([82b2264](https://github.com/gofhir/fhirpath/commit/82b22646e574ff1176e1d42eed0797da26fa3232))
+* writing the FHIR namespace no longer changes what a type is ([#23](https://github.com/gofhir/fhirpath/issues/23)) ([838d781](https://github.com/gofhir/fhirpath/commit/838d78185c5bc6f5db55baba30ad745445b7c188))
+
 ## [1.5.2](https://github.com/gofhir/fhirpath/compare/v1.5.1...v1.5.2) (2026-08-03)
 
 
