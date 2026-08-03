@@ -7,6 +7,20 @@
 
 * correct conversion of prefixed temperature units ([#18](https://github.com/gofhir/fhirpath/issues/18)) ([2d64365](https://github.com/gofhir/fhirpath/commit/2d64365f44b5e20d7b166d138c0fdc43afeb7e96))
 
+  A prefix on a unit sitting on an affine scale multiplies the argument of the
+  scale's function, not its result (UCUM §22.4). A milli-Celsius is a thousandth
+  of a degree, not a thousandth of the distance from absolute zero.
+
+  | Conversion | v1.5.0 | v1.5.1 |
+  |---|---|---|
+  | `1 'mCel'` in `'Cel'` | -272.87585 | **0.001** |
+  | `1 'kCel'` in `'Cel'` | 273876.85 | **1000** |
+  | `1 'cCel'` in `'K'` | 2.7415 | **273.16** |
+
+  Only prefixed special units are affected; `Cel`, `[degF]` and `K` on their own
+  were always correct. Neither conformance suite prefixes a special unit, so the
+  measurement is unchanged at 919/928 (R4) and 1022/1037 (R5).
+
 ## [1.5.0](https://github.com/gofhir/fhirpath/compare/v1.4.0...v1.5.0) (2026-08-03)
 
 Conformance against the official HL7 suites went from 91.7% to 99.0% (R4), and
