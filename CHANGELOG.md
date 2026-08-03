@@ -2,10 +2,70 @@
 
 ## [1.5.0](https://github.com/gofhir/fhirpath/compare/v1.4.0...v1.5.0) (2026-08-03)
 
+Conformance against the official HL7 suites went from 91.7% to 99.0% (R4), and
+the R5 suite is now measured as well at 98.6%. Both are checked in CI against
+vendored copies, with a baseline that can only shrink.
+
+| Suite | v1.4.0 | v1.5.0 |
+|---|---|---|
+| R4, with the R4 model | 864 / 928 (93.1%) | **919 / 928 (99.0%)** |
+| R5, with the R5 model | not measured | **1022 / 1037 (98.6%)** |
+
+### ⚠ Behaviour changes
+
+No API changed and nothing stops compiling, but expressions that already run may
+now answer differently. Each of these corrected a departure from the
+specification, and every one is cited in `CONFORMANCE.md`.
+
+| Expression | v1.4.0 | v1.5.0 | Why |
+|---|---|---|---|
+| `1 'kg' = 1 'm'` | `false` | `{ }` | "If this process returns empty … the result of the equality comparison is empty" |
+| `1 year = 1 'a'` | `false` | `{ }` | A calendar year and a UCUM year are not comparable |
+| `'2015'.toDateTime()` | a `String` | a `DateTime` | It did not convert at all |
+| `1 / 0`, `5 div 0`, `5 mod 0` | error | `{ }` | "12 / 0 // empty ({ })" |
+| `2.2 div 1.8` | error | `1` | div and mod accept Decimal |
+| `('a' \| 'b') in 'c'` | `{ }` | error | "If the left operand has multiple items, an exception is thrown" |
+| `Appointment.identifier.startsWith('x')` | `false` | error | A non-String input is not a string to test |
+| `(1 \| 2 \| 3) & 'b'` | `'b'` | error | The singleton rule ends in an error |
+| `(true \| 'foo').allTrue()` | `false` | error | "Takes a collection of Boolean values" |
+| `@2012-04-15T15:00:00Z = @2012-04-15T10:00:00` | `false` | `{ }` | One offset, one none: nothing to convert into |
+
+The pattern is the same throughout: an answer that looked confident where the
+specification calls for empty or for an error. A `false` that should have been
+empty makes an invariant pass when it should not decide.
 
 ### Features
 
-* static analysis against a model ([#15](https://github.com/gofhir/fhirpath/issues/15)) ([a6d1603](https://github.com/gofhir/fhirpath/commit/a6d1603eee1d50b0a0e594ef389522c03aaff316))
+* static analysis against a model ([#15](https://github.com/gofhir/fhirpath/issues/15)) — `Expression.Analyze(model, contextType)` reports faults evaluation cannot see: navigation the model contradicts (`Patient.name.given1`), a positional read of an unordered collection (`children().skip(1)`), and an `iif` criterion that cannot be a Boolean. Opt-in and separate from evaluation, which stays lenient
+* read the FHIR element a primitive carries beside its value — `Patient.birthDate.extension(url)` now finds what FHIR stores in `_birthDate`, including a position that has extensions and no value at all
+* resolve references that point inside the document — a fragment naming a contained resource, or a relative reference naming a Bundle entry, no longer needs an injected resolver
+* cyclic `Time` arithmetic — `@T23:30:00 + 1 hour` wraps to `@T00:30:00`; `Time` had no arithmetic at all
+* the functions FHIRPath 3.0.0 adds: `coalesce`, `defineVariable`, `difference`, `duration`, `lastIndexOf`, `repeatAll`
+* `conformsTo()` answers for the profiles a model can resolve, without needing a validator
+* reject a type specifier that resolves to no type, through the optional `TypeRegistry` interface
+* measure against the R5 conformance suite as well ([#14](https://github.com/gofhir/fhirpath/issues/14))
+
+### Bug Fixes
+
+* function arguments are navigated from the scope the call sits in, not from its input — `name.given.combine(name.family)` was looking for `family` inside `given` and silently returning its input
+* `repeat()` was registered but never implemented; it returned its input unchanged
+* `defineVariable` scoped its variables to the whole expression rather than to the branch that defined them
+* quantity conversion and the two duration systems: the calendar puts 365 days in a year against UCUM's 365.25, and the two meet only at a week and below
+* `toQuantity()` follows the list the specification gives — a Boolean, the UCUM default unit `'1'`, and the published regex for strings, anchored
+* the singleton evaluation rule, which was missing its error branch in three places
+* regular expressions run in single line mode, so `.` matches a newline
+* calendar arithmetic clamps to the end of the month: a year after the 29th of February is the 28th
+* `union()` eliminated duplicates from its argument but not from its input
+* `~` on decimals compares at the precision of the less precise operand
+* `abs()` reaches Quantity and no longer rounds through a float
+* a delimited identifier is read as the name it escapes: ``FHIR.`Patient` ``
+* FHIR quantities map onto FHIRPath's calendar units, so `Patient.birthDate + Observation.value` works on data FHIR considers well formed
+
+### Build
+
+* the parser is generated from `grammar/fhirpath.g4`, and CI fails if the committed parser drifts from it — the previous grammar rejected `\"` inside a string
+* the hardcoded UCUM table is gone, replaced by `gofhir/ucum`, which fixed a silent wrong answer on `100 '[degF]' > 50 'Cel'`
+* golangci-lint migrated to v2 and pinned; CI asked for `latest` through an action that resolves within v1, so it passed while any current install rejected the config outright
 
 ## [1.4.0](https://github.com/gofhir/fhirpath/compare/v1.3.1...v1.4.0) (2026-03-09)
 
