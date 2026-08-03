@@ -105,6 +105,26 @@ the offset that makes the instant earliest, while the specification's example
 shows no offset at all. The suite's reading is the stricter one — a boundary
 should bound — and fhirpath.js omits the offset, so it fails that case.
 
+### An empty regex in `replaceMatches`
+
+    'abc'.replaceMatches('', 'x')
+
+The suite expects `abc`. This engine and fhirpath.js 5.1.0 both give `xaxbxcx`,
+and the specification supports them from two directions.
+
+`replace`, the sibling function, states the case outright: "If `pattern` is the
+empty string (`''`), every character in the input string is surrounded by the
+substitution, e.g. `'abc'.replace('','x')` becomes `'xaxbxcx'`". `replaceMatches`
+carries no special rule for an empty regex, only the shared one — "if the input
+collection, `regex`, or `substitution` are empty, the result is empty" — and
+`''` is not empty in that sense. It is a collection holding one empty string,
+which is exactly the distinction `replace` draws by naming the two cases apart.
+
+What settles it is that the expected value answers to neither reading. Were `''`
+treated as empty the result would be `{ }`; were it not, an empty pattern matches
+at every position and the result is `xaxbxcx`. `abc` follows from neither, so the
+case is listed as a known failure.
+
 ## Static analysis
 
 A semantic fault is one that evaluation cannot see. `Patient.name.given1`
