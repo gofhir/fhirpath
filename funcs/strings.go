@@ -40,7 +40,7 @@ func init() {
 	Register(FuncDef{
 		Name:    "matches",
 		MinArgs: 1,
-		MaxArgs: 1,
+		MaxArgs: 2,
 		Fn:      fnMatches,
 	})
 
@@ -54,14 +54,14 @@ func init() {
 	Register(FuncDef{
 		Name:    "matchesFull",
 		MinArgs: 1,
-		MaxArgs: 1,
+		MaxArgs: 2,
 		Fn:      fnMatchesFull,
 	})
 
 	Register(FuncDef{
 		Name:    "replaceMatches",
 		MinArgs: 2,
-		MaxArgs: 2,
+		MaxArgs: 3,
 		Fn:      fnReplaceMatches,
 	})
 
@@ -223,8 +223,15 @@ func fnReplace(_ *eval.Context, input types.Collection, args []interface{}) (typ
 	return types.Collection{types.NewString(result)}, nil
 }
 
-// fnMatches returns true if the string matches the regex pattern.
-// Uses cached regex compilation with ReDoS protection.
+// fnMatches returns true when the regular expression is found anywhere in the
+// input string.
+//
+// The match is partial, which is what the specification asks for: "the start/end
+// of line markers ^, $ can be used to match the entire string" only means
+// something if the pattern is not anchored already. Its own examples settle it —
+// 'N8000123123'.matches('N[0-9]{8}') is true "as the string has an 8 number
+// sequence in it", while matches('^N[0-9]{8}$') is false. matchesFull is the
+// anchored form.
 func fnMatches(ctx *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
 	if input.Empty() {
 		return types.Collection{}, nil
@@ -243,13 +250,33 @@ func fnMatches(ctx *eval.Context, input types.Collection, args []interface{}) (t
 		return types.Collection{}, nil
 	}
 
+	modes, err := regexModesFor(args, 1)
+	if err != nil {
+		return nil, err
+	}
+
 	// Use regex cache with timeout protection
-	matched, err := DefaultRegexCache.MatchWithTimeout(ctx.Context(), pattern, str)
+	matched, err := DefaultRegexCache.MatchWithTimeout(ctx.Context(), modes+pattern, str)
 	if err != nil {
 		return nil, err
 	}
 
 	return types.Collection{types.NewBoolean(matched)}, nil
+}
+
+// regexModesFor reads the optional flags parameter at the given position, absent
+// or empty meaning no flags.
+func regexModesFor(args []interface{}, at int) (string, error) {
+	if len(args) <= at {
+		return "", nil
+	}
+	// An empty flags collection is the same as none: the specification's own
+	// example passes '' to mean the default
+	flags, ok := toStringArg(args[at])
+	if !ok {
+		return "", nil
+	}
+	return InlineFlags(flags)
 }
 
 // fnMatchesFull returns true when the pattern matches the entire input string,
@@ -276,9 +303,14 @@ func fnMatchesFull(ctx *eval.Context, input types.Collection, args []interface{}
 		return types.Collection{}, nil
 	}
 
+	modes, err := regexModesFor(args, 1)
+	if err != nil {
+		return nil, err
+	}
+
 	// \A and \z anchor to the whole text regardless of any line anchors inside
 	// the pattern, so an already-anchored pattern keeps its own meaning.
-	matched, err := DefaultRegexCache.MatchWithTimeout(ctx.Context(), `\A(?:`+pattern+`)\z`, str)
+	matched, err := DefaultRegexCache.MatchWithTimeout(ctx.Context(), modes+`\A(?:`+pattern+`)\z`, str)
 	if err != nil {
 		return nil, err
 	}
@@ -311,8 +343,13 @@ func fnReplaceMatches(ctx *eval.Context, input types.Collection, args []interfac
 		return types.Collection{}, nil
 	}
 
+	modes, err := regexModesFor(args, 2)
+	if err != nil {
+		return nil, err
+	}
+
 	// Use regex cache with timeout protection
-	result, err := DefaultRegexCache.ReplaceWithTimeout(ctx.Context(), pattern, str, substitution)
+	result, err := DefaultRegexCache.ReplaceWithTimeout(ctx.Context(), modes+pattern, str, substitution)
 	if err != nil {
 		return nil, err
 	}

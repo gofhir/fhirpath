@@ -242,3 +242,47 @@ func (c *RegexCache) Size() int {
 	defer c.mu.RUnlock()
 	return len(c.cache)
 }
+
+// The flags the specification allows on matches, matchesFull and
+// replaceMatches, and the inline group Go reads each as.
+//
+// "i to perform a case-insensitive search (otherwise is case-sensitive)" and
+// "m - Matches the start and end of each line using ^ and $ (multi-line) (not
+// only begin/end of string)". Nothing else is permitted: "if the flags parameter
+// contains invalid values, the evaluation of the expression will end and signal
+// an error to the calling environment".
+var regexFlagModes = map[rune]string{
+	'i': "i",
+	'm': "m",
+}
+
+// InlineFlags turns the specification's flags parameter into the inline group
+// that prefixes a pattern, or reports the character that is not a flag.
+//
+// The result composes with the single line mode Compile applies, so a pattern
+// keeps matching a newline with . while ^ and $ gain per-line meaning only when
+// asked for.
+func InlineFlags(flags string) (string, error) {
+	if flags == "" {
+		return "", nil
+	}
+
+	var (
+		modes []rune
+		seen  = map[rune]bool{}
+	)
+	for _, ch := range flags {
+		mode, ok := regexFlagModes[ch]
+		if !ok {
+			return "", eval.NewEvalError(eval.ErrInvalidExpression,
+				"invalid regex flag %q: only 'i' and 'm' are defined", string(ch))
+		}
+		if seen[ch] {
+			continue
+		}
+		seen[ch] = true
+		modes = append(modes, rune(mode[0]))
+	}
+
+	return "(?" + string(modes) + ")", nil
+}

@@ -174,7 +174,7 @@ Returns `true` if the input string matches the given regular expression.
 **Signature:**
 
 ```text
-matches(regex : String) : Boolean
+matches(regex : String [, flags : String]) : Boolean
 ```
 
 **Parameters:**
@@ -182,6 +182,7 @@ matches(regex : String) : Boolean
 | Name      | Type     | Description                    |
 |-----------|----------|--------------------------------|
 | `regex`   | `String` | A regular expression pattern   |
+| `flags`   | `String` | Optional. `i` for a case-insensitive search, `m` to make `^` and `$` match the start and end of each line |
 
 **Return Type:** `Boolean`
 
@@ -196,14 +197,95 @@ result, _ := fhirpath.Evaluate(resource, "'abc123'.matches('[a-z]+\\d+')")
 
 result, _ := fhirpath.Evaluate(resource, "'hello'.matches('^[0-9]+$')")
 // false
+
+result, _ := fhirpath.Evaluate(resource, "'ABC'.matches('abc', 'i')")
+// true
 ```
+
+**The match is partial.** The pattern is looked for *anywhere* in the value, not
+tested against the whole of it. This is what the specification calls for — "the
+start/end of line markers `^`, `$` can be used to match the entire string" only
+means something if the pattern is not anchored already — and it is the most
+common source of surprise in this function:
+
+```go
+"'N8000123123'.matches('N[0-9]{8}')"      // true — an 8-digit sequence is in there
+"'N8000123123'.matches('^N[0-9]{8}$')"    // false — anchored by hand
+"'  X  '.matches('[A-Z][A-Za-z0-9_]*')"   // true — the X alone satisfies it
+```
+
+Use [`matchesFull`](#matchesfull) when the pattern has to cover the whole value,
+or anchor the pattern yourself with `^` and `$`.
+
+This matters when reading FHIR's published invariants, most of which are
+unanchored: `eld-19`, `eld-20` and the `[A-Z]([A-Za-z0-9_]){0,254}` constraint
+shared by many canonical resources all admit a value that merely *contains*
+something acceptable. That is a property of those constraints rather than of this
+engine — HL7's Java validator anchors because `String.matches` in Java does, not
+because the specification says to.
 
 **Edge Cases / Notes:**
 
-- Uses Go's `regexp` package for pattern matching.
-- The regex is compiled with caching and includes ReDoS (Regular Expression Denial of Service) timeout protection.
+- Uses Go's `regexp` package (RE2) for pattern matching.
+- The regex is compiled with caching and matching runs under a timeout.
 - Returns empty collection if the input is empty.
-- The match is **partial**: the pattern is looked for anywhere in the value, so `'.leadingDot'.matches('[A-Za-z][A-Za-z0-9]*')` is true. Use `matchesFull` when the pattern has to cover the whole value.
+- A `flags` value containing anything other than `i` or `m` is an error, as the specification requires.
+- `.` matches a newline in every mode, which is the 'single line' mode the specification fixes.
+
+---
+
+## matchesFull
+
+Returns `true` if the regular expression matches the **entire** input string.
+
+**Signature:**
+
+```text
+matchesFull(regex : String [, flags : String]) : Boolean
+```
+
+**Parameters:**
+
+| Name      | Type     | Description                    |
+|-----------|----------|--------------------------------|
+| `regex`   | `String` | A regular expression pattern   |
+| `flags`   | `String` | Optional. `i` for a case-insensitive search, `m` to make `^` and `$` match the start and end of each line |
+
+**Return Type:** `Boolean`
+
+The specification defines it as the form where the start/end markers always
+surround the pattern, so it answers the question `matches` does not: does this
+value, all of it, have the shape the pattern describes.
+
+**Examples:**
+
+```go
+result, _ := fhirpath.Evaluate(resource, "'ABC'.matchesFull('[A-Z]{3}')")
+// true
+
+result, _ := fhirpath.Evaluate(resource, "'ABCD'.matchesFull('[A-Z]{3}')")
+// false — matches would be true
+
+result, _ := fhirpath.Evaluate(resource, "'N8000123123'.matchesFull('N[0-9]{8}')")
+// false — the string has 10 digits, not 8
+
+result, _ := fhirpath.Evaluate(resource, "'N8000123123'.matchesFull('N[0-9]{10}')")
+// true
+```
+
+Side by side with `matches`, on the same input and pattern:
+
+| Expression | `matches` | `matchesFull` |
+|---|---|---|
+| `'a/Library/b'` with `'Library'` | true | false |
+| `'a/Library/b'` with `'.*Library.*'` | true | true |
+| `'  X  '` with `'[A-Z][A-Za-z0-9_]*'` | true | false |
+
+**Edge Cases / Notes:**
+
+- Anchoring uses `\A` and `\z`, which bound the whole text regardless of any `^` or `$` inside the pattern — an already-anchored pattern keeps its own meaning.
+- Returns empty collection if the input or the regex is empty.
+- Defined in FHIRPath 3.0.0 and marked Standard for Trial Use.
 
 ---
 
@@ -214,7 +296,7 @@ Replaces all occurrences of a regex pattern with the substitution string.
 **Signature:**
 
 ```text
-replaceMatches(regex : String, substitution : String) : String
+replaceMatches(regex : String, substitution : String [, flags : String]) : String
 ```
 
 **Parameters:**
