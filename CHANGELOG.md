@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.6.0](https://github.com/gofhir/fhirpath/compare/v1.5.3...v1.6.0) (2026-08-03)
+
+
+### Features
+
+* the regex functions take the flags parameter, and matchesFull is documented ([#28](https://github.com/gofhir/fhirpath/issues/28)) ([6a83f52](https://github.com/gofhir/fhirpath/commit/6a83f52185880a631308125721603eb80f7dacb6))
+
 ## [1.5.3](https://github.com/gofhir/fhirpath/compare/v1.5.2...v1.5.3) (2026-08-03)
 
 
