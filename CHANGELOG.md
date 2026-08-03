@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.1](https://github.com/gofhir/fhirpath/compare/v1.5.0...v1.5.1) (2026-08-03)
+
+
+### Bug Fixes
+
+* correct conversion of prefixed temperature units ([#18](https://github.com/gofhir/fhirpath/issues/18)) ([2d64365](https://github.com/gofhir/fhirpath/commit/2d64365f44b5e20d7b166d138c0fdc43afeb7e96))
+
 ## [1.5.0](https://github.com/gofhir/fhirpath/compare/v1.4.0...v1.5.0) (2026-08-03)
 
 Conformance against the official HL7 suites went from 91.7% to 99.0% (R4), and
