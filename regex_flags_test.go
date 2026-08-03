@@ -125,3 +125,41 @@ func TestMatchesIsPartialAndMatchesFullIsNot(t *testing.T) {
 		})
 	}
 }
+
+// TestMatchesWithinUrlFromTheSuite runs the conformance cases that settle the
+// question, so the answer lives here and not only in an issue thread.
+//
+// Both corpora carry two groups over one input, testMatchesWithinUrl and
+// testMatchesFullWithinUrl — "within" is the suite's own word for it. The pair
+// that matters is the one where they differ: the same value and the same pattern
+// are expected to be true for matches and false for matchesFull.
+//
+// The engine passes all ten in all four configurations, and anchoring matches
+// would fail testMatchesWithinUrl2 in R4 and R5 alike. So this is not a reading
+// of the specification that could go either way — it is a published expected
+// value.
+func TestMatchesWithinUrlFromTheSuite(t *testing.T) {
+	doc := []byte(`{}`)
+
+	const url = `'http://fhir.org/guides/cqf/common/Library/FHIR-ModelInfo|4.0.1'`
+
+	for _, tc := range []struct{ name, expr, want string }{
+		{"testMatchesWithinUrl1", url + `.matches('library')`, "false"},
+		{"testMatchesWithinUrl2", url + `.matches('Library')`, "true"},
+		{"testMatchesWithinUrl3", url + `.matches('^Library$')`, "false"},
+		{"testMatchesWithinUrl1a", url + `.matches('.*Library.*')`, "true"},
+		{"testMatchesWithinUrl4", url + `.matches('Measure')`, "false"},
+
+		{"testMatchesFullWithinUrl1", url + `.matchesFull('library')`, "false"},
+		{"testMatchesFullWithinUrl3", url + `.matchesFull('Library')`, "false"},
+		{"testMatchesFullWithinUrl4", url + `.matchesFull('^Library$')`, "false"},
+		{"testMatchesFullWithinUrl1a", url + `.matchesFull('.*Library.*')`, "true"},
+		{"testMatchesFullWithinUrl2", url + `.matchesFull('Measure')`, "false"},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := evaluateScalar(t, tc.expr, doc); got != tc.want {
+				t.Errorf("%s: got %s, want %s", tc.expr, got, tc.want)
+			}
+		})
+	}
+}
