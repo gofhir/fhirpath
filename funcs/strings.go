@@ -339,8 +339,15 @@ func fnIndexOf(_ *eval.Context, input types.Collection, args []interface{}) (typ
 		return types.Collection{}, nil
 	}
 
-	idx := strings.Index(str, substr)
-	return types.Collection{types.NewInteger(int64(idx))}, nil
+	byteIndex := strings.Index(str, substr)
+	if byteIndex < 0 {
+		return types.Collection{types.NewInteger(-1)}, nil
+	}
+
+	// "The returned index is measured in characters (Unicode scalar values)", so
+	// the byte offset strings.Index reports is converted — the same conversion
+	// lastIndexOf makes
+	return types.Collection{types.NewInteger(int64(len([]rune(str[:byteIndex]))))}, nil
 }
 
 // fnSubstring returns a substring starting at the given index.
@@ -368,24 +375,60 @@ func fnSubstring(_ *eval.Context, input types.Collection, args []interface{}) (t
 		return nil, err
 	}
 
-	if start < 0 || int(start) >= len(str) {
+	// Positions count characters, not bytes: 'ñJosé'.substring(1) is 'José'.
+	// Indexing the bytes cuts a multi-byte character in half and yields invalid
+	// UTF-8 — it answered "\xb1José" — and both length() and lastIndexOf() count
+	// the same way.
+	runes := []rune(str)
+
+	// "If start lies outside the length of the string, the function returns
+	// empty ({ })"
+	if start < 0 || start >= int64(len(runes)) {
 		return types.Collection{}, nil
 	}
 
-	// Optional length parameter
+	end := int64(len(runes))
+
 	if len(args) > 1 {
+		// "If an empty length is provided, the behavior is the same as if length
+		// had not been provided"
+		if col, isCollection := args[1].(types.Collection); isCollection && col.Empty() {
+			return types.Collection{types.NewString(string(runes[start:]))}, nil
+		}
+
 		length, err := toInteger(args[1])
 		if err != nil {
 			return nil, err
 		}
-		end := int(start + length)
-		if end > len(str) {
-			end = len(str)
+
+		// "If length is given, will return at most length number of characters",
+		// and "if there are less remaining characters in the string than
+		// indicated by length, the function returns just the remaining
+		// characters".
+		//
+		// So length bounds the result and is never itself a reason to refuse: the
+		// specification names only an out-of-range start, an empty input and an
+		// empty start as causes of empty. At most a negative number of characters
+		// is none of them, which is the empty string — the answer fhirpath.js
+		// gives too, and the one substring(0, 0) already gave here.
+		//
+		// Taken as a count rather than as an end offset, because start + length
+		// is what used to leave the slice: a negative length made it negative and
+		// panicked, which is not an error a caller can handle. It arrives from
+		// arithmetic rather than being written down — R5's sdf-24 computes
+		// id.substring(0, $this.length()-10), negative for any id shorter than
+		// ten characters.
+		take := length
+		if take < 0 {
+			take = 0
 		}
-		return types.Collection{types.NewString(str[start:end])}, nil
+		if remaining := int64(len(runes)) - start; take > remaining {
+			take = remaining
+		}
+		end = start + take
 	}
 
-	return types.Collection{types.NewString(str[start:])}, nil
+	return types.Collection{types.NewString(string(runes[start:end]))}, nil
 }
 
 // fnLower converts string to lowercase.
@@ -528,7 +571,11 @@ func fnLength(_ *eval.Context, input types.Collection, _ []interface{}) (types.C
 		return types.Collection{}, nil
 	}
 
-	return types.Collection{types.NewInteger(int64(len(str)))}, nil
+	// "Returns the number of characters (Unicode scalar values) in the input
+	// string", which is not the number of bytes: 'José'.length() is 4, and
+	// len(str) would say 5. Any accented name in the data makes the difference,
+	// and toChars() already counts this way.
+	return types.Collection{types.NewInteger(int64(len([]rune(str))))}, nil
 }
 
 // Helper functions
