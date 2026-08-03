@@ -7,7 +7,6 @@ HighBoundary/HighBoundaryDateTimeMillisecond3
 HighBoundary/HighBoundaryDecimal15
 HighBoundary/HighBoundaryDecimal16
 LowBoundary/LowBoundaryDecimal15
-testCombine()/testCombine1
 testInheritance/testFHIRPathAsFunction21
 testPlus/testPlusDate19
 testReplaceMatches/testReplaceMatches2

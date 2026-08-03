@@ -35,30 +35,34 @@ Measured against the official suite, in both configurations a caller can use:
 
 | Configuration | Passing |
 |---|---|
-| R4 suite, no FHIR model supplied | **894 of 928 (96.3%)** |
-| R4 suite, with the R4 model | **919 of 928 (99.0%)** |
-| R5 suite, no FHIR model supplied | **997 of 1037 (96.1%)** |
-| R5 suite, with the R5 model | **1022 of 1037 (98.6%)** |
+| R4 suite, no FHIR model supplied | **900 of 935 (96.3%)** |
+| R4 suite, with the R4 model | **927 of 935 (99.1%)** |
+| R5 suite, no FHIR model supplied | **1007 of 1048 (96.1%)** |
+| R5 suite, with the R5 model | **1034 of 1048 (98.7%)** |
 
 ```sh
 make conformance          # prints both numbers
 make conformance-update   # re-baseline after closing a gap
 ```
 
-The harness ([`conformance/`](conformance)) runs the 937 cases of
+The harness ([`conformance/`](conformance)) runs
 [`FHIR/fhir-test-cases`](https://github.com/FHIR/fhir-test-cases), vendored under
-[`conformance/testdata/fhirpath-suite`](conformance/testdata/fhirpath-suite).
-Nine cases are skipped because two inputs have no published JSON equivalent;
-every skip is logged.
+[`conformance/testdata/`](conformance/testdata) together with the input resources
+the suite was written against — all 935 R4 cases execute, and 1048 of the 1051
+R5 ones. The three that do not are `ccda.xml`, a CDA document rather than a FHIR
+resource; every skip is logged with its reason.
 
 It is a **separate Go module**, so the FHIR model packages it needs to measure
-the model-aware run stay out of the engine's own dependency graph.
+the model-aware run stay out of the engine's own dependency graph. Reading the
+suite's XML inputs uses those same packages, which is why it belongs here and not
+in the engine: converting FHIR XML correctly needs the cardinality and primitive
+type of every element, and the engine deliberately carries no model of its own.
 
-A model is worth less here than expected — four cases — and the reason is
-instructive: most remaining `is()`/`as()` failures are not about hierarchy but
-about FHIR primitives being distinct types from their System counterparts
-(`Patient.gender.as(string)` must yield empty because gender is a `code`), and
-three more fail on an input discrepancy rather than on evaluation.
+A model is worth less here than expected — 27 cases across the R4 corpus — and
+the reason is instructive: most remaining `is()`/`as()` failures are not about
+hierarchy but about FHIR primitives being distinct types from their System
+counterparts (`Patient.gender.as(string)` must yield empty because gender is a
+`code`).
 
 Cases that do not pass yet live in `known-failures.txt` and
 `known-failures-model.txt`, one baseline per configuration. CI does not break over
@@ -147,16 +151,42 @@ worth recording as the shape of a gap the suites leave: they cover the units
 that appear in FHIR data, and a unit that is merely legal UCUM can still be
 wrong everywhere.
 
-## Inputs that are not the suite's
+## Reading the suite's own inputs
 
-Three of the R5 inputs vendored from hl7.org have drifted from the copies the
-suite runs against, and the testdata README records each one. Two are left
-unreconciled on purpose: `valueset-example-expansion` differs in several fields
-at once, and `conceptmap-example` is a different resource altogether — four
-groups against one. Patching the single field a failing case reads would hide
-one difference while leaving the rest, and would leave the input looking aligned
-when it is not. Four cases fail for this reason, and the expressions in them
-evaluate correctly.
+The harness used to run against the examples hl7.org publishes, because the suite
+names its inputs as `.xml` and this engine consumes JSON. That cost twice, and
+both costs were invisible in the percentage.
+
+Resources hl7.org never published as JSON could not be run at all: 7 R4 cases and
+11 R5 ones were skipped, and a skipped case is not a passing case but does not
+lower the number either. And the copies it did publish had drifted from the
+suite's, so four more cases measured a different resource than their expected
+result was written for — `codesystem-example` had lost the nested concepts
+`testCombine1` counts duplicates among, and R5's `valueset-example-expansion`
+had moved its `version` from `20150622` to `5.0.0`, which two cases assert.
+
+The inputs are now the suite's own files, converted on load through
+`gofhir/models`. That is not a generic XML-to-JSON mapping and could not be:
+deciding that a lone `<name>` element is a collection of one, or that
+`value="true"` is a boolean rather than the string `"true"`, takes the
+cardinality and type of every element. The generated types carry both, which is
+also why this belongs to the conformance module rather than the engine.
+
+Two things came out of it that the old inputs had been hiding:
+
+- **A real defect.** `testTypeA4` asserts that a `valueUuid` `is(FHIR.uri)`, and
+  it had never run. Writing the namespace turned out to disable hierarchy
+  matching altogether — `Patient.is(FHIR.DomainResource)` was false while
+  `Patient.is(DomainResource)` was true. Fixed; see the test in
+  [`eval/type_namespace_test.go`](eval/type_namespace_test.go).
+- **A limit of the no-model run**, not a defect. `testPeriodInvariantNew` reads
+  `Period.start.lowBoundary() < Period.end.highBoundary()` where `start` is
+  `2001-05-06` and `end` is `2001-05-06T10:10:10Z`. Without a model `start` is a
+  date, its low boundary is the same date, and comparing day precision against
+  millisecond precision when everything shared matches is empty — the rule stated
+  below. With the model it knows `Period.start` is a `dateTime` and answers true.
+  It is listed in the no-model baseline alone, which is what the two baselines are
+  for.
 
 ## Where the two suites disagree
 

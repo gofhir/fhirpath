@@ -9,53 +9,43 @@ conformance number is only meaningful if you know what it was measured against.
 | Path | Source |
 |------|--------|
 | `tests-fhir-r4.xml` | [`FHIR/fhir-test-cases`](https://github.com/FHIR/fhir-test-cases) → `r4/fhirpath/tests-fhir-r4.xml` |
-| `SUITE_COMMIT` | The `fhir-test-cases` commit the suite was taken from |
-| `input/appointment-examplereq.json`<br>`input/explanationofbenefit-example.json`<br>`input/patient-container-example.json`<br>`input/patient-name-extensions.json` | `FHIR/fhir-test-cases` → `r4/` (already JSON there) |
-| `input/patient-example.json`<br>`input/observation-example.json`<br>`input/questionnaire-example.json`<br>`input/valueset-example-expansion.json`<br>`input/codesystem-example.json` | <https://hl7.org/fhir/R4/> — the suite names these inputs as `.xml`; this engine consumes JSON, so the published JSON equivalent is vendored under the same base name |
+| `SUITE_COMMIT` | The `fhir-test-cases` commit the suite and its inputs were taken from |
+| `input/*.xml` | `FHIR/fhir-test-cases` → `r4/`, byte for byte |
+| `input/*.json` | `FHIR/fhir-test-cases` → `r4/`, for the inputs it publishes as JSON |
 | `known-failures.txt` | Generated. Cases that do not pass with no FHIR model supplied |
 | `known-failures-model.txt` | Generated. Cases that do not pass with the R4 model supplied |
 
 The suite itself is maintained upstream in the R5 file; the R4 copy is the one
 that matches the resources this engine is tested against.
 
-## A caveat on the converted inputs
+## Every input is the suite's own
 
-The inputs taken from hl7.org are the *published* examples, while the suite runs
-against the copies in `fhir-test-cases`, and those are not always identical. One
-difference is known and has been reconciled: `observation-example.xml` there
-carries an extension the published example does not, which three cases exercise.
+The inputs are the files the suite was written against, in the format it ships
+them. `parameters-example-types.xml` and the rest are XML, so the harness
+converts them on load through `gofhir/models`, whose generated types carry the
+cardinality and primitive type of every element — a lone `<name>` becomes a
+collection of one, and `value="true"` becomes a boolean rather than the string
+`"true"`. A generic XML-to-JSON mapping cannot do either.
 
-```xml
-<extension url="http://example.com/fhir/StructureDefinition/patient-age">
-  <valueAge>
-    <value value="41" />
-    <system value="http://unitsofmeasure.org" />
-    <code value="a" />
-  </valueAge>
-</extension>
-```
-
-`input/observation-example.json` carries the JSON equivalent, transcribed from
-that element. Every other element of the two representations lines up, so this
-is the whole of the difference rather than a patch over an unknown one.
-
-The remaining inputs have not been diffed against the suite's copies element by
-element. Converting the suite's own XML resources wholesale would settle it, and
-would also close the skipped cases below; it needs a FHIR-aware converter, since
-XML gives no hint of which elements are arrays.
+This replaced substituting the equivalents published at hl7.org, which cost
+twice. Resources hl7.org never published as JSON could not be run at all, and
+those it did publish had moved on from the suite's copies — `codesystem-example`
+had lost the nested concepts `testCombine1` counts duplicates among, so the case
+measured a different resource than its expected result was written for. Reading
+the suite's own files removed the whole category: nothing here is transcribed,
+patched, or diffed by hand.
 
 ## Cases not executed
 
-Two inputs have no published JSON equivalent (`parameters-example-types.xml` and
-`patient-example-period.xml`, checked against `hl7.org/fhir/R4`, `build.fhir.org`
-and the `fhir-test-cases` repository), so **9 of the 937 cases are skipped**. The
-test logs each skip with its input file — coverage is reported, never quietly
-reduced. Converting those two resources from XML would close the gap.
+None. All **935 cases run**.
+
+The harness logs every skip with its input file, so if a future input cannot be
+read the coverage says so rather than quietly shrinking.
 
 ## Updating
 
 ```sh
-# refresh the suite and inputs, then re-baseline
+# refresh the suite and inputs from the pinned commit, then re-baseline
 go test -run TestOfficialSuite -update-known-failures
 ```
 

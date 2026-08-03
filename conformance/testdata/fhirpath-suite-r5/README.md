@@ -5,7 +5,7 @@ The second corpus `TestOfficialSuite` runs, alongside
 
 Two suites are two measurements, not one repeated. The R4 corpus is what the
 other engines report against and what most deployed data conforms to. This one
-is larger — 1053 cases against 928 — covers functions R4 never exercised, and
+is larger — 1051 cases against 935 — covers functions R4 never exercised, and
 evaluates under the rules that changed with R5, which this engine applies from
 the version the model declares.
 
@@ -18,56 +18,54 @@ running this suite found six defects in it on the first measurement.
 | Path | Source |
 |------|--------|
 | `tests-fhir-r5.xml` | [`FHIR/fhir-test-cases`](https://github.com/FHIR/fhir-test-cases) → `r5/fhirpath/tests-fhir-r5.xml` |
-| `input/appointment-examplereq.json`<br>`input/diagnosticreport-eric.json`<br>`input/explanationofbenefit-example.json`<br>`input/patient-container-example.json`<br>`input/patient-name-extensions.json` | `FHIR/fhir-test-cases` → `r5/` (already JSON there) |
-| `input/patient-example.json`<br>`input/observation-example.json`<br>`input/questionnaire-example.json`<br>`input/valueset-example-expansion.json`<br>`input/codesystem-example.json`<br>`input/conceptmap-example.json` | <https://hl7.org/fhir/R5/> — the suite names these inputs as `.xml`; this engine consumes JSON, so the published JSON equivalent is vendored under the same base name |
+| `SUITE_COMMIT` | The `fhir-test-cases` commit the suite and its inputs were taken from |
+| `input/*.xml` | `FHIR/fhir-test-cases` → `r5/`, byte for byte |
+| `input/*.json` | `FHIR/fhir-test-cases` → `r5/`, for the inputs it publishes as JSON |
 | `known-failures.txt` | Generated. Cases that do not pass with no FHIR model supplied |
 | `known-failures-model.txt` | Generated. Cases that do not pass with the R5 model supplied |
 
-These are the R5 examples, not the R4 ones: the resources differ between
-versions, so the inputs are vendored separately rather than shared with the
-other suite.
+These are the R5 resources, vendored separately rather than shared with the
+other suite: the examples differ between versions, and so does the unmarshaler
+that reads them.
+
+## Every input is the suite's own
+
+The inputs are the files the suite was written against, in the format it ships
+them. The XML ones are converted on load through `gofhir/models`, whose
+generated types carry the cardinality and primitive type of every element, which
+a generic XML-to-JSON mapping cannot supply. See the
+[R4 README](../fhirpath-suite/README.md) for the detail.
+
+Three divergences used to be recorded here, and reading the suite's own files
+closed all three:
+
+- `observation-example` had been reconciled by hand, transcribing an extension
+  the published example lacks. No longer transcribed — the suite's file is read
+  directly.
+- `conceptmap-example` was **not** reconciled and was the furthest apart: the
+  suite's copy has four groups, nine elements and thirteen targets where the
+  published R5 resource has one, four and four. `dvConceptMapExample` asserts a
+  projection holds duplicates, true of one resource and not the other.
+- `valueset-example-expansion` was **not** reconciled either: the published
+  resource's `version` is `5.0.0` where the suite's is `20150622`, and
+  `testFHIRPathAsFunction14` and `19` assert the older one.
+
+All four cases now pass, and none of them ever indicated a defect in the engine.
 
 ## Cases not executed
 
-Five inputs have no published JSON equivalent (`parameters-example-types.xml`,
-`patient-example-period.xml`, `ccda.xml`, `parameters-example-html.xml` and
-`patient-example-name.xml`), so **16 of the 1053 cases are skipped**. The test
-logs each skip with its input file — coverage is reported, never quietly
-reduced.
+`ccda.xml` is a CDA `ClinicalDocument`, not a FHIR resource, so no FHIR
+unmarshaler can read it — **3 of the 1051 cases are skipped**. The harness logs
+the reason with the input file, distinguishing an input it cannot read from one
+that is missing.
 
-## Where a published input differs from the suite's copy
-
-The inputs taken from hl7.org are the published examples, and the suite runs
-against the copies in `fhir-test-cases`. Three differences are known.
-
-`observation-example` — reconciled. The suite's copy carries an extension the
-published one does not, which three cases exercise; the JSON equivalent is in
-`input/observation-example.json`, transcribed from the XML. Every other element
-lines up.
-
-`conceptmap-example` — **not** reconciled, and the furthest apart of the three.
-The suite's copy has four groups, nine elements and thirteen targets; the
-published R5 resource has one, four and four. They are different resources, not
-two revisions of one. `dvConceptMapExample` asserts that a projection over them
-holds duplicates, which is true of the suite's copy and not of the published
-one, so the case is listed as a known failure. The expression itself evaluates
-correctly — it is the data that differs.
-
-`valueset-example-expansion` — **not** reconciled. The published R5 resource has
-moved on from the suite's copy by more than one field: its `version` is `5.0.0`
-where the suite's is `20150622`, and it also carries a `title`, eight
-`valueCode` elements and nine more `code` elements that the suite's copy does
-not, while lacking its `profile`. Two cases assert the older version and are
-listed as known failures. Patching the single field they read would hide one
-difference and leave the rest, which is worse than recording that the input is
-not the suite's — closing this needs the XML converted whole.
-
-The remaining inputs have not been diffed element by element.
+Those three run FHIRPath over non-FHIR XML, which needs a document model this
+engine does not have. It is a real gap rather than a data problem.
 
 ## Updating
 
-Refresh `tests-fhir-r5.xml` from the upstream repository, then regenerate the
-baselines:
+Refresh `tests-fhir-r5.xml` and the inputs from the upstream repository, then
+regenerate the baselines:
 
     go test -run TestOfficialSuite -update-known-failures ./conformance/
 
