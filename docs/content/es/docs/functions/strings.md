@@ -203,7 +203,7 @@ result, _ := fhirpath.Evaluate(resource, "'hello'.matches('^[0-9]+$')")
 - Utiliza el paquete `regexp` de Go para la coincidencia de patrones.
 - La expresion regular se compila con cache e incluye proteccion contra tiempo de espera de ReDoS (Denegacion de Servicio por Expresion Regular).
 - Devuelve una coleccion vacia si la entrada esta vacia.
-- La expresion regular debe coincidir con la cadena **completa** (anclada). Use `.*patron.*` para coincidencia parcial si es necesario.
+- La coincidencia es **parcial**: el patron se busca en cualquier parte del valor, de modo que `'.leadingDot'.matches('[A-Za-z][A-Za-z0-9]*')` es true. Use `matchesFull` cuando el patron deba cubrir el valor completo.
 
 ---
 
