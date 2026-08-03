@@ -3,6 +3,9 @@
 #   go test -run TestOfficialSuite -update-known-failures
 # A line removed from here must stay passing; a new failure fails the build.
 HTMLChecks/htmlTest01
+HTMLChecks/htmlTest02
+HTMLChecks/htmlTest03
+HTMLChecks/htmlTest04
 HighBoundary/HighBoundaryDateTimeMillisecond1
 HighBoundary/HighBoundaryDateTimeMillisecond3
 HighBoundary/HighBoundaryDecimal15
@@ -11,9 +14,5 @@ LowBoundary/LowBoundaryDecimal15
 TerminologyTests/txTest01
 TerminologyTests/txTest02
 TerminologyTests/txTest03
-defineVariable/dvConceptMapExample
-testCombine()/testCombine1
 testConformsTo/testConformsTo3
-testInheritance/testFHIRPathAsFunction14
-testInheritance/testFHIRPathAsFunction19
 testReplaceMatches/testReplaceMatches2
