@@ -174,7 +174,7 @@ Devuelve `true` si la cadena de entrada coincide con la expresion regular dada.
 **Firma:**
 
 ```text
-matches(regex : String) : Boolean
+matches(regex : String [, flags : String]) : Boolean
 ```
 
 **Parametros:**
@@ -182,6 +182,7 @@ matches(regex : String) : Boolean
 | Nombre    | Tipo     | Descripcion                          |
 |-----------|----------|--------------------------------------|
 | `regex`   | `String` | Un patron de expresion regular       |
+| `flags`   | `String` | Opcional. `i` para búsqueda insensible a mayúsculas, `m` para que `^` y `$` coincidan con el inicio y fin de cada línea |
 
 **Tipo de Retorno:** `Boolean`
 
@@ -196,14 +197,95 @@ result, _ := fhirpath.Evaluate(resource, "'abc123'.matches('[a-z]+\\d+')")
 
 result, _ := fhirpath.Evaluate(resource, "'hello'.matches('^[0-9]+$')")
 // false
+
+result, _ := fhirpath.Evaluate(resource, "'ABC'.matches('abc', 'i')")
+// true
 ```
+
+**La coincidencia es parcial.** El patrón se busca en *cualquier parte* del
+valor; no se contrasta contra el valor completo. Es lo que pide la
+especificación —la frase "the start/end of line markers `^`, `$` can be used to
+match the entire string" solo tiene sentido si el patrón no está anclado de
+antemano— y es la fuente más común de sorpresa en esta función:
+
+```go
+"'N8000123123'.matches('N[0-9]{8}')"      // true — contiene una secuencia de 8 dígitos
+"'N8000123123'.matches('^N[0-9]{8}$')"    // false — anclado a mano
+"'  X  '.matches('[A-Z][A-Za-z0-9_]*')"   // true — la X sola lo satisface
+```
+
+Use [`matchesFull`](#matchesfull) cuando el patrón deba cubrir el valor
+completo, o ancle el patrón usted mismo con `^` y `$`.
+
+Esto importa al leer las invariantes publicadas de FHIR, que en su mayoría no
+están ancladas: `eld-19`, `eld-20` y la restricción `[A-Z]([A-Za-z0-9_]){0,254}`
+compartida por muchos recursos canónicos admiten un valor que solo *contiene*
+algo aceptable. Es una propiedad de esas restricciones y no de este motor: el
+validador Java de HL7 ancla porque `String.matches` de Java lo hace, no porque
+la especificación lo indique.
 
 **Casos Limite / Notas:**
 
-- Utiliza el paquete `regexp` de Go para la coincidencia de patrones.
-- La expresion regular se compila con cache e incluye proteccion contra tiempo de espera de ReDoS (Denegacion de Servicio por Expresion Regular).
+- Utiliza el paquete `regexp` de Go (RE2) para la coincidencia de patrones.
+- La expresion regular se compila con cache y la coincidencia corre bajo un tiempo de espera.
 - Devuelve una coleccion vacia si la entrada esta vacia.
-- La coincidencia es **parcial**: el patron se busca en cualquier parte del valor, de modo que `'.leadingDot'.matches('[A-Za-z][A-Za-z0-9]*')` es true. Use `matchesFull` cuando el patron deba cubrir el valor completo.
+- Un valor de `flags` que contenga algo distinto de `i` o `m` es un error, como exige la especificación.
+- El `.` coincide con un salto de línea en todos los modos, que es el modo 'single line' que fija la especificación.
+
+---
+
+## matchesFull
+
+Devuelve `true` si la expresión regular coincide con la cadena de entrada **completa**.
+
+**Firma:**
+
+```text
+matchesFull(regex : String [, flags : String]) : Boolean
+```
+
+**Parametros:**
+
+| Nombre    | Tipo     | Descripcion                          |
+|-----------|----------|--------------------------------------|
+| `regex`   | `String` | Un patron de expresion regular       |
+| `flags`   | `String` | Opcional. `i` para búsqueda insensible a mayúsculas, `m` para que `^` y `$` coincidan con el inicio y fin de cada línea |
+
+**Tipo de Retorno:** `Boolean`
+
+La especificación la define como la forma en que los marcadores de inicio y fin
+siempre rodean el patrón, así que responde la pregunta que `matches` no responde:
+¿tiene este valor, todo él, la forma que el patrón describe?
+
+**Ejemplos:**
+
+```go
+result, _ := fhirpath.Evaluate(resource, "'ABC'.matchesFull('[A-Z]{3}')")
+// true
+
+result, _ := fhirpath.Evaluate(resource, "'ABCD'.matchesFull('[A-Z]{3}')")
+// false — con matches sería true
+
+result, _ := fhirpath.Evaluate(resource, "'N8000123123'.matchesFull('N[0-9]{8}')")
+// false — la cadena tiene 10 dígitos, no 8
+
+result, _ := fhirpath.Evaluate(resource, "'N8000123123'.matchesFull('N[0-9]{10}')")
+// true
+```
+
+Comparadas lado a lado, con la misma entrada y el mismo patrón:
+
+| Expresión | `matches` | `matchesFull` |
+|---|---|---|
+| `'a/Library/b'` con `'Library'` | true | false |
+| `'a/Library/b'` con `'.*Library.*'` | true | true |
+| `'  X  '` con `'[A-Z][A-Za-z0-9_]*'` | true | false |
+
+**Casos Limite / Notas:**
+
+- El anclaje usa `\A` y `\z`, que delimitan el texto completo sin importar los `^` o `$` que haya dentro del patrón: un patrón ya anclado conserva su propio significado.
+- Devuelve una coleccion vacia si la entrada o la expresion regular estan vacias.
+- Definida en FHIRPath 3.0.0 y marcada como Standard for Trial Use.
 
 ---
 
@@ -214,7 +296,7 @@ Reemplaza todas las ocurrencias de un patron de expresion regular con la cadena 
 **Firma:**
 
 ```text
-replaceMatches(regex : String, substitution : String) : String
+replaceMatches(regex : String, substitution : String [, flags : String]) : String
 ```
 
 **Parametros:**

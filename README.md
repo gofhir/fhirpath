@@ -169,8 +169,9 @@ fhirpath.MustEvaluate(resource, "1 'kg' ~ 1000 'g'")
 | `endsWith(suffix)` | Check suffix | `file.endsWith('.pdf')` |
 | `contains(substring)` | Check contains | `text.contains('error')` |
 | `replace(old, new)` | Replace text | `name.replace('-', '_')` |
-| `matches(regex)` | Regex match | `code.matches('[A-Z]{3}')` |
-| `replaceMatches(regex, sub)` | Regex replace | `text.replaceMatches('\\s+', ' ')` |
+| `matches(regex[, flags])` | Regex match, partial | `code.matches('[A-Z]{3}')` |
+| `matchesFull(regex[, flags])` | Regex match, whole value | `code.matchesFull('[A-Z]{3}')` |
+| `replaceMatches(regex, sub[, flags])` | Regex replace | `text.replaceMatches('\\s+', ' ')` |
 | `indexOf(substring)` | Find position | `text.indexOf(':')` |
 | `substring(start[, length])` | Extract substring | `code.substring(0, 3)` |
 | `lower()` | Lowercase | `name.lower()` |
