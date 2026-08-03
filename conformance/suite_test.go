@@ -26,6 +26,7 @@ package conformance
 //	go test -run TestOfficialSuite -update-known-failures
 
 import (
+	"encoding/json"
 	"encoding/xml"
 	"flag"
 	"fmt"
@@ -93,11 +94,27 @@ type suiteOutput struct {
 	Value string `xml:",chardata"`
 }
 
-// expectsError reports whether the case asserts that evaluation must fail.
-// The suite distinguishes syntax, semantic and execution failures; this engine
-// does not separate those, so any error satisfies the expectation.
+// expectsError reports whether the case asserts that the expression must fail.
 func (c suiteCase) expectsError() bool {
 	return c.Expression.Invalid != "" && c.Expression.Invalid != "false"
+}
+
+// runsLeniently reports whether the case asks to be evaluated without the
+// stricter reading.
+//
+// The suite separates semantic faults from execution ones, and the distinction
+// is real: Patient.name.given1 evaluates to empty quite correctly against a
+// document that has no such value, and is still wrong, because given1 is not an
+// element of HumanName in any document. Only static analysis against a model
+// can say so, which is why the analysis runs for every case except these.
+//
+// The suite marks these with a mode: Observation.valueQuantity.exists() appears
+// twice, once as a semantic error and once under mode="lenient/polymorphics"
+// expecting an answer. Same expression, two modes, two correct results — which
+// is what makes the strict reading a mode this engine offers rather than the way
+// it behaves by default.
+func (c suiteCase) runsLeniently() bool {
+	return strings.HasPrefix(c.Mode, "lenient")
 }
 
 // variant is one way of calling the engine, measured against its own baseline.
@@ -105,6 +122,21 @@ type variant struct {
 	name         string
 	baselineFile string
 	evaluate     func(expr *fhirpath.Expression, resource []byte) (types.Collection, error)
+
+	// model is what static analysis needs; a variant without one only evaluates
+	model fhirpath.Model
+}
+
+// resourceTypeOf reads the type a resource declares, which is the context an
+// expression is analyzed against.
+func resourceTypeOf(resource []byte) string {
+	var envelope struct {
+		ResourceType string `json:"resourceType"`
+	}
+	if err := json.Unmarshal(resource, &envelope); err != nil {
+		return ""
+	}
+	return envelope.ResourceType
 }
 
 // corpus is one published suite: the cases, the resources they run against, and
@@ -138,6 +170,7 @@ func corpora() []corpus {
 				{
 					name:         "with r4 model",
 					baselineFile: knownFailuresModelFile,
+					model:        r4.FHIRPathModel(),
 					evaluate: func(expr *fhirpath.Expression, resource []byte) (types.Collection, error) {
 						return expr.EvaluateWithOptions(resource, fhirpath.WithModel(r4.FHIRPathModel()))
 					},
@@ -159,6 +192,7 @@ func corpora() []corpus {
 				{
 					name:         "with r5 model",
 					baselineFile: knownFailuresModelFileR5,
+					model:        r5.FHIRPathModel(),
 					evaluate: func(expr *fhirpath.Expression, resource []byte) (types.Collection, error) {
 						return expr.EvaluateWithOptions(resource, fhirpath.WithModel(r5.FHIRPathModel()))
 					},
@@ -242,19 +276,30 @@ func runSuite(t *testing.T, c corpus, v variant) {
 func runSuiteCase(tc suiteCase, resource []byte, v variant) error {
 	expr, compileErr := fhirpath.Compile(strings.TrimSpace(tc.Expression.Text))
 
+	// A semantic fault is found before evaluation, and only with a model. The
+	// analysis runs where the case asks for the stricter reading.
+	var analysisErr error
+	if compileErr == nil && v.model != nil && !tc.runsLeniently() {
+		analysisErr = expr.Analyze(v.model, resourceTypeOf(resource))
+	}
+
 	var (
 		result  types.Collection
 		evalErr error
 	)
-	if compileErr == nil {
+	if compileErr == nil && analysisErr == nil {
 		result, evalErr = v.evaluate(expr, resource)
 	}
 
 	if tc.expectsError() {
-		if compileErr == nil && evalErr == nil {
+		if compileErr == nil && analysisErr == nil && evalErr == nil {
 			return fmt.Errorf("expected an error (invalid=%q), got %v", tc.Expression.Invalid, result)
 		}
 		return nil
+	}
+
+	if analysisErr != nil {
+		return fmt.Errorf("analyze: %w", analysisErr)
 	}
 
 	if compileErr != nil {
