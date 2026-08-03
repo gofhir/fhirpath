@@ -456,4 +456,30 @@ func TestAdditionalStringFunctions(t *testing.T) {
 			t.Error("expected empty for replaceMatches on empty")
 		}
 	})
+
+	// An empty regex is not an empty collection. The shared rule — "if the
+	// input collection, regex, or substitution are empty, the result is empty"
+	// — is about the collection; '' is a collection holding one empty string,
+	// which is the distinction replace() draws by naming the two cases apart:
+	// "If pattern is the empty string (''), every character in the input string
+	// is surrounded by the substitution, e.g. 'abc'.replace('','x') becomes
+	// 'xaxbxcx'".
+	//
+	// The official suite expects 'abc' here, which answers to neither reading —
+	// were '' treated as empty the result would be { }. fhirpath.js 5.1.0 gives
+	// xaxbxcx as well. See CONFORMANCE.md; the case is a known failure.
+	t.Run("replaceMatches with an empty regex", func(t *testing.T) {
+		fn, _ := Get("replaceMatches")
+
+		result, err := fn.Fn(ctx, types.Collection{types.NewString("abc")}, []interface{}{
+			types.Collection{types.NewString("")},
+			types.Collection{types.NewString("x")},
+		})
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(result) != 1 || result[0].String() != "xaxbxcx" {
+			t.Errorf("got %v, want xaxbxcx", result)
+		}
+	})
 }
