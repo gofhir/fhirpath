@@ -130,6 +130,23 @@ fault — the analysis exists to catch typos, not to become one. Silence means
 fhirpath.js does not do this, so it is a second point where the engine goes
 past the reference implementation while following the specification.
 
+## A correction neither suite covers
+
+A prefix on a unit that sits on an affine scale — `mCel`, `kCel`, `cCel` —
+multiplies the argument of the scale's function, not its result, per UCUM §22.4.
+A milli-Celsius is a thousandth of a degree, not a thousandth of the distance
+from absolute zero.
+
+Through gofhir/ucum v4.1.0 the engine answered `1 'mCel'` as `-272.87585 'Cel'`,
+`1 'kCel'` as `273876.85`, and `1 'cCel'` in kelvin as `2.7415`. The right
+answers are `0.001`, `1000` and `273.16`. Fixed upstream in v4.2.0.
+
+Neither conformance suite prefixes a special unit, so the measurement never saw
+this and never would have. `TestPrefixOnASpecialUnit` pins it instead. It is
+worth recording as the shape of a gap the suites leave: they cover the units
+that appear in FHIR data, and a unit that is merely legal UCUM can still be
+wrong everywhere.
+
 ## Inputs that are not the suite's
 
 Three of the R5 inputs vendored from hl7.org have drifted from the copies the
