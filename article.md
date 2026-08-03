@@ -915,26 +915,36 @@ La implementación soporta **todos los operadores** definidos en la especificaci
 
 ## Características Avanzadas
 
-### Protección contra ReDoS
+### Expresiones regulares: por qué no hay guard de patrones
 
-Las funciones `matches()` y `replaceMatches()` incluyen protección contra ataques de denegación de servicio por expresiones regulares:
+Las funciones `matches()` y `replaceMatches()` compilan con cache y acotan el
+tiempo de ejecución, pero **no inspeccionan la forma del patrón**:
 
 ```go
 // funcs/regex.go
 type RegexCache struct {
-    cache    *lru.Cache  // Cache LRU con 500 patrones
-    maxLen   int         // Máximo 1000 caracteres por patrón
-    timeout  time.Duration
+    cache   map[string]*regexEntry // Cache LRU con 500 patrones
+    maxLen  int                    // Máximo 1000 caracteres por patrón
+    timeout time.Duration          // 100 ms
 }
 
-// Valida patrones peligrosos (cuantificadores anidados, grupos profundos)
-func (c *RegexCache) validatePattern(pattern string) error {
-    // Detecta patrones como (a+)+ que causan backtracking exponencial
-}
-
-// Timeout de 100ms para strings largos
+// Timeout para strings largos
 func (c *RegexCache) MatchWithTimeout(ctx context.Context, pattern, str string) (bool, error)
 ```
+
+El paquete `regexp` de Go es RE2: empareja en tiempo lineal sobre la entrada y
+no hace backtracking, así que `(a+)+$` contra una cadena construida para tumbar
+un motor con backtracking responde en microsegundos. No hay caso catastrófico
+del que defenderse.
+
+Hubo una versión que sí escaneaba el patrón en busca de formas peligrosas. Toda
+forma que ese escaneo detectaba —`a**`, `a*+`, `a{2}{3}`— ya la rechaza RE2 al
+compilar; lo único que agregaba era rechazar patrones válidos: un grupo
+cuantificado `(a+)?`, un cuantificador perezoso `a+?`, un cuantificador dentro
+de una clase `[*+?]`, cualquier anidamiento de más de cinco niveles. Entre ellos
+estaban eld-19 y eld-20, invariantes que HL7 publica en la especificación, lo
+que dejaba `ElementDefinition.path` sin validar. Leer una expresión regular
+correctamente exige parsearla, y el parser para eso es el compilador.
 
 ### Soporte UCUM para Quantities
 

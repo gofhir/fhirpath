@@ -9,8 +9,10 @@ import (
 	"github.com/gofhir/fhirpath/eval"
 )
 
-// RegexCache provides thread-safe caching of compiled regular expressions
-// with LRU eviction and complexity limits for ReDoS protection.
+// RegexCache provides thread-safe caching of compiled regular expressions,
+// with LRU eviction, a bound on pattern length and a timeout on matching.
+//
+// It does not judge what a pattern means — see Compile for why.
 type RegexCache struct {
 	mu      sync.RWMutex
 	cache   map[string]*regexEntry
@@ -30,7 +32,7 @@ var DefaultRegexCache = NewRegexCache(500, 1000, 100*time.Millisecond)
 
 // NewRegexCache creates a new regex cache with the given parameters.
 // - limit: maximum number of cached patterns
-// - maxLen: maximum allowed pattern length (ReDoS protection)
+// - maxLen: maximum allowed pattern length
 // - timeout: default timeout for regex operations
 func NewRegexCache(limit, maxLen int, timeout time.Duration) *RegexCache {
 	return &RegexCache{
@@ -46,17 +48,13 @@ func NewRegexCache(limit, maxLen int, timeout time.Duration) *RegexCache {
 // the mode FHIRPath regular expressions run in.
 const singleLineMode = "(?s)"
 
-// Compile compiles a regex pattern with caching and complexity validation.
+// Compile compiles a regex pattern, with caching and a bound on its length.
 func (c *RegexCache) Compile(pattern string) (*regexp.Regexp, error) {
-	// ReDoS protection: check pattern length
+	// A bound on size, which is the one property of a pattern that can be
+	// judged without interpreting it
 	if len(pattern) > c.maxLen {
 		return nil, eval.NewEvalError(eval.ErrInvalidExpression,
 			"regex pattern too long (max %d characters)", c.maxLen)
-	}
-
-	// Check for dangerous patterns (ReDoS prevention)
-	if err := validateRegexComplexity(pattern); err != nil {
-		return nil, err
 	}
 
 	// Try cache first
@@ -76,6 +74,23 @@ func (c *RegexCache) Compile(pattern string) (*regexp.Regexp, error) {
 	// Single line mode is what makes . match a newline, which Go leaves off by
 	// default. Without it 'A\nB'.matches('A.*B') is false, and a value that
 	// spans lines — an address, a narrative — cannot be matched across them.
+	//
+	// The compiler is also the only thing that judges the pattern. Go's regexp
+	// is RE2: it matches in time linear in the input, holds no backtracking
+	// engine, and so has no catastrophic case to guard against — (a+)+$ against
+	// a string built to defeat a backtracking matcher returns in microseconds.
+	// It refuses pathological patterns on its own too, rejecting a**, a*+ and
+	// a{2}{3} as nested repetition and capping repeat counts at 1000, which
+	// bounds how far an expression can expand.
+	//
+	// This engine used to scan the pattern for dangerous shapes before handing
+	// it over. Every shape that scan caught, RE2 already rejected; what it added
+	// was refusing valid patterns — a quantified group (a+)?, a lazy quantifier
+	// a+?, a quantifier inside a character class [*+?], any nesting past five
+	// levels. Among them were eld-19 and eld-20, invariants HL7 publishes in the
+	// specification itself, which left ElementDefinition.path unvalidatable.
+	// Reading a regular expression correctly means parsing it, and the parser
+	// for that is the one below.
 	re, err := regexp.Compile(singleLineMode + pattern)
 	if err != nil {
 		return nil, eval.NewEvalError(eval.ErrInvalidExpression, "invalid regex: %s", err.Error())
@@ -226,56 +241,4 @@ func (c *RegexCache) Size() int {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return len(c.cache)
-}
-
-// validateRegexComplexity checks for potentially dangerous regex patterns.
-// This helps prevent ReDoS attacks.
-func validateRegexComplexity(pattern string) error {
-	// Count nested quantifiers and group depth
-	var (
-		groupDepth     int
-		maxGroupDepth  int
-		quantifierRun  int
-		maxQuantifiers int
-		prevWasQuant   bool
-	)
-
-	for _, ch := range pattern {
-		switch ch {
-		case '(':
-			groupDepth++
-			if groupDepth > maxGroupDepth {
-				maxGroupDepth = groupDepth
-			}
-		case ')':
-			if groupDepth > 0 {
-				groupDepth--
-			}
-		case '*', '+', '?':
-			quantifierRun++
-			if prevWasQuant {
-				// Consecutive quantifiers like ** or *+ are dangerous
-				return eval.NewEvalError(eval.ErrInvalidExpression,
-					"potentially dangerous regex: consecutive quantifiers")
-			}
-			prevWasQuant = true
-		case '{':
-			quantifierRun++
-			prevWasQuant = true
-		default:
-			if quantifierRun > maxQuantifiers {
-				maxQuantifiers = quantifierRun
-			}
-			quantifierRun = 0
-			prevWasQuant = false
-		}
-	}
-
-	// Check for excessive nesting (common in ReDoS patterns)
-	if maxGroupDepth > 5 {
-		return eval.NewEvalError(eval.ErrInvalidExpression,
-			"regex has too much nesting (max depth 5)")
-	}
-
-	return nil
 }

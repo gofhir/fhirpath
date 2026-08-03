@@ -203,7 +203,7 @@ result, _ := fhirpath.Evaluate(resource, "'hello'.matches('^[0-9]+$')")
 - Uses Go's `regexp` package for pattern matching.
 - The regex is compiled with caching and includes ReDoS (Regular Expression Denial of Service) timeout protection.
 - Returns empty collection if the input is empty.
-- The regex must match the **entire** string (anchored). Use `.*pattern.*` for partial matching if needed.
+- The match is **partial**: the pattern is looked for anywhere in the value, so `'.leadingDot'.matches('[A-Za-z][A-Za-z0-9]*')` is true. Use `matchesFull` when the pattern has to cover the whole value.
 
 ---
 
