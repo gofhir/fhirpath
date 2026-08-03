@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.5.0](https://github.com/gofhir/fhirpath/compare/v1.4.0...v1.5.0) (2026-08-03)
+
+
+### Features
+
+* static analysis against a model ([#15](https://github.com/gofhir/fhirpath/issues/15)) ([a6d1603](https://github.com/gofhir/fhirpath/commit/a6d1603eee1d50b0a0e594ef389522c03aaff316))
+
 ## [1.4.0](https://github.com/gofhir/fhirpath/compare/v1.3.1...v1.4.0) (2026-03-09)
 
 
