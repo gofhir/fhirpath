@@ -2131,9 +2131,22 @@ func TypeMatchesWithModel(actualType, typeName string, model Model) bool {
 	}
 
 	if model != nil {
-		// Model is authoritative for type hierarchy
-		if model.IsSubtype(actualType, typeName) {
+		// Model is authoritative for type hierarchy, and it is asked with the
+		// bare name: a namespace qualifies a type, it does not name a different
+		// one. Without this, is(FHIR.uri) on a uuid answers false while is(uri)
+		// answers true — and the specification's own examples write the
+		// namespace, as in Patient.name.given.is(FHIR.string).
+		bare := unqualifyFHIR(typeName)
+		if model.IsSubtype(actualType, bare) {
 			return true
+		}
+		// A name the caller qualified as FHIR is answered from FHIR alone. What
+		// must not answer it is the mapping below, which says which System type a
+		// primitive converts to rather than what it derives from: the two
+		// namespaces spell several of those alike, so is(FHIR.string) would
+		// otherwise be satisfied by uuid converting to System.String.
+		if bare != typeName {
+			return false
 		}
 		// Only use spec-stable mappings (skip version-specific profiled types)
 		return typeMatchesSpecMaps(actualType, typeName, actualLower, typeNameLower, fhirPathSpecMap)
@@ -2170,15 +2183,23 @@ func typeMatchesSpecMaps(actualType, typeName, actualLower, typeNameLower string
 		return matchesSystemType(actualType, typeName[7:])
 	}
 
-	// FHIR namespace handling (FHIR.Patient, etc.)
-	if strings.HasPrefix(typeNameLower, "fhir.") {
-		fhirType := typeName[5:] // Remove "FHIR." prefix
-		if strings.EqualFold(actualType, fhirType) {
-			return true
-		}
-	}
-
 	return false
+}
+
+// unqualifyFHIR strips the FHIR namespace from a type specifier.
+//
+// FHIR.uri and uri name the same type; the namespace says which of the two
+// namespaces the name is read in, and only System carries names that mean
+// something different. So the qualifier comes off before a type hierarchy is
+// consulted, and System is deliberately left alone: FHIR.boolean and
+// System.Boolean are different types, which is the distinction the caller above
+// settles before reaching here.
+func unqualifyFHIR(typeName string) string {
+	const prefix = "FHIR."
+	if len(typeName) > len(prefix) && strings.EqualFold(typeName[:len(prefix)], prefix) {
+		return typeName[len(prefix):]
+	}
+	return typeName
 }
 
 // TypeMatches checks if actualType matches the requested typeName.
@@ -2197,6 +2218,19 @@ func TypeMatches(actualType, typeName string) bool {
 	// Case-insensitive match
 	if actualLower == typeNameLower {
 		return true
+	}
+
+	// A name the caller qualified as FHIR is answered from FHIR alone: identity,
+	// settled above once the qualifier is off, and FHIR derivation. The
+	// FHIR-to-System mapping is deliberately not consulted — it says which
+	// System type a primitive converts to rather than what it derives from, and
+	// the two namespaces spell several of those alike, so is(FHIR.string) would
+	// otherwise be satisfied by uuid converting to System.String.
+	if bare := unqualifyFHIR(typeName); bare != typeName {
+		bareLower := strings.ToLower(bare)
+		return actualLower == bareLower ||
+			IsSubtypeOf(actualType, bare) ||
+			typeMatchesSpecMaps(actualType, bare, actualLower, bareLower, fhirVersionSpecificMap)
 	}
 
 	// Check FHIR base type inheritance (Resource, DomainResource)
