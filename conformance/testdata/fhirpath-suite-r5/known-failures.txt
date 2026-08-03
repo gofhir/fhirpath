@@ -3,6 +3,9 @@
 #   go test -run TestOfficialSuite -update-known-failures
 # A line removed from here must stay passing; a new failure fails the build.
 HTMLChecks/htmlTest01
+HTMLChecks/htmlTest02
+HTMLChecks/htmlTest03
+HTMLChecks/htmlTest04
 HighBoundary/HighBoundaryDateTimeMillisecond1
 HighBoundary/HighBoundaryDateTimeMillisecond3
 HighBoundary/HighBoundaryDecimal15
@@ -11,23 +14,20 @@ LowBoundary/LowBoundaryDecimal15
 TerminologyTests/txTest01
 TerminologyTests/txTest02
 TerminologyTests/txTest03
-defineVariable/dvConceptMapExample
+period/testPeriodInvariantNew
 polymorphics/testPolymorphicsB
 testBasics/testSimpleFail
 testBasics/testSimpleWithWrongContext
 testCollectionBoolean/testCollectionBoolean1
-testCombine()/testCombine1
 testConformsTo/testConformsTo1
 testConformsTo/testConformsTo2
 testDollar/testDollarOrderNotAllowed
 testIif/testIif6
 testInheritance/testFHIRPathAsFunction11
 testInheritance/testFHIRPathAsFunction13
-testInheritance/testFHIRPathAsFunction14
 testInheritance/testFHIRPathAsFunction15
 testInheritance/testFHIRPathAsFunction16
 testInheritance/testFHIRPathAsFunction18
-testInheritance/testFHIRPathAsFunction19
 testInheritance/testFHIRPathAsFunction20
 testInheritance/testFHIRPathAsFunction21
 testInheritance/testFHIRPathAsFunction23
@@ -42,3 +42,4 @@ testType/testType10
 testType/testType12
 testType/testType14
 testType/testType9
+testType/testTypeA4

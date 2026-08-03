@@ -7,11 +7,11 @@ HighBoundary/HighBoundaryDateTimeMillisecond3
 HighBoundary/HighBoundaryDecimal15
 HighBoundary/HighBoundaryDecimal16
 LowBoundary/LowBoundaryDecimal15
+period/testPeriodInvariantNew
 polymorphics/testPolymorphicsB
 testBasics/testSimpleFail
 testBasics/testSimpleWithWrongContext
 testCollectionBoolean/testCollectionBoolean1
-testCombine()/testCombine1
 testConformsTo/testConformsTo1
 testConformsTo/testConformsTo2
 testDollar/testDollarOrderNotAllowed
@@ -36,3 +36,4 @@ testType/testType10
 testType/testType12
 testType/testType14
 testType/testType9
+testType/testTypeA4

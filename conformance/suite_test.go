@@ -151,6 +151,25 @@ type corpus struct {
 	file     string
 	inputDir string
 	variants []variant
+
+	// readXML turns one of the suite's own XML resources into the JSON this
+	// engine consumes. It is version-specific because the conversion is not a
+	// generic XML-to-JSON mapping: deciding that a lone <name> element is a
+	// collection of one, or that value="true" is a boolean rather than the
+	// string "true", takes the cardinality and type of every element. The
+	// generated model carries both.
+	readXML func(data []byte) ([]byte, error)
+}
+
+// fhirXMLToJSON builds a corpus's readXML from a version's resource unmarshaler.
+func fhirXMLToJSON[R any](unmarshal func([]byte) (R, error)) func([]byte) ([]byte, error) {
+	return func(data []byte) ([]byte, error) {
+		resource, err := unmarshal(data)
+		if err != nil {
+			return nil, err
+		}
+		return json.Marshal(resource)
+	}
 }
 
 func corpora() []corpus {
@@ -159,6 +178,7 @@ func corpora() []corpus {
 			name:     "r4",
 			file:     suiteFile,
 			inputDir: suiteInputDir,
+			readXML:  fhirXMLToJSON(r4.UnmarshalResourceXML),
 			variants: []variant{
 				{
 					name:         "without model",
@@ -181,6 +201,7 @@ func corpora() []corpus {
 			name:     "r5",
 			file:     suiteFileR5,
 			inputDir: suiteInputDirR5,
+			readXML:  fhirXMLToJSON(r5.UnmarshalResourceXML),
 			variants: []variant{
 				{
 					name:         "without model",
@@ -223,7 +244,7 @@ func runSuite(t *testing.T, c corpus, v variant) {
 		t.Fatalf("parse suite: %v", err)
 	}
 
-	inputs := newInputLoader(t, c.inputDir)
+	inputs := newInputLoader(t, c.inputDir, c.readXML)
 	known := loadKnownFailures(t, v.baselineFile)
 
 	var (
@@ -268,7 +289,7 @@ func runSuite(t *testing.T, c corpus, v variant) {
 	t.Logf("official suite %s (%s): %d/%d executed cases pass (%.1f%%), %d known failures",
 		c.name, v.name, passed, executed, 100*float64(passed)/float64(executed), len(failures))
 	for file, n := range skippedByInput {
-		t.Logf("skipped %d case(s): no JSON available for input %q", n, file)
+		t.Logf("skipped %d case(s): no usable input %q", n, file)
 	}
 }
 
@@ -380,17 +401,25 @@ func outputValues(outputs []suiteOutput) []string {
 	return values
 }
 
-// inputLoader resolves and caches the suite's input resources. The suite names
-// several inputs as .xml; this engine consumes JSON, so the vendored directory
-// holds the published JSON equivalent under the same base name.
+// inputLoader resolves and caches the suite's input resources.
+//
+// The suite names most of its inputs as .xml, and those are what it was written
+// against. This engine consumes JSON, so they are converted on load through the
+// version's generated model rather than substituted for the equivalents
+// published at hl7.org. Substituting them was the earlier approach and it cost
+// twice: resources that hl7.org never published as JSON could not be run at
+// all, and those it did publish had moved on from the suite's copies, so a
+// handful of cases measured a different resource than the one the expected
+// result was written for.
 type inputLoader struct {
-	t     *testing.T
-	dir   string
-	cache map[string][]byte
+	t       *testing.T
+	dir     string
+	readXML func([]byte) ([]byte, error)
+	cache   map[string][]byte
 }
 
-func newInputLoader(t *testing.T, dir string) *inputLoader {
-	return &inputLoader{t: t, dir: dir, cache: map[string][]byte{}}
+func newInputLoader(t *testing.T, dir string, readXML func([]byte) ([]byte, error)) *inputLoader {
+	return &inputLoader{t: t, dir: dir, readXML: readXML, cache: map[string][]byte{}}
 }
 
 func (l *inputLoader) load(name string) ([]byte, bool) {
@@ -403,14 +432,35 @@ func (l *inputLoader) load(name string) ([]byte, bool) {
 		return cached, cached != nil
 	}
 
-	base := strings.TrimSuffix(strings.TrimSuffix(name, ".xml"), ".json")
-	data, err := os.ReadFile(filepath.Join(l.dir, base+".json"))
-	if err != nil {
+	data, ok := l.read(name)
+	if !ok {
 		l.cache[name] = nil
 		return nil, false
 	}
 	l.cache[name] = data
 	return data, true
+}
+
+func (l *inputLoader) read(name string) ([]byte, bool) {
+	base := strings.TrimSuffix(strings.TrimSuffix(name, ".xml"), ".json")
+
+	// The suite's own file first, whatever format it ships in
+	if xmlData, err := os.ReadFile(filepath.Join(l.dir, base+".xml")); err == nil {
+		converted, err := l.readXML(xmlData)
+		if err == nil {
+			return converted, true
+		}
+		// Not every input is a FHIR resource — ccda.xml is a CDA document, which
+		// no FHIR unmarshaler can read. Say so rather than reporting it missing.
+		l.t.Logf("input %q is not a readable FHIR resource: %v", base+".xml", err)
+		return nil, false
+	}
+
+	// Inputs that fhir-test-cases publishes as JSON are already what we need
+	if jsonData, err := os.ReadFile(filepath.Join(l.dir, base+".json")); err == nil {
+		return jsonData, true
+	}
+	return nil, false
 }
 
 func loadKnownFailures(t *testing.T, path string) map[string]bool {
