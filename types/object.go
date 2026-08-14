@@ -11,16 +11,19 @@ import (
 
 // ObjectValue represents a FHIR resource or complex type as a JSON object.
 type ObjectValue struct {
-	data         []byte
-	fields       map[string]Value // Cache of accessed fields
-	explicitType string           // optional explicit FHIR type from polymorphic resolution
+	data []byte
+	// Cache of accessed fields, created when the first field is read. Most
+	// objects an expression walks past are never read through Get, and a
+	// navigation over a Bundle creates one ObjectValue per entry, so the map
+	// is worth its own allocation only for the ones that are.
+	fields       map[string]Value
+	explicitType string // optional explicit FHIR type from polymorphic resolution
 }
 
 // NewObjectValue creates a new ObjectValue from JSON bytes.
 func NewObjectValue(data []byte) *ObjectValue {
 	return &ObjectValue{
-		data:   data,
-		fields: make(map[string]Value),
+		data: data,
 	}
 }
 
@@ -29,7 +32,6 @@ func NewObjectValue(data []byte) *ObjectValue {
 func NewObjectValueWithType(data []byte, typeName string) *ObjectValue {
 	return &ObjectValue{
 		data:         data,
-		fields:       make(map[string]Value),
 		explicitType: typeName,
 	}
 }
@@ -262,6 +264,9 @@ func (o *ObjectValue) Get(field string) (Value, bool) {
 
 	// Convert to Value and cache
 	v := jsonValueToFHIRValue(value, dataType)
+	if o.fields == nil {
+		o.fields = make(map[string]Value, 4)
+	}
 	o.fields[field] = v
 
 	return v, true
@@ -537,9 +542,13 @@ func (o *ObjectValue) childElement(basePath, name string, res ElementTypeResolve
 func jsonValueToFHIRValue(data []byte, dataType jsonparser.ValueType) Value {
 	switch dataType {
 	case jsonparser.String:
-		// Remove quotes and unescape
+		// Remove quotes and unescape. A string without a backslash has nothing
+		// to unescape, which is the ordinary case in a FHIR resource, so it is
+		// converted directly rather than through the JSON decoder.
 		var s string
-		if err := json.Unmarshal(append([]byte{'"'}, append(data, '"')...), &s); err != nil {
+		if bytes.IndexByte(data, '\\') < 0 {
+			s = string(data)
+		} else if err := json.Unmarshal(append([]byte{'"'}, append(data, '"')...), &s); err != nil {
 			s = string(data)
 		}
 		// Heuristic: try to detect ISO 8601 date/datetime patterns

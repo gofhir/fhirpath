@@ -117,25 +117,34 @@ func NewContext(resource []byte) *Context {
 	//nolint:errcheck // Empty collection is acceptable for invalid JSON in context creation
 	root, _ := types.JSONToCollection(resource)
 
-	// Initialize variables map with %resource, %rootResource, and %context pointing to root
-	// %resource is required by FHIR constraints like bdl-3, bdl-4
-	// %rootResource defaults to %resource; callers can override via SetVariable for nested evaluation
-	// %context represents the evaluation context (same as root for top-level evaluation)
-	variables := make(map[string]types.Collection)
-	variables["resource"] = root
-	variables["rootResource"] = root
-	variables["context"] = root
-	variables["ucum"] = types.Collection{types.NewString(ucumSystem)}
-	variables["sct"] = types.Collection{types.NewString(sctSystem)}
-	variables["loinc"] = types.Collection{types.NewString(loincSystem)}
-
+	// The variables the specification fixes are answered by builtinVariable
+	// rather than stored: %resource, %rootResource and %context are the root
+	// itself, and %ucum, %sct and %loinc are constants. An evaluation that
+	// never sets a variable of its own then allocates no map at all, which
+	// matters because a context is built per evaluation.
 	return &Context{
-		root:      root,
-		this:      root,
-		variables: variables,
-		limits:    make(map[string]int),
-		goCtx:     context.Background(),
+		root:  root,
+		this:  root,
+		goCtx: context.Background(),
 	}
+}
+
+// builtinVariable answers the environment variables the specification fixes.
+// A variable the caller set through SetVariable is consulted first, so these
+// remain overridable — %rootResource in particular, which nested evaluation of
+// a contained resource redefines.
+func (c *Context) builtinVariable(name string) (types.Collection, bool) {
+	switch name {
+	case "resource", "rootResource", "context":
+		return c.root, true
+	case "ucum":
+		return types.Collection{types.NewString(ucumSystem)}, true
+	case "sct":
+		return types.Collection{types.NewString(sctSystem)}, true
+	case "loinc":
+		return types.Collection{types.NewString(loincSystem)}, true
+	}
+	return nil, false
 }
 
 // SetLimit sets a limit value (e.g., maxDepth, maxCollectionSize).
@@ -277,6 +286,9 @@ func (c *Context) WithIndex(index int) *Context {
 
 // SetVariable sets an external variable.
 func (c *Context) SetVariable(name string, value types.Collection) {
+	if c.variables == nil {
+		c.variables = make(map[string]types.Collection, 4)
+	}
 	c.variables[name] = value
 }
 
@@ -289,8 +301,11 @@ func (c *Context) GetVariable(name string) (types.Collection, bool) {
 		return v, true
 	}
 
-	v, ok := c.variables[name]
-	return v, ok
+	if v, ok := c.variables[name]; ok {
+		return v, true
+	}
+
+	return c.builtinVariable(name)
 }
 
 // DefineVariable introduces a variable for the remainder of the current
@@ -306,6 +321,9 @@ func (c *Context) DefineVariable(name string, value types.Collection) error {
 		return NewEvalError(ErrInvalidOperation, "variable %%%s is already defined in this scope", name)
 	}
 	if _, exists := c.variables[name]; exists {
+		return NewEvalError(ErrInvalidOperation, "variable %%%s is already defined by the evaluation environment", name)
+	}
+	if _, exists := c.builtinVariable(name); exists {
 		return NewEvalError(ErrInvalidOperation, "variable %%%s is already defined by the evaluation environment", name)
 	}
 
