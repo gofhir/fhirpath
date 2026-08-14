@@ -1487,6 +1487,11 @@ func (e *Evaluator) VisitIndexerExpression(ctx *grammar.IndexerExpressionContext
 	}
 	indexCol := index.(types.Collection)
 
+	return applyIndex(baseCol, indexCol)
+}
+
+// applyIndex applies expr[index].
+func applyIndex(baseCol, indexCol types.Collection) interface{} {
 	if indexCol.Empty() {
 		return types.Collection{}
 	}
@@ -1546,6 +1551,11 @@ func (e *Evaluator) VisitMultiplicativeExpression(ctx *grammar.MultiplicativeExp
 	}
 	rightCol := right.(types.Collection)
 
+	return applyMultiplicative(leftCol, rightCol, ctx.GetChild(1).(antlr.TerminalNode).GetText())
+}
+
+// applyMultiplicative applies *, /, div and mod.
+func applyMultiplicative(leftCol, rightCol types.Collection, op string) interface{} {
 	// Empty propagation
 	if leftCol.Empty() || rightCol.Empty() {
 		return types.Collection{}
@@ -1555,8 +1565,6 @@ func (e *Evaluator) VisitMultiplicativeExpression(ctx *grammar.MultiplicativeExp
 	if len(leftCol) != 1 || len(rightCol) != 1 {
 		return SingletonError(len(leftCol) + len(rightCol))
 	}
-
-	op := ctx.GetChild(1).(antlr.TerminalNode).GetText()
 
 	var result types.Value
 	var err error
@@ -1597,8 +1605,11 @@ func (e *Evaluator) VisitAdditiveExpression(ctx *grammar.AdditiveExpressionConte
 	}
 	rightCol := right.(types.Collection)
 
-	op := ctx.GetChild(1).(antlr.TerminalNode).GetText()
+	return applyAdditive(leftCol, rightCol, ctx.GetChild(1).(antlr.TerminalNode).GetText())
+}
 
+// applyAdditive applies +, - and &.
+func applyAdditive(leftCol, rightCol types.Collection, op string) interface{} {
 	// String concatenation with & handles empty as empty string
 	if op == "&" {
 		result, err := Concatenate(leftCol, rightCol)
@@ -1689,6 +1700,11 @@ func (e *Evaluator) VisitInequalityExpression(ctx *grammar.InequalityExpressionC
 	}
 	rightCol := right.(types.Collection)
 
+	return applyInequality(leftCol, rightCol, ctx.GetChild(1).(antlr.TerminalNode).GetText())
+}
+
+// applyInequality applies <, <=, > and >=.
+func applyInequality(leftCol, rightCol types.Collection, op string) interface{} {
 	// Empty propagation
 	if leftCol.Empty() || rightCol.Empty() {
 		return types.Collection{}
@@ -1698,8 +1714,6 @@ func (e *Evaluator) VisitInequalityExpression(ctx *grammar.InequalityExpressionC
 	if len(leftCol) != 1 || len(rightCol) != 1 {
 		return SingletonError(len(leftCol) + len(rightCol))
 	}
-
-	op := ctx.GetChild(1).(antlr.TerminalNode).GetText()
 
 	var result types.Collection
 	var err error
@@ -1737,8 +1751,11 @@ func (e *Evaluator) VisitEqualityExpression(ctx *grammar.EqualityExpressionConte
 	}
 	rightCol := right.(types.Collection)
 
-	op := ctx.GetChild(1).(antlr.TerminalNode).GetText()
+	return applyEquality(leftCol, rightCol, ctx.GetChild(1).(antlr.TerminalNode).GetText())
+}
 
+// applyEquality applies =, !=, ~ and !~.
+func applyEquality(leftCol, rightCol types.Collection, op string) interface{} {
 	switch op {
 	case "=":
 		return Equal(leftCol, rightCol)
@@ -1767,8 +1784,11 @@ func (e *Evaluator) VisitMembershipExpression(ctx *grammar.MembershipExpressionC
 	}
 	rightCol := right.(types.Collection)
 
-	op := ctx.GetChild(1).(antlr.TerminalNode).GetText()
+	return applyMembership(leftCol, rightCol, ctx.GetChild(1).(antlr.TerminalNode).GetText())
+}
 
+// applyMembership applies 'in' and 'contains'.
+func applyMembership(leftCol, rightCol types.Collection, op string) interface{} {
 	var (
 		result types.Collection
 		err    error
@@ -1802,6 +1822,12 @@ func (e *Evaluator) VisitAndExpression(ctx *grammar.AndExpressionContext) interf
 	}
 	rightCol := right.(types.Collection)
 
+	return applyAnd(leftCol, rightCol, "and")
+}
+
+// applyAnd applies 'and'. The operator is taken for symmetry with the other
+// binary operators, so that one compiled shape serves them all.
+func applyAnd(leftCol, rightCol types.Collection, _ string) interface{} {
 	return And(leftCol, rightCol)
 }
 
@@ -1819,8 +1845,11 @@ func (e *Evaluator) VisitOrExpression(ctx *grammar.OrExpressionContext) interfac
 	}
 	rightCol := right.(types.Collection)
 
-	op := ctx.GetChild(1).(antlr.TerminalNode).GetText()
+	return applyOr(leftCol, rightCol, ctx.GetChild(1).(antlr.TerminalNode).GetText())
+}
 
+// applyOr applies 'or' and 'xor'.
+func applyOr(leftCol, rightCol types.Collection, op string) interface{} {
 	switch op {
 	case "or":
 		return Or(leftCol, rightCol)
@@ -1845,6 +1874,11 @@ func (e *Evaluator) VisitImpliesExpression(ctx *grammar.ImpliesExpressionContext
 	}
 	rightCol := right.(types.Collection)
 
+	return applyImplies(leftCol, rightCol, "implies")
+}
+
+// applyImplies applies 'implies'.
+func applyImplies(leftCol, rightCol types.Collection, _ string) interface{} {
 	return Implies(leftCol, rightCol)
 }
 

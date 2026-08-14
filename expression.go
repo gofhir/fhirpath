@@ -11,6 +11,10 @@ import (
 type Expression struct {
 	source string
 	tree   *grammar.EntireExpressionContext
+	// node is the tree compiled into closures. The tree is kept because
+	// analysis reads it, and because the constructs the compiler does not
+	// cover yet are evaluated through it.
+	node eval.Node
 }
 
 // Evaluate executes the expression against a JSON resource.
@@ -22,7 +26,7 @@ func (e *Expression) Evaluate(resource []byte) (types.Collection, error) {
 // EvaluateWithContext executes the expression with a custom context.
 func (e *Expression) EvaluateWithContext(ctx *eval.Context) (types.Collection, error) {
 	evaluator := eval.NewEvaluator(ctx, funcs.GetRegistry())
-	return evaluator.Evaluate(e.tree)
+	return evaluator.EvaluateNode(e.node)
 }
 
 // String returns the original expression string.
