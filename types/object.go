@@ -17,8 +17,28 @@ type ObjectValue struct {
 	// objects an expression walks past are never read through Get, and a
 	// navigation over a Bundle creates one ObjectValue per entry, so the map
 	// is worth its own allocation only for the ones that are.
-	fields       map[string]Value
+	fields map[string]Value
+	// Cache of fields read as collections, which is how navigation reads them.
+	// Kept only when caching is on. See GetCollection.
+	collections map[string]Collection
+	// caching is off by default: an object read for a single evaluation is
+	// discarded with it, so keeping what it read would cost memory that nothing
+	// goes on to use. It is turned on for an object that outlives one
+	// evaluation, which is what a Document is for.
+	caching      bool
 	explicitType string // optional explicit FHIR type from polymorphic resolution
+	typeName     string // the type once answered, which does not change. See Type.
+}
+
+// EnableCaching makes the object keep the fields it reads, and the objects it
+// reads them into keep theirs.
+//
+// This is for a resource that several expressions are evaluated against, where
+// what one expression navigates is worth keeping for the next. It trades memory
+// for that, and an object that caches must not be read from two goroutines at
+// once.
+func (o *ObjectValue) EnableCaching() {
+	o.caching = true
 }
 
 // NewObjectValue creates a new ObjectValue from JSON bytes.
@@ -57,169 +77,194 @@ const (
 
 // Type returns the FHIR type of this object.
 // Checks explicit type (from polymorphic resolution), then resourceType, then infers from structure.
+//
+// The answer is kept: an object's data does not change, and navigation asks for
+// the type of every object it passes — for an inferred type that means the
+// structural checks below, each of which scans the object.
 func (o *ObjectValue) Type() string {
 	// First, check for explicit type set during polymorphic resolution
 	if o.explicitType != "" {
 		return o.explicitType
 	}
 
+	if o.typeName != "" {
+		return o.typeName
+	}
+
 	// Then, check for explicit resourceType (FHIR resources)
 	if rt, err := jsonparser.GetString(o.data, "resourceType"); err == nil {
+		o.typeName = rt
 		return rt
 	}
 
 	// Try to infer type from structure for common FHIR complex types
-	return o.inferType()
+	o.typeName = o.inferType()
+	return o.typeName
 }
 
 // inferType attempts to infer the FHIR type from the object's structure.
-// Uses a series of helper methods to reduce cyclomatic complexity.
+//
+// The shape of a complex type is decided by which fields it carries and of what
+// kind, so the object is read once into a summary of that and the rules below
+// consult the summary. Asking the object one field at a time meant a scan per
+// question, a dozen of them per object, which navigation over a Bundle pays for
+// every element it passes.
 func (o *ObjectValue) inferType() string {
-	if t := o.inferQuantityType(); t != "" {
+	f := o.fieldSummary()
+
+	if t := f.quantityType(); t != "" {
 		return t
 	}
-	if t := o.inferCodingType(); t != "" {
+	if t := f.codingType(); t != "" {
 		return t
 	}
-	if t := o.inferComplexTypes(); t != "" {
+	if t := f.complexType(); t != "" {
 		return t
 	}
 	return typeObject
 }
 
-// inferQuantityType checks if the object is a Quantity type.
+// fields is which of the fields that distinguish a complex type the object
+// carries, and of what kind. The set is small and fixed, so membership is a bit
+// in a word rather than a map an inference would have to allocate.
+type fields struct {
+	present    uint32
+	valueKind  jsonparser.ValueType
+	givenKind  jsonparser.ValueType
+	codingKind jsonparser.ValueType
+}
+
+// The fields the inference rules ask about.
+const (
+	fieldValue uint32 = 1 << iota
+	fieldUnit
+	fieldCode
+	fieldSystem
+	fieldCoding
+	fieldReference
+	fieldStart
+	fieldEnd
+	fieldLow
+	fieldHigh
+	fieldNumerator
+	fieldDenominator
+	fieldContentType
+	fieldFamily
+	fieldGiven
+	fieldCity
+	fieldPostalCode
+	fieldUse
+	fieldText
+	fieldTime
+	fieldAuthorReference
+	fieldAuthorString
+)
+
+var inferenceFields = map[string]uint32{
+	"value": fieldValue, "unit": fieldUnit, "code": fieldCode,
+	"system": fieldSystem, "coding": fieldCoding, "reference": fieldReference,
+	"start": fieldStart, "end": fieldEnd, "low": fieldLow, "high": fieldHigh,
+	"numerator": fieldNumerator, "denominator": fieldDenominator,
+	"contentType": fieldContentType, "family": fieldFamily, "given": fieldGiven,
+	"city": fieldCity, "postalCode": fieldPostalCode, "use": fieldUse,
+	"text": fieldText, "time": fieldTime,
+	"authorReference": fieldAuthorReference, "authorString": fieldAuthorString,
+}
+
+func (f fields) has(field uint32) bool { return f.present&field != 0 }
+
+// fieldSummary reads the object once, recording the fields the rules ask about.
+func (o *ObjectValue) fieldSummary() fields {
+	var f fields
+
+	//nolint:errcheck // The callback never fails
+	jsonparser.ObjectEach(o.data, func(key, _ []byte, entryType jsonparser.ValueType, _ int) error {
+		field, ok := inferenceFields[string(key)]
+		if !ok {
+			return nil
+		}
+
+		f.present |= field
+		switch field {
+		case fieldValue:
+			f.valueKind = entryType
+		case fieldGiven:
+			f.givenKind = entryType
+		case fieldCoding:
+			f.codingKind = entryType
+		}
+		return nil
+	})
+
+	return f
+}
+
+// quantityType checks if the object is a Quantity type.
 // The value must be numeric: an Identifier also carries "value" and "system",
 // but its value is a string, and misreading it as a Quantity made
 // identifier.ofType(Identifier) return nothing.
-func (o *ObjectValue) inferQuantityType() string {
-	if o.hasNumberField("value") {
-		if o.hasField("unit") || o.hasField("code") || o.hasField("system") {
+func (f fields) quantityType() string {
+	if f.valueKind == jsonparser.Number {
+		if f.has(fieldUnit) || f.has(fieldCode) || f.has(fieldSystem) {
 			return typeQuantity
 		}
 	}
 	return ""
 }
 
-// inferCodingType checks if the object is a Coding type.
-func (o *ObjectValue) inferCodingType() string {
-	if o.hasField("system") && o.hasField("code") && !o.hasField("value") {
+// codingType checks if the object is a Coding type.
+func (f fields) codingType() string {
+	if f.has(fieldSystem) && f.has(fieldCode) && !f.has(fieldValue) {
 		return typeCoding
 	}
 	return ""
 }
 
-// inferComplexTypes checks for various FHIR complex types.
-func (o *ObjectValue) inferComplexTypes() string {
-	// CodeableConcept
-	if o.hasArrayField("coding") {
+// complexType checks for various FHIR complex types, in the order the rules
+// have to be read: an object carrying the fields of two of them is the first
+// one named here.
+func (f fields) complexType() string {
+	if t := f.codedOrReferencedType(); t != "" {
+		return t
+	}
+	return f.namedPartyType()
+}
+
+// codedOrReferencedType covers the types built around a code, a reference or a
+// pair of bounds.
+func (f fields) codedOrReferencedType() string {
+	switch {
+	case f.codingKind == jsonparser.Array:
 		return typeCodeableConcept
-	}
-
-	// Reference
-	if o.hasField("reference") {
+	case f.has(fieldReference):
 		return typeReference
-	}
-
-	// Period
-	if o.hasPeriodFields() {
+	case f.has(fieldStart) || f.has(fieldEnd):
 		return typePeriod
-	}
-
-	// Identifier
-	if o.hasIdentifierFields() {
+	case f.has(fieldSystem) && f.valueKind == jsonparser.String:
 		return typeIdentifier
-	}
-
-	// Range
-	if o.hasField("low") || o.hasField("high") {
+	case f.has(fieldLow) || f.has(fieldHigh):
 		return typeRange
-	}
-
-	// Ratio
-	if o.hasField("numerator") || o.hasField("denominator") {
+	case f.has(fieldNumerator) || f.has(fieldDenominator):
 		return typeRatio
 	}
-
-	// Attachment
-	if o.hasField("contentType") {
-		return typeAttachment
-	}
-
-	// HumanName
-	if o.hasHumanNameFields() {
-		return typeHumanName
-	}
-
-	// Address
-	if o.hasAddressFields() {
-		return typeAddress
-	}
-
-	// ContactPoint
-	if o.hasContactPointFields() {
-		return typeContactPoint
-	}
-
-	// Annotation
-	if o.hasAnnotationFields() {
-		return typeAnnotation
-	}
-
 	return ""
 }
 
-// hasArrayField checks if a field exists and is an array.
-func (o *ObjectValue) hasArrayField(name string) bool {
-	_, dataType, _, err := jsonparser.Get(o.data, name)
-	return err == nil && dataType == jsonparser.Array
-}
-
-func (o *ObjectValue) hasPeriodFields() bool {
-	hasStart := o.hasField("start")
-	hasEnd := o.hasField("end")
-	return hasStart || hasEnd
-}
-
-// hasField checks if a field exists in the object.
-func (o *ObjectValue) hasField(name string) bool {
-	//nolint:dogsled // jsonparser.Get returns 4 values, we only need the error
-	_, _, _, err := jsonparser.Get(o.data, name)
-	return err == nil
-}
-
-func (o *ObjectValue) hasIdentifierFields() bool {
-	return o.hasField("system") && o.hasStringField("value")
-}
-
-// hasStringField checks if a field exists and is a string.
-func (o *ObjectValue) hasStringField(name string) bool {
-	_, dataType, _, err := jsonparser.Get(o.data, name)
-	return err == nil && dataType == jsonparser.String
-}
-
-// hasNumberField checks if a field exists and is a number.
-func (o *ObjectValue) hasNumberField(name string) bool {
-	_, dataType, _, err := jsonparser.Get(o.data, name)
-	return err == nil && dataType == jsonparser.Number
-}
-
-func (o *ObjectValue) hasHumanNameFields() bool {
-	return o.hasField("family") || o.hasArrayField("given")
-}
-
-func (o *ObjectValue) hasAddressFields() bool {
-	return o.hasField("city") || o.hasField("postalCode")
-}
-
-func (o *ObjectValue) hasContactPointFields() bool {
-	return o.hasField("system") && o.hasField("use")
-}
-
-func (o *ObjectValue) hasAnnotationFields() bool {
-	if !o.hasField("text") {
-		return false
+// namedPartyType covers the types that describe a party or an attachment.
+func (f fields) namedPartyType() string {
+	switch {
+	case f.has(fieldContentType):
+		return typeAttachment
+	case f.has(fieldFamily) || f.givenKind == jsonparser.Array:
+		return typeHumanName
+	case f.has(fieldCity) || f.has(fieldPostalCode):
+		return typeAddress
+	case f.has(fieldSystem) && f.has(fieldUse):
+		return typeContactPoint
+	case f.has(fieldText) && (f.has(fieldTime) || f.has(fieldAuthorReference) || f.has(fieldAuthorString)):
+		return typeAnnotation
 	}
-	return o.hasField("time") || o.hasField("authorReference") || o.hasField("authorString")
+	return ""
 }
 
 // Equal returns true if the JSON data is identical.
@@ -276,8 +321,37 @@ func (o *ObjectValue) Get(field string) (Value, bool) {
 // GetCollection retrieves a field as a Collection.
 // If the field is an array, returns all elements.
 // If the field is a single value, returns a singleton collection.
+//
+// When caching is on, the result is kept, so reading the same field again — a
+// second expression over the same document, or a second mention of the field in
+// one expression — costs a map lookup rather than another scan of the object.
+// The objects read out of the field cache in turn, so the saving compounds down
+// a path: the invariants of one resource share the whole of what they navigate.
+//
+// The collection handed back cannot grow into the cached one: it is capped at
+// its length, so appending to it copies. Its values are immutable.
 func (o *ObjectValue) GetCollection(field string) Collection {
-	return o.fieldCollection(field, jsonValueToFHIRValue)
+	if !o.caching {
+		return o.fieldCollection(field, jsonValueToFHIRValue)
+	}
+
+	if col, ok := o.collections[field]; ok {
+		return col[:len(col):len(col)]
+	}
+
+	col := o.fieldCollection(field, jsonValueToFHIRValue)
+	for _, value := range col {
+		if child, ok := value.(*ObjectValue); ok {
+			child.caching = true
+		}
+	}
+
+	if o.collections == nil {
+		o.collections = make(map[string]Collection, 4)
+	}
+	o.collections[field] = col
+
+	return col[:len(col):len(col)]
 }
 
 // fieldCollection reads a field together with the FHIR element stored under the

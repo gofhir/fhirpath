@@ -66,11 +66,39 @@ func BenchmarkScaleWhere(b *testing.B) {
 	}
 }
 
+// The validation case over a Document, which reads the bundle once and shares
+// it across the invariants.
+func BenchmarkValidationSuiteDocument(b *testing.B) {
+	data := makeBundle(50)
+	exprs := validationExpressions()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		doc := MustNewDocument(data)
+		for _, e := range exprs {
+			_, _ = doc.EvaluateCompiled(e)
+		}
+	}
+}
+
 // The validation case: several invariants over one resource, which is what
 // pays for the document being read again per expression.
 func BenchmarkValidationSuite(b *testing.B) {
 	data := makeBundle(50)
-	exprs := []*Expression{
+	exprs := validationExpressions()
+
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		for _, e := range exprs {
+			_, _ = e.Evaluate(data)
+		}
+	}
+}
+
+func validationExpressions() []*Expression {
+	return []*Expression{
 		MustCompile("Bundle.entry.resource.name.exists()"),
 		MustCompile("Bundle.entry.resource.name.family.exists()"),
 		MustCompile("Bundle.entry.resource.telecom.value.exists()"),
@@ -79,12 +107,5 @@ func BenchmarkValidationSuite(b *testing.B) {
 		MustCompile("Bundle.entry.count() > 0"),
 		MustCompile("Bundle.entry.resource.active = true"),
 		MustCompile("Bundle.entry.resource.id.exists()"),
-	}
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		for _, e := range exprs {
-			_, _ = e.Evaluate(data)
-		}
 	}
 }

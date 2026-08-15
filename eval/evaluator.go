@@ -117,11 +117,19 @@ func NewContext(resource []byte) *Context {
 	//nolint:errcheck // Empty collection is acceptable for invalid JSON in context creation
 	root, _ := types.JSONToCollection(resource)
 
-	// The variables the specification fixes are answered by builtinVariable
-	// rather than stored: %resource, %rootResource and %context are the root
-	// itself, and %ucum, %sct and %loinc are constants. An evaluation that
-	// never sets a variable of its own then allocates no map at all, which
-	// matters because a context is built per evaluation.
+	return NewContextForRoot(root)
+}
+
+// NewContextForRoot creates an evaluation context for a resource that has
+// already been read, so that several expressions can be evaluated over one
+// reading of it.
+//
+// The variables the specification fixes are answered by builtinVariable rather
+// than stored: %resource, %rootResource and %context are the root itself, and
+// %ucum, %sct and %loinc are constants. An evaluation that never sets a
+// variable of its own then allocates no map at all, which matters because a
+// context is built per evaluation.
+func NewContextForRoot(root types.Collection) *Context {
 	return &Context{
 		root:  root,
 		this:  root,
