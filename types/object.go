@@ -3,6 +3,7 @@ package types
 import (
 	"bytes"
 	"encoding/json"
+	"errors"
 	"strings"
 
 	"github.com/buger/jsonparser"
@@ -296,26 +297,22 @@ func (o *ObjectValue) GetCollection(field string) Collection {
 // collection, so it is kept as its element alone, and hasValue() answers false
 // for it. Positions with neither a value nor an element are dropped.
 func (o *ObjectValue) fieldCollection(field string, parse func([]byte, jsonparser.ValueType) Value) Collection {
-	value, dataType, _, err := jsonparser.Get(o.data, field)
-	elementData, elementType, _, elementErr := jsonparser.Get(o.data, "_"+field)
-
-	valueMissing := err != nil || dataType == jsonparser.NotExist
-	elementMissing := elementErr != nil || elementType == jsonparser.NotExist
-	if valueMissing && elementMissing {
+	value, element := o.readField(field)
+	if value.missing() && element.missing() {
 		return Collection{}
 	}
 
 	// A single value, with or without its element beside it
-	if dataType != jsonparser.Array && elementType != jsonparser.Array {
-		var element *ObjectValue
-		if !elementMissing && elementType == jsonparser.Object {
-			element = NewObjectValue(elementData)
+	if !value.isArray() && !element.isArray() {
+		var elementValue *ObjectValue
+		if element.found && element.dataType == jsonparser.Object {
+			elementValue = NewObjectValue(element.data)
 		}
-		return pairValueWithElement(value, dataType, valueMissing, element, parse)
+		return pairValueWithElement(value, elementValue, parse)
 	}
 
-	values := positionalEntries(value, dataType, valueMissing)
-	elements := positionalEntries(elementData, elementType, elementMissing)
+	values := positionalEntries(value)
+	elements := positionalEntries(element)
 
 	length := len(values)
 	if len(elements) > length {
@@ -324,44 +321,87 @@ func (o *ObjectValue) fieldCollection(field string, parse func([]byte, jsonparse
 
 	result := make(Collection, 0, length)
 	for i := 0; i < length; i++ {
-		var element *ObjectValue
+		var elementValue *ObjectValue
 		if i < len(elements) && elements[i].dataType == jsonparser.Object {
-			element = NewObjectValue(elements[i].data)
+			elementValue = NewObjectValue(elements[i].data)
 		}
 
-		var (
-			data    []byte
-			kind    jsonparser.ValueType
-			missing = i >= len(values)
-		)
-		if !missing {
-			data, kind = values[i].data, values[i].dataType
+		var entry jsonField
+		if i < len(values) {
+			entry = values[i]
 		}
 
-		result = append(result, pairValueWithElement(data, kind, missing, element, parse)...)
+		result = append(result, pairValueWithElement(entry, elementValue, parse)...)
 	}
 
 	return result
 }
 
+// errFieldsFound stops a scan that has nothing left to look for. jsonparser
+// ends ObjectEach when the callback returns an error, and this one is never
+// reported.
+var errFieldsFound = errors.New("fields found")
+
+// readField finds a field and the element stored beside it in one pass over the
+// object.
+//
+// Looking each of them up separately means scanning the object twice, and
+// naming the element means building the string "_" + field on every access.
+// Both are paid per field of every element an expression walks over, which over
+// a Bundle is the greater part of the work.
+func (o *ObjectValue) readField(field string) (value, element jsonField) {
+	//nolint:errcheck // The only error is errFieldsFound, which ends the scan
+	jsonparser.ObjectEach(o.data, func(key, entry []byte, entryType jsonparser.ValueType, _ int) error {
+		switch {
+		// A repeated key is not valid JSON to rely on, but if one appears the
+		// first occurrence is what jsonparser.Get would have returned.
+		case !value.found && string(key) == field:
+			value = jsonField{data: entry, dataType: entryType, found: true}
+		case !element.found && len(key) > 1 && key[0] == '_' && string(key[1:]) == field:
+			element = jsonField{data: entry, dataType: entryType, found: true}
+		default:
+			return nil
+		}
+
+		if value.found && element.found {
+			return errFieldsFound
+		}
+		return nil
+	})
+
+	return value, element
+}
+
+// jsonField is a field as it was found in the object, or the absence of one.
+// The zero value is absent, which is what readField starts from.
+type jsonField struct {
+	data     []byte
+	dataType jsonparser.ValueType
+	found    bool
+}
+
+// missing reports that the field was not in the object.
+func (f jsonField) missing() bool { return !f.found }
+
+// isArray reports that the field holds a JSON array.
+func (f jsonField) isArray() bool { return f.dataType == jsonparser.Array }
+
 // pairValueWithElement turns one value and its element into the item, or items,
 // they stand for: the value carrying the element, the element alone when there
 // is no value, or nothing when there is neither.
 func pairValueWithElement(
-	data []byte,
-	dataType jsonparser.ValueType,
-	missing bool,
+	value jsonField,
 	element *ObjectValue,
 	parse func([]byte, jsonparser.ValueType) Value,
 ) Collection {
-	if missing || dataType == jsonparser.Null {
+	if value.missing() || value.dataType == jsonparser.Null {
 		if element == nil {
 			return Collection{}
 		}
 		return Collection{element}
 	}
 
-	parsed := parse(data, dataType)
+	parsed := parse(value.data, value.dataType)
 	if parsed == nil {
 		return Collection{}
 	}
@@ -371,26 +411,20 @@ func pairValueWithElement(
 	return Collection{parsed}
 }
 
-// jsonEntry is one element of a JSON array, kept with its type so that a null
-// can be told from an absent position.
-type jsonEntry struct {
-	data     []byte
-	dataType jsonparser.ValueType
-}
-
-// positionalEntries lists a JSON array's entries in order, preserving nulls.
-func positionalEntries(data []byte, dataType jsonparser.ValueType, missing bool) []jsonEntry {
-	if missing {
+// positionalEntries lists a JSON array's entries in order, preserving nulls so
+// that a position with extensions but no value can be told from an absent one.
+func positionalEntries(field jsonField) []jsonField {
+	if field.missing() {
 		return nil
 	}
-	if dataType != jsonparser.Array {
-		return []jsonEntry{{data: data, dataType: dataType}}
+	if !field.isArray() {
+		return []jsonField{field}
 	}
 
-	var entries []jsonEntry
+	var entries []jsonField
 	//nolint:errcheck // ArrayEach only errors on non-arrays, and this is one
-	jsonparser.ArrayEach(data, func(entry []byte, entryType jsonparser.ValueType, _ int, _ error) {
-		entries = append(entries, jsonEntry{data: entry, dataType: entryType})
+	jsonparser.ArrayEach(field.data, func(entry []byte, entryType jsonparser.ValueType, _ int, _ error) {
+		entries = append(entries, jsonField{data: entry, dataType: entryType, found: true})
 	})
 	return entries
 }
