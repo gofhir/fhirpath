@@ -100,6 +100,19 @@ type ReferenceResolver interface {
 
 // EvaluateWithOptions evaluates an expression with custom options.
 func (e *Expression) EvaluateWithOptions(resource []byte, opts ...EvalOption) (types.Collection, error) {
+	evalCtx, done := configureContext(eval.NewContext(resource), opts...)
+	defer done()
+
+	return e.EvaluateWithContext(evalCtx)
+}
+
+// configureContext applies the options to an evaluation context, returning it
+// with the call that releases what a timeout holds.
+//
+// The context is taken rather than made here, so that the same options can be
+// applied to an evaluation over a resource read for the occasion and to one
+// over a Document, which carries a reading of its own.
+func configureContext(evalCtx *eval.Context, opts ...EvalOption) (configured *eval.Context, done func()) {
 	options := DefaultOptions()
 	for _, opt := range opts {
 		opt(options)
@@ -107,14 +120,12 @@ func (e *Expression) EvaluateWithOptions(resource []byte, opts ...EvalOption) (t
 
 	// Create context with timeout if specified
 	ctx := options.Ctx
+	done = func() {}
 	if options.Timeout > 0 {
 		var cancel context.CancelFunc
 		ctx, cancel = context.WithTimeout(ctx, options.Timeout)
-		defer cancel()
+		done = cancel
 	}
-
-	// Create evaluation context
-	evalCtx := eval.NewContext(resource)
 
 	// Set variables
 	for name, value := range options.Variables {
@@ -136,7 +147,7 @@ func (e *Expression) EvaluateWithOptions(resource []byte, opts ...EvalOption) (t
 		evalCtx.SetModel(newModelAdapter(options.Model))
 	}
 
-	return e.EvaluateWithContext(evalCtx)
+	return evalCtx, done
 }
 
 // resolverAdapter adapts ReferenceResolver to eval.Resolver

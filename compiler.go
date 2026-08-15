@@ -5,6 +5,7 @@ import (
 
 	"github.com/antlr4-go/antlr/v4"
 
+	"github.com/gofhir/fhirpath/eval"
 	"github.com/gofhir/fhirpath/parser/grammar"
 )
 
@@ -53,8 +54,11 @@ func compile(expr string) (*Expression, error) {
 		return nil, fmt.Errorf("parser errors: %v", parserErrors.errors)
 	}
 
+	entire := tree.(*grammar.EntireExpressionContext)
+
 	return &Expression{
 		source: expr,
-		tree:   tree.(*grammar.EntireExpressionContext),
+		tree:   entire,
+		node:   eval.Compile(entire),
 	}, nil
 }
