@@ -538,19 +538,30 @@ func (o *ObjectValue) childElement(basePath, name string, res ElementTypeResolve
 	return name, ""
 }
 
+// decodeJSONString reads the contents of a JSON string, which jsonparser hands
+// over without its quotes and with its escapes intact.
+//
+// A string without a backslash has nothing to unescape, and that is the
+// ordinary case in a FHIR resource, so it is taken as it stands rather than
+// through the JSON decoder — which would cost two slices and a reflective
+// decode per string in the document.
+func decodeJSONString(data []byte) string {
+	if bytes.IndexByte(data, '\\') < 0 {
+		return string(data)
+	}
+
+	var s string
+	if err := json.Unmarshal(append([]byte{'"'}, append(data, '"')...), &s); err != nil {
+		return string(data)
+	}
+	return s
+}
+
 // jsonValueToFHIRValue converts a JSON value to a FHIRPath Value.
 func jsonValueToFHIRValue(data []byte, dataType jsonparser.ValueType) Value {
 	switch dataType {
 	case jsonparser.String:
-		// Remove quotes and unescape. A string without a backslash has nothing
-		// to unescape, which is the ordinary case in a FHIR resource, so it is
-		// converted directly rather than through the JSON decoder.
-		var s string
-		if bytes.IndexByte(data, '\\') < 0 {
-			s = string(data)
-		} else if err := json.Unmarshal(append([]byte{'"'}, append(data, '"')...), &s); err != nil {
-			s = string(data)
-		}
+		s := decodeJSONString(data)
 		// Heuristic: try to detect ISO 8601 date/datetime patterns
 		if v := tryParseTemporalString(s); v != nil {
 			return v
@@ -642,10 +653,7 @@ func jsonValueToFHIRValueWithType(data []byte, dataType jsonparser.ValueType, fh
 // parseTypedString reads a JSON string as the temporal type the model declares,
 // rather than leaving it to pattern matching.
 func parseTypedString(data []byte, fhirType string) (Value, bool) {
-	var text string
-	if err := json.Unmarshal(append([]byte{'"'}, append(data, '"')...), &text); err != nil {
-		text = string(data)
-	}
+	text := decodeJSONString(data)
 
 	switch strings.ToLower(fhirType) {
 	case "date":

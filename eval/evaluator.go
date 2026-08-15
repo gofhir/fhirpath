@@ -556,140 +556,17 @@ func (e *Evaluator) VisitMemberInvocation(ctx *grammar.MemberInvocationContext) 
 }
 
 // VisitFunctionInvocation visits a function call.
+//
+// The compiled form is what evaluates a call, so the visitor builds it and
+// runs it. Reaching a call through the visitor at all means an enclosing
+// construct is not compiled yet, which is rare and getting rarer; keeping one
+// implementation matters more than what that path costs.
 func (e *Evaluator) VisitFunctionInvocation(ctx *grammar.FunctionInvocationContext) interface{} {
-	funcCtx := ctx.Function()
-	name := stripBackticks(funcCtx.Identifier().GetText())
-
-	// Get function from registry
-	fn, ok := e.funcs.Get(name)
-	if !ok {
-		return FunctionNotFoundError(name)
-	}
-
-	// Validate argument count
-	paramList := funcCtx.ParamList()
-	argCount := 0
-	var argExprs []grammar.IExpressionContext
-	if paramList != nil {
-		argExprs = paramList.AllExpression()
-		argCount = len(argExprs)
-	}
-
-	if argCount < fn.MinArgs {
-		return InvalidArgumentsError(name, fn.MinArgs, argCount)
-	}
-	if fn.MaxArgs >= 0 && argCount > fn.MaxArgs {
-		return InvalidArgumentsError(name, fn.MaxArgs, argCount)
-	}
-
-	// Handle special functions that need per-element evaluation
-	input := e.ctx.This()
-	switch name {
-	case "where":
-		if argCount > 0 {
-			return e.evaluateWhere(input, argExprs[0])
-		}
-	case "exists":
-		if argCount > 0 {
-			return e.evaluateExists(input, argExprs[0])
-		}
-	case "all":
-		if argCount > 0 {
-			return e.evaluateAll(input, argExprs[0])
-		}
-	case "select":
-		if argCount > 0 {
-			return e.evaluateSelect(input, argExprs[0])
-		}
-	case "is":
-		if argCount > 0 {
-			return e.evaluateIsFunction(input, argExprs[0])
-		}
-	case "as":
-		if argCount > 0 {
-			return e.evaluateAsFunction(input, argExprs[0])
-		}
-	case "ofType":
-		if argCount > 0 {
-			return e.evaluateOfType(input, argExprs[0])
-		}
-	case "sort":
-		// sort() needs its criteria evaluated per element, with $this bound
-		return e.evaluateSort(input, argExprs)
-	case "aggregate":
-		if argCount >= 1 {
-			return e.evaluateAggregate(input, argExprs)
-		}
-	case "iif":
-		// iif requires lazy evaluation - only evaluate the branch that matches
-		if argCount >= 2 {
-			return e.evaluateIif(input, argExprs)
-		}
-	case "repeat":
-		// repeat() re-applies its projection to whatever the last round
-		// produced, so the expression has to be evaluated per element per round
-		if argCount > 0 {
-			return e.evaluateRepeat(input, argExprs[0], true)
-		}
-	case "repeatAll":
-		if argCount > 0 {
-			return e.evaluateRepeat(input, argExprs[0], false)
-		}
-	case "defineVariable":
-		// defineVariable() alters the scope the rest of the expression is
-		// evaluated in, which a function returning a collection cannot do
-		if argCount >= 1 {
-			return e.evaluateDefineVariable(input, argExprs)
-		}
-	case "coalesce":
-		// coalesce short-circuits: arguments after the first non-empty one are
-		// never evaluated
-		if argCount >= 1 {
-			return e.evaluateCoalesce(argExprs)
-		}
-	}
-
-	// Evaluate arguments in the scope the invocation sits in, not in its input
-	args := make([]interface{}, argCount)
-	if argCount > 0 {
-		argThis := e.ctx.this
-		if e.ctx.outer != nil {
-			argThis = e.ctx.outer
-		}
-
-		restore := e.ctx.this
-		e.ctx.this = argThis
-		for i, argExpr := range argExprs {
-			if isTypeArg(fn.TypeArgs, i) {
-				// Extract type name from AST instead of evaluating as expression
-				typeName := e.extractTypeNameFromExpr(argExpr)
-				args[i] = types.Collection{types.NewString(typeName)}
-				continue
-			}
-
-			// Each argument is its own scope, so two of them may define the same
-			// name without colliding: 'aaa'.replace(defineVariable('param','aaa')
-			// .select(%param), defineVariable('param','bbb').select(%param))
-			result := e.visitInScope(argExpr)
-			if err, ok := result.(error); ok {
-				e.ctx.this = restore
-				return err
-			}
-			args[i] = result
-		}
-		e.ctx.this = restore
-	}
-
-	// Call the function
-	result, err := fn.Fn(e.ctx, e.ctx.This(), args)
-	if err != nil {
-		return err
-	}
-	return result
+	return compileFunction(ctx)(e)
 }
 
 // evaluateWhere evaluates the where() function with per-element criteria.
-func (e *Evaluator) evaluateWhere(input types.Collection, criteria grammar.IExpressionContext) interface{} {
+func (e *Evaluator) evaluateWhere(input types.Collection, criteria Node) interface{} {
 	result := types.Collection{}
 
 	// Check collection size limit
@@ -714,7 +591,7 @@ func (e *Evaluator) evaluateWhere(input types.Collection, criteria grammar.IExpr
 		e.ctx.index = i
 
 		// Evaluate the criteria
-		criteriaResult := e.Visit(criteria)
+		criteriaResult := criteria(e)
 
 		// Restore context
 		e.ctx.this = oldThis
@@ -738,7 +615,7 @@ func (e *Evaluator) evaluateWhere(input types.Collection, criteria grammar.IExpr
 }
 
 // evaluateExists evaluates exists() with optional criteria.
-func (e *Evaluator) evaluateExists(input types.Collection, criteria grammar.IExpressionContext) interface{} {
+func (e *Evaluator) evaluateExists(input types.Collection, criteria Node) interface{} {
 	for i, item := range input {
 		// Check for cancellation periodically
 		if i%100 == 0 {
@@ -756,7 +633,7 @@ func (e *Evaluator) evaluateExists(input types.Collection, criteria grammar.IExp
 		e.ctx.index = i
 
 		// Evaluate the criteria
-		criteriaResult := e.Visit(criteria)
+		criteriaResult := criteria(e)
 
 		// Restore context
 		e.ctx.this = oldThis
@@ -780,7 +657,7 @@ func (e *Evaluator) evaluateExists(input types.Collection, criteria grammar.IExp
 }
 
 // evaluateAll evaluates all() - returns true if all elements match criteria.
-func (e *Evaluator) evaluateAll(input types.Collection, criteria grammar.IExpressionContext) interface{} {
+func (e *Evaluator) evaluateAll(input types.Collection, criteria Node) interface{} {
 	if input.Empty() {
 		return types.Collection{types.NewBoolean(true)}
 	}
@@ -802,7 +679,7 @@ func (e *Evaluator) evaluateAll(input types.Collection, criteria grammar.IExpres
 		e.ctx.index = i
 
 		// Evaluate the criteria
-		criteriaResult := e.Visit(criteria)
+		criteriaResult := criteria(e)
 
 		// Restore context
 		e.ctx.this = oldThis
@@ -828,7 +705,7 @@ func (e *Evaluator) evaluateAll(input types.Collection, criteria grammar.IExpres
 // sortCriterion is one ordering key of sort(): the expression to evaluate for
 // each element, and the direction it imposes.
 type sortCriterion struct {
-	expr       grammar.IExpressionContext
+	expr       Node
 	descending bool
 }
 
@@ -841,15 +718,9 @@ type sortCriterion struct {
 // negation, which is why it also applies to strings and dates.
 //
 // Ordering is stable, so elements that compare equal keep their input order.
-func (e *Evaluator) evaluateSort(input types.Collection, argExprs []grammar.IExpressionContext) interface{} {
+func (e *Evaluator) evaluateSort(input types.Collection, criteria []sortCriterion) interface{} {
 	if len(input) < 2 {
 		return input
-	}
-
-	criteria := make([]sortCriterion, 0, len(argExprs))
-	for _, argExpr := range argExprs {
-		expr, descending := unwrapSortDirection(argExpr)
-		criteria = append(criteria, sortCriterion{expr: expr, descending: descending})
 	}
 
 	// Evaluate every key once per element rather than on each comparison
@@ -903,12 +774,12 @@ func unwrapSortDirection(expr grammar.IExpressionContext) (grammar.IExpressionCo
 }
 
 // evaluateWithThis evaluates an expression with $this bound to a single element.
-func (e *Evaluator) evaluateWithThis(item types.Value, index int, expr grammar.IExpressionContext) interface{} {
+func (e *Evaluator) evaluateWithThis(item types.Value, index int, expr Node) interface{} {
 	oldThis, oldIndex, oldPath := e.ctx.this, e.ctx.index, e.ctx.path
 	e.ctx.this = types.Collection{item}
 	e.ctx.index = index
 
-	result := e.Visit(expr)
+	result := expr(e)
 
 	e.ctx.this, e.ctx.index, e.ctx.path = oldThis, oldIndex, oldPath
 	return result
@@ -952,7 +823,7 @@ func compareKeyValues(left, right types.Collection) int {
 }
 
 // evaluateSelect evaluates select() - projects each element.
-func (e *Evaluator) evaluateSelect(input types.Collection, projection grammar.IExpressionContext) interface{} {
+func (e *Evaluator) evaluateSelect(input types.Collection, projection Node) interface{} {
 	result := types.Collection{}
 
 	// Check collection size limit
@@ -977,7 +848,7 @@ func (e *Evaluator) evaluateSelect(input types.Collection, projection grammar.IE
 		e.ctx.index = i
 
 		// Evaluate the projection
-		projResult := e.Visit(projection)
+		projResult := projection(e)
 
 		// Restore context
 		e.ctx.this = oldThis
@@ -1007,13 +878,11 @@ func (e *Evaluator) evaluateSelect(input types.Collection, projection grammar.IE
 // Iterates over the collection, maintaining $total across iterations.
 // Per FHIRPath spec §5.4.1: $this is the current element, $index is the 0-based index,
 // and $total accumulates the result starting from init (or empty if not provided).
-func (e *Evaluator) evaluateAggregate(input types.Collection, argExprs []grammar.IExpressionContext) interface{} {
-	aggregator := argExprs[0]
-
+func (e *Evaluator) evaluateAggregate(input types.Collection, aggregator, init Node) interface{} {
 	// Evaluate optional init value
 	var total types.Collection
-	if len(argExprs) > 1 {
-		initResult := e.Visit(argExprs[1])
+	if init != nil {
+		initResult := init(e)
 		if err, ok := initResult.(error); ok {
 			return err
 		}
@@ -1056,7 +925,7 @@ func (e *Evaluator) evaluateAggregate(input types.Collection, argExprs []grammar
 		}
 
 		// Evaluate the aggregator expression
-		result := e.Visit(aggregator)
+		result := aggregator(e)
 		endScope()
 		if err, ok := result.(error); ok {
 			return err
@@ -1073,7 +942,7 @@ func (e *Evaluator) evaluateAggregate(input types.Collection, argExprs []grammar
 
 // evaluateIsFunction evaluates is() function - checks if input is of specified type.
 // This handles is(Type) where Type is an identifier like Composition, Patient, etc.
-func (e *Evaluator) evaluateIsFunction(input types.Collection, typeExpr grammar.IExpressionContext) interface{} {
+func (e *Evaluator) evaluateIsFunction(input types.Collection, typeName string) interface{} {
 	// Empty input returns empty
 	if input.Empty() {
 		return types.Collection{}
@@ -1084,8 +953,6 @@ func (e *Evaluator) evaluateIsFunction(input types.Collection, typeExpr grammar.
 		return SingletonError(len(input))
 	}
 
-	// Extract the type name from the expression
-	typeName := e.extractTypeNameFromExpr(typeExpr)
 	if typeName == "" {
 		return InvalidArgumentsError("is", 1, 0)
 	}
@@ -1104,14 +971,12 @@ func (e *Evaluator) evaluateIsFunction(input types.Collection, typeExpr grammar.
 // Returns elements that match the type, empty otherwise.
 // Per FHIRPath spec and HL7 validator behavior, as() works on collections
 // by filtering/projecting elements that match the target type.
-func (e *Evaluator) evaluateAsFunction(input types.Collection, typeExpr grammar.IExpressionContext) interface{} {
+func (e *Evaluator) evaluateAsFunction(input types.Collection, typeName string) interface{} {
 	// Empty input returns empty
 	if input.Empty() {
 		return types.Collection{}
 	}
 
-	// Extract the type name from the expression
-	typeName := e.extractTypeNameFromExpr(typeExpr)
 	if typeName == "" {
 		return InvalidArgumentsError("as", 1, 0)
 	}
@@ -1164,14 +1029,6 @@ func isTypeArg(typeArgs []int, index int) bool {
 	return false
 }
 
-// extractTypeNameFromExpr extracts a type name from a FHIRPath expression.
-// Handles identifiers like Composition, Patient, and qualified names like FHIR.Patient.
-func (e *Evaluator) extractTypeNameFromExpr(expr grammar.IExpressionContext) string {
-	// The text of the expression, which for a type specifier is the identifier
-	// or the qualified name as written
-	return stripDelimiters(expr.GetText())
-}
-
 // stripDelimiters removes the backticks around a delimited identifier, in each
 // part of a qualified name.
 //
@@ -1193,14 +1050,12 @@ func stripDelimiters(name string) string {
 
 // evaluateOfType evaluates ofType() function - filters collection by type.
 // Unlike is()/as() which require singleton, ofType() works on collections.
-func (e *Evaluator) evaluateOfType(input types.Collection, typeExpr grammar.IExpressionContext) interface{} {
+func (e *Evaluator) evaluateOfType(input types.Collection, typeName string) interface{} {
 	// Empty input returns empty
 	if input.Empty() {
 		return types.Collection{}
 	}
 
-	// Extract the type name from the expression
-	typeName := e.extractTypeNameFromExpr(typeExpr)
 	if typeName == "" {
 		return InvalidArgumentsError("ofType", 1, 0)
 	}
@@ -1236,7 +1091,7 @@ func (e *Evaluator) evaluateOfType(input types.Collection, typeExpr grammar.IExp
 // equals (=) operator)" — which is also what terminates it on cyclic data.
 // repeatAll() keeps duplicates, so only the absence of new results stops it;
 // the configured collection limit bounds the damage when the data cycles.
-func (e *Evaluator) evaluateRepeat(input types.Collection, projection grammar.IExpressionContext, dedupe bool) interface{} {
+func (e *Evaluator) evaluateRepeat(input types.Collection, projection Node, dedupe bool) interface{} {
 	result := types.Collection{}
 	current := input
 
@@ -1256,7 +1111,7 @@ func (e *Evaluator) evaluateRepeat(input types.Collection, projection grammar.IE
 			// so it keeps the position within the current round
 			e.ctx.index = i
 
-			projected := e.Visit(projection)
+			projected := projection(e)
 
 			e.ctx.this = oldThis
 			e.ctx.index = oldIndex
@@ -1309,11 +1164,11 @@ func containsEqual(collection types.Collection, candidate types.Value) bool {
 // when given, otherwise the input collection itself. Either way the output is
 // the input, so the function is transparent to the chain it sits in — it is the
 // one function that exists for its effect on the context rather than its result.
-func (e *Evaluator) evaluateDefineVariable(input types.Collection, argExprs []grammar.IExpressionContext) interface{} {
+func (e *Evaluator) evaluateDefineVariable(input types.Collection, args []Node) interface{} {
 	// Each argument gets its own scope, as it would through the ordinary call
 	// path: the name and the value may each define variables of their own, and
 	// two of them may use the same name without colliding.
-	nameResult := e.visitInScope(argExprs[0])
+	nameResult := e.inScope(args[0])
 	if err, ok := nameResult.(error); ok {
 		return err
 	}
@@ -1328,8 +1183,8 @@ func (e *Evaluator) evaluateDefineVariable(input types.Collection, argExprs []gr
 	}
 
 	value := input
-	if len(argExprs) > 1 {
-		projection := e.visitInScope(argExprs[1])
+	if len(args) > 1 {
+		projection := e.inScope(args[1])
 		if err, ok := projection.(error); ok {
 			return err
 		}
@@ -1352,9 +1207,9 @@ func (e *Evaluator) evaluateDefineVariable(input types.Collection, argExprs []gr
 //
 // FHIRPath 3.0.0 requires this short-circuit explicitly: "arguments after the
 // first non-empty argument are not evaluated", on the same grounds as iif.
-func (e *Evaluator) evaluateCoalesce(argExprs []grammar.IExpressionContext) interface{} {
-	for _, argExpr := range argExprs {
-		result := e.visitInScope(argExpr)
+func (e *Evaluator) evaluateCoalesce(args []Node) interface{} {
+	for _, arg := range args {
+		result := e.inScope(arg)
 		if err, ok := result.(error); ok {
 			return err
 		}
@@ -1369,9 +1224,9 @@ func (e *Evaluator) evaluateCoalesce(argExprs []grammar.IExpressionContext) inte
 // evaluateIif evaluates the iif() function with lazy evaluation.
 // Only the matching branch is evaluated, preventing errors from the other branch.
 // Signature: iif(criterion, true-result [, otherwise-result])
-func (e *Evaluator) evaluateIif(input types.Collection, argExprs []grammar.IExpressionContext) interface{} {
-	if len(argExprs) < 2 {
-		return InvalidArgumentsError("iif", 2, len(argExprs))
+func (e *Evaluator) evaluateIif(input types.Collection, args []Node) interface{} {
+	if len(args) < 2 {
+		return InvalidArgumentsError("iif", 2, len(args))
 	}
 
 	// "Unlike most other functions it can be called with no context ... or with
@@ -1383,7 +1238,7 @@ func (e *Evaluator) evaluateIif(input types.Collection, argExprs []grammar.IExpr
 	}
 
 	// Evaluate the criterion (first argument)
-	criterionResult := e.visitInScope(argExprs[0])
+	criterionResult := e.inScope(args[0])
 	if err, ok := criterionResult.(error); ok {
 		return err
 	}
@@ -1397,7 +1252,7 @@ func (e *Evaluator) evaluateIif(input types.Collection, argExprs []grammar.IExpr
 	// Lazily evaluate only the matching branch
 	if criterion {
 		// Evaluate and return true-result (second argument)
-		result := e.visitInScope(argExprs[1])
+		result := e.inScope(args[1])
 		if err, ok := result.(error); ok {
 			return err
 		}
@@ -1408,8 +1263,8 @@ func (e *Evaluator) evaluateIif(input types.Collection, argExprs []grammar.IExpr
 	}
 
 	// Evaluate and return otherwise-result (third argument) if provided
-	if len(argExprs) > 2 {
-		result := e.visitInScope(argExprs[2])
+	if len(args) > 2 {
+		result := e.inScope(args[2])
 		if err, ok := result.(error); ok {
 			return err
 		}
