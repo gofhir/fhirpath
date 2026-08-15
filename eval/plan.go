@@ -144,6 +144,29 @@ func compileOperator(tree antlr.ParseTree) (Node, bool) {
 		return compileBinary(ctx.Expression(0), ctx.Expression(1), "implies", applyImplies), true
 	case *grammar.UnionExpressionContext:
 		return compileUnion(ctx), true
+
+	case *grammar.PolarityExpressionContext:
+		operand := Compile(ctx.Expression())
+		negate := operatorAt(ctx, 0) == "-"
+		return func(e *Evaluator) interface{} {
+			result := operand(e)
+			if err, ok := result.(error); ok {
+				return err
+			}
+			return applyPolarity(result.(types.Collection), negate)
+		}, true
+
+	case *grammar.TypeExpressionContext:
+		operand := Compile(ctx.Expression())
+		op := operatorOf(ctx)
+		typeName := ctx.TypeSpecifier().GetText()
+		return func(e *Evaluator) interface{} {
+			result := operand(e)
+			if err, ok := result.(error); ok {
+				return err
+			}
+			return e.applyTypeOperator(result.(types.Collection), op, typeName)
+		}, true
 	}
 	return nil, false
 }
@@ -184,7 +207,13 @@ func constant(result interface{}) Node {
 // operatorOf returns the operator token of a binary expression, which is always
 // its second child.
 func operatorOf(ctx antlr.ParseTree) string {
-	if node, ok := ctx.GetChild(1).(antlr.TerminalNode); ok {
+	return operatorAt(ctx, 1)
+}
+
+// operatorAt returns the operator token at the given position among a rule's
+// children.
+func operatorAt(ctx antlr.ParseTree, index int) string {
+	if node, ok := ctx.GetChild(index).(antlr.TerminalNode); ok {
 		return node.GetText()
 	}
 	return ""
@@ -247,11 +276,16 @@ func compileFunction(ctx *grammar.FunctionInvocationContext) Node {
 		call.typeName = stripDelimiters(call.argExprs[0].GetText())
 	}
 
-	// sort() resolves the direction of each ordering key at compile time.
-	call.sortCriteria = make([]sortCriterion, 0, len(call.argExprs))
-	for _, argExpr := range call.argExprs {
-		expr, descending := unwrapSortDirection(argExpr)
-		call.sortCriteria = append(call.sortCriteria, sortCriterion{expr: Compile(expr), descending: descending})
+	// sort() resolves the direction of each ordering key at compile time. This
+	// compiles the arguments a second time, so it is done for sort() alone:
+	// Compile recurses, and compiling every argument twice at every level costs
+	// exponentially in the nesting depth.
+	if call.name == "sort" {
+		call.sortCriteria = make([]sortCriterion, 0, len(call.argExprs))
+		for _, argExpr := range call.argExprs {
+			expr, descending := unwrapSortDirection(argExpr)
+			call.sortCriteria = append(call.sortCriteria, sortCriterion{expr: Compile(expr), descending: descending})
+		}
 	}
 
 	return call.eval

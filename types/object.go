@@ -19,8 +19,8 @@ type ObjectValue struct {
 	// is worth its own allocation only for the ones that are.
 	fields map[string]Value
 	// Cache of fields read as collections, which is how navigation reads them.
-	// Kept only when caching is on. See GetCollection.
-	collections map[string]Collection
+	// Kept only when caching is on. See cachedCollection.
+	collections map[fieldKey]Collection
 	// caching is off by default: an object read for a single evaluation is
 	// discarded with it, so keeping what it read would cost memory that nothing
 	// goes on to use. It is turned on for an object that outlives one
@@ -331,15 +331,36 @@ func (o *ObjectValue) Get(field string) (Value, bool) {
 // The collection handed back cannot grow into the cached one: it is capped at
 // its length, so appending to it copies. Its values are immutable.
 func (o *ObjectValue) GetCollection(field string) Collection {
-	if !o.caching {
+	return o.cachedCollection(fieldKey{field: field}, func() Collection {
 		return o.fieldCollection(field, jsonValueToFHIRValue)
+	})
+}
+
+// fieldKey identifies a field together with the way it was read: the same field
+// parsed under a type hint is not the same collection, and a name whose type
+// was read off its spelling is different again. A struct rather than a composed
+// string, so that a lookup costs nothing to build.
+type fieldKey struct {
+	field    string
+	fhirType string
+	parsedAs bool
+}
+
+// cachedCollection answers a field from the cache when caching is on, and
+// builds it otherwise.
+//
+// The objects in a cached collection cache in turn: what one expression
+// navigated is what the next one starts from.
+func (o *ObjectValue) cachedCollection(key fieldKey, build func() Collection) Collection {
+	if !o.caching {
+		return build()
 	}
 
-	if col, ok := o.collections[field]; ok {
+	if col, ok := o.collections[key]; ok {
 		return col[:len(col):len(col)]
 	}
 
-	col := o.fieldCollection(field, jsonValueToFHIRValue)
+	col := build()
 	for _, value := range col {
 		if child, ok := value.(*ObjectValue); ok {
 			child.caching = true
@@ -347,9 +368,9 @@ func (o *ObjectValue) GetCollection(field string) Collection {
 	}
 
 	if o.collections == nil {
-		o.collections = make(map[string]Collection, 4)
+		o.collections = make(map[fieldKey]Collection, 4)
 	}
-	o.collections[field] = col
+	o.collections[key] = col
 
 	return col[:len(col):len(col)]
 }
@@ -815,14 +836,19 @@ func withFHIRType(value Value, fhirType string) Value {
 // which it is — a primitive parses to a primitive — so the recorded type is
 // corrected accordingly rather than kept in the field's spelling.
 func (o *ObjectValue) GetCollectionParsedAs(field, suffix string) Collection {
-	collection := o.GetCollectionWithType(field, suffix)
-	for i, value := range collection {
-		if _, isObject := value.(*ObjectValue); isObject {
-			continue
+	return o.cachedCollection(fieldKey{field: field, fhirType: suffix, parsedAs: true}, func() Collection {
+		// Built from its own reading of the field rather than from
+		// GetCollectionWithType, because the loop below writes into what it is
+		// given and that collection may be a cached one.
+		collection := o.fieldCollection(field, typedParser(suffix))
+		for i, value := range collection {
+			if _, isObject := value.(*ObjectValue); isObject {
+				continue
+			}
+			collection[i] = withFHIRType(value, lowerFirst(suffix))
 		}
-		collection[i] = withFHIRType(value, lowerFirst(suffix))
-	}
-	return collection
+		return collection
+	})
 }
 
 // lowerFirst converts a capitalized type name to the lower camel case FHIR uses
@@ -837,9 +863,16 @@ func lowerFirst(name string) string {
 // GetCollectionWithType retrieves a field as a Collection, using the FHIR type hint
 // to properly parse string values as Date, DateTime, Time, etc.
 func (o *ObjectValue) GetCollectionWithType(field, fhirType string) Collection {
-	return o.fieldCollection(field, func(data []byte, dataType jsonparser.ValueType) Value {
-		return jsonValueToFHIRValueWithType(data, dataType, fhirType)
+	return o.cachedCollection(fieldKey{field: field, fhirType: fhirType}, func() Collection {
+		return o.fieldCollection(field, typedParser(fhirType))
 	})
+}
+
+// typedParser reads a value as the FHIR type the model declares for it.
+func typedParser(fhirType string) func([]byte, jsonparser.ValueType) Value {
+	return func(data []byte, dataType jsonparser.ValueType) Value {
+		return jsonValueToFHIRValueWithType(data, dataType, fhirType)
+	}
 }
 
 // jsonArrayToCollection converts a JSON array to a Collection.

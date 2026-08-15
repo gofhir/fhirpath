@@ -1381,6 +1381,11 @@ func (e *Evaluator) VisitPolarityExpression(ctx *grammar.PolarityExpressionConte
 	}
 	col := result.(types.Collection)
 
+	return applyPolarity(col, ctx.GetChild(0).(antlr.TerminalNode).GetText() == "-")
+}
+
+// applyPolarity applies a leading + or -.
+func applyPolarity(col types.Collection, negate bool) interface{} {
 	if col.Empty() {
 		return col
 	}
@@ -1388,8 +1393,7 @@ func (e *Evaluator) VisitPolarityExpression(ctx *grammar.PolarityExpressionConte
 		return SingletonError(len(col))
 	}
 
-	// Check if it's negation
-	if ctx.GetChild(0).(antlr.TerminalNode).GetText() == "-" {
+	if negate {
 		negated, err := Negate(col[0])
 		if err != nil {
 			return err
@@ -1753,9 +1757,12 @@ func (e *Evaluator) VisitTypeExpression(ctx *grammar.TypeExpressionContext) inte
 	}
 	leftCol := left.(types.Collection)
 
-	typeName := ctx.TypeSpecifier().GetText()
-	op := ctx.GetChild(1).(antlr.TerminalNode).GetText()
+	return e.applyTypeOperator(leftCol,
+		ctx.GetChild(1).(antlr.TerminalNode).GetText(), ctx.TypeSpecifier().GetText())
+}
 
+// applyTypeOperator applies the 'is' and 'as' operators.
+func (e *Evaluator) applyTypeOperator(leftCol types.Collection, op, typeName string) interface{} {
 	if leftCol.Empty() {
 		return types.Collection{}
 	}
