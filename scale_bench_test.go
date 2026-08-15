@@ -102,7 +102,7 @@ func validationExpressions() []*Expression {
 		MustCompile("Bundle.entry.resource.name.exists()"),
 		MustCompile("Bundle.entry.resource.name.family.exists()"),
 		MustCompile("Bundle.entry.resource.telecom.value.exists()"),
-		MustCompile("Bundle.entry.resource.gender in ('male' | 'female' | 'other')"),
+		MustCompile("Bundle.entry.resource.all(gender in ('male' | 'female' | 'other'))"),
 		MustCompile("Bundle.entry.resource.birthDate.exists()"),
 		MustCompile("Bundle.entry.count() > 0"),
 		MustCompile("Bundle.entry.resource.active = true"),

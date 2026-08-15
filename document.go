@@ -68,6 +68,17 @@ func (d *Document) EvaluateCompiled(expr *Expression) (Collection, error) {
 	return d.EvaluateWithContext(expr, d.Context())
 }
 
+// EvaluateWithOptions evaluates a compiled expression against the document
+// with custom options — a model above all, which is what a validator
+// configures and what makes navigation ask the model for the type of each
+// element it reads.
+func (d *Document) EvaluateWithOptions(expr *Expression, opts ...EvalOption) (Collection, error) {
+	evalCtx, done := configureContext(d.Context(), opts...)
+	defer done()
+
+	return d.EvaluateWithContext(expr, evalCtx)
+}
+
 // EvaluateWithContext evaluates a compiled expression in a context the caller
 // has set up — with variables, a model, or a resolver of its own. The context
 // must be one this document produced, since it is what carries the reading of
