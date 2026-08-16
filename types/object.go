@@ -91,37 +91,22 @@ func (o *ObjectValue) Type() string {
 		return o.typeName
 	}
 
-	// Then, check for explicit resourceType (FHIR resources)
-	if rt, err := jsonparser.GetString(o.data, "resourceType"); err == nil {
-		o.typeName = rt
-		return rt
-	}
-
-	// Try to infer type from structure for common FHIR complex types
-	o.typeName = o.inferType()
+	o.typeName = o.readType()
 	return o.typeName
 }
 
-// inferType attempts to infer the FHIR type from the object's structure.
+// readType reads the object once and answers what it is.
 //
-// The shape of a complex type is decided by which fields it carries and of what
-// kind, so the object is read once into a summary of that and the rules below
-// consult the summary. Asking the object one field at a time meant a scan per
-// question, a dozen of them per object, which navigation over a Bundle pays for
-// every element it passes.
-func (o *ObjectValue) inferType() string {
-	f := o.fieldSummary()
-
-	if t := f.quantityType(); t != "" {
-		return t
+// A resource says so in a resourceType field, and anything else is inferred
+// from the fields it carries. Both were read separately, which meant scanning
+// the object twice for everything that is not a resource — and a navigation
+// passes far more elements than resources.
+func (o *ObjectValue) readType() string {
+	summary, resourceType := o.fieldSummary()
+	if resourceType != "" {
+		return resourceType
 	}
-	if t := f.codingType(); t != "" {
-		return t
-	}
-	if t := f.complexType(); t != "" {
-		return t
-	}
-	return typeObject
+	return summary.inferType()
 }
 
 // fields is which of the fields that distinguish a complex type the object
@@ -173,30 +158,64 @@ var inferenceFields = map[string]uint32{
 
 func (f fields) has(field uint32) bool { return f.present&field != 0 }
 
-// fieldSummary reads the object once, recording the fields the rules ask about.
-func (o *ObjectValue) fieldSummary() fields {
-	var f fields
+// inferType attempts to infer the FHIR type from the object's structure.
+//
+// The shape of a complex type is decided by which fields it carries and of what
+// kind, so the object is read once into a summary of that and the rules below
+// consult the summary. Asking the object one field at a time meant a scan per
+// question, a dozen of them per object, which navigation over a Bundle pays for
+// every element it passes.
+func (f fields) inferType() string {
+	if t := f.quantityType(); t != "" {
+		return t
+	}
+	if t := f.codingType(); t != "" {
+		return t
+	}
+	if t := f.complexType(); t != "" {
+		return t
+	}
+	return typeObject
+}
 
-	//nolint:errcheck // The callback never fails
-	jsonparser.ObjectEach(o.data, func(key, _ []byte, entryType jsonparser.ValueType, _ int) error {
+// fieldSummary reads the object once, recording the fields the rules ask about.
+func (o *ObjectValue) fieldSummary() (summary fields, resourceType string) {
+	//nolint:errcheck // The only error is errFieldsFound, which ends the scan
+	jsonparser.ObjectEach(o.data, func(key, entry []byte, entryType jsonparser.ValueType, _ int) error {
+		// A resource names its type in a string. A resourceType that is null,
+		// a number or an object names nothing, and neither does an empty one,
+		// so the object is read on as though the field were not there — which
+		// is what looking the name up separately did, since that lookup failed
+		// on anything but a string.
+		if string(key) == "resourceType" && entryType == jsonparser.String {
+			if name := decodeJSONString(entry); name != "" {
+				// Nothing else the object carries can change the answer now,
+				// so the scan is over. FHIR writes the field first, which is
+				// what the separate lookup took advantage of and what this
+				// keeps.
+				resourceType = name
+				return errFieldsFound
+			}
+		}
+
 		field, ok := inferenceFields[string(key)]
 		if !ok {
 			return nil
 		}
 
-		f.present |= field
+		summary.present |= field
 		switch field {
 		case fieldValue:
-			f.valueKind = entryType
+			summary.valueKind = entryType
 		case fieldGiven:
-			f.givenKind = entryType
+			summary.givenKind = entryType
 		case fieldCoding:
-			f.codingKind = entryType
+			summary.codingKind = entryType
 		}
 		return nil
 	})
 
-	return f
+	return summary, resourceType
 }
 
 // quantityType checks if the object is a Quantity type.
@@ -737,7 +756,7 @@ func jsonValueToFHIRValue(data []byte, dataType jsonparser.ValueType) Value {
 // using strict pattern matching. Returns nil if the string doesn't match temporal patterns.
 // This provides heuristic type detection when no Model is available.
 func tryParseTemporalString(s string) Value {
-	if len(s) < 4 {
+	if !looksTemporal(s) {
 		return nil
 	}
 	// Try Date first for short strings (4-10 chars: YYYY to YYYY-MM-DD)
@@ -753,6 +772,25 @@ func tryParseTemporalString(s string) Value {
 		}
 	}
 	return nil
+}
+
+// looksTemporal reports whether a string could be a date or a dateTime, both of
+// which begin with a four-digit year.
+//
+// Every string in a resource is offered to this, since which of them are
+// temporal is exactly what is being worked out, and the parsers underneath try
+// a regular expression per shape. A code, a name or a URL fails on its first
+// character instead.
+func looksTemporal(s string) bool {
+	if len(s) < 4 {
+		return false
+	}
+	for i := 0; i < 4; i++ {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return true
 }
 
 // jsonValueToFHIRValueWithType converts a JSON value to a FHIRPath Value,
