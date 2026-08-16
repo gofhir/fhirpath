@@ -27,9 +27,35 @@ func TestTypeFromResourceType(t *testing.T) {
 			want: "Observation",
 		},
 		{
+			// The scan hands over the name as JSON wrote it, so an escape in
+			// it has to be resolved rather than taken literally.
 			name: "escaped in the value",
-			json: `{"resourceType":"Patient"}`,
+			json: `{"resourceType":"Pat\u0069ent"}`,
 			want: "Patient",
+		},
+		{
+			name: "null names nothing, so the fields decide",
+			json: `{"resourceType":null,"value":5,"unit":"mg"}`,
+			want: typeQuantity,
+		},
+		{
+			name: "a number names nothing either",
+			json: `{"resourceType":42,"value":5,"unit":"mg"}`,
+			want: typeQuantity,
+		},
+		{
+			name: "nor does an object",
+			json: `{"resourceType":{"a":1},"value":5,"unit":"mg"}`,
+			want: typeQuantity,
+		},
+		{
+			// Reading this as a type gave the empty string, which is not a
+			// type and which Type() would work out again on every call, since
+			// an empty answer is how it records having none. The fields decide
+			// instead.
+			name: "an empty name is no name",
+			json: `{"resourceType":"","value":5,"unit":"mg"}`,
+			want: typeQuantity,
 		},
 	}
 

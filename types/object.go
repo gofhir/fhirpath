@@ -182,13 +182,20 @@ func (f fields) inferType() string {
 func (o *ObjectValue) fieldSummary() (summary fields, resourceType string) {
 	//nolint:errcheck // The only error is errFieldsFound, which ends the scan
 	jsonparser.ObjectEach(o.data, func(key, entry []byte, entryType jsonparser.ValueType, _ int) error {
-		if string(key) == "resourceType" {
-			// A resource says what it is, so nothing else it carries can
-			// change the answer and the scan is over. FHIR writes the field
-			// first, which is what the separate lookup used to take advantage
-			// of and what this keeps.
-			resourceType = decodeJSONString(entry)
-			return errFieldsFound
+		// A resource names its type in a string. A resourceType that is null,
+		// a number or an object names nothing, and neither does an empty one,
+		// so the object is read on as though the field were not there — which
+		// is what looking the name up separately did, since that lookup failed
+		// on anything but a string.
+		if string(key) == "resourceType" && entryType == jsonparser.String {
+			if name := decodeJSONString(entry); name != "" {
+				// Nothing else the object carries can change the answer now,
+				// so the scan is over. FHIR writes the field first, which is
+				// what the separate lookup took advantage of and what this
+				// keeps.
+				resourceType = name
+				return errFieldsFound
+			}
 		}
 
 		field, ok := inferenceFields[string(key)]
