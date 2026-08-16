@@ -3,10 +3,46 @@
 ## [1.7.0](https://github.com/gofhir/fhirpath/compare/v1.6.0...v1.7.0) (2026-08-16)
 
 
+### Features
+
+* read a resource once for many expressions, with `Document` ([#32](https://github.com/gofhir/fhirpath/issues/32)) ([83244fd](https://github.com/gofhir/fhirpath/commit/83244fd6498b8c13481c78af5bf14a6bb6a63a58))
+
+  `Evaluate` reads the resource it is given, so the invariants of one resource
+  each read it again from the top. A `Document` reads it once and shares that
+  reading.
+
+  ```go
+  doc, err := fhirpath.NewDocument(resource)
+  for _, invariant := range invariants {
+      result, err := doc.EvaluateCompiled(invariant)
+  }
+  ```
+
+  Eight invariants over a Bundle of 50 entries: 0.55ms against 0.24ms, and
+  under an R4 model 0.54ms against 0.27ms. A document keeps what it reads, so
+  it costs memory in proportion to what is navigated and must not be shared
+  between goroutines — see the reference page for both.
+
+
 ### Performance Improvements
 
-* compile expressions and stop re-reading the resource ([#32](https://github.com/gofhir/fhirpath/issues/32)) ([83244fd](https://github.com/gofhir/fhirpath/commit/83244fd6498b8c13481c78af5bf14a6bb6a63a58))
+* compile expressions instead of walking the parse tree ([#32](https://github.com/gofhir/fhirpath/issues/32)) ([83244fd](https://github.com/gofhir/fhirpath/commit/83244fd6498b8c13481c78af5bf14a6bb6a63a58))
+
+  An expression kept the ANTLR tree and walked it on every call, so literals
+  were re-parsed, identifiers rebuilt and operators recognised by comparing
+  strings — per evaluation. That is settled once at compile time now.
+
 * read an object's type in one pass, and try dates only on dates ([#34](https://github.com/gofhir/fhirpath/issues/34)) ([a18ed4f](https://github.com/gofhir/fhirpath/commit/a18ed4f32b6c400e3d197feb296589e33b7299a7))
+
+  A type that is not written down was worked out by asking the object for one
+  field after another, each a scan; and every string was offered to the date
+  parsers, which try a regular expression per shape. Both are one pass now.
+
+  Together with the above, against 1.6.0 on an Apple M4 Pro: navigating a
+  Bundle of 100 entries takes 0.18ms where it took 0.70ms, and eight
+  invariants over a Bundle of 50 take 0.60ms where they took 2.00ms — 3.9x
+  and 3.3x. Through a `Document`, those invariants take 0.26ms, 7.8x. No
+  conformance case moved.
 
 
 ### Documentation
