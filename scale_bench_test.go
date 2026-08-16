@@ -66,22 +66,6 @@ func BenchmarkScaleWhere(b *testing.B) {
 	}
 }
 
-// The validation case over a Document, which reads the bundle once and shares
-// it across the invariants.
-func BenchmarkValidationSuiteDocument(b *testing.B) {
-	data := makeBundle(50)
-	exprs := validationExpressions()
-
-	b.ReportAllocs()
-	b.ResetTimer()
-	for i := 0; i < b.N; i++ {
-		doc := MustNewDocument(data)
-		for _, e := range exprs {
-			_, _ = doc.EvaluateCompiled(e)
-		}
-	}
-}
-
 // The validation case: several invariants over one resource, which is what
 // pays for the document being read again per expression.
 func BenchmarkValidationSuite(b *testing.B) {
