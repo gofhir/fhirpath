@@ -92,6 +92,38 @@ go func() {
 }()
 ```
 
+### Document (`*Document`)
+
+Un `Document` lee un recurso una vez para que varias expresiones se evalúen
+contra él. Lo que lee, lo conserva -- en un mapa común, escrito la primera vez
+que cada campo se lee -- así que un documento **no** es seguro de compartir
+entre goroutines, aunque toda evaluación contra él aparente solo leer.
+
+```go
+// INCORRECTO -- un documento, muchas goroutines.
+doc := fhirpath.MustNewDocument(resource)
+go func() { doc.Evaluate("Patient.name.family") }() // CONDICIÓN DE CARRERA
+go func() { doc.Evaluate("Patient.birthDate") }()   // CONDICIÓN DE CARRERA
+```
+
+```go
+// CORRECTO -- un documento por goroutine.
+go func() {
+    doc := fhirpath.MustNewDocument(resource)
+    doc.Evaluate("Patient.name.family")
+}()
+go func() {
+    doc := fhirpath.MustNewDocument(resource)
+    doc.Evaluate("Patient.birthDate")
+}()
+```
+
+Compartir un documento entre goroutines tampoco gana nada: lo que vale la pena
+compartir entre ellas es la expresión compilada, que es inmutable, y los bytes
+del recurso, que son de solo lectura. Un documento conviene donde una goroutine
+corre varias expresiones sobre un recurso -- un validador, un manejador de
+request -- y ese es el alcance que hay que darle.
+
 ### Slices de Bytes del Recurso
 
 Los datos del recurso `[]byte` pasados a `Evaluate()` son de **solo lectura** durante la evaluación.
@@ -355,6 +387,7 @@ func main() {
 | `*ExpressionCache`            | Si                | Usa `sync.RWMutex` internamente                       |
 | `DefaultCache`                | Si                | `*ExpressionCache` global                              |
 | `EvaluateCached()`, `GetCached()` | Si           | Delegan a `DefaultCache`                               |
+| `*Document`                   | **No**            | Conserva lo que lee; una goroutine a la vez, o uno cada una |
 | `eval.Context`                | **No**            | Creado por evaluación; nunca compartir entre goroutines |
 | Recurso `[]byte`              | Solo lectura      | Seguro si ninguna goroutine lo muta durante evaluación |
 | `ReferenceResolver`           | Depende           | Su implementación debe ser segura para uso concurrente |

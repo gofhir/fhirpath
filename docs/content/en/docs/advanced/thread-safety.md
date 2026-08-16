@@ -92,6 +92,38 @@ go func() {
 }()
 ```
 
+### Document (`*Document`)
+
+A `Document` reads a resource once so that several expressions can be evaluated
+against it. What it reads, it keeps -- in a plain map, written the first time
+each field is read -- so a document is **not** safe to share between goroutines,
+even though every evaluation against it only appears to read.
+
+```go
+// WRONG -- one document, many goroutines.
+doc := fhirpath.MustNewDocument(resource)
+go func() { doc.Evaluate("Patient.name.family") }() // DATA RACE
+go func() { doc.Evaluate("Patient.birthDate") }()   // DATA RACE
+```
+
+```go
+// CORRECT -- a document per goroutine.
+go func() {
+    doc := fhirpath.MustNewDocument(resource)
+    doc.Evaluate("Patient.name.family")
+}()
+go func() {
+    doc := fhirpath.MustNewDocument(resource)
+    doc.Evaluate("Patient.birthDate")
+}()
+```
+
+Sharing a document across goroutines gains nothing anyway: what is worth sharing
+between them is the compiled expression, which is immutable, and the resource
+bytes, which are read-only. A document is worth having where one goroutine runs
+several expressions over one resource -- a validator, a request handler -- and
+that is the scope to give it.
+
 ### Resource Byte Slices
 
 The `[]byte` resource data passed to `Evaluate()` is **read-only** during evaluation.
@@ -355,6 +387,7 @@ func main() {
 | `*ExpressionCache`            | Yes          | Uses `sync.RWMutex` internally                       |
 | `DefaultCache`                | Yes          | Global `*ExpressionCache`                             |
 | `EvaluateCached()`, `GetCached()` | Yes      | Delegate to `DefaultCache`                            |
+| `*Document`                   | **No**       | Keeps what it reads; one goroutine at a time, or one each |
 | `eval.Context`                | **No**       | Created per-evaluation; never share between goroutines|
 | `[]byte` resource             | Read-only    | Safe if no goroutine mutates it during evaluation     |
 | `ReferenceResolver`           | Depends      | Your implementation must be safe for concurrent use   |

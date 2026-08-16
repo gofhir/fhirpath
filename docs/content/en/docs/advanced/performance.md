@@ -171,6 +171,55 @@ func handleCreatePatient(body []byte) error {
 }
 ```
 
+## Read the Resource Once
+
+`Evaluate` reads the resource it is given. Several expressions over one resource
+read it several times, along with every element on the way to what each one asks
+for -- which is the shape of validation, where the invariants of one resource
+each walk it from the top.
+
+### Bad: Read the Resource Per Expression
+
+```go
+for _, invariant := range invariants {
+    result, err := invariant.Evaluate(resource) // reads the resource again
+    if err != nil {
+        return err
+    }
+    // handle result...
+}
+```
+
+### Good: Read It Once with Document
+
+```go
+doc, err := fhirpath.NewDocument(resource)
+if err != nil {
+    return err
+}
+
+for _, invariant := range invariants {
+    result, err := doc.EvaluateCompiled(invariant) // reads what is already read
+    if err != nil {
+        return err
+    }
+    // handle result...
+}
+```
+
+Eight invariants over a Bundle of 50 entries, on an Apple M4 Pro: 0.55 ms
+against 0.24 ms, and 4952 allocations against 3478. Under an R4 model,
+0.54 ms against 0.27 ms.
+
+The saving grows with the number of expressions and the size of the resource.
+A single expression gains nothing -- there is nothing to share -- and pays a
+little for the document.
+
+A document keeps what it reads, so it holds memory in proportion to how much of
+the resource is navigated, and it is not safe to share between goroutines. A
+document per request, released with the request, is the shape to aim for. See
+[Thread Safety]({{< relref "/docs/advanced/thread-safety" >}}).
+
 ## Filter Early
 
 When an expression operates on a large collection, use `where()` to reduce its size

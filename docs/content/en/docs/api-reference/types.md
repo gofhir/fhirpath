@@ -1,7 +1,7 @@
 ---
 title: "Types Package"
 linkTitle: "Types"
-weight: 7
+weight: 8
 description: >
   FHIRPath type system: Value, Collection, and all primitive types.
 ---

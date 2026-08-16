@@ -171,6 +171,55 @@ func handleCreatePatient(body []byte) error {
 }
 ```
 
+## Lea el Recurso Una Vez
+
+`Evaluate` lee el recurso que recibe. Varias expresiones sobre un mismo recurso
+lo leen varias veces, junto con cada elemento del camino hacia lo que cada una
+pide -- que es la forma de la validación, donde las invariantes de un recurso lo
+recorren cada una desde arriba.
+
+### Mal: Leer el Recurso por Expresión
+
+```go
+for _, invariant := range invariants {
+    result, err := invariant.Evaluate(resource) // vuelve a leer el recurso
+    if err != nil {
+        return err
+    }
+    // procesar el resultado...
+}
+```
+
+### Bien: Leerlo Una Vez con Document
+
+```go
+doc, err := fhirpath.NewDocument(resource)
+if err != nil {
+    return err
+}
+
+for _, invariant := range invariants {
+    result, err := doc.EvaluateCompiled(invariant) // lee lo ya leído
+    if err != nil {
+        return err
+    }
+    // procesar el resultado...
+}
+```
+
+Ocho invariantes sobre un Bundle de 50 entradas, en un Apple M4 Pro: 0.55 ms
+contra 0.24 ms, y 4952 asignaciones contra 3478. Bajo un modelo R4, 0.54 ms
+contra 0.27 ms.
+
+El ahorro crece con la cantidad de expresiones y el tamaño del recurso. Una sola
+expresión no gana nada -- no hay nada que compartir -- y paga un poco por el
+documento.
+
+Un documento conserva lo que lee, así que retiene memoria en proporción a cuánto
+del recurso se navega, y no es seguro compartirlo entre goroutines. Un documento
+por request, liberado con el request, es la forma a buscar. Vea
+[Seguridad en Hilos]({{< relref "/docs/advanced/thread-safety" >}}).
+
 ## Filtrar Temprano
 
 Cuando una expresión opera sobre una colección grande, use `where()` para reducir su tamaño

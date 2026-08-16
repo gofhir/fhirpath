@@ -1,7 +1,7 @@
 ---
 title: "Expression Cache"
 linkTitle: "Cache"
-weight: 5
+weight: 6
 description: >
   Thread-safe LRU caching of compiled FHIRPath expressions with monitoring.
 ---
