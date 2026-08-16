@@ -403,9 +403,33 @@ result, _ := fhirpath.Evaluate(resource, "'abc'.substring(1, 10)")
 
 **Edge Cases / Notes:**
 
-- If `start` is negative or greater than or equal to the string length, returns an empty collection.
+- Positions and lengths count **characters** (Unicode scalar values), not bytes: `'ñJosé'.substring(1)` is `'José'`.
+- If `start` is negative or greater than or equal to the string length, returns an **empty collection**.
 - If `length` would extend beyond the end of the string, returns characters up to the end.
+- If `length` is negative, returns the **empty string** — not an empty collection.
+- If `length` is empty (`{}`), the result is the same as if no length had been given.
 - Returns empty collection if the input is empty.
+
+**Why an out-of-range `start` and an out-of-range `length` differ.** The
+asymmetry is the specification's, and it is deliberate on both sides:
+
+```go
+"'abc'.substring(-1, 2)"    // { }  — an out-of-range start returns empty
+"'abc'.substring(10, 2)"    // { }  — same
+"'abc'.substring(1, 1000)"  // 'bc' — an over-long length is clamped, not empty
+"'abc'.substring(0, -1)"    // ''   — so a negative length clamps to zero characters
+"'abc'.substring(0, 0)"     // ''   — which is what zero already gave
+```
+
+The specification names an out-of-range `start`, an empty input and an empty
+`start` as the causes of an empty collection. Of `length` it says only that the
+function returns "at most `length` number of characters", and that if fewer
+remain it returns what remains — so a `length` out of range is *bounded*, never a
+reason to refuse. A negative one is that same rule at the other end.
+
+This matters if a constraint branches on `exists()`: `'abc'.substring(0, -1).exists()`
+is `true`, because an empty string is a value. Use `.length() > 0` when the
+question is whether any characters came back.
 
 ---
 

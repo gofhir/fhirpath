@@ -403,9 +403,33 @@ result, _ := fhirpath.Evaluate(resource, "'abc'.substring(1, 10)")
 
 **Casos Limite / Notas:**
 
-- Si `start` es negativo o mayor o igual a la longitud de la cadena, devuelve una coleccion vacia.
+- Las posiciones y longitudes cuentan **caracteres** (valores escalares Unicode), no bytes: `'ñJosé'.substring(1)` es `'José'`.
+- Si `start` es negativo o mayor o igual a la longitud de la cadena, devuelve una **coleccion vacia**.
 - Si `length` se extenderia mas alla del final de la cadena, devuelve los caracteres hasta el final.
+- Si `length` es negativo, devuelve la **cadena vacía** — no una colección vacía.
+- Si `length` está vacío (`{}`), el resultado es el mismo que si no se hubiera dado longitud.
 - Devuelve una coleccion vacia si la entrada esta vacia.
+
+**Por qué un `start` fuera de rango y un `length` fuera de rango difieren.** La
+asimetría es de la especificación, y es deliberada en ambos lados:
+
+```go
+"'abc'.substring(-1, 2)"    // { }  — un start fuera de rango devuelve vacío
+"'abc'.substring(10, 2)"    // { }  — igual
+"'abc'.substring(1, 1000)"  // 'bc' — una longitud excesiva se acota, no vacía
+"'abc'.substring(0, -1)"    // ''   — así que una longitud negativa se acota a cero caracteres
+"'abc'.substring(0, 0)"     // ''   — que es lo que ya devolvía el cero
+```
+
+La especificación nombra un `start` fuera de rango, una entrada vacía y un
+`start` vacío como las causas de una colección vacía. De `length` dice solo que
+la función devuelve "at most `length` number of characters", y que si quedan
+menos devuelve los que quedan: una longitud fuera de rango se **acota**, nunca es
+motivo de rechazo. Una negativa es esa misma regla en el otro extremo.
+
+Esto importa si una restricción ramifica sobre `exists()`:
+`'abc'.substring(0, -1).exists()` es `true`, porque una cadena vacía es un valor.
+Use `.length() > 0` cuando la pregunta sea si volvió algún carácter.
 
 ---
 
