@@ -140,8 +140,11 @@ make bench-compare BASE=v1.7.0          # contra un release
 make bench-compare BENCH=ScaleDeepNav   # un solo benchmark
 ```
 
-Esto construye la otra revisión en un worktree, corre ambas ahora y en esta
-máquina, y reporta la diferencia con `benchstat`. Ambos lados corren los
+Esto construye la otra revisión en un worktree y corre ambas ahora, en esta
+máquina, una muestra de cada una por turno — un laptop medido durante un minuto
+no es la máquina que era al empezarlo, y correr un lado entero antes que el otro
+le carga esa deriva al que fue segundo. La diferencia se reporta con
+`benchstat`. Ambos lados corren los
 archivos de benchmark de este árbol, así que un benchmark agregado junto con el
 cambio se mide en los dos — salvo donde la revisión base no pueda compilarlo,
 que es lo que pasa cuando el cambio es justamente el que introdujo la API que

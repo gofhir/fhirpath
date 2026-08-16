@@ -140,8 +140,11 @@ make bench-compare BASE=v1.7.0          # against a release
 make bench-compare BENCH=ScaleDeepNav   # one benchmark
 ```
 
-This builds the other revision in a worktree, runs both now and on this
-machine, and reports the difference through `benchstat`. Both sides run this
+This builds the other revision in a worktree and runs both now, on this
+machine, a sample of each in turn — a laptop measured for a minute is not the
+machine it was at the start of it, and running one side to completion before
+the other charges that drift to whichever went second. The difference is
+reported through `benchstat`. Both sides run this
 tree's benchmark files, so a benchmark added along with the change is measured
 on both — except where the baseline cannot compile it, which happens when the
 change is what introduced the API it calls. Such a file is named and left out,
