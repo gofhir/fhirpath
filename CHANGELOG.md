@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.7.0](https://github.com/gofhir/fhirpath/compare/v1.6.0...v1.7.0) (2026-08-16)
+
+
+### Performance Improvements
+
+* compile expressions and stop re-reading the resource ([#32](https://github.com/gofhir/fhirpath/issues/32)) ([83244fd](https://github.com/gofhir/fhirpath/commit/83244fd6498b8c13481c78af5bf14a6bb6a63a58))
+* read an object's type in one pass, and try dates only on dates ([#34](https://github.com/gofhir/fhirpath/issues/34)) ([a18ed4f](https://github.com/gofhir/fhirpath/commit/a18ed4f32b6c400e3d197feb296589e33b7299a7))
+
+
+### Documentation
+
+* write down what a Document is for, and release it as a minor ([#35](https://github.com/gofhir/fhirpath/issues/35)) ([5abfbd0](https://github.com/gofhir/fhirpath/commit/5abfbd0cae92f36b6e0b830fe741879bb8123f45))
+
 ## [1.6.0](https://github.com/gofhir/fhirpath/compare/v1.5.3...v1.6.0) (2026-08-03)
 
 
