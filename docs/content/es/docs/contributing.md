@@ -132,18 +132,30 @@ Para ejecutar benchmarks solo del paquete principal:
 go test -bench=. -benchmem -benchtime=5s .
 ```
 
-Compare antes y después de su cambio:
+Compare su cambio contra otra revisión:
 
 ```bash
-# Before
-go test -bench=. -benchmem -count=6 . > old.txt
-
-# Make your changes, then:
-go test -bench=. -benchmem -count=6 . > new.txt
-
-# Compare (requires golang.org/x/perf/cmd/benchstat)
-benchstat old.txt new.txt
+make bench-compare                      # contra main
+make bench-compare BASE=v1.7.0          # contra un release
+make bench-compare BENCH=ScaleDeepNav   # un solo benchmark
 ```
+
+Esto construye la otra revisión en un worktree, corre ambas ahora y en esta
+máquina, y reporta la diferencia con `benchstat`. Ambos lados corren los
+archivos de benchmark de este árbol, así que un benchmark agregado junto con el
+cambio se mide en los dos — salvo donde la revisión base no pueda compilarlo,
+que es lo que pasa cuando el cambio es justamente el que introdujo la API que
+usa. Ese archivo se nombra y se deja fuera, y sus benchmarks se reportan sin
+comparación.
+
+`COUNT` fija las muestras por benchmark (seis por defecto, que es lo que
+`benchstat` necesita para un intervalo de confianza) y `BENCHTIME` cuánto corre
+cada muestra.
+
+Los benchmarks no se corren en CI. Los tiempos de un runner compartido varían
+más que la mayoría de los cambios que vale la pena hacer, así que un número de
+ahí sería ruido con un visto bueno verde. Córralos acá, y ponga las cifras en el
+pull request.
 
 ## Linting
 

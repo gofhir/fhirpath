@@ -3,13 +3,15 @@ ANTLR_JAR     := build/antlr-$(ANTLR_VERSION)-complete.jar
 ANTLR_URL     := https://www.antlr.org/download/antlr-$(ANTLR_VERSION)-complete.jar
 GRAMMAR       := grammar/fhirpath.g4
 
-.PHONY: help generate generate-check test test-race lint conformance clean
+.PHONY: help generate generate-check test test-race bench bench-compare lint conformance clean
 
 help:
 	@echo "generate        Regenerate the parser from $(GRAMMAR)"
 	@echo "generate-check  Verify the generated parser matches the grammar"
 	@echo "test            Run the test suite"
 	@echo "test-race       Run the test suite with the race detector"
+	@echo "bench           Run the benchmarks"
+	@echo "bench-compare   Compare the benchmarks against another revision"
 	@echo "lint            Run golangci-lint"
 	@echo "conformance     Report conformance against the official FHIRPath suite"
 	@echo "conformance-update  Re-baseline the conformance known-failures lists"
@@ -48,6 +50,31 @@ test:
 
 test-race:
 	go test -race ./...
+
+# Benchmarks are run here rather than in CI: a shared runner's timings vary by
+# more than most changes worth making, so a number from one would be noise
+# wearing a green check.
+#
+# BENCH selects benchmarks, COUNT samples each -- benchstat needs six for a
+# confidence interval -- and BENCHTIME sets how long each sample runs.
+BENCH     ?= .
+COUNT     ?= 6
+BENCHTIME ?= 0.5s
+
+bench:
+	go test -run '^$$' -bench '$(BENCH)' -benchmem -benchtime=$(BENCHTIME) -count=$(COUNT) .
+
+# Measures this working tree against BASE, both now and on this machine, which
+# is the only comparison that means anything. A benchmark present on one side
+# only is reported without a comparison.
+#
+#   make bench-compare                      # against main
+#   make bench-compare BASE=v1.7.0          # against a release
+#   make bench-compare BENCH=ScaleDeepNav   # one benchmark
+BASE ?= main
+
+bench-compare:
+	@COUNT=$(COUNT) BENCHTIME=$(BENCHTIME) scripts/bench-compare.sh $(BASE) '$(BENCH)' 
 
 # Run through go run so that this matches CI exactly without anyone having to
 # install a particular build. Keep in sync with GOLANGCI_VERSION in
