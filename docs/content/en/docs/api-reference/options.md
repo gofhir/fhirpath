@@ -1,7 +1,7 @@
 ---
 title: "Evaluation Options"
 linkTitle: "Options"
-weight: 6
+weight: 7
 description: >
   Configure evaluation behavior with timeouts, depth limits, variables, and reference resolution.
 ---

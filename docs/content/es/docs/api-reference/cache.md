@@ -1,7 +1,7 @@
 ---
 title: "Caché de Expresiones"
 linkTitle: "Cache"
-weight: 5
+weight: 6
 description: >
   Caché LRU seguro para hilos de expresiones FHIRPath compiladas con monitoreo.
 ---
