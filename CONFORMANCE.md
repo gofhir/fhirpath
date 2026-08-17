@@ -74,9 +74,9 @@ passing — so the list can only shrink, and it never lies about the number.
 | Block | Cases | Notes |
 |---|---|---|
 | `as()` on a multi-item collection | 1 | Applies from R5; the suite is R4 — see below |
-| `htmlChecks()` | 4 (R5) | Needs an XHTML parser and FHIR's element list — see below |
+| `htmlChecks()` | 4 (R5) | Needs an XHTML parser and FHIR's element list; one of the four also needs `div` read as an identifier — see below |
 | `%terminologies` | 3 (R5) | Needs a terminology server answering, not a stub — see below |
-| `lowBoundary` / `highBoundary` | 8 | Three are a suite disagreement (see below); two assume `@2014-01-01T08` carries an implicit minute |
+| `lowBoundary` / `highBoundary` | 5 | Three are a suite disagreement (see below); two assume `@2014-01-01T08` carries an implicit minute |
 
 `repeat()` was registered but never implemented — it returned its input
 unchanged, so every expression that relied on it answered without erroring. That
@@ -134,17 +134,19 @@ should bound — and fhirpath.js omits the offset, so it fails that case.
 Four `HTMLChecks` cases and three `TerminologyTests` cases fail in the R5 suite
 for reasons that have nothing to do with the language.
 
-They are listed as known failures rather than skipped, which is the same call
-the harness makes everywhere: a case it could not run counts against the number
-just as one that answered wrongly does. Reporting 100% of what was convenient to
-run would say less than 98.7% of everything.
+They are listed as known failures rather than skipped, because they run: the
+engine reaches them, answers, and answers wrongly. That is different from the
+three `ccda.xml` cases, which have no input the harness can read and are
+reported separately, outside the denominator — there is nothing to grade. A case
+that runs and fails belongs in the number.
 
 **`htmlChecks()`** validates that a `Narrative.div` holds XHTML FHIR permits —
 the element list, no scripts, no external references. It is not implemented: it
 needs an XHTML parser and FHIR's own list of what is allowed, neither of which
 belongs in an expression engine that has no other reason to read markup.
 
-Those four cases run into something else first. `text.div` does not parse:
+One of the four runs into something else first. `htmlTest01` asks for
+`text.div.htmlChecks()`, and that does not parse at all:
 
     text.div        // parser errors: mismatched input 'div'
     text.`div`      // [<div xmlns="http://www.w3.org/1999/xhtml">…]
@@ -157,6 +159,11 @@ Navigating to a narrative works, it just takes the backticks the grammar asks
 for. Whether to accept more keywords as identifiers than the grammar lists is a
 question worth its own answer, and not one to settle by loosening the parser
 until a test passes.
+
+The other three read a `Parameters` resource instead —
+`%resource.parameter.where(name='goodHtml').value.htmlChecks()` — which parses
+cleanly and fails only for the missing function. So `div` accounts for one case,
+not four, and implementing `htmlChecks()` alone would close three of them.
 
 **`%terminologies`** is the environment variable FHIR defines for reaching a
 terminology server: `expand`, `validateVS`, `translate` and the rest. It is
