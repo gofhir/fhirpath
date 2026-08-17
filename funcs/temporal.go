@@ -103,127 +103,37 @@ func init() {
 }
 
 // fnYear returns the year component.
-func fnYear(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
-	if input.Empty() {
-		return types.Collection{}, nil
-	}
+// The calendar-unit spellings of the component extractors. They answer exactly
+// what yearOf and its siblings answer — one implementation, two names — and
+// they are the ones the grammar reads as units, so calling them takes
+// backticks. See funcs/temporal_components.go.
 
-	switch v := input[0].(type) {
-	case types.Date:
-		return types.Collection{types.NewInteger(int64(v.Year()))}, nil
-	case types.DateTime:
-		return types.Collection{types.NewInteger(int64(v.Year()))}, nil
-	default:
-		return types.Collection{}, nil
-	}
+func fnYear(ctx *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
+	return fnYearOf(ctx, input, args)
 }
 
-// fnMonth returns the month component.
-func fnMonth(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
-	if input.Empty() {
-		return types.Collection{}, nil
-	}
-
-	switch v := input[0].(type) {
-	case types.Date:
-		if v.Month() == 0 {
-			return types.Collection{}, nil
-		}
-		return types.Collection{types.NewInteger(int64(v.Month()))}, nil
-	case types.DateTime:
-		if v.Month() == 0 {
-			return types.Collection{}, nil
-		}
-		return types.Collection{types.NewInteger(int64(v.Month()))}, nil
-	default:
-		return types.Collection{}, nil
-	}
+func fnMonth(ctx *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
+	return fnMonthOf(ctx, input, args)
 }
 
-// fnDay returns the day component.
-func fnDay(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
-	if input.Empty() {
-		return types.Collection{}, nil
-	}
-
-	switch v := input[0].(type) {
-	case types.Date:
-		if v.Day() == 0 {
-			return types.Collection{}, nil
-		}
-		return types.Collection{types.NewInteger(int64(v.Day()))}, nil
-	case types.DateTime:
-		if v.Day() == 0 {
-			return types.Collection{}, nil
-		}
-		return types.Collection{types.NewInteger(int64(v.Day()))}, nil
-	default:
-		return types.Collection{}, nil
-	}
+func fnDay(ctx *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
+	return fnDayOf(ctx, input, args)
 }
 
-// fnHour returns the hour component.
-func fnHour(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
-	if input.Empty() {
-		return types.Collection{}, nil
-	}
-
-	switch v := input[0].(type) {
-	case types.DateTime:
-		return types.Collection{types.NewInteger(int64(v.Hour()))}, nil
-	case types.Time:
-		return types.Collection{types.NewInteger(int64(v.Hour()))}, nil
-	default:
-		return types.Collection{}, nil
-	}
+func fnHour(ctx *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
+	return fnHourOf(ctx, input, args)
 }
 
-// fnMinute returns the minute component.
-func fnMinute(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
-	if input.Empty() {
-		return types.Collection{}, nil
-	}
-
-	switch v := input[0].(type) {
-	case types.DateTime:
-		return types.Collection{types.NewInteger(int64(v.Minute()))}, nil
-	case types.Time:
-		return types.Collection{types.NewInteger(int64(v.Minute()))}, nil
-	default:
-		return types.Collection{}, nil
-	}
+func fnMinute(ctx *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
+	return fnMinuteOf(ctx, input, args)
 }
 
-// fnSecond returns the second component.
-func fnSecond(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
-	if input.Empty() {
-		return types.Collection{}, nil
-	}
-
-	switch v := input[0].(type) {
-	case types.DateTime:
-		return types.Collection{types.NewInteger(int64(v.Second()))}, nil
-	case types.Time:
-		return types.Collection{types.NewInteger(int64(v.Second()))}, nil
-	default:
-		return types.Collection{}, nil
-	}
+func fnSecond(ctx *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
+	return fnSecondOf(ctx, input, args)
 }
 
-// fnMillisecond returns the millisecond component.
-func fnMillisecond(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
-	if input.Empty() {
-		return types.Collection{}, nil
-	}
-
-	switch v := input[0].(type) {
-	case types.DateTime:
-		return types.Collection{types.NewInteger(int64(v.Millisecond()))}, nil
-	case types.Time:
-		return types.Collection{types.NewInteger(int64(v.Millisecond()))}, nil
-	default:
-		return types.Collection{}, nil
-	}
+func fnMillisecond(ctx *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
+	return fnMillisecondOf(ctx, input, args)
 }
 
 // fnNowReal returns the current datetime.
