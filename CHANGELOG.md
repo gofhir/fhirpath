@@ -1,5 +1,36 @@
 # Changelog
 
+## [1.8.0](https://github.com/gofhir/fhirpath/compare/v1.7.0...v1.8.0) (2026-08-17)
+
+
+### Features
+
+* the component extractors, under names that can be called ([#37](https://github.com/gofhir/fhirpath/issues/37)) ([9e68aac](https://github.com/gofhir/fhirpath/commit/9e68aac9390394020d6b2f49027299b72c298fb1))
+
+  The ten functions FHIRPath 3.0.0 defines for reading a component out of a
+  temporal value: `yearOf`, `monthOf`, `dayOf`, `hourOf`, `minuteOf`,
+  `secondOf`, `millisecondOf`, `timezoneOffsetOf`, `dateOf` and `timeOf`.
+
+  ```
+  @2024-06-15.monthOf()                              // 6
+  @2024.monthOf()                                    // { } -- no month was written
+  @2012-01-01T12:30:00.000+08:45.timezoneOffsetOf()  // 8.75
+  @2012.dateOf()                                     // @2012 -- the input precision is kept
+  ```
+
+  Seven of them were already implemented under the names the specification used
+  before — `year`, `month`, `day`, `hour`, `minute`, `second`, `millisecond` —
+  and could not be called: those words are calendar units in the grammar, so
+  `Patient.birthDate.month()` does not parse and only ``birthDate.`month`()``
+  reaches the function. The `Of` names are what 3.0.0 renamed them to, and are
+  the ones to use. The older spellings are kept and share the same
+  implementations.
+
+  Two answers changed in the process. A component the value does not carry is
+  now empty rather than zero — `@2012-01-01.hourOf()` is `{ }`, where `hour()`
+  used to answer `0`, which says midnight — and a collection of more than one
+  item is an error, as the specification states for all ten.
+
 ## [1.7.0](https://github.com/gofhir/fhirpath/compare/v1.6.0...v1.7.0) (2026-08-16)
 
 
