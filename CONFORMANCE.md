@@ -107,6 +107,10 @@ the precision alone, because `@2012T12:30:00` carries a time without a day. And
 a collection of more than one item is an error, which the specification states
 for every one of them.
 
+`toLong` and `convertsToLong` are left out too, for a reason of their own: this
+engine's `Integer` is already 64 bits wide, which is what `Long` exists to
+provide. That divergence has its own section below.
+
 `pathname` is left out deliberately. It returns the path at which each item sits
 within the input resource, which requires every value to carry where it came
 from — infrastructure this engine does not have, and a cost paid on every
@@ -458,6 +462,46 @@ Worth noting while reading dom-3: one clause is duplicated in both versions —
 symmetry with the first branch calls for `uri` and `url`. That defect is
 upstream and unrelated to this engine.
 
+## Integer is 64 bits here, and there is no Long
+
+The specification gives `Integer` the range -2^31 to 2^31-1, and adds a `Long`
+for -2^63 to 2^63-1 with literals of its own — `45L` — together with `toLong`
+and `convertsToLong`. All of that is marked Standard for Trial Use: content the
+specification says has not received significant implementation experience.
+
+This engine holds an `Integer` in Go's `int64`, so it already accepts the whole
+range `Long` was introduced for, and says `Integer` when asked:
+
+    3000000000                        // 3000000000
+    3000000000.type().name            // Integer
+    3000000000 is Integer             // true
+    2147483647 + 1                    // 2147483648
+    '3000000000'.convertsToInteger()  // true
+
+A conforming engine would answer `{ }` to the first and `false` to the last,
+since neither value fits an Integer. Narrowing to 32 bits would be a change to
+what callers already rely on — FHIR itself has an `integer64` type, and a
+`Bundle.total` or an `Observation.valueInteger` beyond two billion is data, not
+a mistake — and it would trade a range that works for one that needs a second
+type to get it back.
+
+So `Long` is not implemented, and `toLong`/`convertsToLong` are not either:
+against a 64-bit Integer they would be `toInteger` and `convertsToInteger` under
+another name, and `45L` does not parse. The divergence is the range of `Integer`,
+recorded here rather than left for someone to discover from a surprising answer.
+
+One thing that follows from it is a genuine gap rather than a decision.
+Arithmetic wraps silently at the end of the range:
+
+    9223372036854775807 + 1           // -9223372036854775808
+
+That is Go's `int64` overflow reaching the surface. A literal too large for
+`int64` is read as a `Decimal`, which is why `9223372036854775808` answers with
+itself, but a sum that crosses the boundary does not get that treatment. Whether
+it should signal an error or return empty is a question the specification does
+not settle for Integer either, and it is worth answering deliberately rather
+than by widening the type.
+
 ## Decisions taken where the specification is silent
 
 Recorded here and at the point of code, so nobody has to guess whether a choice
@@ -465,6 +509,7 @@ was reasoned or accidental.
 
 | Question | Decision | Why |
 |---|---|---|
+| `Integer` range, and `Long` | 64 bits, with no separate `Long` type | The specification's `Integer` is 32 bits and its `Long` — STU content — is 64. An `int64` Integer already spans that range, and FHIR's own `integer64` says the values occur. See above |
 | Max precision for `lowBoundary`/`highBoundary` | An implementation limit, documented in the function | 3.0.0 says explicitly: above "the maximum possible precision of the implementation", return empty. FHIR caps decimal at 18 digits |
 | `sort` direction syntax | Accept both `desc`/`asc` and the leading `-` | 3.0.0 defines `desc`; the suite tests `-` and marks those cases as prototype |
 | `type()` completeness | Emit `SimpleTypeInfo` and `ClassInfo`; omit `ClassInfo.element`, `ListTypeInfo`, `TupleTypeInfo` | They need element enumeration and declared cardinality, which the `Model` interface does not expose. Reading them off the instance would describe the value, not the type |
