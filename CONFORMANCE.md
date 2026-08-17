@@ -74,6 +74,8 @@ passing — so the list can only shrink, and it never lies about the number.
 | Block | Cases | Notes |
 |---|---|---|
 | `as()` on a multi-item collection | 1 | Applies from R5; the suite is R4 — see below |
+| `htmlChecks()` | 4 (R5) | Needs an XHTML parser and FHIR's element list — see below |
+| `%terminologies` | 3 (R5) | Needs a terminology server answering, not a stub — see below |
 | `lowBoundary` / `highBoundary` | 8 | Three are a suite disagreement (see below); two assume `@2014-01-01T08` carries an implicit minute |
 
 `repeat()` was registered but never implemented — it returned its input
@@ -126,6 +128,49 @@ suite is followed: it expects `@2014-01-01T08.lowBoundary(17)` to carry `+14:00`
 the offset that makes the instant earliest, while the specification's example
 shows no offset at all. The suite's reading is the stricter one — a boundary
 should bound — and fhirpath.js omits the offset, so it fails that case.
+
+### Seven R5 cases that need something outside the engine
+
+Four `HTMLChecks` cases and three `TerminologyTests` cases fail in the R5 suite
+for reasons that have nothing to do with the language.
+
+They are listed as known failures rather than skipped, which is the same call
+the harness makes everywhere: a case it could not run counts against the number
+just as one that answered wrongly does. Reporting 100% of what was convenient to
+run would say less than 98.7% of everything.
+
+**`htmlChecks()`** validates that a `Narrative.div` holds XHTML FHIR permits —
+the element list, no scripts, no external references. It is not implemented: it
+needs an XHTML parser and FHIR's own list of what is allowed, neither of which
+belongs in an expression engine that has no other reason to read markup.
+
+Those four cases run into something else first. `text.div` does not parse:
+
+    text.div        // parser errors: mismatched input 'div'
+    text.`div`      // [<div xmlns="http://www.w3.org/1999/xhtml">…]
+
+`div` is integer division in FHIRPath, and the grammar admits only `as`,
+`contains`, `in` and `is` as identifiers — every other keyword has to be
+written as a delimited identifier. So the suite writes an expression its own
+grammar does not accept, and an engine that follows the grammar cannot read it.
+Navigating to a narrative works, it just takes the backticks the grammar asks
+for. Whether to accept more keywords as identifiers than the grammar lists is a
+question worth its own answer, and not one to settle by loosening the parser
+until a test passes.
+
+**`%terminologies`** is the environment variable FHIR defines for reaching a
+terminology server: `expand`, `validateVS`, `translate` and the rest. It is
+undefined here.
+
+    %terminologies.expand('http://hl7.org/fhir/ValueSet/administrative-gender')
+    // undefined variable: %terminologies
+
+The engine does carry a `TerminologyService` interface, which is what
+`memberOf` calls when a caller supplies one. `%terminologies` is a larger
+surface — it answers with whole resources for expressions to navigate, and the
+suite's three cases expect the contents of real value sets and concept maps, so
+passing them means a server answering, not a stub. Worth doing when a caller
+needs it, with the service the caller already has.
 
 ### An empty regex in `replaceMatches`
 
