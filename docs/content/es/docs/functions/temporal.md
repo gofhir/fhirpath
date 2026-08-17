@@ -110,14 +110,30 @@ result, _ := fhirpath.Evaluate(resource, "timeOfDay().minute()")
 
 ---
 
-## year
+## Extractores de componentes
 
-Extrae el componente de ano de un valor `Date` o `DateTime`.
+Las diez funciones siguientes leen un componente de un valor temporal.
+
+Llevan el `Of` porque `year`, `month`, `day`, `hour`, `minute` y `second` son
+unidades de calendario en la gramática: una llamada escrita
+`Patient.birthDate.month()` no parsea, ya que el identificador tras el punto se
+lee como la unidad. Las grafías antiguas siguen registradas y responden lo
+mismo, pero alcanzarlas exige comillas invertidas —
+``Patient.birthDate.`month`()`` — así que los nombres de abajo son los que
+conviene usar.
+
+Las diez comparten tres reglas: una entrada vacía devuelve una colección vacía,
+una entrada con más de un elemento señala un error, y un valor que no lleva el
+componente pedido devuelve una colección vacía en vez de un cero.
+
+## yearOf
+
+Extrae el componente de año de un valor `Date` o `DateTime`.
 
 **Firma:**
 
 ```text
-year() : Integer
+yearOf() : Integer
 ```
 
 **Tipo de Retorno:** `Integer`
@@ -127,31 +143,32 @@ year() : Integer
 **Ejemplos:**
 
 ```go
-result, _ := fhirpath.Evaluate(patient, "Patient.birthDate.year()")
-// e.g., 1990
+result, _ := fhirpath.Evaluate(resource, "Patient.birthDate.yearOf()")
+// p. ej., 1990
 
-result, _ := fhirpath.Evaluate(resource, "@2024-06-15.year()")
+result, _ := fhirpath.Evaluate(resource, "@2024-06-15.yearOf()")
 // 2024
 
-result, _ := fhirpath.Evaluate(resource, "now().year()")
-// Current year
+result, _ := fhirpath.Evaluate(resource, "now().yearOf()")
+// El año actual
 ```
 
-**Casos Limite / Notas:**
+**Casos Límite / Notas:**
 
-- Devuelve una coleccion vacia si la entrada esta vacia o no es `Date`/`DateTime`.
-- El ano siempre esta disponible para fechas validas.
+- Devuelve una colección vacía si la entrada está vacía.
+- Señala un error si la entrada tiene más de un elemento.
+- El año siempre está presente en una fecha válida, así que es el único componente que un `Date` o `DateTime` nunca deja de tener.
 
 ---
 
-## month
+## monthOf
 
 Extrae el componente de mes de un valor `Date` o `DateTime`.
 
 **Firma:**
 
 ```text
-month() : Integer
+monthOf() : Integer` (1-12)
 ```
 
 **Tipo de Retorno:** `Integer` (1-12)
@@ -161,32 +178,32 @@ month() : Integer
 **Ejemplos:**
 
 ```go
-result, _ := fhirpath.Evaluate(patient, "Patient.birthDate.month()")
-// e.g., 3 (March)
-
-result, _ := fhirpath.Evaluate(resource, "@2024-06-15.month()")
+result, _ := fhirpath.Evaluate(resource, "@2024-06-15.monthOf()")
 // 6
 
-result, _ := fhirpath.Evaluate(resource, "today().month()")
-// Current month
+result, _ := fhirpath.Evaluate(resource, "@2024.monthOf()")
+// { } -- el valor no lleva mes
+
+result, _ := fhirpath.Evaluate(resource, "Patient.birthDate.monthOf()")
+// p. ej., 12
 ```
 
-**Casos Limite / Notas:**
+**Casos Límite / Notas:**
 
-- Devuelve una coleccion vacia si la entrada esta vacia o no es `Date`/`DateTime`.
-- Devuelve una coleccion vacia si la fecha tiene precision de solo ano (el componente de mes es `0`).
-- Los meses son base 1: Enero = 1, Diciembre = 12.
+- Devuelve una colección vacía si la entrada está vacía.
+- Señala un error si la entrada tiene más de un elemento.
+- Un valor escrito sin mes devuelve una colección vacía, no cero: `@2024` no dice nada sobre el mes.
 
 ---
 
-## day
+## dayOf
 
-Extrae el componente de dia del mes de un valor `Date` o `DateTime`.
+Extrae el componente de día de un valor `Date` o `DateTime`.
 
 **Firma:**
 
 ```text
-day() : Integer
+dayOf() : Integer` (1-31)
 ```
 
 **Tipo de Retorno:** `Integer` (1-31)
@@ -196,31 +213,29 @@ day() : Integer
 **Ejemplos:**
 
 ```go
-result, _ := fhirpath.Evaluate(patient, "Patient.birthDate.day()")
-// e.g., 25
-
-result, _ := fhirpath.Evaluate(resource, "@2024-06-15.day()")
+result, _ := fhirpath.Evaluate(resource, "@2024-06-15.dayOf()")
 // 15
 
-result, _ := fhirpath.Evaluate(resource, "today().day()")
-// Current day of month
+result, _ := fhirpath.Evaluate(resource, "@2024-06.dayOf()")
+// { } -- el valor no lleva día
 ```
 
-**Casos Limite / Notas:**
+**Casos Límite / Notas:**
 
-- Devuelve una coleccion vacia si la entrada esta vacia o no es `Date`/`DateTime`.
-- Devuelve una coleccion vacia si la fecha tiene precision de solo ano-mes (el componente de dia es `0`).
+- Devuelve una colección vacía si la entrada está vacía.
+- Señala un error si la entrada tiene más de un elemento.
+- Como con el mes, un valor que no lleva día devuelve una colección vacía.
 
 ---
 
-## hour
+## hourOf
 
 Extrae el componente de hora de un valor `DateTime` o `Time`.
 
 **Firma:**
 
 ```text
-hour() : Integer
+hourOf() : Integer` (0-23)
 ```
 
 **Tipo de Retorno:** `Integer` (0-23)
@@ -230,32 +245,33 @@ hour() : Integer
 **Ejemplos:**
 
 ```go
-result, _ := fhirpath.Evaluate(resource, "now().hour()")
-// Current hour (e.g., 14)
-
-result, _ := fhirpath.Evaluate(resource, "@T14:30:00.hour()")
+result, _ := fhirpath.Evaluate(resource, "@2024-06-15T14:30:45.hourOf()")
 // 14
 
-result, _ := fhirpath.Evaluate(resource, "timeOfDay().hour()")
-// Current hour
+result, _ := fhirpath.Evaluate(resource, "@T14:30:45.hourOf()")
+// 14
+
+result, _ := fhirpath.Evaluate(resource, "@2024-06-15.hourOf()")
+// { } -- una fecha no lleva hora
 ```
 
-**Casos Limite / Notas:**
+**Casos Límite / Notas:**
 
-- Devuelve una coleccion vacia si la entrada esta vacia o no es `DateTime`/`Time`.
-- No aplicable a valores `Date` (que no tienen componente de hora) -- devuelve vacio.
-- Las horas estan en formato de 24 horas: 0-23.
+- Devuelve una colección vacía si la entrada está vacía.
+- Señala un error si la entrada tiene más de un elemento.
+- Un `Date` no tiene hora y devuelve vacío. Lo mismo un `DateTime` escrito sin hora.
+- La medianoche responde `0`, y por eso una hora ausente tiene que ser vacío y no cero.
 
 ---
 
-## minute
+## minuteOf
 
 Extrae el componente de minuto de un valor `DateTime` o `Time`.
 
 **Firma:**
 
 ```text
-minute() : Integer
+minuteOf() : Integer` (0-59)
 ```
 
 **Tipo de Retorno:** `Integer` (0-59)
@@ -265,31 +281,29 @@ minute() : Integer
 **Ejemplos:**
 
 ```go
-result, _ := fhirpath.Evaluate(resource, "now().minute()")
-// Current minute (e.g., 30)
-
-result, _ := fhirpath.Evaluate(resource, "@T14:30:00.minute()")
+result, _ := fhirpath.Evaluate(resource, "@2024-06-15T14:30:45.minuteOf()")
 // 30
 
-result, _ := fhirpath.Evaluate(resource, "timeOfDay().minute()")
-// Current minute
+result, _ := fhirpath.Evaluate(resource, "@T14.minuteOf()")
+// { } -- el valor se detiene en la hora
 ```
 
-**Casos Limite / Notas:**
+**Casos Límite / Notas:**
 
-- Devuelve una coleccion vacia si la entrada esta vacia o no es `DateTime`/`Time`.
-- No aplicable a valores `Date` -- devuelve vacio.
+- Devuelve una colección vacía si la entrada está vacía.
+- Señala un error si la entrada tiene más de un elemento.
+- Un valor cuya precisión no llega al minuto devuelve una colección vacía.
 
 ---
 
-## second
+## secondOf
 
 Extrae el componente de segundo de un valor `DateTime` o `Time`.
 
 **Firma:**
 
 ```text
-second() : Integer
+secondOf() : Integer` (0-59)
 ```
 
 **Tipo de Retorno:** `Integer` (0-59)
@@ -299,31 +313,29 @@ second() : Integer
 **Ejemplos:**
 
 ```go
-result, _ := fhirpath.Evaluate(resource, "now().second()")
-// Current second (e.g., 45)
-
-result, _ := fhirpath.Evaluate(resource, "@T14:30:45.second()")
+result, _ := fhirpath.Evaluate(resource, "@2024-06-15T14:30:45.secondOf()")
 // 45
 
-result, _ := fhirpath.Evaluate(resource, "timeOfDay().second()")
-// Current second
+result, _ := fhirpath.Evaluate(resource, "@T14:30.secondOf()")
+// { } -- el valor se detiene en el minuto
 ```
 
-**Casos Limite / Notas:**
+**Casos Límite / Notas:**
 
-- Devuelve una coleccion vacia si la entrada esta vacia o no es `DateTime`/`Time`.
-- No aplicable a valores `Date` -- devuelve vacio.
+- Devuelve una colección vacía si la entrada está vacía.
+- Señala un error si la entrada tiene más de un elemento.
+- Un valor cuya precisión no llega al segundo devuelve una colección vacía.
 
 ---
 
-## millisecond
+## millisecondOf
 
 Extrae el componente de milisegundo de un valor `DateTime` o `Time`.
 
 **Firma:**
 
 ```text
-millisecond() : Integer
+millisecondOf() : Integer` (0-999)
 ```
 
 **Tipo de Retorno:** `Integer` (0-999)
@@ -333,18 +345,120 @@ millisecond() : Integer
 **Ejemplos:**
 
 ```go
-result, _ := fhirpath.Evaluate(resource, "now().millisecond()")
-// Current millisecond (e.g., 123)
-
-result, _ := fhirpath.Evaluate(resource, "@T14:30:45.123.millisecond()")
+result, _ := fhirpath.Evaluate(resource, "@T14:30:45.123.millisecondOf()")
 // 123
 
-result, _ := fhirpath.Evaluate(resource, "timeOfDay().millisecond()")
-// Current millisecond
+result, _ := fhirpath.Evaluate(resource, "@T14:30:45.millisecondOf()")
+// { } -- el valor se detiene en el segundo
 ```
 
-**Casos Limite / Notas:**
+**Casos Límite / Notas:**
 
-- Devuelve una coleccion vacia si la entrada esta vacia o no es `DateTime`/`Time`.
-- No aplicable a valores `Date` -- devuelve vacio.
-- La precision depende de la representacion temporal subyacente. Algunos valores de fecha-hora FHIR® pueden no tener precision de milisegundos.
+- Devuelve una colección vacía si la entrada está vacía.
+- Señala un error si la entrada tiene más de un elemento.
+- Un valor cuya precisión no llega al milisegundo devuelve una colección vacía.
+
+---
+
+## timezoneOffsetOf
+
+Extrae el desplazamiento de zona horaria de un `DateTime`, en horas desde UTC.
+
+**Firma:**
+
+```text
+timezoneOffsetOf() : Decimal
+```
+
+**Tipo de Retorno:** `Decimal`
+
+**Tipos Aplicables:** `DateTime`
+
+**Ejemplos:**
+
+```go
+result, _ := fhirpath.Evaluate(resource, "@2012-01-01T12:30:00.000-07:00.timezoneOffsetOf()")
+// -7.0
+
+result, _ := fhirpath.Evaluate(resource, "@2012-01-01T12:30:00.000+08:45.timezoneOffsetOf()")
+// 8.75 -- Eucla, Australia Occidental
+
+result, _ := fhirpath.Evaluate(resource, "@2012-01-01T12:30:00.timezoneOffsetOf()")
+// { } -- no se escribió desplazamiento
+```
+
+**Casos Límite / Notas:**
+
+- Devuelve una colección vacía si la entrada está vacía.
+- Señala un error si la entrada tiene más de un elemento.
+- Las fracciones de hora son decimales: un cuarto de hora es `0.25`.
+- Un desplazamiento cuyos minutos no dividen la hora de forma exacta -- veinte minutos son un tercio de ella -- da un decimal periódico llevado a la precisión de división del motor.
+- Un `Date`, o un `DateTime` escrito sin desplazamiento, devuelve una colección vacía.
+
+---
+
+## dateOf
+
+Extrae la parte de fecha de un `Date` o `DateTime`.
+
+**Firma:**
+
+```text
+dateOf() : Date
+```
+
+**Tipo de Retorno:** `Date`
+
+**Tipos Aplicables:** `Date`, `DateTime`
+
+**Ejemplos:**
+
+```go
+result, _ := fhirpath.Evaluate(resource, "@2012-01-01T12:30:00.000-07:00.dateOf()")
+// @2012-01-01
+
+result, _ := fhirpath.Evaluate(resource, "@2012.dateOf()")
+// @2012 -- se conserva la precisión de la entrada
+
+result, _ := fhirpath.Evaluate(resource, "@2012-05T12:30:00.dateOf()")
+// @2012-05
+```
+
+**Casos Límite / Notas:**
+
+- Devuelve una colección vacía si la entrada está vacía.
+- Señala un error si la entrada tiene más de un elemento.
+- El resultado conserva la precisión con que se escribió la entrada, en vez de rellenar un mes y un día que el valor no declara.
+
+---
+
+## timeOf
+
+Extrae la parte de hora de un `DateTime`.
+
+**Firma:**
+
+```text
+timeOf() : Time
+```
+
+**Tipo de Retorno:** `Time`
+
+**Tipos Aplicables:** `DateTime`
+
+**Ejemplos:**
+
+```go
+result, _ := fhirpath.Evaluate(resource, "@2012-01-01T12:30:00.000-07:00.timeOf()")
+// @T12:30:00.000
+
+result, _ := fhirpath.Evaluate(resource, "@2012-01-01.timeOf()")
+// { } -- el valor no lleva hora
+```
+
+**Casos Límite / Notas:**
+
+- Devuelve una colección vacía si la entrada está vacía.
+- Señala un error si la entrada tiene más de un elemento.
+- El desplazamiento no forma parte del resultado: el ejemplo de arriba da `@T12:30:00.000`, no `@T12:30:00.000-07:00`.
+- A diferencia de `dateOf`, esta no acepta un `Time` -- un `Time` ya es lo que devolvería.

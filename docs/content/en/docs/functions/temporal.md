@@ -110,14 +110,29 @@ result, _ := fhirpath.Evaluate(resource, "timeOfDay().minute()")
 
 ---
 
-## year
+## Component extractors
+
+The ten functions below read one component out of a temporal value.
+
+They carry their `Of` because `year`, `month`, `day`, `hour`, `minute` and
+`second` are calendar units in the grammar: a call written
+`Patient.birthDate.month()` does not parse, since the identifier after the dot
+is read as the unit. The older spellings are still registered and answer the
+same thing, but reaching them takes backticks —
+``Patient.birthDate.`month`()`` — so the names below are the ones to use.
+
+Each of them shares three rules: an empty input gives an empty collection, an
+input of more than one item signals an error, and a value that does not carry
+the component asked for gives an empty collection rather than a zero.
+
+## yearOf
 
 Extracts the year component from a `Date` or `DateTime` value.
 
 **Signature:**
 
 ```text
-year() : Integer
+yearOf() : Integer
 ```
 
 **Return Type:** `Integer`
@@ -127,31 +142,32 @@ year() : Integer
 **Examples:**
 
 ```go
-result, _ := fhirpath.Evaluate(patient, "Patient.birthDate.year()")
+result, _ := fhirpath.Evaluate(resource, "Patient.birthDate.yearOf()")
 // e.g., 1990
 
-result, _ := fhirpath.Evaluate(resource, "@2024-06-15.year()")
+result, _ := fhirpath.Evaluate(resource, "@2024-06-15.yearOf()")
 // 2024
 
-result, _ := fhirpath.Evaluate(resource, "now().year()")
+result, _ := fhirpath.Evaluate(resource, "now().yearOf()")
 // Current year
 ```
 
 **Edge Cases / Notes:**
 
-- Returns empty collection if the input is empty or not a `Date`/`DateTime`.
-- The year is always available for valid dates.
+- Returns an empty collection if the input is empty.
+- Signals an error if the input holds more than one item.
+- The year is always present in a valid date, so this is the one component that a `Date` or `DateTime` never lacks.
 
 ---
 
-## month
+## monthOf
 
 Extracts the month component from a `Date` or `DateTime` value.
 
 **Signature:**
 
 ```text
-month() : Integer
+monthOf() : Integer` (1-12)
 ```
 
 **Return Type:** `Integer` (1-12)
@@ -161,32 +177,32 @@ month() : Integer
 **Examples:**
 
 ```go
-result, _ := fhirpath.Evaluate(patient, "Patient.birthDate.month()")
-// e.g., 3 (March)
-
-result, _ := fhirpath.Evaluate(resource, "@2024-06-15.month()")
+result, _ := fhirpath.Evaluate(resource, "@2024-06-15.monthOf()")
 // 6
 
-result, _ := fhirpath.Evaluate(resource, "today().month()")
-// Current month
+result, _ := fhirpath.Evaluate(resource, "@2024.monthOf()")
+// { } -- the value carries no month
+
+result, _ := fhirpath.Evaluate(resource, "Patient.birthDate.monthOf()")
+// e.g., 12
 ```
 
 **Edge Cases / Notes:**
 
-- Returns empty collection if the input is empty or not a `Date`/`DateTime`.
-- Returns empty collection if the date has year-only precision (month component is `0`).
-- Months are 1-based: January = 1, December = 12.
+- Returns an empty collection if the input is empty.
+- Signals an error if the input holds more than one item.
+- A value written without a month gives an empty collection, not zero: `@2024` says nothing about the month.
 
 ---
 
-## day
+## dayOf
 
-Extracts the day-of-month component from a `Date` or `DateTime` value.
+Extracts the day component from a `Date` or `DateTime` value.
 
 **Signature:**
 
 ```text
-day() : Integer
+dayOf() : Integer` (1-31)
 ```
 
 **Return Type:** `Integer` (1-31)
@@ -196,31 +212,29 @@ day() : Integer
 **Examples:**
 
 ```go
-result, _ := fhirpath.Evaluate(patient, "Patient.birthDate.day()")
-// e.g., 25
-
-result, _ := fhirpath.Evaluate(resource, "@2024-06-15.day()")
+result, _ := fhirpath.Evaluate(resource, "@2024-06-15.dayOf()")
 // 15
 
-result, _ := fhirpath.Evaluate(resource, "today().day()")
-// Current day of month
+result, _ := fhirpath.Evaluate(resource, "@2024-06.dayOf()")
+// { } -- the value carries no day
 ```
 
 **Edge Cases / Notes:**
 
-- Returns empty collection if the input is empty or not a `Date`/`DateTime`.
-- Returns empty collection if the date has year-month precision only (day component is `0`).
+- Returns an empty collection if the input is empty.
+- Signals an error if the input holds more than one item.
+- As with the month, a value that does not carry a day gives an empty collection.
 
 ---
 
-## hour
+## hourOf
 
 Extracts the hour component from a `DateTime` or `Time` value.
 
 **Signature:**
 
 ```text
-hour() : Integer
+hourOf() : Integer` (0-23)
 ```
 
 **Return Type:** `Integer` (0-23)
@@ -230,32 +244,33 @@ hour() : Integer
 **Examples:**
 
 ```go
-result, _ := fhirpath.Evaluate(resource, "now().hour()")
-// Current hour (e.g., 14)
-
-result, _ := fhirpath.Evaluate(resource, "@T14:30:00.hour()")
+result, _ := fhirpath.Evaluate(resource, "@2024-06-15T14:30:45.hourOf()")
 // 14
 
-result, _ := fhirpath.Evaluate(resource, "timeOfDay().hour()")
-// Current hour
+result, _ := fhirpath.Evaluate(resource, "@T14:30:45.hourOf()")
+// 14
+
+result, _ := fhirpath.Evaluate(resource, "@2024-06-15.hourOf()")
+// { } -- a date has no time in it
 ```
 
 **Edge Cases / Notes:**
 
-- Returns empty collection if the input is empty or not a `DateTime`/`Time`.
-- Not applicable to `Date` values (which have no time component) -- returns empty.
-- Hours are in 24-hour format: 0-23.
+- Returns an empty collection if the input is empty.
+- Signals an error if the input holds more than one item.
+- A `Date` has no hour and gives empty. So does a `DateTime` written without a time.
+- Midnight answers `0`, which is why an absent hour has to be empty rather than zero.
 
 ---
 
-## minute
+## minuteOf
 
 Extracts the minute component from a `DateTime` or `Time` value.
 
 **Signature:**
 
 ```text
-minute() : Integer
+minuteOf() : Integer` (0-59)
 ```
 
 **Return Type:** `Integer` (0-59)
@@ -265,31 +280,29 @@ minute() : Integer
 **Examples:**
 
 ```go
-result, _ := fhirpath.Evaluate(resource, "now().minute()")
-// Current minute (e.g., 30)
-
-result, _ := fhirpath.Evaluate(resource, "@T14:30:00.minute()")
+result, _ := fhirpath.Evaluate(resource, "@2024-06-15T14:30:45.minuteOf()")
 // 30
 
-result, _ := fhirpath.Evaluate(resource, "timeOfDay().minute()")
-// Current minute
+result, _ := fhirpath.Evaluate(resource, "@T14.minuteOf()")
+// { } -- the value stops at the hour
 ```
 
 **Edge Cases / Notes:**
 
-- Returns empty collection if the input is empty or not a `DateTime`/`Time`.
-- Not applicable to `Date` values -- returns empty.
+- Returns an empty collection if the input is empty.
+- Signals an error if the input holds more than one item.
+- A value whose precision stops short of the minute gives an empty collection.
 
 ---
 
-## second
+## secondOf
 
 Extracts the second component from a `DateTime` or `Time` value.
 
 **Signature:**
 
 ```text
-second() : Integer
+secondOf() : Integer` (0-59)
 ```
 
 **Return Type:** `Integer` (0-59)
@@ -299,31 +312,29 @@ second() : Integer
 **Examples:**
 
 ```go
-result, _ := fhirpath.Evaluate(resource, "now().second()")
-// Current second (e.g., 45)
-
-result, _ := fhirpath.Evaluate(resource, "@T14:30:45.second()")
+result, _ := fhirpath.Evaluate(resource, "@2024-06-15T14:30:45.secondOf()")
 // 45
 
-result, _ := fhirpath.Evaluate(resource, "timeOfDay().second()")
-// Current second
+result, _ := fhirpath.Evaluate(resource, "@T14:30.secondOf()")
+// { } -- the value stops at the minute
 ```
 
 **Edge Cases / Notes:**
 
-- Returns empty collection if the input is empty or not a `DateTime`/`Time`.
-- Not applicable to `Date` values -- returns empty.
+- Returns an empty collection if the input is empty.
+- Signals an error if the input holds more than one item.
+- A value whose precision stops short of the second gives an empty collection.
 
 ---
 
-## millisecond
+## millisecondOf
 
 Extracts the millisecond component from a `DateTime` or `Time` value.
 
 **Signature:**
 
 ```text
-millisecond() : Integer
+millisecondOf() : Integer` (0-999)
 ```
 
 **Return Type:** `Integer` (0-999)
@@ -333,18 +344,120 @@ millisecond() : Integer
 **Examples:**
 
 ```go
-result, _ := fhirpath.Evaluate(resource, "now().millisecond()")
-// Current millisecond (e.g., 123)
-
-result, _ := fhirpath.Evaluate(resource, "@T14:30:45.123.millisecond()")
+result, _ := fhirpath.Evaluate(resource, "@T14:30:45.123.millisecondOf()")
 // 123
 
-result, _ := fhirpath.Evaluate(resource, "timeOfDay().millisecond()")
-// Current millisecond
+result, _ := fhirpath.Evaluate(resource, "@T14:30:45.millisecondOf()")
+// { } -- the value stops at the second
 ```
 
 **Edge Cases / Notes:**
 
-- Returns empty collection if the input is empty or not a `DateTime`/`Time`.
-- Not applicable to `Date` values -- returns empty.
-- Precision depends on the underlying time representation. Some FHIR® date-time values may not have millisecond precision.
+- Returns an empty collection if the input is empty.
+- Signals an error if the input holds more than one item.
+- A value whose precision stops short of the millisecond gives an empty collection.
+
+---
+
+## timezoneOffsetOf
+
+Extracts the timezone offset from a `DateTime`, as hours from UTC.
+
+**Signature:**
+
+```text
+timezoneOffsetOf() : Decimal
+```
+
+**Return Type:** `Decimal`
+
+**Applicable Types:** `DateTime`
+
+**Examples:**
+
+```go
+result, _ := fhirpath.Evaluate(resource, "@2012-01-01T12:30:00.000-07:00.timezoneOffsetOf()")
+// -7.0
+
+result, _ := fhirpath.Evaluate(resource, "@2012-01-01T12:30:00.000+08:45.timezoneOffsetOf()")
+// 8.75 -- Eucla, Western Australia
+
+result, _ := fhirpath.Evaluate(resource, "@2012-01-01T12:30:00.timezoneOffsetOf()")
+// { } -- no offset was written
+```
+
+**Edge Cases / Notes:**
+
+- Returns an empty collection if the input is empty.
+- Signals an error if the input holds more than one item.
+- Fractional hours are decimal: a quarter of an hour is `0.25`.
+- An offset whose minutes do not divide the hour exactly -- twenty minutes is a third of one -- gives a repeating decimal carried to the engine's division precision.
+- A `Date` or a `DateTime` written without an offset gives an empty collection.
+
+---
+
+## dateOf
+
+Extracts the date part of a `Date` or `DateTime`.
+
+**Signature:**
+
+```text
+dateOf() : Date
+```
+
+**Return Type:** `Date`
+
+**Applicable Types:** `Date`, `DateTime`
+
+**Examples:**
+
+```go
+result, _ := fhirpath.Evaluate(resource, "@2012-01-01T12:30:00.000-07:00.dateOf()")
+// @2012-01-01
+
+result, _ := fhirpath.Evaluate(resource, "@2012.dateOf()")
+// @2012 -- the precision of the input is kept
+
+result, _ := fhirpath.Evaluate(resource, "@2012-05T12:30:00.dateOf()")
+// @2012-05
+```
+
+**Edge Cases / Notes:**
+
+- Returns an empty collection if the input is empty.
+- Signals an error if the input holds more than one item.
+- The result keeps the precision the input was written with, rather than filling in a month and day the value does not state.
+
+---
+
+## timeOf
+
+Extracts the time part of a `DateTime`.
+
+**Signature:**
+
+```text
+timeOf() : Time
+```
+
+**Return Type:** `Time`
+
+**Applicable Types:** `DateTime`
+
+**Examples:**
+
+```go
+result, _ := fhirpath.Evaluate(resource, "@2012-01-01T12:30:00.000-07:00.timeOf()")
+// @T12:30:00.000
+
+result, _ := fhirpath.Evaluate(resource, "@2012-01-01.timeOf()")
+// { } -- the value carries no time
+```
+
+**Edge Cases / Notes:**
+
+- Returns an empty collection if the input is empty.
+- Signals an error if the input holds more than one item.
+- The offset is not part of the result: the example above gives `@T12:30:00.000`, not `@T12:30:00.000-07:00`.
+- Unlike `dateOf`, this one does not accept a `Time` -- a `Time` is already what it would return.

@@ -82,10 +82,28 @@ is worth the three `testRepeat` cases, and it is normative 2.0.0 rather than a
 3.0.0 addition, which is the kind of gap a compile-only corpus cannot see.
 
 Of the functions 3.0.0 adds, all are now implemented except `pathname`:
-`coalesce`, `defineVariable`, `difference`, `duration`, `lastIndexOf` and
-`repeatAll`. None of them appears in the R4 suite, so they move the count not at
-all; they were implemented for completeness against the language, and are
-covered by tests written from the specification's own examples.
+`coalesce`, `comparable`, `defineVariable`, `difference`, `duration`,
+`lastIndexOf`, `repeatAll`, and the ten component extractors `yearOf`,
+`monthOf`, `dayOf`, `hourOf`, `minuteOf`, `secondOf`, `millisecondOf`,
+`timezoneOffsetOf`, `dateOf` and `timeOf`. None of them appears in the R4
+suite, so they move the count not at all; they were implemented for
+completeness against the language, and are covered by tests written from the
+specification's own examples.
+
+The extractors carry their `Of` for a reason. `year`, `month`, `day`, `hour`,
+`minute` and `second` are calendar units in the grammar, so `birthDate.month()`
+does not parse — the identifier after the dot is read as the unit. This engine
+had registered those bare names, which left the functions reachable only as
+``birthDate.`month`()``, and nobody writes that. The 3.0.0 names are the ones
+that can be called; the older spellings are kept and share the same
+implementations, so the two cannot drift apart.
+
+Writing them settled two questions the older ones had answered differently. A
+component the value does not carry is empty rather than zero — `@2012-01-01`
+has no hour, and answering `0` would say midnight — and that cannot be read off
+the precision alone, because `@2012T12:30:00` carries a time without a day. And
+a collection of more than one item is an error, which the specification states
+for every one of them.
 
 `pathname` is left out deliberately. It returns the path at which each item sits
 within the input resource, which requires every value to carry where it came
