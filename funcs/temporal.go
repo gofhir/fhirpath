@@ -102,12 +102,10 @@ func init() {
 	})
 }
 
-// fnYear returns the year component.
 // The calendar-unit spellings of the component extractors. They answer exactly
 // what yearOf and its siblings answer — one implementation, two names — and
 // they are the ones the grammar reads as units, so calling them takes
 // backticks. See funcs/temporal_components.go.
-
 func fnYear(ctx *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
 	return fnYearOf(ctx, input, args)
 }

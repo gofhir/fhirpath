@@ -71,6 +71,34 @@ func TestComponentAbsentIsEmpty(t *testing.T) {
 	}
 }
 
+// An offset in whole quarters of an hour divides exactly; twenty minutes is a
+// third of an hour and does not, and the result says so rather than stopping at
+// a few places and claiming to be exact.
+func TestTimezoneOffsetDivision(t *testing.T) {
+	tests := []struct{ expr, want string }{
+		{"@2012-01-01T12:30:00.000Z.timezoneOffsetOf()", "0.0"},
+		{"@2012-01-01T12:30:00.000+05:45.timezoneOffsetOf()", "5.75"},
+		{"@2012-01-01T12:30:00.000-03:30.timezoneOffsetOf()", "-3.5"},
+		{"@2012-01-01T12:30:00.000-07:00.timezoneOffsetOf()", "-7.0"},
+		{"@2012-01-01T12:30:00.000+00:20.timezoneOffsetOf()", "0.3333333333333333"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.expr, func(t *testing.T) {
+			result, err := Evaluate([]byte(`{"resourceType":"Patient"}`), tt.expr)
+			if err != nil {
+				t.Fatalf("%v", err)
+			}
+			if len(result) != 1 {
+				t.Fatalf("got %d results, want 1", len(result))
+			}
+			if got := result[0].String(); got != tt.want {
+				t.Errorf("got %q, want %q", got, tt.want)
+			}
+		})
+	}
+}
+
 // dateOf keeps the precision the value was written with, rather than filling in
 // what it does not say.
 func TestDateOfKeepsPrecision(t *testing.T) {

@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/shopspring/decimal"
+
 	"github.com/gofhir/fhirpath/eval"
 	"github.com/gofhir/fhirpath/types"
 )
@@ -195,26 +197,26 @@ func fnTimezoneOffsetOf(_ *eval.Context, input types.Collection, _ []interface{}
 	})
 }
 
-// offsetInHours renders an offset given in minutes as hours. A whole number of
-// hours keeps a decimal place, as the specification's own -7.0 does.
+// offsetInHours renders an offset given in minutes as hours.
+//
+// Most offsets divide exactly — a quarter of an hour is 0.25, three quarters
+// 0.75 — but not all do: twenty minutes is a third of an hour, which no decimal
+// finishes. The division is left to the same decimal arithmetic the rest of the
+// engine uses rather than being truncated to a few places here, so the result
+// does not claim an exactness it does not have.
+//
+// A whole number of hours keeps a decimal place, as the specification's own
+// -7.0 does.
 func offsetInHours(minutes int) string {
-	sign := ""
-	if minutes < 0 {
-		sign = "-"
-		minutes = -minutes
+	hours := decimal.NewFromInt(int64(minutes)).Div(decimal.NewFromInt(minutesPerHour))
+	text := hours.String()
+	if !strings.Contains(text, ".") {
+		text += ".0"
 	}
-
-	hours := minutes / 60
-	remainder := minutes % 60
-	if remainder == 0 {
-		return fmt.Sprintf("%s%d.0", sign, hours)
-	}
-
-	// A minute is a sixtieth of an hour, so the fraction is exact to at most
-	// four decimal places once trailing zeros are trimmed.
-	fraction := strings.TrimRight(fmt.Sprintf("%04d", remainder*10000/60), "0")
-	return fmt.Sprintf("%s%d.%s", sign, hours, fraction)
+	return text
 }
+
+const minutesPerHour = 60
 
 // fnDateOf returns the date a value carries, at the precision it carries it.
 func fnDateOf(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
