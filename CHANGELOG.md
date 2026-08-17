@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.0](https://github.com/gofhir/fhirpath/compare/v1.7.0...v1.8.0) (2026-08-17)
+
+
+### Features
+
+* the component extractors, under names that can be called ([#37](https://github.com/gofhir/fhirpath/issues/37)) ([9e68aac](https://github.com/gofhir/fhirpath/commit/9e68aac9390394020d6b2f49027299b72c298fb1))
+
 ## [1.7.0](https://github.com/gofhir/fhirpath/compare/v1.6.0...v1.7.0) (2026-08-16)
 
 
