@@ -20,6 +20,35 @@ import (
 // decided at the year.
 var ErrPrecisionMismatch = errors.New("temporal values are specified to different precisions")
 
+// ErrOffsetMismatch reports that one of two temporal values carries a timezone
+// offset and the other does not, so there is nothing to convert the bare value
+// into and the outcome cannot be determined.
+//
+// The specification leaves this to the implementation: "For DateTime values
+// that do not have a timezone offsets, whether or not to provide a default
+// timezone offset is a policy decision", and "To support comparison of DateTime
+// values, either both values have no timezone offset specified, or both values
+// are converted to a common timezone offset." This engine provides no default,
+// which is the reading the specification calls the simplest case, so the
+// comparison has no answer rather than a wrong one — @2012-04-15T15:00:00Z and
+// @2012-04-15T10:00:00 are the same instant at UTC-5 and different ones
+// anywhere else.
+//
+// It is its own sentinel rather than ErrPrecisionMismatch because the two say
+// different things about the values: this one is reached when the precisions
+// agree exactly, and reporting it as a precision mismatch sent anyone reading
+// the message looking in the wrong place.
+var ErrOffsetMismatch = errors.New("one temporal value specifies a timezone offset and the other does not")
+
+// IsUnknownTemporalComparison reports whether err means a comparison of two
+// temporal values has no answer, rather than that it went wrong. The
+// specification expresses both as an empty result, so callers translate them
+// alike; asking through this predicate is what keeps a new one from being
+// handled in one place and forgotten in another.
+func IsUnknownTemporalComparison(err error) bool {
+	return errors.Is(err, ErrPrecisionMismatch) || errors.Is(err, ErrOffsetMismatch)
+}
+
 var errNotTemporal = errors.New("value is not a temporal that can be compared")
 
 // temporalUnit identifies how precisely a temporal value is specified, on a
@@ -73,12 +102,10 @@ func compareTemporal(left, right temporalValue) (int, error) {
 	// timezone offset."
 	//
 	// Neither holds when one side carries an offset and the other does not:
-	// there is nothing to convert the bare value into. The answer is unknown
-	// rather than false, because the missing offset could be any of them —
-	// @2012-04-15T15:00:00Z and @2012-04-15T10:00:00 are the same instant at
-	// UTC-5 and different ones anywhere else.
+	// there is nothing to convert the bare value into. See ErrOffsetMismatch,
+	// which is what this reports — the precisions may well agree, and often do.
 	if left.hasOffset != right.hasOffset && left.unit >= unitHour && right.unit >= unitHour {
-		return 0, ErrPrecisionMismatch
+		return 0, ErrOffsetMismatch
 	}
 
 	shared := left.unit

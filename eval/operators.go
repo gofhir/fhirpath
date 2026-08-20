@@ -397,8 +397,8 @@ func compareWith(left, right types.Value, accept func(cmp int) bool) (types.Coll
 	if err != nil {
 		// Both cases are "the answer is unknown", which the spec expresses as
 		// empty: quantities whose units are not commensurable, and temporals
-		// specified to different precisions.
-		if errors.Is(err, types.ErrIncompatibleUnits) || errors.Is(err, types.ErrPrecisionMismatch) {
+		// that cannot be placed against one another.
+		if errors.Is(err, types.ErrIncompatibleUnits) || types.IsUnknownTemporalComparison(err) {
 			return types.EmptyCollection, nil
 		}
 		return nil, err
@@ -471,12 +471,13 @@ func Equal(left, right types.Collection) types.Collection {
 	}
 
 	for i := range left {
-		// Temporal equality can be unknown rather than false when the two values
-		// are specified to different precisions, in which case so is the result.
+		// Temporal equality can be unknown rather than false — the values may be
+		// specified to different precisions, or one may carry a timezone offset
+		// the other does not — in which case so is the result.
 		if types.IsTemporal(left[i]) && types.IsTemporal(right[i]) {
 			equal, err := types.EqualTemporal(left[i], right[i])
 			switch {
-			case errors.Is(err, types.ErrPrecisionMismatch):
+			case types.IsUnknownTemporalComparison(err):
 				return types.EmptyCollection
 			case err != nil:
 				return types.FalseCollection
