@@ -7,6 +7,31 @@
 
 * an offset that is missing is not a precision that is missing ([#41](https://github.com/gofhir/fhirpath/issues/41)) ([09634a0](https://github.com/gofhir/fhirpath/commit/09634a07f9274852c78332668b6886b8fc1220e0))
 
+  Comparing two DateTime values where one writes a timezone offset and the
+  other does not reported `ErrPrecisionMismatch` — "temporal values are
+  specified to different precisions" — with both values specified to the
+  millisecond.
+
+  ```
+  2020-03-05T10:00:00.0Z  vs  2021-01-01T00:00:00.0
+    err=temporal values are specified to different precisions   // both to the ms
+  ```
+
+  Expression results are unchanged: such a comparison has no answer and yields
+  `{ }`, which is what a FHIRPath caller already saw. The specification makes
+  the default offset "a policy decision" and this engine provides none.
+
+  What changed is what a Go caller of `types.Compare` is told. Two additions:
+
+  | | |
+  |---|---|
+  | `types.ErrOffsetMismatch` | reported when one value carries an offset and the other does not |
+  | `types.IsUnknownTemporalComparison(err)` | true for either sentinel — both mean the comparison has no answer |
+
+  A genuine difference in precision still reports `ErrPrecisionMismatch`, and
+  neither sentinel stands in for the other. Reported by a user reading the
+  message and looking, reasonably, at precision.
+
 ## [1.8.0](https://github.com/gofhir/fhirpath/compare/v1.7.0...v1.8.0) (2026-08-17)
 
 
