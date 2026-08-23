@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.8.1](https://github.com/gofhir/fhirpath/compare/v1.8.0...v1.8.1) (2026-08-23)
+
+
+### Bug Fixes
+
+* an offset that is missing is not a precision that is missing ([#41](https://github.com/gofhir/fhirpath/issues/41)) ([09634a0](https://github.com/gofhir/fhirpath/commit/09634a07f9274852c78332668b6886b8fc1220e0))
+
 ## [1.8.0](https://github.com/gofhir/fhirpath/compare/v1.7.0...v1.8.0) (2026-08-17)
 
 
