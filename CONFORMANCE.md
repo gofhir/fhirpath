@@ -479,10 +479,12 @@ the environment doing the evaluating, and an engine that picks one on its own
 makes the same invariant answer differently on two machines. `dom-6` cannot
 depend on which region a process runs in.
 
-Offering it as something a caller sets — alongside the model, the resolver and
-the terminology service, which are policies of exactly the same kind — would fit
-this design. It is not implemented, because nothing has needed it: FHIR requires
-the offset where the comparison would otherwise be undecidable.
+What a caller can do is state the offset itself, per value, which is what
+`WithDefaultOffset` below is for. What the engine will not do is choose one.
+
+FHIR requires the offset where the comparison would otherwise be undecidable,
+which is why this stayed open until a caller arrived with a case it does not
+cover:
 
 | Type | Rule |
 |---|---|
@@ -498,8 +500,61 @@ second, the data.
 
 The specification expects to revisit this: "Additional functions to support more
 sophisticated timezone offset comparison (such as .toUTC()) may be defined in a
-future version." A caller that needs the comparison to resolve today should ask
-for the option, with the case that needs it.
+future version."
+
+### Saying what a bare value's offset is
+
+A caller whose own language settles the question can say so, per value:
+
+    period, _ := types.NewDateTime("2020-01-01T00:00:00.0")
+    encounter.Compare(period.WithDefaultOffset(0))   // answers, rather than declining
+
+`DateTime.WithDefaultOffset` supplies the offset to assume when the value states
+none, and leaves a stated one alone. Nothing applies it on its own, so a
+FHIRPath caller keeps seeing empty.
+
+It is supplied to the value, not to a comparison, because that is where the
+language that defines it applies it. CQL: "If no timezone offset is supplied,
+the timezone offset of the evaluation request timestamp is assumed" — at
+construction, which is why extracting the offset from such a value "will be the
+timezone offset of the evaluation request, not null".
+
+**The default is remembered apart from what was written.** `String` and `HasTZ`
+answer about the value as written, so a literal written without an offset still
+evaluates to itself; `EffectiveOffset` answers what to place it at. Both are
+needed at once, and a first attempt that wrote the default into the value's own
+offset showed why: a CQL engine trying it against its conformance corpus lost
+twenty-two cases, because `@2012-03-10T10:20:00` began printing as
+`@2012-03-10T10:20:00-05:00` and every rule that reads a value's representation
+— precision, boundaries, interval ends — read the default instead.
+
+Ordering and duration both read `EffectiveOffset`, which is what makes them
+agree. They do not agree without one, and that split predates the option:
+
+    @2020-01-01T02:00:00Z > @2020-01-01T00:00:00.0                     // { }
+    @2020-01-01T02:00:00Z.difference(@2020-01-01T00:00:00.0, 'hour')   // -2
+
+`difference` and `duration` place a bare value at UTC and measure from there,
+where the comparison declines to place it at all. Supplying a default settles
+both the same way, so the split matters only to callers who do not supply one —
+for whom it stays as it is, an inconsistency recorded rather than changed on the
+way past.
+
+The offset is a `time.Duration` so that the unit is in the call rather than in
+the documentation: `-5 * time.Hour` cannot be read as five minutes, and no bound
+could have told the two apart, since both are offsets a timezone can have. Only
+whole minutes within the fourteen hours FHIR and XML Schema allow are accepted;
+anything else leaves the value as it was, so the comparison declines rather than
+answering from an invented instant. So does a value whose precision stops above
+a time of day: `@2020` has no instant to place.
+
+This is not hypothetical. Every published eCQM library declares its measurement
+period without an offset — `Interval[@2019-01-01T00:00:00.0, @2020-01-01T00:00:00.0)`
+— while FHIR requires one on any dateTime carrying a time, so served data always
+has it. An encounter two hours into that period compares against a bare bound,
+and without a default the comparison has no answer: a `where` drops what it
+cannot confirm, and the patient leaves the population over two hours the
+defining language does settle.
 
 ## Integer is 64 bits here, and there is no Long
 

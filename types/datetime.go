@@ -9,17 +9,22 @@ import (
 
 // DateTime represents a FHIRPath datetime value.
 type DateTime struct {
-	year      int
-	month     int
-	day       int
-	hour      int
-	minute    int
-	second    int
-	millis    int
-	tzOffset  int  // timezone offset in minutes
-	hasTZ     bool // whether timezone is specified
-	precision DateTimePrecision
-	fhirType  string // FHIR type when the value was read through a model
+	year     int
+	month    int
+	day      int
+	hour     int
+	minute   int
+	second   int
+	millis   int
+	tzOffset int  // timezone offset in minutes, as written
+	hasTZ    bool // whether the value states a timezone offset
+	// The offset to assume when the value states none, supplied by a caller
+	// whose language settles what an unwritten offset means. Kept apart from
+	// the written one on purpose: see WithDefaultOffset.
+	defaultOffset    int
+	hasDefaultOffset bool
+	precision        DateTimePrecision
+	fhirType         string // FHIR type when the value was read through a model
 
 	// The FHIR element this value was read with, when it carried one
 	primitiveElement
@@ -355,6 +360,78 @@ func (dt DateTime) Compare(other Value) (int, error) {
 		}
 	}
 	return compareTemporalValues(dt, other)
+}
+
+// WithDefaultOffset returns a copy that assumes the given offset when the value
+// states none. A value that states its own keeps it.
+//
+// This is for callers whose language settles what an unwritten offset means.
+// FHIRPath does not: it calls the default "a policy decision", so this engine
+// supplies none and a comparison it cannot place has no answer. CQL does settle
+// it, and settles it at construction — "If no timezone offset is supplied, the
+// timezone offset of the evaluation request timestamp is assumed" — so a CQL
+// value written without an offset does not have an unknown one, it has the
+// request's.
+//
+// The default is remembered apart from what was written, and does not become
+// part of the value. String and HasTZ answer about the value as it was written,
+// so a literal written without an offset still evaluates to itself — which CQL
+// requires of the same values, and which materializing the default would break.
+// What consults the default is what needs an instant: ordering, equality, and
+// the durations between values.
+//
+// The offset is a duration so that the unit is in the call rather than in the
+// documentation: -5 * time.Hour cannot be read as five minutes. Only offsets a
+// timezone can have are accepted — a whole number of minutes, within the
+// fourteen hours FHIR and XML Schema allow — and anything else leaves the value
+// as it was, so a comparison declines rather than answering from an invented
+// instant.
+func (dt DateTime) WithDefaultOffset(offset time.Duration) DateTime {
+	if dt.hasTZ {
+		return dt
+	}
+
+	// An offset only means something once the value reaches a time of day.
+	// @2020 has no instant to place, and saying it sits at UTC-5 would make it
+	// comparable to things it is not.
+	if dt.precision < DTHourPrecision {
+		return dt
+	}
+
+	if offset%time.Minute != 0 {
+		return dt
+	}
+	minutes := int(offset / time.Minute)
+	if minutes < minTimezoneOffset || minutes > maxTimezoneOffset {
+		return dt
+	}
+
+	dt.hasDefaultOffset = true
+	dt.defaultOffset = minutes
+	return dt
+}
+
+// The offsets a timezone can take, in minutes east of UTC. FHIR and XML Schema
+// both bound them at fourteen hours.
+const (
+	minTimezoneOffset = -14 * 60
+	maxTimezoneOffset = 14 * 60
+)
+
+// EffectiveOffset returns the offset to place the value at, in minutes east of
+// UTC, and whether there is one: the offset the value states, or the default a
+// caller supplied for it, or neither.
+//
+// This is what ordering and duration read. HasTZ and TZOffset answer the
+// narrower question of what the value itself states.
+func (dt DateTime) EffectiveOffset() (minutes int, ok bool) {
+	switch {
+	case dt.hasTZ:
+		return dt.tzOffset, true
+	case dt.hasDefaultOffset:
+		return dt.defaultOffset, true
+	}
+	return 0, false
 }
 
 // WithFHIRType returns a copy that reports the FHIR type it was declared with.
