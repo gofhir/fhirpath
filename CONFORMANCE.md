@@ -462,6 +462,45 @@ Worth noting while reading dom-3: one clause is duplicated in both versions —
 symmetry with the first branch calls for `uri` and `url`. That defect is
 upstream and unrelated to this engine.
 
+## A default timezone offset is the caller's policy, not the engine's
+
+Comparing a `DateTime` that writes a timezone offset with one that does not has
+no answer here, and yields empty. The specification permits either behaviour and
+says so in as many words:
+
+> For DateTime values that do not have a timezone offsets, whether or not to
+> provide a default timezone offset is a policy decision. In the simplest case,
+> no default timezone offset is provided, but some implementations may use the
+> client's or the evaluating system's timezone offset.
+
+An engine that supplied the local server's offset would therefore be conforming.
+This one does not, for a reason the word *policy* points at: a policy belongs to
+the environment doing the evaluating, and an engine that picks one on its own
+makes the same invariant answer differently on two machines. `dom-6` cannot
+depend on which region a process runs in.
+
+Offering it as something a caller sets — alongside the model, the resolver and
+the terminology service, which are policies of exactly the same kind — would fit
+this design. It is not implemented, because nothing has needed it: FHIR requires
+the offset where the comparison would otherwise be undecidable.
+
+| Type | Rule |
+|---|---|
+| `dateTime` | "If hours and minutes are specified, a timezone offset **SHALL** be populated" |
+| `instant` | "SHALL include a timezone offset" |
+| `time` | "A timezone offset **SHALL NOT** be present" |
+
+So two FHIR `dateTime` values carrying a time both carry an offset, and the
+undecidable case cannot arise between them. It arises when one side is a literal
+written without one — `@2021-01-01T00:00:00.0` in an expression — or when the
+data is invalid for FHIR. In the first case the literal is what to fix; in the
+second, the data.
+
+The specification expects to revisit this: "Additional functions to support more
+sophisticated timezone offset comparison (such as .toUTC()) may be defined in a
+future version." A caller that needs the comparison to resolve today should ask
+for the option, with the case that needs it.
+
 ## Integer is 64 bits here, and there is no Long
 
 The specification gives `Integer` the range -2^31 to 2^31-1, and adds a `Long`
@@ -514,7 +553,7 @@ was reasoned or accidental.
 | `sort` direction syntax | Accept both `desc`/`asc` and the leading `-` | 3.0.0 defines `desc`; the suite tests `-` and marks those cases as prototype |
 | `type()` completeness | Emit `SimpleTypeInfo` and `ClassInfo`; omit `ClassInfo.element`, `ListTypeInfo`, `TupleTypeInfo` | They need element enumeration and declared cardinality, which the `Model` interface does not expose. Reading them off the instance would describe the value, not the type |
 | `type()` results per element | One per input element | 3.0.0 states this, then contradicts it in its own `ListTypeInfo` example |
-| Comparing a temporal that carries a timezone offset with one that does not | No answer — empty | The specification makes the default offset "a policy decision" and this engine provides none, which it calls the simplest case. `@2012-04-15T15:00:00Z` and `@2012-04-15T10:00:00` are the same instant at UTC-5 and different ones anywhere else. Reported as `ErrOffsetMismatch`, apart from the precision sentinel, since the precisions usually agree |
+| Comparing a temporal that carries a timezone offset with one that does not | No answer — empty, reported as `ErrOffsetMismatch` | The default offset is a policy the specification leaves to the caller, and FHIR requires the offset where it matters, so a bare value is a literal or invalid data. See below |
 | Temporal comparison across precisions | Component by component, stopping at the first difference; empty only when everything shared matches | Not a judgement call — the spec states it, and it is why `now() > today()` is empty while `now() > @1974-12-25` is true |
 | `ofType()` on profiled subtypes without a Model | Keep structural inference | Nothing in the JSON distinguishes an `Age` from a `Quantity`; the information is in the model, not the document |
 | `=` and `~` between two quantity objects | Complex-type semantics, not quantity semantics | Comparing complex types compares children; only the object-vs-literal case converts |
