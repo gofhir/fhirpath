@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.0](https://github.com/gofhir/fhirpath/compare/v1.8.1...v1.9.0) (2026-08-27)
+
+
+### Features
+
+* let a caller say what a bare value's offset is ([#44](https://github.com/gofhir/fhirpath/issues/44)) ([ba9242f](https://github.com/gofhir/fhirpath/commit/ba9242f727261075408b24f833df24bcff31a87f))
+
 ## [1.8.1](https://github.com/gofhir/fhirpath/compare/v1.8.0...v1.8.1) (2026-08-23)
 
 
