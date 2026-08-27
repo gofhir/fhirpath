@@ -357,6 +357,42 @@ func (dt DateTime) Compare(other Value) (int, error) {
 	return compareTemporalValues(dt, other)
 }
 
+// WithDefaultOffset returns a copy carrying the given offset, in minutes east of
+// UTC, when the value was written without one. A value that already states an
+// offset is returned unchanged.
+//
+// This is for callers whose language settles what an unwritten offset means.
+// FHIRPath does not: it calls the default "a policy decision", so this engine
+// supplies none and a comparison it cannot place has no answer. CQL does settle
+// it, and settles it at construction — "If no timezone offset is supplied, the
+// timezone offset of the evaluation request timestamp is assumed" — so a CQL
+// value written without an offset does not have an unknown one, it has the
+// request's. Applying it here is how a caller says so.
+//
+// It is applied to the value rather than to a comparison because that is where
+// the language it comes from applies it: extracting the offset from such a
+// value yields the offset, not empty, which a comparison-only variant could not
+// express.
+//
+// The offset is not marked as defaulted. Once applied, the value is one that
+// carries an offset, which is what the caller asserted.
+func (dt DateTime) WithDefaultOffset(minutes int) DateTime {
+	if dt.hasTZ {
+		return dt
+	}
+
+	// An offset only means something once the value reaches a time of day.
+	// @2020 has no instant to place, and saying it sits at UTC-5 would make it
+	// comparable to things it is not.
+	if dt.precision < DTHourPrecision {
+		return dt
+	}
+
+	dt.hasTZ = true
+	dt.tzOffset = minutes
+	return dt
+}
+
 // WithFHIRType returns a copy that reports the FHIR type it was declared with.
 // FHIR primitives are types in their own right — a FHIR.boolean is not a
 // System.Boolean — so a value keeps the name the model gave it.

@@ -498,8 +498,38 @@ second, the data.
 
 The specification expects to revisit this: "Additional functions to support more
 sophisticated timezone offset comparison (such as .toUTC()) may be defined in a
-future version." A caller that needs the comparison to resolve today should ask
-for the option, with the case that needs it.
+future version."
+
+### Saying what a bare value's offset is
+
+A caller whose own language settles the question can say so, per value:
+
+    period, _ := types.NewDateTime("2020-01-01T00:00:00.0")
+    encounter.Compare(period.WithDefaultOffset(0))   // answers, rather than declining
+
+`DateTime.WithDefaultOffset` fills an offset the value was written without, and
+leaves a written one alone. Nothing applies it on its own, so a FHIRPath caller
+keeps seeing empty.
+
+It is applied to the value, not to a comparison, because that is where the
+language that defines it applies it. CQL: "If no timezone offset is supplied,
+the timezone offset of the evaluation request timestamp is assumed" — at
+construction, which is why extracting the offset from such a value "will be the
+timezone offset of the evaluation request, not null". A comparison-only variant
+could not express that, and would leave `timezoneOffsetOf()` contradicting the
+language that asked for it.
+
+This is not hypothetical. Every published eCQM library declares its measurement
+period without an offset — `Interval[@2019-01-01T00:00:00.0, @2020-01-01T00:00:00.0)`
+— while FHIR requires one on any dateTime carrying a time, so served data always
+has it. An encounter two hours into that period compares against a bare bound,
+and without a default the comparison has no answer: a `where` drops what it
+cannot confirm, and the patient leaves the population over two hours the
+defining language does settle.
+
+A value whose precision stops above the time of day is left alone: `@2020` has
+no instant to place, and giving it an offset would make it comparable to things
+it is not.
 
 ## Integer is 64 bits here, and there is no Long
 
