@@ -207,7 +207,10 @@ func (dt DateTime) temporalValue() temporalValue {
 		day = 1
 	}
 
-	v := temporalValue{unit: unit, hasOffset: dt.hasTZ, offset: dt.tzOffset}
+	// The offset a caller supplied for a value that states none counts here,
+	// which is what lets ordering and duration agree once one is given.
+	offset, hasOffset := dt.EffectiveOffset()
+	v := temporalValue{unit: unit, hasOffset: hasOffset, offset: offset}
 	v.parts[unitYear] = dt.year
 	v.parts[unitMonth] = month
 	v.parts[unitDay] = day

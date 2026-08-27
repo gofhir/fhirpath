@@ -509,31 +509,44 @@ A caller whose own language settles the question can say so, per value:
     period, _ := types.NewDateTime("2020-01-01T00:00:00.0")
     encounter.Compare(period.WithDefaultOffset(0))   // answers, rather than declining
 
-`DateTime.WithDefaultOffset` fills an offset the value was written without, and
-leaves a written one alone. Nothing applies it on its own, so a FHIRPath
-*comparison* keeps answering empty.
+`DateTime.WithDefaultOffset` supplies the offset to assume when the value states
+none, and leaves a stated one alone. Nothing applies it on its own, so a
+FHIRPath caller keeps seeing empty.
 
-`difference()` and `duration()` are the exception, and not by design:
-
-    @2020-01-01T02:00:00Z.difference(@2020-01-01T00:00:00.0, 'hour')   // -2
-
-They place a bare value at UTC and measure from there, so they already supply a
-default — a different policy from the one the comparison follows, in the same
-engine. Nothing in either specification asks for that split; it is where the two
-paths were written apart. Making them agree means deciding which way, and the
-answer is not obviously "decline": a duration between two points is a weaker
-claim than an ordering, and a caller measuring against a bare bound may well
-prefer an answer to a refusal. Left as it stands rather than changed on the way
-past, and recorded here so the next person meets it as a question rather than a
-surprise.
-
-It is applied to the value, not to a comparison, because that is where the
+It is supplied to the value, not to a comparison, because that is where the
 language that defines it applies it. CQL: "If no timezone offset is supplied,
 the timezone offset of the evaluation request timestamp is assumed" — at
 construction, which is why extracting the offset from such a value "will be the
-timezone offset of the evaluation request, not null". A comparison-only variant
-could not express that, and would leave `timezoneOffsetOf()` contradicting the
-language that asked for it.
+timezone offset of the evaluation request, not null".
+
+**The default is remembered apart from what was written.** `String` and `HasTZ`
+answer about the value as written, so a literal written without an offset still
+evaluates to itself; `EffectiveOffset` answers what to place it at. Both are
+needed at once, and a first attempt that wrote the default into the value's own
+offset showed why: a CQL engine trying it against its conformance corpus lost
+twenty-two cases, because `@2012-03-10T10:20:00` began printing as
+`@2012-03-10T10:20:00-05:00` and every rule that reads a value's representation
+— precision, boundaries, interval ends — read the default instead.
+
+Ordering and duration both read `EffectiveOffset`, which is what makes them
+agree. They do not agree without one, and that split predates the option:
+
+    @2020-01-01T02:00:00Z > @2020-01-01T00:00:00.0                     // { }
+    @2020-01-01T02:00:00Z.difference(@2020-01-01T00:00:00.0, 'hour')   // -2
+
+`difference` and `duration` place a bare value at UTC and measure from there,
+where the comparison declines to place it at all. Supplying a default settles
+both the same way, so the split matters only to callers who do not supply one —
+for whom it stays as it is, an inconsistency recorded rather than changed on the
+way past.
+
+The offset is a `time.Duration` so that the unit is in the call rather than in
+the documentation: `-5 * time.Hour` cannot be read as five minutes, and no bound
+could have told the two apart, since both are offsets a timezone can have. Only
+whole minutes within the fourteen hours FHIR and XML Schema allow are accepted;
+anything else leaves the value as it was, so the comparison declines rather than
+answering from an invented instant. So does a value whose precision stops above
+a time of day: `@2020` has no instant to place.
 
 This is not hypothetical. Every published eCQM library declares its measurement
 period without an offset — `Interval[@2019-01-01T00:00:00.0, @2020-01-01T00:00:00.0)`
@@ -542,12 +555,6 @@ has it. An encounter two hours into that period compares against a bare bound,
 and without a default the comparison has no answer: a `where` drops what it
 cannot confirm, and the patient leaves the population over two hours the
 defining language does settle.
-
-A value whose precision stops above the time of day is left alone: `@2020` has
-no instant to place, and giving it an offset would make it comparable to things
-it is not. So is an offset outside the fourteen hours FHIR and XML Schema allow
-— including one passed in hours by a caller reading `timezoneOffsetOf()`, which
-reports hours where this takes minutes.
 
 ## Integer is 64 bits here, and there is no Long
 

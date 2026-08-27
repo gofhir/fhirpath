@@ -9,17 +9,22 @@ import (
 
 // DateTime represents a FHIRPath datetime value.
 type DateTime struct {
-	year      int
-	month     int
-	day       int
-	hour      int
-	minute    int
-	second    int
-	millis    int
-	tzOffset  int  // timezone offset in minutes
-	hasTZ     bool // whether timezone is specified
-	precision DateTimePrecision
-	fhirType  string // FHIR type when the value was read through a model
+	year     int
+	month    int
+	day      int
+	hour     int
+	minute   int
+	second   int
+	millis   int
+	tzOffset int  // timezone offset in minutes, as written
+	hasTZ    bool // whether the value states a timezone offset
+	// The offset to assume when the value states none, supplied by a caller
+	// whose language settles what an unwritten offset means. Kept apart from
+	// the written one on purpose: see WithDefaultOffset.
+	defaultOffset    int
+	hasDefaultOffset bool
+	precision        DateTimePrecision
+	fhirType         string // FHIR type when the value was read through a model
 
 	// The FHIR element this value was read with, when it carried one
 	primitiveElement
@@ -357,9 +362,8 @@ func (dt DateTime) Compare(other Value) (int, error) {
 	return compareTemporalValues(dt, other)
 }
 
-// WithDefaultOffset returns a copy carrying the given offset, in minutes east of
-// UTC, when the value was written without one. A value that already states an
-// offset is returned unchanged.
+// WithDefaultOffset returns a copy that assumes the given offset when the value
+// states none. A value that states its own keeps it.
 //
 // This is for callers whose language settles what an unwritten offset means.
 // FHIRPath does not: it calls the default "a policy decision", so this engine
@@ -367,22 +371,22 @@ func (dt DateTime) Compare(other Value) (int, error) {
 // it, and settles it at construction — "If no timezone offset is supplied, the
 // timezone offset of the evaluation request timestamp is assumed" — so a CQL
 // value written without an offset does not have an unknown one, it has the
-// request's. Applying it here is how a caller says so.
+// request's.
 //
-// It is applied to the value rather than to a comparison because that is where
-// the language it comes from applies it: extracting the offset from such a
-// value yields the offset, not empty, which a comparison-only variant could not
-// express.
+// The default is remembered apart from what was written, and does not become
+// part of the value. String and HasTZ answer about the value as it was written,
+// so a literal written without an offset still evaluates to itself — which CQL
+// requires of the same values, and which materializing the default would break.
+// What consults the default is what needs an instant: ordering, equality, and
+// the durations between values.
 //
-// The offset is not marked as defaulted. Once applied, the value is one that
-// carries an offset, which is what the caller asserted.
-//
-// The value is returned unchanged, rather than carrying something invented,
-// when there is nothing sensible to apply: it already states an offset, its
-// precision stops above a time of day, or the offset is not one a timezone can
-// have. Declining to answer a comparison is the safe outcome; inventing an
-// instant is not.
-func (dt DateTime) WithDefaultOffset(minutes int) DateTime {
+// The offset is a duration so that the unit is in the call rather than in the
+// documentation: -5 * time.Hour cannot be read as five minutes. Only offsets a
+// timezone can have are accepted — a whole number of minutes, within the
+// fourteen hours FHIR and XML Schema allow — and anything else leaves the value
+// as it was, so a comparison declines rather than answering from an invented
+// instant.
+func (dt DateTime) WithDefaultOffset(offset time.Duration) DateTime {
 	if dt.hasTZ {
 		return dt
 	}
@@ -394,16 +398,16 @@ func (dt DateTime) WithDefaultOffset(minutes int) DateTime {
 		return dt
 	}
 
-	// Minutes, not hours — the unit timezoneOffsetOf() reports is hours, so a
-	// caller reading that and passing -5 here means UTC-5 and would otherwise
-	// get UTC-00:05 without being told. Anything beyond the range a timezone
-	// can take is a mistake of the same kind.
+	if offset%time.Minute != 0 {
+		return dt
+	}
+	minutes := int(offset / time.Minute)
 	if minutes < minTimezoneOffset || minutes > maxTimezoneOffset {
 		return dt
 	}
 
-	dt.hasTZ = true
-	dt.tzOffset = minutes
+	dt.hasDefaultOffset = true
+	dt.defaultOffset = minutes
 	return dt
 }
 
@@ -413,6 +417,22 @@ const (
 	minTimezoneOffset = -14 * 60
 	maxTimezoneOffset = 14 * 60
 )
+
+// EffectiveOffset returns the offset to place the value at, in minutes east of
+// UTC, and whether there is one: the offset the value states, or the default a
+// caller supplied for it, or neither.
+//
+// This is what ordering and duration read. HasTZ and TZOffset answer the
+// narrower question of what the value itself states.
+func (dt DateTime) EffectiveOffset() (minutes int, ok bool) {
+	switch {
+	case dt.hasTZ:
+		return dt.tzOffset, true
+	case dt.hasDefaultOffset:
+		return dt.defaultOffset, true
+	}
+	return 0, false
+}
 
 // WithFHIRType returns a copy that reports the FHIR type it was declared with.
 // FHIR primitives are types in their own right — a FHIR.boolean is not a
