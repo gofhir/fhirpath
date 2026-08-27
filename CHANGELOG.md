@@ -7,6 +7,47 @@
 
 * let a caller say what a bare value's offset is ([#44](https://github.com/gofhir/fhirpath/issues/44)) ([ba9242f](https://github.com/gofhir/fhirpath/commit/ba9242f727261075408b24f833df24bcff31a87f))
 
+  Comparing a `DateTime` that states a timezone offset with one that does not has
+  no answer, because FHIRPath makes the default offset "a policy decision" and
+  this engine picks none. A caller whose own language settles the question can
+  now say what the bare value's offset is:
+
+  ```go
+  period, _ := types.NewDateTime("2020-01-01T00:00:00.0")
+  encounter.Compare(period.WithDefaultOffset(-5 * time.Hour))   // answers
+  ```
+
+  | | |
+  |---|---|
+  | `DateTime.WithDefaultOffset(time.Duration)` | the offset to assume when the value states none; a stated one wins |
+  | `DateTime.EffectiveOffset() (int, bool)` | the offset to place the value at — stated, else defaulted, else none |
+
+  Nothing applies a default on its own, so FHIRPath callers see no change: such
+  a comparison still yields `{ }`.
+
+  **The default is remembered apart from what was written.** `String`, `HasTZ`
+  and `TZOffset` answer about the value as written, so a literal written without
+  an offset still evaluates to itself; `EffectiveOffset` answers what to place it
+  at, and is what ordering, equality, `difference` and `duration` all read — one
+  lookup, so they cannot disagree about one value.
+
+  This came from a CQL engine built on this library, which needs it because CQL
+  closes what FHIRPath leaves open: "If no timezone offset is supplied, the
+  timezone offset of the evaluation request timestamp is assumed". Every
+  published eCQM library declares its measurement period without an offset,
+  while FHIR requires one on served data, so an encounter two hours into the
+  period compared against a bare bound — and a `where` dropping what it cannot
+  confirm took the patient out of the population.
+
+  The shape is theirs as much as ours: they implemented two candidate designs
+  against their conformance corpus and reported what broke. A first version
+  wrote the default into the value's own offset and cost them twenty-two cases,
+  because the value then printed with an offset it was never written with. A
+  first signature took minutes as an `int`, where no range can tell "five
+  minutes west" from "five hours west written wrong" — `time.Duration` puts the
+  unit in the call. Their corpus passes 2084/0 on the merged shape, unchanged
+  across four process timezones.
+
 ## [1.8.1](https://github.com/gofhir/fhirpath/compare/v1.8.0...v1.8.1) (2026-08-23)
 
 
