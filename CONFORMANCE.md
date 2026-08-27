@@ -479,10 +479,12 @@ the environment doing the evaluating, and an engine that picks one on its own
 makes the same invariant answer differently on two machines. `dom-6` cannot
 depend on which region a process runs in.
 
-Offering it as something a caller sets — alongside the model, the resolver and
-the terminology service, which are policies of exactly the same kind — would fit
-this design. It is not implemented, because nothing has needed it: FHIR requires
-the offset where the comparison would otherwise be undecidable.
+What a caller can do is state the offset itself, per value, which is what
+`WithDefaultOffset` below is for. What the engine will not do is choose one.
+
+FHIR requires the offset where the comparison would otherwise be undecidable,
+which is why this stayed open until a caller arrived with a case it does not
+cover:
 
 | Type | Rule |
 |---|---|
@@ -508,8 +510,22 @@ A caller whose own language settles the question can say so, per value:
     encounter.Compare(period.WithDefaultOffset(0))   // answers, rather than declining
 
 `DateTime.WithDefaultOffset` fills an offset the value was written without, and
-leaves a written one alone. Nothing applies it on its own, so a FHIRPath caller
-keeps seeing empty.
+leaves a written one alone. Nothing applies it on its own, so a FHIRPath
+*comparison* keeps answering empty.
+
+`difference()` and `duration()` are the exception, and not by design:
+
+    @2020-01-01T02:00:00Z.difference(@2020-01-01T00:00:00.0, 'hour')   // -2
+
+They place a bare value at UTC and measure from there, so they already supply a
+default — a different policy from the one the comparison follows, in the same
+engine. Nothing in either specification asks for that split; it is where the two
+paths were written apart. Making them agree means deciding which way, and the
+answer is not obviously "decline": a duration between two points is a weaker
+claim than an ordering, and a caller measuring against a bare bound may well
+prefer an answer to a refusal. Left as it stands rather than changed on the way
+past, and recorded here so the next person meets it as a question rather than a
+surprise.
 
 It is applied to the value, not to a comparison, because that is where the
 language that defines it applies it. CQL: "If no timezone offset is supplied,
@@ -529,7 +545,9 @@ defining language does settle.
 
 A value whose precision stops above the time of day is left alone: `@2020` has
 no instant to place, and giving it an offset would make it comparable to things
-it is not.
+it is not. So is an offset outside the fourteen hours FHIR and XML Schema allow
+— including one passed in hours by a caller reading `timezoneOffsetOf()`, which
+reports hours where this takes minutes.
 
 ## Integer is 64 bits here, and there is no Long
 

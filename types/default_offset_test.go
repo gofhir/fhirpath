@@ -106,6 +106,34 @@ func TestDefaultOffsetNeedsATimeOfDay(t *testing.T) {
 	}
 }
 
+// An offset no timezone can have is not applied, so the comparison declines
+// rather than answering from an invented instant. The unit is minutes, and a
+// caller reading timezoneOffsetOf() — which reports hours — would otherwise
+// turn UTC-5 into UTC-00:05 without being told.
+func TestDefaultOffsetRejectsWhatIsNotAnOffset(t *testing.T) {
+	bare := mustDateTime(t, "2020-01-01T00:00:00.0")
+
+	for _, minutes := range []int{5000, -5000, 841, -841} {
+		if got := bare.WithDefaultOffset(minutes); got.HasTZ() {
+			t.Errorf("WithDefaultOffset(%d) produced %s, which is not an offset a timezone can have",
+				minutes, got.String())
+		}
+	}
+
+	// The bounds themselves are offsets that exist.
+	for _, minutes := range []int{840, -840, 0} {
+		if got := bare.WithDefaultOffset(minutes); !got.HasTZ() {
+			t.Errorf("WithDefaultOffset(%d) was rejected, but that offset is a real one", minutes)
+		}
+	}
+
+	// Minutes, not hours: -5 is five minutes west, not five hours, and is
+	// applied as such rather than guessed at.
+	if got := bare.WithDefaultOffset(-5); got.TZOffset() != -5 {
+		t.Errorf("got %d minutes, want -5", got.TZOffset())
+	}
+}
+
 // Nothing changes for a caller that does not ask: FHIRPath keeps seeing empty.
 func TestDefaultOffsetIsOptOnly(t *testing.T) {
 	left := mustDateTime(t, "2020-03-05T10:00:00.0Z")

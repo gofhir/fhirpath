@@ -376,6 +376,12 @@ func (dt DateTime) Compare(other Value) (int, error) {
 //
 // The offset is not marked as defaulted. Once applied, the value is one that
 // carries an offset, which is what the caller asserted.
+//
+// The value is returned unchanged, rather than carrying something invented,
+// when there is nothing sensible to apply: it already states an offset, its
+// precision stops above a time of day, or the offset is not one a timezone can
+// have. Declining to answer a comparison is the safe outcome; inventing an
+// instant is not.
 func (dt DateTime) WithDefaultOffset(minutes int) DateTime {
 	if dt.hasTZ {
 		return dt
@@ -388,10 +394,25 @@ func (dt DateTime) WithDefaultOffset(minutes int) DateTime {
 		return dt
 	}
 
+	// Minutes, not hours — the unit timezoneOffsetOf() reports is hours, so a
+	// caller reading that and passing -5 here means UTC-5 and would otherwise
+	// get UTC-00:05 without being told. Anything beyond the range a timezone
+	// can take is a mistake of the same kind.
+	if minutes < minTimezoneOffset || minutes > maxTimezoneOffset {
+		return dt
+	}
+
 	dt.hasTZ = true
 	dt.tzOffset = minutes
 	return dt
 }
+
+// The offsets a timezone can take, in minutes east of UTC. FHIR and XML Schema
+// both bound them at fourteen hours.
+const (
+	minTimezoneOffset = -14 * 60
+	maxTimezoneOffset = 14 * 60
+)
 
 // WithFHIRType returns a copy that reports the FHIR type it was declared with.
 // FHIR primitives are types in their own right — a FHIR.boolean is not a
