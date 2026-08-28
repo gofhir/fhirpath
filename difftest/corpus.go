@@ -62,11 +62,13 @@ type suiteFile struct {
 			Name       string `xml:"name,attr"`
 			InputFile  string `xml:"inputfile,attr"`
 			Predicate  string `xml:"predicate,attr"`
+			Mode       string `xml:"mode,attr"`
 			Expression struct {
 				Invalid string `xml:"invalid,attr"`
 				Text    string `xml:",chardata"`
 			} `xml:"expression"`
 			Outputs []struct {
+				Type string `xml:"type,attr"`
 				Text string `xml:",chardata"`
 			} `xml:"output"`
 		} `xml:"test"`
@@ -93,20 +95,38 @@ func (c corpus) load(withModel bool) ([]testCase, error) {
 	inputs := map[string]json.RawMessage{}
 	var cases []testCase
 
+	seen := map[string]int{}
+
 	for _, group := range suite.Groups {
 		for _, test := range group.Tests {
+			id := group.Name + "/" + test.Name
+			// The suite repeats a name for two different expressions —
+			// testEquivalent23 among them — and an id that collapses them
+			// would compare one engine's answer to the other engine's other
+			// case.
+			if seen[id]++; seen[id] > 1 {
+				id = fmt.Sprintf("%s#%d", id, seen[id])
+			}
+
 			this := testCase{
-				ID:         group.Name + "/" + test.Name,
+				ID:         id,
 				Expression: strings.TrimSpace(test.Expression.Text),
 				Model:      model,
-				expectErr:  test.Expression.Invalid != "",
-				// A predicate case asks whether the expression found anything,
-				// not what it found: birthDate with predicate="true" expects
-				// true because the patient has one.
+				// A case asserting a semantic fault is one only static
+				// analysis can decide, and this harness evaluates rather than
+				// analyzes. Judging it by what evaluation answered would
+				// report a divergence that make conformance does not see.
+				expectErr: test.Expression.Invalid == "execution",
 				predicate: test.Predicate == "true",
 			}
-			if len(test.Outputs) == 1 {
-				this.expected = strings.TrimSpace(test.Outputs[0].Text)
+
+			if test.Expression.Invalid == "semantic" || strings.HasPrefix(test.Mode, "lenient") {
+				this.skip = "decided by static analysis, which this harness does not run"
+			}
+
+			for _, out := range test.Outputs {
+				this.outputs = append(this.outputs, strings.TrimSpace(out.Text))
+				this.outputTypes = append(this.outputTypes, out.Type)
 			}
 
 			resource, ok := inputs[test.InputFile]

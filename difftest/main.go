@@ -69,10 +69,13 @@ type testCase struct {
 	Resource   json.RawMessage `json:"resource"`
 	Model      string          `json:"model,omitempty"`
 
-	expected  string
-	expectErr bool
-	predicate bool
-	skip      string
+	// What the suite says the case should answer: an error, or these values —
+	// of which none is a real answer, meaning empty.
+	outputs     []string
+	outputTypes []string
+	expectErr   bool
+	predicate   bool
+	skip        string
 }
 
 // An answer is what one engine said: results, or the error it raised.
@@ -162,6 +165,7 @@ func report(corpus string, cases []testCase, theirs map[string]answer, verbose b
 		agree          int
 		bothFail       int
 		skipped        int
+		unsupported    int
 		oursWrong      []string
 		theirsWrong    []string
 		neitherRight   []string
@@ -177,6 +181,14 @@ func report(corpus string, cases []testCase, theirs map[string]answer, verbose b
 
 		ours := evaluateHere(c)
 		their := theirs[c.ID]
+
+		// fhirpath.js refusing because it has no such function says nothing
+		// about the expression, and crediting that refusal as satisfying an
+		// "invalid" case would credit it for the wrong reason.
+		if notImplemented(their) {
+			unsupported++
+			continue
+		}
 
 		if sameAnswer(ours, their) {
 			agree++
@@ -204,7 +216,11 @@ func report(corpus string, cases []testCase, theirs map[string]answer, verbose b
 		}
 	}
 
-	total := len(cases) - skipped
+	total := len(cases) - skipped - unsupported
+	if total <= 0 {
+		fmt.Printf("\n%s: nothing to compare\n", corpus)
+		return
+	}
 	divergent := len(oursWrong) + len(theirsWrong) + len(neitherRight) + len(noVerdict)
 
 	fmt.Printf("\n%s: %d cases, %d agree (%.1f%%), %d diverge",
@@ -213,7 +229,10 @@ func report(corpus string, cases []testCase, theirs map[string]answer, verbose b
 		fmt.Printf(" — of those agreeing, %d are both refusing", bothFail)
 	}
 	if skipped > 0 {
-		fmt.Printf("; %d skipped for want of a readable input", skipped)
+		fmt.Printf("; %d not comparable here", skipped)
+	}
+	if unsupported > 0 {
+		fmt.Printf("; %d fhirpath.js does not implement", unsupported)
 	}
 	fmt.Println()
 
@@ -310,14 +329,19 @@ func trimZeros(s string) string {
 // hasVerdict reports whether the suite states what the case should answer.
 // Some cases only say the expression is invalid, and some state nothing.
 func (c testCase) hasVerdict() bool {
-	return c.expectErr || c.expected != ""
+	// Every case says something: an error, some values, or no values at all,
+	// which is the suite's way of writing empty.
+	return true
 }
 
 func (c testCase) verdict() string {
-	if c.expectErr {
+	switch {
+	case c.expectErr:
 		return "an error"
+	case len(c.outputs) == 0:
+		return "[]"
 	}
-	return c.expected
+	return "[" + strings.Join(c.outputs, ", ") + "]"
 }
 
 func matchesExpected(c testCase, a answer) bool {
@@ -327,14 +351,44 @@ func matchesExpected(c testCase, a answer) bool {
 	if a.failed() {
 		return false
 	}
-	if c.predicate {
+
+	if c.predicate && len(c.outputs) == 1 {
 		found := len(a.Results) > 0
-		return found == (c.expected == "true")
+		return found == (c.outputs[0] == "true")
 	}
-	if len(a.Results) != 1 {
+
+	if len(a.Results) != len(c.outputs) {
 		return false
 	}
-	return sameValue(a.Results[0], c.expected)
+	for i := range a.Results {
+		if !sameAs(a.Results[i], c.outputs[i], c.outputType(i)) {
+			return false
+		}
+	}
+	return true
+}
+
+func (c testCase) outputType(i int) string {
+	if i < len(c.outputTypes) {
+		return c.outputTypes[i]
+	}
+	return ""
+}
+
+// sameAs compares an answer against what the suite states, normalizing only
+// where the type says it is safe to. A string result is compared as written:
+// '2.10' and '2.1' are different strings, whatever they would be as numbers.
+func sameAs(got, want, outputType string) bool {
+	if outputType == "string" || outputType == "code" {
+		return got == want
+	}
+	return sameValue(got, want)
+}
+
+// notImplemented reports whether fhirpath.js declined for want of the function
+// rather than because of the expression.
+func notImplemented(a answer) bool {
+	return a.failed() && strings.Contains(a.Error, "Not implemented")
 }
 
 func firstLine(s string) string {

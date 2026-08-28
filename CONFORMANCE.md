@@ -222,18 +222,24 @@ Against fhirpath.js 5.2.0, with each engine given its model:
 
 | | R4 | R5 |
 |---|---|---|
-| Cases | 935 | 1048 |
-| Same answer | 892 (95.4%) | 1003 (95.7%) |
-| **This engine wrong, fhirpath.js right** | **1** | **1** |
-| Both agree, suite disagrees | 11 | 17 |
-| fhirpath.js wrong, this engine right | 34 | 20 |
+| Cases compared | 915 | 1014 |
+| Same answer | 881 (96.3%) | 980 (96.6%) |
+| **This engine wrong, fhirpath.js right** | **1** | **0** |
+| Both agree, suite disagrees | 6 | 13 |
+| fhirpath.js wrong, this engine right | 30 | 32 |
+| Neither matches, and they differ | 3 | 2 |
 
-The two cases where fhirpath.js is right and this engine is not are both
-divergences taken on purpose and recorded here: `as()` over a collection, and
-`conformsTo` against an unresolvable profile.
+The one case where fhirpath.js is right and this engine is not is `as()` over a
+collection, a divergence taken on purpose and recorded below.
+
+Not every case can be compared. Those asserting a semantic fault are decided by
+static analysis, which this harness does not run — `make conformance` does — and
+those where fhirpath.js has no such function say nothing about the expression by
+refusing. Both are counted out rather than scored, which is why the totals here
+are smaller than the suite's.
 
 Most of what this engine answers and fhirpath.js does not is a function it has
-not implemented — `precision`, `conformsTo`, boundaries over a Quantity. The
+not implemented: `precision`, `conformsTo`, boundaries over a Quantity. The
 reverse cases are worth more attention, and the run is how they are found rather
 than stumbled into.
 
