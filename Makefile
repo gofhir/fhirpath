@@ -3,7 +3,7 @@ ANTLR_JAR     := build/antlr-$(ANTLR_VERSION)-complete.jar
 ANTLR_URL     := https://www.antlr.org/download/antlr-$(ANTLR_VERSION)-complete.jar
 GRAMMAR       := grammar/fhirpath.g4
 
-.PHONY: help generate generate-check test test-race bench bench-compare lint conformance clean
+.PHONY: help generate generate-check test test-race bench bench-compare lint conformance difftest clean
 
 help:
 	@echo "generate        Regenerate the parser from $(GRAMMAR)"
@@ -14,6 +14,7 @@ help:
 	@echo "bench-compare   Compare the benchmarks against another revision"
 	@echo "lint            Run golangci-lint"
 	@echo "conformance     Report conformance against the official FHIRPath suite"
+	@echo "difftest        Compare this engine's answers against fhirpath.js"
 	@echo "conformance-update  Re-baseline the conformance known-failures lists"
 	@echo "clean           Remove build artifacts"
 
@@ -90,6 +91,17 @@ lint:
 # the FHIR model packages.
 conformance:
 	@cd conformance && go test -run TestOfficialSuite -v . 2>&1 | grep -E "official suite|skipped [0-9]"
+
+# Where two independent engines disagree is a different question from where one
+# of them disagrees with the suite, and it is the question that settled several
+# entries in CONFORMANCE.md — each run through fhirpath.js by hand at the time.
+#
+# Needs node, and fhirpath.js installed under difftest/. Not part of `test`: it
+# depends on a JavaScript toolchain that has nothing to do with using this
+# library.
+difftest:
+	@cd difftest && [ -d node_modules ] || npm install --silent
+	@cd difftest && go run . $(DIFFTEST_ARGS)
 
 conformance-update:
 	@cd conformance && go test -run TestOfficialSuite -update-known-failures .

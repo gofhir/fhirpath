@@ -203,6 +203,44 @@ treated as empty the result would be `{ }`; were it not, an empty pattern matche
 at every position and the result is `xaxbxcx`. `abc` follows from neither, so the
 case is listed as a known failure.
 
+## Measured against another engine
+
+The suite says what an expression should answer. A second engine says what
+another reading of the same specification arrives at, which is a different
+question and the one that settled several entries in this file — each run
+through fhirpath.js by hand at the time.
+
+    make difftest                          # both corpora
+    make difftest DIFFTEST_ARGS="-v"       # every divergence, not a sample
+
+It reports four kinds, and the order is the order worth reading them in: cases
+this engine gets wrong by the suite's reckoning, cases where both engines agree
+against the suite, cases fhirpath.js gets wrong, and cases the suite states no
+result for.
+
+Against fhirpath.js 5.2.0, with each engine given its model:
+
+| | R4 | R5 |
+|---|---|---|
+| Cases | 935 | 1048 |
+| Same answer | 892 (95.4%) | 1003 (95.7%) |
+| **This engine wrong, fhirpath.js right** | **1** | **1** |
+| Both agree, suite disagrees | 11 | 17 |
+| fhirpath.js wrong, this engine right | 34 | 20 |
+
+The two cases where fhirpath.js is right and this engine is not are both
+divergences taken on purpose and recorded here: `as()` over a collection, and
+`conformsTo` against an unresolvable profile.
+
+Most of what this engine answers and fhirpath.js does not is a function it has
+not implemented — `precision`, `conformsTo`, boundaries over a Quantity. The
+reverse cases are worth more attention, and the run is how they are found rather
+than stumbled into.
+
+Two of the R5 groups documented above as needing something outside the engine —
+`htmlChecks` and `%terminologies` — fail in fhirpath.js too, which is some
+comfort about how far outside they are.
+
 ## Static analysis
 
 A semantic fault is one that evaluation cannot see. `Patient.name.given1`
