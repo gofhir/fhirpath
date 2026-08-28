@@ -203,6 +203,50 @@ treated as empty the result would be `{ }`; were it not, an empty pattern matche
 at every position and the result is `xaxbxcx`. `abc` follows from neither, so the
 case is listed as a known failure.
 
+## Measured against another engine
+
+The suite says what an expression should answer. A second engine says what
+another reading of the same specification arrives at, which is a different
+question and the one that settled several entries in this file — each run
+through fhirpath.js by hand at the time.
+
+    make difftest                          # both corpora
+    make difftest DIFFTEST_ARGS="-v"       # every divergence, not a sample
+
+It reports four kinds, and the order is the order worth reading them in: cases
+this engine gets wrong by the suite's reckoning, cases where both engines agree
+against the suite, cases fhirpath.js gets wrong, and cases the suite states no
+result for.
+
+Against fhirpath.js 5.2.0, with each engine given its model:
+
+| | R4 | R5 |
+|---|---|---|
+| Cases compared | 915 | 1014 |
+| Same answer | 881 (96.3%) | 980 (96.6%) |
+| **This engine wrong, fhirpath.js right** | **1** | **0** |
+| Both agree, suite disagrees | 6 | 13 |
+| fhirpath.js wrong, this engine right | 30 | 32 |
+| Neither matches, and they differ | 3 | 2 |
+
+The one case where fhirpath.js is right and this engine is not is `as()` over a
+collection, a divergence taken on purpose and recorded below.
+
+Not every case can be compared. Those asserting a semantic fault are decided by
+static analysis, which this harness does not run — `make conformance` does — and
+those where fhirpath.js has no such function say nothing about the expression by
+refusing. Both are counted out rather than scored, which is why the totals here
+are smaller than the suite's.
+
+Most of what this engine answers and fhirpath.js does not is a function it has
+not implemented: `precision`, `conformsTo`, boundaries over a Quantity. The
+reverse cases are worth more attention, and the run is how they are found rather
+than stumbled into.
+
+Two of the R5 groups documented above as needing something outside the engine —
+`htmlChecks` and `%terminologies` — fail in fhirpath.js too, which is some
+comfort about how far outside they are.
+
 ## Static analysis
 
 A semantic fault is one that evaluation cannot see. `Patient.name.given1`

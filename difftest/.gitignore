@@ -1,0 +1,5 @@
+node_modules/
+package-lock.json
+
+# The compiled command, which `go run .` does not leave behind but `go build` does
+difftest

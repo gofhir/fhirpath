@@ -1,0 +1,8 @@
+{
+  "name": "fhirpath-difftest",
+  "private": true,
+  "description": "Evaluates a batch of suite expressions with fhirpath.js, for comparison against this engine.",
+  "dependencies": {
+    "fhirpath": "^5.2.0"
+  }
+}
