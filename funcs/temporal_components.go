@@ -185,11 +185,22 @@ func fnMillisecondOf(_ *eval.Context, input types.Collection, _ []interface{}) (
 func fnTimezoneOffsetOf(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
 	return componentOf(input, func(v types.Value) (types.Value, bool) {
 		dt, ok := v.(types.DateTime)
-		if !ok || !dt.HasTZ() {
+		if !ok {
 			return nil, false
 		}
 
-		offset, err := types.NewDecimal(offsetInHours(dt.TZOffset()))
+		// The offset the value is placed at, which is the one a caller supplied
+		// for it when it states none of its own. Reading only the stated offset
+		// would have this answer empty for a value that ordering and duration
+		// place perfectly well — and the language that asks for defaults
+		// requires the opposite: extracting the offset from such a value gives
+		// the offset, "not null".
+		minutes, placed := dt.EffectiveOffset()
+		if !placed {
+			return nil, false
+		}
+
+		offset, err := types.NewDecimal(offsetInHours(minutes))
 		if err != nil {
 			return nil, false
 		}

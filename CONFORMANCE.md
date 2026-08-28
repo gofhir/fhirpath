@@ -592,6 +592,42 @@ anything else leaves the value as it was, so the comparison declines rather than
 answering from an invented instant. So does a value whose precision stops above
 a time of day: `@2020` has no instant to place.
 
+#### What a default reaches
+
+An operator consults the default when **exactly one** operand lacks a stated
+offset. With neither or both, there is nothing for it to change: two bare values
+are shifted equally and the shift cancels.
+
+That last part is why this needed measuring rather than reasoning. The CQL
+engine that asked for the feature mapped its own operators at three request
+offsets and got the case selection wrong twice before the rule fell out —
+first with values at midday, where nine hours never cross a date, and then with
+interval bounds months apart, where no offset changes containment. Both looked
+like properties of the operators and were properties of the examples.
+
+Which operators, here:
+
+| | |
+|---|---|
+| Consult it | ordering and equality, `difference`, `duration`, and `timezoneOffsetOf` — everything that places a value on a clock |
+| Never consult it | `toString`, `dateOf`, `timeOf`, `hourOf` and the rest of the component extractors — everything that reads the value's own digits |
+
+The second row is the point of not writing the default into the value. A value
+written `@2020-06-15T23:00:00.0` still reports hour 23 and date 2020-06-15
+whatever offset was supplied for it, while an ordering against a stated offset
+moves.
+
+`timezoneOffsetOf` sits in the first row deliberately, and did not at first: it
+read the stated offset alone, so a value that ordering placed perfectly well
+answered empty when asked where it sat. The language that asks for defaults
+requires the opposite — extracting the offset from such a value gives the
+offset, "not null" — and a value that means one thing to ordering and another to
+extraction is two values.
+
+A value with no time of day is reached by none of it. `@2020-01-01` has no
+instant to place, so it is compared as written; a comparison against a DateTime
+is decided by precision, as it was before defaults existed.
+
 This is not hypothetical. Every published eCQM library declares its measurement
 period without an offset — `Interval[@2019-01-01T00:00:00.0, @2020-01-01T00:00:00.0)`
 — while FHIR requires one on any dateTime carrying a time, so served data always
