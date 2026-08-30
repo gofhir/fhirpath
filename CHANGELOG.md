@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.1](https://github.com/gofhir/fhirpath/compare/v1.9.0...v1.9.1) (2026-08-30)
+
+
+### Bug Fixes
+
+* extraction reads the offset a value is placed at ([#47](https://github.com/gofhir/fhirpath/issues/47)) ([21f8b38](https://github.com/gofhir/fhirpath/commit/21f8b380937e66896480c79bb3af5cf0c6436eda))
+
 ## [1.9.0](https://github.com/gofhir/fhirpath/compare/v1.8.1...v1.9.0) (2026-08-27)
 
 
