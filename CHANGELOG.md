@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.9.1](https://github.com/gofhir/fhirpath/compare/v1.9.0...v1.9.1) (2026-08-30)
+
+
+### Bug Fixes
+
+* extraction reads the offset a value is placed at ([#47](https://github.com/gofhir/fhirpath/issues/47)) ([21f8b38](https://github.com/gofhir/fhirpath/commit/21f8b380937e66896480c79bb3af5cf0c6436eda))
+
+  A value given a default offset through `WithDefaultOffset` in 1.9.0 was placed
+  by some operators and not by others, so it meant different things depending on
+  which one was asked. Four places, all now reading the offset the value is
+  placed at:
+
+  | | was | is |
+  |---|---|---|
+  | `timezoneOffsetOf()` | empty | the offset it is placed at |
+  | arithmetic — `v + 1 day` | dropped the default, and durations from the result measured from elsewhere | carries it |
+  | `~`, `in`, `\|`, `distinct()` | ignored it, while `=` honoured it — one instant written two ways counted as two | agree with `=` |
+  | `lowBoundary` / `highBoundary` | the full 26-hour span of every offset the value might have had | the instant it names |
+
+  **Nothing changes without a default.** A value that states no offset and was
+  given none answers exactly as it did in 1.9.0, and the official suite is
+  unchanged at 927/935 (R4) and 1034/1048 (R5).
+
+  Found by the CQL engine that asked for defaults: it mapped which of its own
+  operators consult one and sent the table, and checking this engine against it
+  turned up all four. Three of them predate the feature — writing down what a
+  default should reach is what made them checkable.
+
 ## [1.9.0](https://github.com/gofhir/fhirpath/compare/v1.8.1...v1.9.0) (2026-08-27)
 
 
