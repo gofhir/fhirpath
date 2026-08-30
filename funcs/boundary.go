@@ -399,8 +399,11 @@ func boundaryDay(year, month int, low bool) int {
 // boundaryTimezone keeps the value's own offset when it has one; otherwise the
 // boundary spans every possible offset.
 func boundaryTimezone(dt types.DateTime, low bool) string {
-	if dt.HasTZ() {
-		return formatTZOffset(dt.TZOffset())
+	// A value that a caller placed is not one whose offset is unknown, so the
+	// bound is the instant it names rather than the span of every offset it
+	// might have had.
+	if minutes, placed := dt.EffectiveOffset(); placed {
+		return formatTZOffset(minutes)
 	}
 	if low {
 		return earliestTimezone

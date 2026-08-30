@@ -592,6 +592,64 @@ anything else leaves the value as it was, so the comparison declines rather than
 answering from an invented instant. So does a value whose precision stops above
 a time of day: `@2020` has no instant to place.
 
+#### What a default reaches
+
+An operator consults the default when an operand lacks a stated offset. Where
+both operands lack one **and were given the same default** — which is what a
+caller applying one evaluation-request offset to every bare value produces — the
+two are shifted equally and the shift cancels, so the answer does not move.
+
+The qualifier matters here in a way it does not for such a caller. A default is
+supplied per value, so two bare values can carry different ones, and then
+nothing cancels:
+
+    a := bare("2020-06-15T12:00:00.0").WithDefaultOffset(-5 * time.Hour)
+    b := bare("2020-06-15T12:00:00.0").WithDefaultOffset(9 * time.Hour)
+    // hours between them: -14, not 0
+
+Whether that is a sensible thing to do is the caller's business; that it is
+possible is why the cancellation is a property of how the defaults were
+supplied, not of the operators.
+
+The cancellation is also why this needed measuring rather than reasoning. The
+CQL engine that asked for the feature mapped its own operators at three request
+offsets and got the case selection wrong twice before the rule fell out —
+first with values at midday, where nine hours never cross a date, and then with
+interval bounds months apart, where no offset changes containment. Both looked
+like properties of the operators and were properties of the examples.
+
+Which operators, here:
+
+| | |
+|---|---|
+| Consult it | ordering, equality and equivalence, membership and union, `difference`, `duration`, the boundary functions, arithmetic, and `timezoneOffsetOf` — everything that places a value on a clock, or carries a placed value forward |
+| Never consult it | `toString`, `dateOf`, `timeOf`, `hourOf` and the rest of the component extractors — everything that reads the value's own digits |
+
+Three of those reached the first row late, and all three were found by checking
+this engine against the table rather than by reading the code: arithmetic
+rebuilt its result without the default, so a shifted value could no longer be
+placed and its durations silently measured from elsewhere; equality consulted
+the default while equivalence, `in` and `|` did not, so two values that `=`
+called equal collapsed to two items under a union; and the boundary functions
+gave a placed value the full 26-hour span of every offset it might have had,
+while `timezoneOffsetOf` on the same value named one.
+
+The second row is the point of not writing the default into the value. A value
+written `@2020-06-15T23:00:00.0` still reports hour 23 and date 2020-06-15
+whatever offset was supplied for it, while an ordering against a stated offset
+moves.
+
+`timezoneOffsetOf` sits in the first row deliberately, and did not at first: it
+read the stated offset alone, so a value that ordering placed perfectly well
+answered empty when asked where it sat. The language that asks for defaults
+requires the opposite — extracting the offset from such a value gives the
+offset, "not null" — and a value that means one thing to ordering and another to
+extraction is two values.
+
+A value with no time of day is reached by none of it. `@2020-01-01` has no
+instant to place, so it is compared as written; a comparison against a DateTime
+is decided by precision, as it was before defaults existed.
+
 This is not hypothetical. Every published eCQM library declares its measurement
 period without an offset — `Interval[@2019-01-01T00:00:00.0, @2020-01-01T00:00:00.0)`
 — while FHIR requires one on any dateTime carrying a time, so served data always
