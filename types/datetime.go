@@ -261,11 +261,13 @@ func (dt DateTime) ToTime() time.Time {
 		day = 1
 	}
 
-	var loc *time.Location
-	if dt.hasTZ {
-		loc = time.FixedZone("", dt.tzOffset*60)
-	} else {
-		loc = time.UTC
+	// The offset the value is placed at, which is a default when the value
+	// states none and a caller supplied one. Reading only the stated offset
+	// here would put equality, membership and union on a different footing
+	// from ordering, which reads the same value through EffectiveOffset.
+	loc := time.UTC
+	if minutes, placed := dt.EffectiveOffset(); placed {
+		loc = time.FixedZone("", minutes*60)
 	}
 
 	return time.Date(dt.year, time.Month(month), day, dt.hour, dt.minute, dt.second, dt.millis*1000000, loc)
@@ -310,16 +312,22 @@ func (dt DateTime) AddDuration(value int, unit string) (DateTime, error) {
 	}
 
 	result := DateTime{
-		year:      shifted.Year(),
-		month:     int(shifted.Month()),
-		day:       shifted.Day(),
-		hour:      shifted.Hour(),
-		minute:    shifted.Minute(),
-		second:    shifted.Second(),
-		millis:    shifted.Nanosecond() / 1000000,
-		tzOffset:  dt.tzOffset,
-		hasTZ:     dt.hasTZ,
-		precision: dt.precision,
+		year:     shifted.Year(),
+		month:    int(shifted.Month()),
+		day:      shifted.Day(),
+		hour:     shifted.Hour(),
+		minute:   shifted.Minute(),
+		second:   shifted.Second(),
+		millis:   shifted.Nanosecond() / 1000000,
+		tzOffset: dt.tzOffset,
+		hasTZ:    dt.hasTZ,
+		// A shifted value is the same value moved, so it is placed where the
+		// original was. Dropping the default here would leave arithmetic
+		// producing a value that ordering can no longer place, and durations
+		// measuring from a different instant than the one before the shift.
+		defaultOffset:    dt.defaultOffset,
+		hasDefaultOffset: dt.hasDefaultOffset,
+		precision:        dt.precision,
 	}
 
 	// A shift never makes the value more precise than it was

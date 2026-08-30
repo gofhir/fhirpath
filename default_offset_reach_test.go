@@ -112,10 +112,60 @@ func TestDefaultOffsetDoesNotReachTheValueAsWritten(t *testing.T) {
 	}
 }
 
-// With both operands bare the default shifts them equally and cancels, so it
-// changes nothing. This is the part of the rule that has to be measured rather
-// than read: it is why an operator's answer moves only when exactly one side
-// lacks a stated offset.
+// A placed value stays placed through arithmetic and through everything that
+// compares values: a shifted value is the same value moved, and one that
+// ordering can place is one that membership and the boundaries can place too.
+func TestDefaultOffsetSurvivesArithmeticAndReachesEveryComparison(t *testing.T) {
+	instant, err := types.NewDateTime("2020-01-01T02:00:00Z")
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	vars := map[string]types.Value{
+		"v": withDefault(t, "2020-01-01T00:00:00.0", -5*time.Hour),
+		"i": instant,
+	}
+
+	// Arithmetic carries it: the result is the same value moved.
+	if got := answer(t, "(%v + 1 day).timezoneOffsetOf()", vars); got != "-5.0" {
+		t.Errorf("after a shift the value reports offset %s, want -5.0", got)
+	}
+	if got := answer(t, "(%v + 1 day).duration(%i, 'hour')", vars); got != "-27" {
+		t.Errorf("duration after a shift: got %s, want -27 (the -3 it was, a day later)", got)
+	}
+
+	// The boundaries bound the instant it names, not the span of every offset
+	// it might have had.
+	if got := answer(t, "%v.lowBoundary(17)", vars); got != "2020-01-01T00:00:00.000-05:00" {
+		t.Errorf("lowBoundary: got %s, want the value at the offset it was placed at", got)
+	}
+
+	// One instant written two ways is one value, to every operator that
+	// compares.
+	stated, err := types.NewDateTime("2020-01-01T05:00:00Z")
+	if err != nil {
+		t.Fatal(err)
+	}
+	pair := map[string]types.Value{
+		"a": withDefault(t, "2020-01-01T00:00:00.0", -5*time.Hour),
+		"b": stated,
+	}
+
+	for _, tc := range []struct{ expr, want string }{
+		{"%a = %b", "true"},
+		{"%a ~ %b", "true"},
+		{"%a in %b", "true"},
+		{"(%a | %b).count()", "1"},
+	} {
+		if got := answer(t, tc.expr, pair); got != tc.want {
+			t.Errorf("%s: got %s, want %s", tc.expr, got, tc.want)
+		}
+	}
+}
+
+// Two bare values given the same default are shifted equally, so the shift
+// cancels — which is what a caller applying one evaluation-request offset to
+// every value produces.
 func TestDefaultOffsetCancelsWhenBothSidesAreBare(t *testing.T) {
 	for _, offset := range []time.Duration{0, 14 * time.Hour, -11 * time.Hour} {
 		t.Run(offset.String(), func(t *testing.T) {
@@ -131,6 +181,20 @@ func TestDefaultOffsetCancelsWhenBothSidesAreBare(t *testing.T) {
 				t.Errorf("ordering two bare values: got %s, want true", got)
 			}
 		})
+	}
+}
+
+// The cancellation is a property of the defaults being equal, not of the
+// operators: a default is supplied per value, and two bare values carrying
+// different ones do not cancel.
+func TestDefaultOffsetDoesNotCancelWhenTheDefaultsDiffer(t *testing.T) {
+	vars := map[string]types.Value{
+		"a": withDefault(t, "2020-06-15T12:00:00.0", -5*time.Hour),
+		"b": withDefault(t, "2020-06-15T12:00:00.0", 9*time.Hour),
+	}
+
+	if got := answer(t, "%a.duration(%b, 'hour')", vars); got != "-14" {
+		t.Errorf("got %s, want -14 — the two were placed fourteen hours apart", got)
 	}
 }
 
