@@ -102,7 +102,7 @@ FHIRPath distingue entre **igualdad** y **equivalencia**.
 5 != {}       --> {}      (empty)
 ```
 
-**Evaluación singleton:** Ambos operandos deben ser colecciones singleton. Si alguno tiene más de un elemento, el resultado es vacío.
+**Colecciones:** La igualdad compara las colecciones elemento por elemento, en orden. Colecciones de distinto tamaño no son iguales, así que `(1 | 2) = 1` es `false`, y `(1 | 2) = (2 | 1)` también es `false`. Si alguno de los operandos es vacío, el resultado es vacío.
 
 ### Equivalencia (`~`, `!~`)
 
@@ -186,29 +186,31 @@ Implicación lógica: `A implies B` es equivalente a `(not A) or B`.
 
 Punto clave: `false implies X` siempre es `true`, independientemente de `X`. Esta es la tabla de verdad estándar para la implicación material.
 
-### not
+### not()
 
-Negación unaria. Retorna la negación lógica de un singleton Boolean.
+La negación es una función, no un operador: `true.not()`, `Patient.active.not()`.
 
-| Entrada | Resultado de `not` |
+| Entrada | Resultado de `not()` |
 |-------|:------------:|
 | `true` | `false` |
 | `false` | `true` |
 | `{}` | `{}` |
 
-Si la entrada no es un singleton Boolean, el resultado es vacío.
+Un único elemento que no es Boolean cuenta como `true`, así que `5.not()` es `false`. Más de un elemento es un error.
 
 ### Ejemplos
 
 ```text
 true and false       --> false
 true and {}          --> {}
-false and {}         --> false   (short-circuit)
-true or {}           --> true    (short-circuit)
+false and {}         --> false
+true or {}           --> true
 true xor false       --> true
-false implies false   --> true
-(not true)           --> false
+false implies false  --> true
+true.not()           --> false
 ```
+
+Los dos operandos se evalúan siempre. `false and {}` es `false` por la tabla de verdad, no porque se omita el lado derecho: un error en el lado derecho igual termina la evaluación, así que `false and (true | false).not()` es un error. La especificación deja el cortocircuito a criterio de la implementación y advierte que no hay que depender de él; fhirpath.js tampoco lo hace. Si el lado derecho no debe ejecutarse, usa `iif()`.
 
 ## Operadores de Colección
 
