@@ -7,6 +7,17 @@
 
 * with a model, an absent field costs one read, and an absent choice two ([#56](https://github.com/gofhir/fhirpath/issues/56)) ([0d01d45](https://github.com/gofhir/fhirpath/commit/0d01d4540e1e5cdb1b585a7240454cc02d5c8eac))
 
+  With a model, a field the model types was read again untyped when it was
+  absent, and a choice element was tried one read per choice type. Both now
+  cost what 1.9.2 made them cost without a model:
+
+  | on a 1.1 MB resource, with a model | was | is |
+  |---|---|---|
+  | an absent field | 1.7 ms | 1.1 ms, as a present one |
+  | an absent choice (Observation.value's 11 types) | 7.4 ms | 1.7 ms |
+
+  No answer changes: the R4 examples give the same results as 1.9.3.
+
 ## [1.9.3](https://github.com/gofhir/fhirpath/compare/v1.9.2...v1.9.3) (2026-09-30)
 
 
