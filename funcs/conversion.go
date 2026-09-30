@@ -30,98 +30,98 @@ func init() {
 		Name:    "toBoolean",
 		MinArgs: 0,
 		MaxArgs: 0,
-		Fn:      fnToBoolean,
+		Fn:      singleInput("toBoolean", fnToBoolean),
 	})
 
 	Register(FuncDef{
 		Name:    "convertsToBoolean",
 		MinArgs: 0,
 		MaxArgs: 0,
-		Fn:      fnConvertsToBoolean,
+		Fn:      singleInput("convertsToBoolean", fnConvertsToBoolean),
 	})
 
 	Register(FuncDef{
 		Name:    "toInteger",
 		MinArgs: 0,
 		MaxArgs: 0,
-		Fn:      fnToInteger,
+		Fn:      singleInput("toInteger", fnToInteger),
 	})
 
 	Register(FuncDef{
 		Name:    "convertsToInteger",
 		MinArgs: 0,
 		MaxArgs: 0,
-		Fn:      fnConvertsToInteger,
+		Fn:      singleInput("convertsToInteger", fnConvertsToInteger),
 	})
 
 	Register(FuncDef{
 		Name:    "toDecimal",
 		MinArgs: 0,
 		MaxArgs: 0,
-		Fn:      fnToDecimal,
+		Fn:      singleInput("toDecimal", fnToDecimal),
 	})
 
 	Register(FuncDef{
 		Name:    "convertsToDecimal",
 		MinArgs: 0,
 		MaxArgs: 0,
-		Fn:      fnConvertsToDecimal,
+		Fn:      singleInput("convertsToDecimal", fnConvertsToDecimal),
 	})
 
 	Register(FuncDef{
 		Name:    "toString",
 		MinArgs: 0,
 		MaxArgs: 0,
-		Fn:      fnToString,
+		Fn:      singleInput("toString", fnToString),
 	})
 
 	Register(FuncDef{
 		Name:    "convertsToString",
 		MinArgs: 0,
 		MaxArgs: 0,
-		Fn:      fnConvertsToString,
+		Fn:      singleInput("convertsToString", fnConvertsToString),
 	})
 
 	Register(FuncDef{
 		Name:    "toDate",
 		MinArgs: 0,
 		MaxArgs: 0,
-		Fn:      fnToDate,
+		Fn:      singleInput("toDate", fnToDate),
 	})
 
 	Register(FuncDef{
 		Name:    "convertsToDate",
 		MinArgs: 0,
 		MaxArgs: 0,
-		Fn:      fnConvertsToDate,
+		Fn:      singleInput("convertsToDate", fnConvertsToDate),
 	})
 
 	Register(FuncDef{
 		Name:    "toDateTime",
 		MinArgs: 0,
 		MaxArgs: 0,
-		Fn:      fnToDateTime,
+		Fn:      singleInput("toDateTime", fnToDateTime),
 	})
 
 	Register(FuncDef{
 		Name:    "convertsToDateTime",
 		MinArgs: 0,
 		MaxArgs: 0,
-		Fn:      fnConvertsToDateTime,
+		Fn:      singleInput("convertsToDateTime", fnConvertsToDateTime),
 	})
 
 	Register(FuncDef{
 		Name:    "toTime",
 		MinArgs: 0,
 		MaxArgs: 0,
-		Fn:      fnToTime,
+		Fn:      singleInput("toTime", fnToTime),
 	})
 
 	Register(FuncDef{
 		Name:    "convertsToTime",
 		MinArgs: 0,
 		MaxArgs: 0,
-		Fn:      fnConvertsToTime,
+		Fn:      singleInput("convertsToTime", fnConvertsToTime),
 	})
 
 	Register(FuncDef{
@@ -181,6 +181,23 @@ func fnIif(_ *eval.Context, input types.Collection, args []interface{}) (types.C
 	}
 
 	return types.Collection{}, nil
+}
+
+// singleInput ends the evaluation when a conversion is given more than one
+// item, as the specification requires of every to- and convertsTo- function:
+// "If the input collection contains multiple items, the evaluation of the
+// expression will end and signal an error to the calling environment."
+//
+// Without it a conversion reads the first item and answers for a value the
+// expression never singled out: (1 | 2).toString() gave '1'.
+func singleInput(name string, fn eval.FuncImpl) eval.FuncImpl {
+	return func(ctx *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
+		if len(input) > 1 {
+			return nil, eval.NewEvalError(eval.ErrSingletonExpected,
+				"%s() requires a singleton input, got %d items", name, len(input))
+		}
+		return fn(ctx, input, args)
+	}
 }
 
 // fnToBoolean converts the input to a boolean.
