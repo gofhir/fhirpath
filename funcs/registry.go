@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	"github.com/gofhir/fhirpath/eval"
+	"github.com/gofhir/fhirpath/types"
 )
 
 // FuncDef is an alias for eval.FuncDef.
@@ -86,4 +87,24 @@ func List() []string {
 // GetRegistry returns the global registry.
 func GetRegistry() *Registry {
 	return globalRegistry
+}
+
+// singleInput ends the evaluation when a function that operates on one value
+// is given more, as the specification requires of each: "If the input
+// collection contains multiple items, the evaluation of the expression will end
+// and signal an error to the calling environment." It says so of the to- and
+// convertsTo- functions, the math functions and the boundaries; encode, decode,
+// escape, unescape and comparable are defined on "a singleton".
+//
+// Without it a function reads the first item, or answers empty, for a value the
+// expression never singled out: (1 | 2).toString() gave '1', and
+// (1 | -2).abs() gave 1.
+func singleInput(name string, fn eval.FuncImpl) eval.FuncImpl {
+	return func(ctx *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
+		if len(input) > 1 {
+			return nil, eval.NewEvalError(eval.ErrSingletonExpected,
+				"%s() requires a singleton input, got %d items", name, len(input))
+		}
+		return fn(ctx, input, args)
+	}
 }

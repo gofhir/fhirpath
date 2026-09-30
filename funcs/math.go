@@ -15,70 +15,70 @@ func init() {
 		Name:    "abs",
 		MinArgs: 0,
 		MaxArgs: 0,
-		Fn:      fnAbs,
+		Fn:      singleInput("abs", fnAbs),
 	})
 
 	Register(FuncDef{
 		Name:    "ceiling",
 		MinArgs: 0,
 		MaxArgs: 0,
-		Fn:      fnCeiling,
+		Fn:      singleInput("ceiling", fnCeiling),
 	})
 
 	Register(FuncDef{
 		Name:    "exp",
 		MinArgs: 0,
 		MaxArgs: 0,
-		Fn:      fnExp,
+		Fn:      singleInput("exp", fnExp),
 	})
 
 	Register(FuncDef{
 		Name:    "floor",
 		MinArgs: 0,
 		MaxArgs: 0,
-		Fn:      fnFloor,
+		Fn:      singleInput("floor", fnFloor),
 	})
 
 	Register(FuncDef{
 		Name:    "ln",
 		MinArgs: 0,
 		MaxArgs: 0,
-		Fn:      fnLn,
+		Fn:      singleInput("ln", fnLn),
 	})
 
 	Register(FuncDef{
 		Name:    "log",
 		MinArgs: 1,
 		MaxArgs: 1,
-		Fn:      fnLog,
+		Fn:      singleInput("log", fnLog),
 	})
 
 	Register(FuncDef{
 		Name:    "power",
 		MinArgs: 1,
 		MaxArgs: 1,
-		Fn:      fnPower,
+		Fn:      singleInput("power", fnPower),
 	})
 
 	Register(FuncDef{
 		Name:    "round",
 		MinArgs: 0,
 		MaxArgs: 1,
-		Fn:      fnRound,
+		Fn:      singleInput("round", fnRound),
 	})
 
 	Register(FuncDef{
 		Name:    "sqrt",
 		MinArgs: 0,
 		MaxArgs: 0,
-		Fn:      fnSqrt,
+		Fn:      singleInput("sqrt", fnSqrt),
 	})
 
 	Register(FuncDef{
 		Name:    "truncate",
 		MinArgs: 0,
 		MaxArgs: 0,
-		Fn:      fnTruncate,
+		Fn:      singleInput("truncate", fnTruncate),
 	})
 
 	// Aggregate functions
