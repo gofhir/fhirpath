@@ -1432,7 +1432,7 @@ func applyMultiplicative(leftCol, rightCol types.Collection, op string) interfac
 
 	// Singleton check
 	if len(leftCol) != 1 || len(rightCol) != 1 {
-		return SingletonError(len(leftCol) + len(rightCol))
+		return OperandSingletonError(op, len(leftCol), len(rightCol))
 	}
 
 	var result types.Value
@@ -1495,7 +1495,7 @@ func applyAdditive(leftCol, rightCol types.Collection, op string) interface{} {
 
 	// Singleton check
 	if len(leftCol) != 1 || len(rightCol) != 1 {
-		return SingletonError(len(leftCol) + len(rightCol))
+		return OperandSingletonError(op, len(leftCol), len(rightCol))
 	}
 
 	var result types.Value
@@ -1581,7 +1581,7 @@ func applyInequality(leftCol, rightCol types.Collection, op string) interface{} 
 
 	// Singleton check
 	if len(leftCol) != 1 || len(rightCol) != 1 {
-		return SingletonError(len(leftCol) + len(rightCol))
+		return OperandSingletonError(op, len(leftCol), len(rightCol))
 	}
 
 	var result types.Collection
