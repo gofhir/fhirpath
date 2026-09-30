@@ -10,8 +10,8 @@
 //
 // The corpus is built from the version's own packages: every element path of
 // every resource's snapshot as an expression, the same beneath a where() over a
-// sibling for each backbone (navigation inside a where() is where a lost path
-// shows), every root constraint as written and every element constraint as
+// sibling that carries data for each backbone (navigation inside a where() is
+// where a lost path shows), every root constraint as written and every element constraint as
 // P.all(X), which evaluates it on each instance. ele-1 is left out; it is on
 // every element and says little. Each is evaluated with the version's model, on
 // the raw resource and on a Document.
@@ -39,6 +39,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/gofhir/fhirpath"
 	"github.com/gofhir/fhirpath/eval"
@@ -141,11 +142,17 @@ func evalCommand(args []string) error {
 	if err != nil {
 		return err
 	}
-	defer f.Close()
 	w := bufio.NewWriter(f)
-	defer w.Flush()
 
+	// A file cut short would read as evaluations one side does not have, so
+	// every write is checked, the last ones included.
 	n, err := evaluate(corpus, examplesDir, version.model(), w)
+	if err == nil {
+		err = w.Flush()
+	}
+	if closeErr := f.Close(); err == nil {
+		err = closeErr
+	}
 	fmt.Fprintf(os.Stderr, "%s: %d evaluations\n", *fhirVersion, n)
 	return err
 }
@@ -159,7 +166,11 @@ func fetch(cache, pkg string) (string, error) {
 	}
 
 	fmt.Fprintln(os.Stderr, "fetching", pkg)
-	req, err := http.NewRequestWithContext(context.Background(), http.MethodGet, "https://packages2.fhir.org/packages/"+pkg, http.NoBody)
+	// A stalled download fails rather than hangs; the largest package is tens
+	// of megabytes.
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
+	defer cancel()
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://packages2.fhir.org/packages/"+pkg, http.NoBody)
 	if err != nil {
 		return "", err
 	}
@@ -172,36 +183,58 @@ func fetch(cache, pkg string) (string, error) {
 		return "", fmt.Errorf("fetching %s: %s", pkg, resp.Status)
 	}
 
-	gz, err := gzip.NewReader(resp.Body)
+	tmp := dir + ".partial"
+	err = os.RemoveAll(tmp)
 	if err != nil {
 		return "", err
 	}
-	tmp := dir + ".partial"
-	_ = os.RemoveAll(tmp)
+	extracted, err := extract(resp.Body, tmp)
+	if err != nil {
+		return "", fmt.Errorf("fetching %s: %w", pkg, err)
+	}
+	if extracted == 0 {
+		return "", fmt.Errorf("fetching %s: no JSON under package/ in what was downloaded", pkg)
+	}
+
+	// What is left of an earlier run that did not finish is replaced.
+	err = os.RemoveAll(dir)
+	if err == nil {
+		err = os.Rename(tmp, dir)
+	}
+	if err != nil {
+		return "", err
+	}
+	return filepath.Join(dir, "package"), nil
+}
+
+// extract writes a package tarball's top-level JSON files under dir and says
+// how many there were. Nothing else is needed, and a name that climbs out of
+// the directory, or is not a regular file, is not written anywhere.
+func extract(r io.Reader, dir string) (int, error) {
+	gz, err := gzip.NewReader(r)
+	if err != nil {
+		return 0, err
+	}
+
+	extracted := 0
 	tr := tar.NewReader(gz)
 	for {
 		hdr, err := tr.Next()
 		if errors.Is(err, io.EOF) {
-			break
+			return extracted, nil
 		}
 		if err != nil {
-			return "", err
+			return extracted, err
 		}
-		// Only the package's top-level JSON is needed, and a name that climbs
-		// out of the directory is not written anywhere.
 		name := filepath.Clean(hdr.Name)
 		if hdr.Typeflag != tar.TypeReg || filepath.Dir(name) != "package" || !strings.HasSuffix(name, ".json") {
 			continue
 		}
-		if err := writeFile(filepath.Join(tmp, name), tr); err != nil {
-			return "", err
+		if err := writeFile(filepath.Join(dir, name), tr); err != nil {
+			return extracted, err
 		}
+		extracted++
 	}
-
-	if err := os.Rename(tmp, dir); err != nil {
-		return "", err
-	}
-	return filepath.Join(dir, "package"), nil
 }
 
 func writeFile(path string, r io.Reader) error {
@@ -282,11 +315,17 @@ func expressionsFor(sd *structureDefinition) []string {
 	}
 
 	for parent, names := range children {
-		if !strings.Contains(parent, ".") || len(names) < 2 {
+		if !strings.Contains(parent, ".") {
 			continue
 		}
-		for _, name := range names[1:] {
-			exprs[fmt.Sprintf("%s.where(%s.exists()).%s", parent, names[0], name)] = true
+		filter := dataSibling(names)
+		if filter == "" {
+			continue
+		}
+		for _, name := range names {
+			if name != filter {
+				exprs[fmt.Sprintf("%s.where(%s.exists()).%s", parent, filter, name)] = true
+			}
 		}
 	}
 
@@ -296,6 +335,21 @@ func expressionsFor(sd *structureDefinition) []string {
 	}
 	sort.Strings(list)
 	return list
+}
+
+// dataSibling picks the backbone child a where() filters on: the first that
+// carries data. Every backbone starts with id, extension and modifierExtension,
+// which examples rarely hold, and a where() over them keeps nothing, so a
+// regression in what follows it would read as empty on both sides.
+func dataSibling(names []string) string {
+	for _, name := range names {
+		switch name {
+		case "id", "extension", "modifierExtension":
+			continue
+		}
+		return name
+	}
+	return ""
 }
 
 // evaluate writes one line per example and expression: the file, the
@@ -333,21 +387,25 @@ func evaluate(corpus map[string][]string, examplesDir string, model fhirpath.Mod
 		for _, text := range corpus[head.ResourceType] {
 			expr, seen := compiled[text]
 			if !seen {
-				// An expression this engine cannot compile is left out rather
-				// than answered, on both sides alike.
 				var err error
 				if expr, err = fhirpath.Compile(text); err != nil {
 					expr = nil
 				}
 				compiled[text] = expr
 			}
-			if expr == nil {
-				continue
-			}
 
-			raw, rawErr := expr.EvaluateWithOptions(data, fhirpath.WithModel(model))
-			kept, keptErr := doc.EvaluateWithOptions(expr, fhirpath.WithModel(model))
-			fmt.Fprintf(w, "%s\t%s\t%s\t%s\n", filepath.Base(file), text, answer(raw, rawErr), answer(kept, keptErr))
+			// An expression that does not compile is recorded as such, so that
+			// one revision compiling what the other cannot is a difference like
+			// any other.
+			line := "compile-error\tcompile-error"
+			if expr != nil {
+				raw, rawErr := expr.EvaluateWithOptions(data, fhirpath.WithModel(model))
+				kept, keptErr := doc.EvaluateWithOptions(expr, fhirpath.WithModel(model))
+				line = answer(raw, rawErr) + "\t" + answer(kept, keptErr)
+			}
+			if _, err := fmt.Fprintf(w, "%s\t%s\t%s\n", filepath.Base(file), text, line); err != nil {
+				return n, err
+			}
 			n++
 		}
 	}

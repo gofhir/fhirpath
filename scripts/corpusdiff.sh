@@ -51,7 +51,14 @@ esac
 rm -rf "$worktree" "$out_dir/tool-base"
 git worktree prune
 
+base_pid=""
 cleanup() {
+	# A baseline still evaluating when this run stops would go on writing into
+	# the files the next run reads.
+	if [ -n "$base_pid" ]; then
+		kill "$base_pid" >/dev/null 2>&1 || true
+		wait "$base_pid" >/dev/null 2>&1 || true
+	fi
 	git worktree remove --force "$worktree" >/dev/null 2>&1 || true
 	git worktree prune >/dev/null 2>&1 || true
 	rm -rf "$out_dir/tool-base"
@@ -85,10 +92,12 @@ for version in "${versions[@]}"; do
 	"$out_dir/corpusdiff-head" eval -fhir "$version" -cache "$cache" -out "$out_dir/$version-head.tsv" \
 		2>"$out_dir/$version-head.log"
 	if ! wait "$base_pid"; then
+		base_pid=""
 		tail -5 "$out_dir/$version-base.log" >&2
 		echo "corpusdiff: the baseline did not run" >&2
 		exit 1
 	fi
+	base_pid=""
 
 	echo
 	echo "==> $version: $BASE against $(git rev-parse --abbrev-ref HEAD)"
