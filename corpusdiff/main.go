@@ -10,7 +10,7 @@
 //
 // The corpus is built from the version's own packages: every element path of
 // every resource's snapshot as an expression, the same beneath a where() over a
-// sibling that carries data for each backbone (navigation inside a where() is
+// sibling the examples hold alongside each field of a backbone (navigation inside a where() is
 // where a lost path shows), every root constraint as written and every element constraint as
 // P.all(X), which evaluates it on each instance. ele-1 is left out; it is on
 // every element and says little. Each is evaluated with the version's model, on
@@ -133,7 +133,7 @@ func evalCommand(args []string) error {
 		return err
 	}
 
-	corpus, err := buildCorpus(coreDir)
+	corpus, err := buildCorpus(coreDir, examplesDir)
 	if err != nil {
 		return err
 	}
@@ -269,8 +269,12 @@ type structureDefinition struct {
 
 // buildCorpus returns, for each resource type, the expressions to evaluate on
 // its examples, sorted so that two runs write their answers in the same order.
-func buildCorpus(coreDir string) (map[string][]string, error) {
+func buildCorpus(coreDir, examplesDir string) (map[string][]string, error) {
 	files, err := filepath.Glob(filepath.Join(coreDir, "StructureDefinition-*.json"))
+	if err != nil {
+		return nil, err
+	}
+	together, err := countFields(examplesDir)
 	if err != nil {
 		return nil, err
 	}
@@ -285,14 +289,14 @@ func buildCorpus(coreDir string) (map[string][]string, error) {
 		if json.Unmarshal(data, &sd) != nil || sd.Kind != "resource" || sd.Derivation != "specialization" {
 			continue
 		}
-		corpus[sd.Type] = expressionsFor(&sd)
+		corpus[sd.Type] = expressionsFor(&sd, together)
 	}
 	return corpus, nil
 }
 
 // expressionsFor lists a resource's corpus: its element paths, the same beneath
 // a where() over a sibling, and its constraints.
-func expressionsFor(sd *structureDefinition) []string {
+func expressionsFor(sd *structureDefinition, together map[string]int) []string {
 	exprs := map[string]bool{}
 	children := map[string][]string{}
 	for _, e := range sd.Snapshot.Element {
@@ -318,12 +322,8 @@ func expressionsFor(sd *structureDefinition) []string {
 		if !strings.Contains(parent, ".") {
 			continue
 		}
-		filter := dataSibling(names)
-		if filter == "" {
-			continue
-		}
 		for _, name := range names {
-			if name != filter {
+			if filter := filterSibling(parent, name, names, together); filter != "" {
 				exprs[fmt.Sprintf("%s.where(%s.exists()).%s", parent, filter, name)] = true
 			}
 		}
@@ -337,19 +337,85 @@ func expressionsFor(sd *structureDefinition) []string {
 	return list
 }
 
-// dataSibling picks the backbone child a where() filters on: the first that
-// carries data. Every backbone starts with id, extension and modifierExtension,
-// which examples rarely hold, and a where() over them keeps nothing, so a
-// regression in what follows it would read as empty on both sides.
-func dataSibling(names []string) string {
+// filterSibling picks the child a where() filters on before reading target:
+// the sibling the examples hold most often alongside target, in the same
+// instance, or "" when none is ever held with it. A filter that keeps only
+// instances without target reads as empty whatever the engine does, and a
+// regression beneath it would read as empty on both sides — every backbone
+// starts with id, and the first child after it is often optional. The examples
+// are counted from their JSON rather than through the engine, so that both
+// revisions evaluate the same corpus.
+func filterSibling(parent, target string, names []string, together map[string]int) string {
+	best, bestCount := "", 0
 	for _, name := range names {
 		switch name {
-		case "id", "extension", "modifierExtension":
+		case target, "id", "extension", "modifierExtension":
 			continue
 		}
-		return name
+		if n := together[parent+"|"+name+"|"+target]; n > bestCount {
+			best, bestCount = name, n
+		}
 	}
-	return ""
+	return best
+}
+
+// countFields counts, over the examples, how many instances of each element
+// path hold two fields together: "Claim.diagnosis|sequence|diagnosis" for every
+// diagnosis entry with both. A variant of a choice element counts for its base
+// name, valueQuantity for value.
+func countFields(examplesDir string) (map[string]int, error) {
+	files, err := filepath.Glob(filepath.Join(examplesDir, "*.json"))
+	if err != nil {
+		return nil, err
+	}
+
+	together := map[string]int{}
+	for _, file := range files {
+		data, err := os.ReadFile(file)
+		if err != nil {
+			return nil, err
+		}
+		if len(data) > maxResource {
+			continue
+		}
+		var resource map[string]any
+		if json.Unmarshal(data, &resource) != nil {
+			continue
+		}
+		if resourceType, ok := resource["resourceType"].(string); ok {
+			countObject(resourceType, resource, together)
+		}
+	}
+	return together, nil
+}
+
+func countObject(path string, object map[string]any, together map[string]int) {
+	names := make([]string, 0, len(object))
+	for key, value := range object {
+		name := strings.TrimPrefix(key, "_")
+		if i := strings.IndexFunc(name, func(r rune) bool { return 'A' <= r && r <= 'Z' }); i > 0 {
+			name = name[:i]
+		}
+		names = append(names, name)
+
+		items, isArray := value.([]any)
+		if !isArray {
+			items = []any{value}
+		}
+		for _, item := range items {
+			if child, ok := item.(map[string]any); ok {
+				countObject(path+"."+name, child, together)
+			}
+		}
+	}
+
+	for _, a := range names {
+		for _, b := range names {
+			if a != b {
+				together[path+"|"+a+"|"+b]++
+			}
+		}
+	}
 }
 
 // evaluate writes one line per example and expression: the file, the

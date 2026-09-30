@@ -89,8 +89,12 @@ for version in "${versions[@]}"; do
 	"$out_dir/corpusdiff-base" eval -fhir "$version" -cache "$cache" -out "$out_dir/$version-base.tsv" \
 		2>"$out_dir/$version-base.log" &
 	base_pid=$!
-	"$out_dir/corpusdiff-head" eval -fhir "$version" -cache "$cache" -out "$out_dir/$version-head.tsv" \
-		2>"$out_dir/$version-head.log"
+	if ! "$out_dir/corpusdiff-head" eval -fhir "$version" -cache "$cache" -out "$out_dir/$version-head.tsv" \
+		2>"$out_dir/$version-head.log"; then
+		tail -5 "$out_dir/$version-head.log" >&2
+		echo "corpusdiff: this tree did not run" >&2
+		exit 1
+	fi
 	if ! wait "$base_pid"; then
 		base_pid=""
 		tail -5 "$out_dir/$version-base.log" >&2
