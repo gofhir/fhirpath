@@ -102,7 +102,7 @@ FHIRPath distinguishes between **equality** and **equivalence**.
 5 != {}       --> {}      (empty)
 ```
 
-**Singleton evaluation:** Both operands must be singleton collections. If either has more than one element, the result is empty.
+**Collections:** Equality compares collections item by item, in order. Collections of different sizes are not equal, so `(1 | 2) = 1` is `false`, and `(1 | 2) = (2 | 1)` is `false` too. If either operand is empty, the result is empty.
 
 ### Equivalence (`~`, `!~`)
 
@@ -186,29 +186,31 @@ Logical implication: `A implies B` is equivalent to `(not A) or B`.
 
 Key insight: `false implies X` is always `true`, regardless of `X`. This is a standard truth table for material implication.
 
-### not
+### not()
 
-Unary negation. Returns the logical negation of a singleton Boolean.
+Negation is a function, not an operator: `true.not()`, `Patient.active.not()`.
 
-| Input | `not` Result |
+| Input | `not()` Result |
 |-------|:------------:|
 | `true` | `false` |
 | `false` | `true` |
 | `{}` | `{}` |
 
-If the input is not a singleton Boolean, the result is empty.
+A single item that is not a Boolean counts as `true`, so `5.not()` is `false`. More than one item is an error.
 
 ### Examples
 
 ```text
 true and false       --> false
 true and {}          --> {}
-false and {}         --> false   (short-circuit)
-true or {}           --> true    (short-circuit)
+false and {}         --> false
+true or {}           --> true
 true xor false       --> true
-false implies false   --> true
-(not true)           --> false
+false implies false  --> true
+true.not()           --> false
 ```
+
+Both operands are always evaluated. `false and {}` is `false` because of the truth table, not because the right side is skipped: an error on the right side still ends the evaluation, so `false and (true | false).not()` is an error. The specification leaves short-circuiting to the implementation and tells authors not to rely on it; fhirpath.js does not short-circuit either. Where the right side must not run, use `iif()`.
 
 ## Collection Operators
 
