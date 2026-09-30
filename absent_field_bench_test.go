@@ -29,14 +29,22 @@ func makeBasic(n int) []byte {
 // reading a field that is there does, not a multiple of it that grows with the
 // resource.
 func BenchmarkAbsentField(b *testing.B) {
-	model := &testModel{typeOf: map[string]string{
-		"Basic.code":    "CodeableConcept",
-		"Basic.subject": "Reference",
-	}}
+	model := &testModel{
+		typeOf: map[string]string{
+			"Basic.code":    "CodeableConcept",
+			"Basic.subject": "Reference",
+		},
+		// The choice types of Observation.value, lent to Basic so that an absent
+		// choice element is measured on the same resource.
+		choiceTypes: map[string][]string{"Basic.value": {
+			"Quantity", "CodeableConcept", "string", "boolean", "integer", "Range",
+			"Ratio", "SampledData", "time", "dateTime", "Period",
+		}},
+	}
 
 	for _, n := range []int{1000, 16000} {
 		data := makeBasic(n)
-		for _, expr := range []string{"code.exists()", "subject.exists()"} {
+		for _, expr := range []string{"code.exists()", "subject.exists()", "value.exists()"} {
 			compiled := fhirpath.MustCompile(expr)
 
 			b.Run(fmt.Sprintf("extensions=%d/%s", n, expr), func(b *testing.B) {

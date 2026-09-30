@@ -27,9 +27,10 @@ type ObjectValue struct {
 	// goes on to use. It is turned on for an object that outlives one
 	// evaluation, which is what a Document is for.
 	caching      bool
-	explicitType string // optional explicit FHIR type from polymorphic resolution
-	elementPath  string // the element the object was reached as. See ElementPath.
-	typeName     string // the type once answered, which does not change. See Type.
+	keys         map[string]struct{} // the object's keys, once read, for an object that caches
+	explicitType string              // optional explicit FHIR type from polymorphic resolution
+	elementPath  string              // the element the object was reached as. See ElementPath.
+	typeName     string              // the type once answered, which does not change. See Type.
 }
 
 // EnableCaching makes the object keep the fields it reads, and the objects it
@@ -938,10 +939,34 @@ func (o *ObjectValue) GetChoiceCollection(name string, suffixes []string) Collec
 	})
 }
 
+// GetChoiceCollectionWithType is GetChoiceCollection for the choice types a
+// model gives an element: each is tried as name with the type
+// capitalized — valueString for string — in the model's order, only where the
+// object holds that key, and read as GetCollectionWithType does.
+//
+// The answer as a whole is not kept, since another model may give the element
+// other choice types; each variant read is kept, as GetCollectionWithType keeps
+// it, and so are the object's keys.
+func (o *ObjectValue) GetChoiceCollectionWithType(name string, choiceTypes []string) Collection {
+	for _, i := range o.choiceSuffixes(name, choiceTypes) {
+		choiceType := choiceTypes[i]
+		field := name + strings.ToUpper(choiceType[:1]) + choiceType[1:]
+		if children := o.GetCollectionWithType(field, choiceType); len(children) > 0 {
+			return children
+		}
+	}
+	return Collection{}
+}
+
 // choiceSuffixes returns, in the order of suffixes, the index of each suffix
 // that appended to name is a key of the object, either as the value or as the
-// element beside it.
+// element beside it. The suffix is matched with its first letter capitalized,
+// as a variant is spelled: string matches valueString.
 func (o *ObjectValue) choiceSuffixes(name string, suffixes []string) []int {
+	if o.caching {
+		return o.choiceSuffixesFromKeys(name, suffixes)
+	}
+
 	var found []int
 
 	//nolint:errcheck // The callback never fails
@@ -955,7 +980,7 @@ func (o *ObjectValue) choiceSuffixes(name string, suffixes []string) []int {
 
 		rest := key[len(name):]
 		for i, suffix := range suffixes {
-			if string(rest) == suffix {
+			if len(rest) == len(suffix) && rest[0] == upperASCII(suffix[0]) && string(rest[1:]) == suffix[1:] {
 				if !slices.Contains(found, i) {
 					found = append(found, i)
 				}
@@ -967,6 +992,41 @@ func (o *ObjectValue) choiceSuffixes(name string, suffixes []string) []int {
 
 	slices.Sort(found)
 	return found
+}
+
+// choiceSuffixesFromKeys answers choiceSuffixes from the keys an object that
+// caches has kept, so asking again reads nothing.
+func (o *ObjectValue) choiceSuffixesFromKeys(name string, suffixes []string) []int {
+	if o.keys == nil {
+		o.keys = make(map[string]struct{})
+		//nolint:errcheck // The callback never fails
+		jsonparser.ObjectEach(o.data, func(key, _ []byte, _ jsonparser.ValueType, _ int) error {
+			o.keys[string(key)] = struct{}{}
+			return nil
+		})
+	}
+
+	var found []int
+	for i, suffix := range suffixes {
+		if suffix == "" {
+			continue
+		}
+		field := name + string(upperASCII(suffix[0])) + suffix[1:]
+		_, asValue := o.keys[field]
+		_, asElement := o.keys["_"+field]
+		if asValue || asElement {
+			found = append(found, i)
+		}
+	}
+	return found
+}
+
+// upperASCII capitalizes an ASCII letter and leaves any other byte as it is.
+func upperASCII(b byte) byte {
+	if 'a' <= b && b <= 'z' {
+		return b - 'a' + 'A'
+	}
+	return b
 }
 
 // lowerFirst converts a capitalized type name to the lower camel case FHIR uses
