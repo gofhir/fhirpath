@@ -2267,12 +2267,13 @@ func (e *Evaluator) navigateMember(input types.Collection, name string) types.Co
 		// Build FHIR element path for model lookups
 		elementPath, fhirType := e.resolveElement(obj, name)
 
-		// Try direct field access first, using type-aware conversion when model is available
+		// Try direct field access first, using type-aware conversion when model is
+		// available. A value that reads as nothing under its type reads as nothing
+		// without it too, so a typed read that finds nothing is not read again.
 		var children types.Collection
 		if fhirType != "" {
 			children = obj.GetCollectionWithType(name, fhirType)
-		}
-		if len(children) == 0 {
+		} else {
 			children = obj.GetCollection(name)
 		}
 		if len(children) > 0 {
@@ -2316,16 +2317,8 @@ func (e *Evaluator) resolvePolymorphicField(obj *types.ObjectValue, name, elemen
 
 	// When a model is available, use precise choice type suffixes
 	if m := e.ctx.model; m != nil && elementPath != "" {
-		if suffixes := m.ChoiceTypes(elementPath); len(suffixes) > 0 {
-			for _, suffix := range suffixes {
-				fieldName := name + strings.ToUpper(suffix[:1]) + suffix[1:]
-				children := obj.GetCollectionWithType(fieldName, suffix)
-				if len(children) > 0 {
-					result = append(result, children...)
-					return result
-				}
-			}
-			return result
+		if choiceTypes := m.ChoiceTypes(elementPath); len(choiceTypes) > 0 {
+			return obj.GetChoiceCollectionWithType(name, choiceTypes)
 		}
 
 		// The model knows the element and gives it no choice types, so it is not
