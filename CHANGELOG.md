@@ -7,10 +7,41 @@
 
 * conversions end with an error when given more than one item ([#49](https://github.com/gofhir/fhirpath/issues/49)) ([dc78783](https://github.com/gofhir/fhirpath/commit/dc7878352073633ec778259d6e72fc60e489722b))
 
+  `toBoolean`, `toInteger`, `toDecimal`, `toString`, `toDate`, `toDateTime`,
+  `toTime` and their `convertsTo` pairs read the first item of a collection and
+  answered for it. The specification says more than one item ends the
+  evaluation with an error, as `toQuantity` already did here and as fhirpath.js
+  does:
+
+  | | was | is |
+  |---|---|---|
+  | `(1 \| 2).toString()` | `'1'` | `SingletonExpectedError` |
+  | `(1 \| 2).toInteger()` | `1` | `SingletonExpectedError` |
+
+  **An expression that relied on the first item now fails.** Where the first
+  item was meant, say so: `first().toString()`. A single item or an empty
+  collection answers as before.
+
 
 ### Performance Improvements
 
 * an absent field costs two reads of the object, not fifty-four ([#50](https://github.com/gofhir/fhirpath/issues/50)) ([5f8c96c](https://github.com/gofhir/fhirpath/commit/5f8c96cfd4fa5d76e9e7afe4c1df10ee40367bc3))
+
+  A name the object does not hold was tried as a choice element with each of 53
+  type suffixes before it was answered empty, and each try read to the end of
+  the object. The variants are now found in one read of the keys:
+
+  | | was | is |
+  |---|---|---|
+  | `subject.exists()`, absent, on a 1.1 MB resource | 29 ms | 1.7 ms |
+  | `ref-1` over the 12,085 references of the R4 core ImplementationGuide | 18 min | 42 s |
+  | the same, with the root read once through a `Document` or `EnableCaching()` | 126 ms | 18 ms |
+
+  **One answer changes with a model.** An element the model knows and gives no
+  choice types is no longer tried as one: `subject` on a Basic holding
+  `subjectString` used to answer the string, and is empty now. Without a model,
+  and for real choice elements, answers are unchanged; the official suite is
+  unchanged at 927/935 (R4) and 1034/1048 (R5).
 
 ## [1.9.1](https://github.com/gofhir/fhirpath/compare/v1.9.0...v1.9.1) (2026-08-30)
 
