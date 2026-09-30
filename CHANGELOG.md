@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.9.2](https://github.com/gofhir/fhirpath/compare/v1.9.1...v1.9.2) (2026-09-30)
+
+
+### Bug Fixes
+
+* conversions end with an error when given more than one item ([#49](https://github.com/gofhir/fhirpath/issues/49)) ([dc78783](https://github.com/gofhir/fhirpath/commit/dc7878352073633ec778259d6e72fc60e489722b))
+
+
+### Performance Improvements
+
+* an absent field costs two reads of the object, not fifty-four ([#50](https://github.com/gofhir/fhirpath/issues/50)) ([5f8c96c](https://github.com/gofhir/fhirpath/commit/5f8c96cfd4fa5d76e9e7afe4c1df10ee40367bc3))
+
 ## [1.9.1](https://github.com/gofhir/fhirpath/compare/v1.9.0...v1.9.1) (2026-08-30)
 
 
