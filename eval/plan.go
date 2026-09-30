@@ -462,14 +462,12 @@ func compileInvocation(ctx *grammar.InvocationExpressionContext) Node {
 		// what precedes the dot, while a function's arguments are navigated
 		// from the scope in force before it.
 		oldThis := e.ctx.this
-		oldPath := e.ctx.path
 		oldOuter := e.ctx.outer
 
 		e.ctx.outer = oldThis
 		e.ctx.this = baseCol
 		defer func() {
 			e.ctx.this = oldThis
-			e.ctx.path = oldPath
 			e.ctx.outer = oldOuter
 		}()
 

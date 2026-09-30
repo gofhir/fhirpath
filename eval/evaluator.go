@@ -224,14 +224,30 @@ func (c *Context) GetModel() Model {
 	return c.model
 }
 
-// SetPath sets the current FHIR navigation path.
+// SetPath sets the FHIR path of the root the expression is evaluated against —
+// "Patient.name" for a HumanName taken out of a Patient — so that a model can
+// resolve the root's fields. A resource needs none.
 func (c *Context) SetPath(path string) {
 	c.path = path
 }
 
-// Path returns the current FHIR navigation path.
+// Path returns the path set with SetPath.
 func (c *Context) Path() string {
 	return c.path
+}
+
+// PathOf returns the path a model resolves obj's fields beneath: the element
+// it was reached as, or for the root, the path given with SetPath.
+func (c *Context) PathOf(obj *types.ObjectValue) string {
+	if path := obj.ElementPath(); path != "" {
+		return path
+	}
+	for _, value := range c.root {
+		if value == types.Value(obj) {
+			return c.path
+		}
+	}
+	return ""
 }
 
 // CheckCancellation checks if the context has been canceled.
@@ -593,7 +609,6 @@ func (e *Evaluator) evaluateWhere(input types.Collection, criteria Node) interfa
 		// Set $this to current item and $index
 		oldThis := e.ctx.this
 		oldIndex := e.ctx.index
-		oldPath := e.ctx.path
 		endScope := e.ctx.enterIterationScope()
 		e.ctx.this = types.Collection{item}
 		e.ctx.index = i
@@ -604,7 +619,6 @@ func (e *Evaluator) evaluateWhere(input types.Collection, criteria Node) interfa
 		// Restore context
 		e.ctx.this = oldThis
 		e.ctx.index = oldIndex
-		e.ctx.path = oldPath
 		endScope()
 
 		if err, ok := criteriaResult.(error); ok {
@@ -635,7 +649,6 @@ func (e *Evaluator) evaluateExists(input types.Collection, criteria Node) interf
 		// Set $this to current item
 		oldThis := e.ctx.this
 		oldIndex := e.ctx.index
-		oldPath := e.ctx.path
 		endScope := e.ctx.enterIterationScope()
 		e.ctx.this = types.Collection{item}
 		e.ctx.index = i
@@ -646,7 +659,6 @@ func (e *Evaluator) evaluateExists(input types.Collection, criteria Node) interf
 		// Restore context
 		e.ctx.this = oldThis
 		e.ctx.index = oldIndex
-		e.ctx.path = oldPath
 		endScope()
 
 		if err, ok := criteriaResult.(error); ok {
@@ -681,7 +693,6 @@ func (e *Evaluator) evaluateAll(input types.Collection, criteria Node) interface
 		// Set $this to current item
 		oldThis := e.ctx.this
 		oldIndex := e.ctx.index
-		oldPath := e.ctx.path
 		endScope := e.ctx.enterIterationScope()
 		e.ctx.this = types.Collection{item}
 		e.ctx.index = i
@@ -692,7 +703,6 @@ func (e *Evaluator) evaluateAll(input types.Collection, criteria Node) interface
 		// Restore context
 		e.ctx.this = oldThis
 		e.ctx.index = oldIndex
-		e.ctx.path = oldPath
 		endScope()
 
 		if err, ok := criteriaResult.(error); ok {
@@ -783,13 +793,13 @@ func unwrapSortDirection(expr grammar.IExpressionContext) (grammar.IExpressionCo
 
 // evaluateWithThis evaluates an expression with $this bound to a single element.
 func (e *Evaluator) evaluateWithThis(item types.Value, index int, expr Node) interface{} {
-	oldThis, oldIndex, oldPath := e.ctx.this, e.ctx.index, e.ctx.path
+	oldThis, oldIndex := e.ctx.this, e.ctx.index
 	e.ctx.this = types.Collection{item}
 	e.ctx.index = index
 
 	result := expr(e)
 
-	e.ctx.this, e.ctx.index, e.ctx.path = oldThis, oldIndex, oldPath
+	e.ctx.this, e.ctx.index = oldThis, oldIndex
 	return result
 }
 
@@ -850,7 +860,6 @@ func (e *Evaluator) evaluateSelect(input types.Collection, projection Node) inte
 		// Set $this to current item
 		oldThis := e.ctx.this
 		oldIndex := e.ctx.index
-		oldPath := e.ctx.path
 		endScope := e.ctx.enterIterationScope()
 		e.ctx.this = types.Collection{item}
 		e.ctx.index = i
@@ -861,7 +870,6 @@ func (e *Evaluator) evaluateSelect(input types.Collection, projection Node) inte
 		// Restore context
 		e.ctx.this = oldThis
 		e.ctx.index = oldIndex
-		e.ctx.path = oldPath
 		endScope()
 
 		if err, ok := projResult.(error); ok {
@@ -906,12 +914,10 @@ func (e *Evaluator) evaluateAggregate(input types.Collection, aggregator, init N
 	oldThis := e.ctx.this
 	oldIndex := e.ctx.index
 	oldTotal := e.ctx.total
-	oldPath := e.ctx.path
 	defer func() {
 		e.ctx.this = oldThis
 		e.ctx.index = oldIndex
 		e.ctx.total = oldTotal
-		e.ctx.path = oldPath
 	}()
 
 	for i, item := range input {
@@ -1112,7 +1118,6 @@ func (e *Evaluator) evaluateRepeat(input types.Collection, projection Node, dedu
 		for i, item := range current {
 			oldThis := e.ctx.this
 			oldIndex := e.ctx.index
-			oldPath := e.ctx.path
 			endScope := e.ctx.enterIterationScope()
 			e.ctx.this = types.Collection{item}
 			// $index is undefined while a function iterates over its own output,
@@ -1123,7 +1128,6 @@ func (e *Evaluator) evaluateRepeat(input types.Collection, projection Node, dedu
 
 			e.ctx.this = oldThis
 			e.ctx.index = oldIndex
-			e.ctx.path = oldPath
 			endScope()
 
 			if err, ok := projected.(error); ok {
@@ -1315,7 +1319,6 @@ func (e *Evaluator) VisitInvocationExpression(ctx *grammar.InvocationExpressionC
 
 	// Save current this and path, set new this
 	oldThis := e.ctx.this
-	oldPath := e.ctx.path
 	oldOuter := e.ctx.outer
 
 	// A function's input is what precedes the dot, but its arguments are not
@@ -1328,7 +1331,6 @@ func (e *Evaluator) VisitInvocationExpression(ctx *grammar.InvocationExpressionC
 	e.ctx.this = baseCol
 	defer func() {
 		e.ctx.this = oldThis
-		e.ctx.path = oldPath
 		e.ctx.outer = oldOuter
 	}()
 
@@ -2229,10 +2231,10 @@ func (e *Evaluator) resolveElement(obj *types.ObjectValue, name string) (element
 		}
 	}
 
-	// Fall back to the accumulated navigation path, which is the only form that
-	// resolves elements of anonymous backbone types.
-	if e.ctx.path != "" && e.ctx.path != obj.Type() {
-		if nested := e.buildElementPath(e.ctx.path, name); nested != "" {
+	// Fall back to the path the object was reached as, which is the only form
+	// that resolves elements of anonymous backbone types.
+	if base := e.ctx.PathOf(obj); base != "" && base != obj.Type() {
+		if nested := e.buildElementPath(base, name); nested != "" {
 			if t := m.TypeOf(nested); t != "" {
 				return nested, t
 			}
@@ -2258,8 +2260,6 @@ func (e *Evaluator) navigateMember(input types.Collection, name string) types.Co
 		// Skip subtype check for lowercase names (field names like "name", "status")
 		// since FHIR type names always start with uppercase.
 		if name != "" && name[0] >= 'A' && name[0] <= 'Z' && IsSubtypeOfWithModel(obj.Type(), name, e.ctx.model) {
-			// Entering a resource — set path to resource type
-			e.ctx.path = obj.Type()
 			result = append(result, obj)
 			continue
 		}
@@ -2276,7 +2276,9 @@ func (e *Evaluator) navigateMember(input types.Collection, name string) types.Co
 			children = obj.GetCollection(name)
 		}
 		if len(children) > 0 {
-			e.ctx.path = elementPath
+			if fhirType != "" {
+				placeAt(children, elementPath)
+			}
 			result = append(result, children...)
 			continue
 		}
@@ -2285,13 +2287,24 @@ func (e *Evaluator) navigateMember(input types.Collection, name string) types.Co
 		// This handles FHIR's value[x] pattern where "value" can resolve to
 		// "valueQuantity", "valueString", "valueCodeableConcept", etc.
 		polymorphicChildren := e.resolvePolymorphicField(obj, name, elementPath)
-		if len(polymorphicChildren) > 0 {
-			e.ctx.path = elementPath
+		if m := e.ctx.model; m != nil && len(polymorphicChildren) > 0 && len(m.ChoiceTypes(elementPath)) > 0 {
+			placeAt(polymorphicChildren, elementPath)
 		}
 		result = append(result, polymorphicChildren...)
 	}
 
 	return result
+}
+
+// placeAt records on each object in children the element the model placed it
+// at, which the next step resolves its fields beneath. Only a path the model
+// knows is recorded: one it does not resolves nothing further down.
+func placeAt(children types.Collection, elementPath string) {
+	for _, child := range children {
+		if obj, ok := child.(*types.ObjectValue); ok {
+			obj.SetElementPath(elementPath)
+		}
+	}
 }
 
 // resolvePolymorphicField attempts to resolve a polymorphic FHIR element.
