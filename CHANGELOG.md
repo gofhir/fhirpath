@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.4](https://github.com/gofhir/fhirpath/compare/v1.9.3...v1.9.4) (2026-09-30)
+
+
+### Performance Improvements
+
+* with a model, an absent field costs one read, and an absent choice two ([#56](https://github.com/gofhir/fhirpath/issues/56)) ([0d01d45](https://github.com/gofhir/fhirpath/commit/0d01d4540e1e5cdb1b585a7240454cc02d5c8eac))
+
 ## [1.9.3](https://github.com/gofhir/fhirpath/compare/v1.9.2...v1.9.3) (2026-09-30)
 
 
