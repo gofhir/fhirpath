@@ -112,18 +112,24 @@ func typeResolver(ctx *eval.Context) types.ElementTypeResolver {
 	return ctx.GetModel()
 }
 
+// pathOf returns the path a model resolves obj's children beneath, which is
+// where obj was reached — each item of the input its own, since one collection
+// can hold items from different places.
+func pathOf(ctx *eval.Context, obj *types.ObjectValue) string {
+	if ctx == nil {
+		return ""
+	}
+	return ctx.PathOf(obj)
+}
+
 // fnChildren returns all direct children of the input.
 func fnChildren(ctx *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
 	result := types.Collection{}
 	res := typeResolver(ctx)
-	basePath := ""
-	if ctx != nil {
-		basePath = ctx.Path()
-	}
 
 	for _, item := range input {
 		if obj, ok := item.(*types.ObjectValue); ok {
-			for _, child := range obj.TypedChildren(basePath, res) {
+			for _, child := range obj.TypedChildren(pathOf(ctx, obj), res) {
 				result = append(result, child.Value)
 			}
 		}
@@ -140,12 +146,10 @@ func fnDescendants(ctx *eval.Context, input types.Collection, _ []interface{}) (
 	res := typeResolver(ctx)
 
 	maxDepth := defaultMaxDepth
-	basePath := ""
 	if ctx != nil {
 		if limit := ctx.GetLimit("maxDepth"); limit > 0 {
 			maxDepth = limit
 		}
-		basePath = ctx.Path()
 	}
 
 	type node struct {
@@ -156,7 +160,11 @@ func fnDescendants(ctx *eval.Context, input types.Collection, _ []interface{}) (
 
 	queue := make([]node, 0, len(input))
 	for _, item := range input {
-		queue = append(queue, node{value: item, path: basePath})
+		path := ""
+		if obj, ok := item.(*types.ObjectValue); ok {
+			path = pathOf(ctx, obj)
+		}
+		queue = append(queue, node{value: item, path: path})
 	}
 
 	for len(queue) > 0 {

@@ -28,6 +28,7 @@ type ObjectValue struct {
 	// evaluation, which is what a Document is for.
 	caching      bool
 	explicitType string // optional explicit FHIR type from polymorphic resolution
+	elementPath  string // the element the object was reached as. See ElementPath.
 	typeName     string // the type once answered, which does not change. See Type.
 }
 
@@ -40,6 +41,23 @@ type ObjectValue struct {
 // once.
 func (o *ObjectValue) EnableCaching() {
 	o.caching = true
+}
+
+// ElementPath is the path of the element the object was reached as —
+// "Claim.diagnosis" for an entry of a Claim's diagnosis — which is what a model
+// resolves the object's own fields beneath. It is "" for an object a model did
+// not place, and a resource needs none: its type is its path.
+//
+// It belongs to the object rather than to the evaluation because it is a fact
+// about where the object sits in the resource, which nothing evaluated before
+// or after it changes.
+func (o *ObjectValue) ElementPath() string {
+	return o.elementPath
+}
+
+// SetElementPath records the path of the element the object was reached as.
+func (o *ObjectValue) SetElementPath(path string) {
+	o.elementPath = path
 }
 
 // NewObjectValue creates a new ObjectValue from JSON bytes.
@@ -636,6 +654,9 @@ func (o *ObjectValue) TypedChildren(basePath string, res ElementTypeResolver) []
 				v = jsonValueToFHIRValue(data, dt)
 			}
 			if v != nil {
+				if obj, ok := v.(*ObjectValue); ok && fhirType != "" {
+					obj.elementPath = childPath
+				}
 				result = append(result, TypedChild{Value: v, Path: childPath})
 			}
 		}
