@@ -7,13 +7,60 @@
 
 * with a model, an absent field costs one read, and an absent choice two ([#56](https://github.com/gofhir/fhirpath/issues/56)) ([0d01d45](https://github.com/gofhir/fhirpath/commit/0d01d4540e1e5cdb1b585a7240454cc02d5c8eac))
 
+  With a model, a field the model types was read again untyped when it was
+  absent, and a choice element was tried one read per choice type. Both now
+  cost what 1.9.2 made them cost without a model:
+
+  | on a 1.1 MB resource, with a model | was | is |
+  |---|---|---|
+  | an absent field | 1.7 ms | 1.1 ms, as a present one |
+  | an absent choice (Observation.value's 11 types) | 7.4 ms | 1.7 ms |
+
+  No answer changes: the R4 examples give the same results as 1.9.3.
+
 ## [1.9.3](https://github.com/gofhir/fhirpath/compare/v1.9.2...v1.9.3) (2026-09-30)
 
 
 ### Bug Fixes
 
 * an operator given more than one item says which side ([#55](https://github.com/gofhir/fhirpath/issues/55)) ([6b94798](https://github.com/gofhir/fhirpath/commit/6b9479893c132302c34ce4d43af729ba39e682d9))
+
+  `(1 | 2) + 1` reported "got 3 elements", the two operands' counts added
+  together. The arithmetic and comparison operators now say which side held
+  what: "+ expects a single item on each side, got 2 on the left and 1 on the
+  right". The error is the same `SingletonExpectedError`.
 * each step of a path resolves against the element before it ([#54](https://github.com/gofhir/fhirpath/issues/54)) ([cbd485d](https://github.com/gofhir/fhirpath/commit/cbd485d8830ad2975ee86fc3113cedbcba8217a9))
+
+  **This corrects a regression in 1.9.2.** With a model, four choice elements
+  across the R4 examples answered empty:
+
+  | | 1.9.1 | 1.9.2 | 1.9.3 |
+  |---|---|---|---|
+  | `Claim.diagnosis.diagnosis` | the variant | empty | the variant |
+  | `Claim.procedure.procedure` | the variant | empty | the variant |
+  | `ExplanationOfBenefit.procedure.procedure` | the variant | empty | the variant |
+  | `ImplementationGuide.definition.page.name` | the variant | empty | the variant |
+
+  The cause is older. A backbone's fields are resolved beneath the path the
+  backbone was reached by, and that path was lost between steps, so in `a.b.c`
+  the third step was resolved against `a`: `Claim.diagnosis.diagnosis` looked
+  up `Claim.diagnosis`, the backbone itself. Guessing type suffixes covered for
+  it on choice elements until 1.9.2 stopped guessing for elements the model
+  knows. The path now travels with each object, so every step resolves beneath
+  the element before it.
+
+  **Types change, not only choices.** The same lost path typed fields three
+  levels down, and the children of `children()` and `descendants()`, as if they
+  sat under the first step. With a model they now take their own element's
+  type: a `date` beneath a backbone is a `date`, not the `string` of a
+  same-named field of the resource. One more field stops answering for its
+  sibling, as `form` and `conclusion` did in 1.9.2: `TestScript`'s
+  `assert.response` no longer returns `responseCode`.
+
+  Without a model nothing changes. Over 505,426 evaluations of the R4 examples
+  with the R4 model, the only answers that differ from before 1.9.2's change
+  to absent fields are the sibling corrections named here and in 1.9.2; the
+  official suite is unchanged at 927/935 (R4) and 1034/1048 (R5).
 
 ## [1.9.2](https://github.com/gofhir/fhirpath/compare/v1.9.1...v1.9.2) (2026-09-30)
 
@@ -57,6 +104,9 @@
   `subjectString` used to answer the string, and is empty now. Without a model,
   and for real choice elements, answers are unchanged; the official suite is
   unchanged at 927/935 (R4) and 1034/1048 (R5).
+
+  *Corrected in 1.9.3:* four choice elements beneath a backbone did change, and
+  answered empty. See 1.9.3.
 
 ## [1.9.1](https://github.com/gofhir/fhirpath/compare/v1.9.0...v1.9.1) (2026-08-30)
 
