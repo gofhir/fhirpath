@@ -57,6 +57,13 @@
   sibling, as `form` and `conclusion` did in 1.9.2: `TestScript`'s
   `assert.response` no longer returns `responseCode`.
 
+  **For custom functions: `Context.Path()` now answers only the root's path.**
+  It used to be described as the current navigation path, and it was the value
+  that went stale; it is now the path given with `SetPath`, and "" for a
+  resource. A function registered through `FuncDef` that read it to type what
+  it was given should ask for each item's own path instead:
+  `ctx.PathOf(obj)`, which is what `children()` and `descendants()` now do.
+
   Without a model nothing changes. Over 505,426 evaluations of the R4 examples
   with the R4 model, the only answers that differ from before 1.9.2's change
   to absent fields are the sibling corrections named here and in 1.9.2; the
