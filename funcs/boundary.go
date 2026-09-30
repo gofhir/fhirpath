@@ -15,21 +15,21 @@ func init() {
 		Name:    "lowBoundary",
 		MinArgs: 0,
 		MaxArgs: 1,
-		Fn:      fnLowBoundary,
+		Fn:      singleInput("lowBoundary", fnLowBoundary),
 	})
 
 	Register(FuncDef{
 		Name:    "highBoundary",
 		MinArgs: 0,
 		MaxArgs: 1,
-		Fn:      fnHighBoundary,
+		Fn:      singleInput("highBoundary", fnHighBoundary),
 	})
 
 	Register(FuncDef{
 		Name:    "precision",
 		MinArgs: 0,
 		MaxArgs: 0,
-		Fn:      fnPrecision,
+		Fn:      singleInput("precision", fnPrecision),
 	})
 }
 

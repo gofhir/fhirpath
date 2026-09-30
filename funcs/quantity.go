@@ -8,7 +8,7 @@ import (
 )
 
 func init() {
-	Register(FuncDef{Name: "comparable", MinArgs: 1, MaxArgs: 1, Fn: fnComparable})
+	Register(FuncDef{Name: "comparable", MinArgs: 1, MaxArgs: 1, Fn: singleInput("comparable", fnComparable)})
 }
 
 // fnComparable returns true when the input quantity and the argument quantity

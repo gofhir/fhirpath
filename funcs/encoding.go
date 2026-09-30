@@ -27,10 +27,10 @@ import (
 )
 
 func init() {
-	Register(FuncDef{Name: "encode", MinArgs: 1, MaxArgs: 1, Fn: fnEncode})
-	Register(FuncDef{Name: "decode", MinArgs: 1, MaxArgs: 1, Fn: fnDecode})
-	Register(FuncDef{Name: "escape", MinArgs: 1, MaxArgs: 1, Fn: fnEscape})
-	Register(FuncDef{Name: "unescape", MinArgs: 1, MaxArgs: 1, Fn: fnUnescape})
+	Register(FuncDef{Name: "encode", MinArgs: 1, MaxArgs: 1, Fn: singleInput("encode", fnEncode)})
+	Register(FuncDef{Name: "decode", MinArgs: 1, MaxArgs: 1, Fn: singleInput("decode", fnDecode)})
+	Register(FuncDef{Name: "escape", MinArgs: 1, MaxArgs: 1, Fn: singleInput("escape", fnEscape)})
+	Register(FuncDef{Name: "unescape", MinArgs: 1, MaxArgs: 1, Fn: singleInput("unescape", fnUnescape)})
 }
 
 // Encoding formats and escaping targets named by the specification.

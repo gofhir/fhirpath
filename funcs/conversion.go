@@ -183,23 +183,6 @@ func fnIif(_ *eval.Context, input types.Collection, args []interface{}) (types.C
 	return types.Collection{}, nil
 }
 
-// singleInput ends the evaluation when a conversion is given more than one
-// item, as the specification requires of every to- and convertsTo- function:
-// "If the input collection contains multiple items, the evaluation of the
-// expression will end and signal an error to the calling environment."
-//
-// Without it a conversion reads the first item and answers for a value the
-// expression never singled out: (1 | 2).toString() gave '1'.
-func singleInput(name string, fn eval.FuncImpl) eval.FuncImpl {
-	return func(ctx *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
-		if len(input) > 1 {
-			return nil, eval.NewEvalError(eval.ErrSingletonExpected,
-				"%s() requires a singleton input, got %d items", name, len(input))
-		}
-		return fn(ctx, input, args)
-	}
-}
-
 // fnToBoolean converts the input to a boolean.
 func fnToBoolean(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
 	if input.Empty() {
