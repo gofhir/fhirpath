@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"slices"
 	"strings"
 
 	"github.com/buger/jsonparser"
@@ -357,12 +358,14 @@ func (o *ObjectValue) GetCollection(field string) Collection {
 
 // fieldKey identifies a field together with the way it was read: the same field
 // parsed under a type hint is not the same collection, and a name whose type
-// was read off its spelling is different again. A struct rather than a composed
-// string, so that a lookup costs nothing to build.
+// was read off its spelling is different again, and so is a choice element
+// looked up by its base name. A struct rather than a composed string, so that a
+// lookup costs nothing to build.
 type fieldKey struct {
 	field    string
 	fhirType string
 	parsedAs bool
+	choice   bool
 }
 
 // cachedCollection answers a field from the cache when caching is on, and
@@ -887,6 +890,62 @@ func (o *ObjectValue) GetCollectionParsedAs(field, suffix string) Collection {
 		}
 		return collection
 	})
+}
+
+// GetChoiceCollection reads the variant of a choice element the object holds —
+// valueQuantity or valueString for value — trying the given type suffixes in
+// order, and reads it as GetCollectionParsedAs does.
+//
+// Trying each suffix as a field of its own reads the object once per suffix,
+// and for a name the object does not hold at all, which is what most lookups of
+// this kind are, each of those reads goes to the end of the object. This reads
+// the keys once and tries only the suffixes found among them. The first that
+// reads as something wins: where the object holds more than one variant, which
+// valid FHIR never does, that is the one listed first, and a variant written as
+// null, which holds nothing, does not hide one that holds a value.
+//
+// The answer is kept under the name alone, so a caller passes the same suffixes
+// for a name every time it asks.
+func (o *ObjectValue) GetChoiceCollection(name string, suffixes []string) Collection {
+	return o.cachedCollection(fieldKey{field: name, choice: true}, func() Collection {
+		for _, i := range o.choiceSuffixes(name, suffixes) {
+			if children := o.GetCollectionParsedAs(name+suffixes[i], suffixes[i]); len(children) > 0 {
+				return children
+			}
+		}
+		return Collection{}
+	})
+}
+
+// choiceSuffixes returns, in the order of suffixes, the index of each suffix
+// that appended to name is a key of the object, either as the value or as the
+// element beside it.
+func (o *ObjectValue) choiceSuffixes(name string, suffixes []string) []int {
+	var found []int
+
+	//nolint:errcheck // The callback never fails
+	jsonparser.ObjectEach(o.data, func(key, _ []byte, _ jsonparser.ValueType, _ int) error {
+		if len(key) > 0 && key[0] == '_' {
+			key = key[1:]
+		}
+		if len(key) <= len(name) || string(key[:len(name)]) != name {
+			return nil
+		}
+
+		rest := key[len(name):]
+		for i, suffix := range suffixes {
+			if string(rest) == suffix {
+				if !slices.Contains(found, i) {
+					found = append(found, i)
+				}
+				break
+			}
+		}
+		return nil
+	})
+
+	slices.Sort(found)
+	return found
 }
 
 // lowerFirst converts a capitalized type name to the lower camel case FHIR uses

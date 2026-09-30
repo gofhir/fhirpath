@@ -2314,22 +2314,18 @@ func (e *Evaluator) resolvePolymorphicField(obj *types.ObjectValue, name, elemen
 			}
 			return result
 		}
+
+		// The model knows the element and gives it no choice types, so it is not
+		// a choice, and a field spelled like a variant of it is not one either.
+		if m.TypeOf(elementPath) != "" {
+			return result
+		}
 	}
 
 	// Fallback: try each possible type suffix from the hardcoded list. Without a
 	// model these are guesses at the field name, so they guide parsing but do
 	// not become the value's declared type.
-	for _, suffix := range polymorphicTypeSuffixes {
-		fieldName := name + suffix
-		children := obj.GetCollectionParsedAs(fieldName, suffix)
-		if len(children) > 0 {
-			result = append(result, children...)
-			// Return on first match - polymorphic elements have only one variant
-			return result
-		}
-	}
-
-	return result
+	return obj.GetChoiceCollection(name, polymorphicTypeSuffixes)
 }
 
 // unquoteString removes the surrounding quotes of a string literal and resolves
