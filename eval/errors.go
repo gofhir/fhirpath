@@ -138,6 +138,14 @@ func SingletonError(count int) *EvalError {
 	return NewEvalError(ErrSingletonExpected, "expected single value, got %d elements", count)
 }
 
+// OperandSingletonError reports a binary operator given more than one item on a
+// side. It names the operator and counts each side apart, since their sum says
+// neither which operand was at fault nor what it held.
+func OperandSingletonError(op string, left, right int) *EvalError {
+	return NewEvalError(ErrSingletonExpected,
+		"%s expects a single item on each side, got %d on the left and %d on the right", op, left, right)
+}
+
 // FunctionNotFoundError creates a function not found error.
 func FunctionNotFoundError(name string) *EvalError {
 	return NewEvalError(ErrFunctionNotFound, "unknown function '%s'", name)
