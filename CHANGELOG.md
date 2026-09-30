@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.9.3](https://github.com/gofhir/fhirpath/compare/v1.9.2...v1.9.3) (2026-09-30)
+
+
+### Bug Fixes
+
+* an operator given more than one item says which side ([#55](https://github.com/gofhir/fhirpath/issues/55)) ([6b94798](https://github.com/gofhir/fhirpath/commit/6b9479893c132302c34ce4d43af729ba39e682d9))
+* each step of a path resolves against the element before it ([#54](https://github.com/gofhir/fhirpath/issues/54)) ([cbd485d](https://github.com/gofhir/fhirpath/commit/cbd485d8830ad2975ee86fc3113cedbcba8217a9))
+
 ## [1.9.2](https://github.com/gofhir/fhirpath/compare/v1.9.1...v1.9.2) (2026-09-30)
 
 
