@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.5](https://github.com/gofhir/fhirpath/compare/v1.9.4...v1.9.5) (2026-09-30)
+
+
+### Bug Fixes
+
+* functions that take one value end with an error when given more ([#60](https://github.com/gofhir/fhirpath/issues/60)) ([190d543](https://github.com/gofhir/fhirpath/commit/190d54314ad867f1e22f81423235033d04181490))
+
 ## [1.9.4](https://github.com/gofhir/fhirpath/compare/v1.9.3...v1.9.4) (2026-09-30)
 
 
