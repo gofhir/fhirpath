@@ -655,7 +655,9 @@ func (o *ObjectValue) TypedChildren(basePath string, res ElementTypeResolver) []
 				v = jsonValueToFHIRValue(data, dt)
 			}
 			if v != nil {
-				if obj, ok := v.(*ObjectValue); ok && fhirType != "" {
+				// A resource resolves its fields beneath its own type, so it
+				// is not placed at the element that holds it.
+				if obj, ok := v.(*ObjectValue); ok && fhirType != "" && !IsAbstractResourceType(fhirType) {
 					obj.elementPath = childPath
 				}
 				result = append(result, TypedChild{Value: v, Path: childPath})
@@ -821,8 +823,17 @@ func looksTemporal(s string) bool {
 // jsonValueToFHIRValueWithType converts a JSON value to a FHIRPath Value,
 // using the FHIR type hint to parse strings as Date, DateTime, Time, etc.
 func jsonValueToFHIRValueWithType(data []byte, dataType jsonparser.ValueType, fhirType string) Value {
+	if system, ok := strings.CutPrefix(fhirType, systemTypePrefix); ok {
+		return systemValue(data, dataType, system)
+	}
+
 	// Objects carry the type so that Type() reports it
 	if dataType == jsonparser.Object && fhirType != "" {
+		if IsAbstractResourceType(fhirType) {
+			if resource := asResource(data); resource != nil {
+				return resource
+			}
+		}
 		return NewObjectValueWithType(data, fhirType)
 	}
 
@@ -840,6 +851,49 @@ func jsonValueToFHIRValueWithType(data []byte, dataType jsonparser.ValueType, fh
 	}
 
 	return withFHIRType(value, fhirType)
+}
+
+// systemTypePrefix is how a StructureDefinition names a System type as an
+// element's type code: Resource.id and Extension.url are
+// http://hl7.org/fhirpath/System.String in R4.
+const systemTypePrefix = "http://hl7.org/fhirpath/System."
+
+// systemValue reads a value the model declares as a System type. It is that
+// System type — String in namespace System, not a FHIR type named by a URL —
+// and a string is read as it, so an id of "2020" is not taken for a Date.
+func systemValue(data []byte, dataType jsonparser.ValueType, system string) Value {
+	if dataType == jsonparser.String {
+		if typed, ok := parseTypedString(data, system); ok {
+			return typed
+		}
+	}
+	return jsonValueToFHIRValue(data, dataType)
+}
+
+// IsAbstractResourceType reports whether a declared type is one of the abstract
+// resource types an element can hold any resource under: Bundle.entry.resource
+// and every contained are Resource.
+func IsAbstractResourceType(fhirType string) bool {
+	switch fhirType {
+	case "Resource", "DomainResource", "CanonicalResource", "MetadataResource":
+		return true
+	}
+	return false
+}
+
+// asResource reads an object held by an element of an abstract resource type.
+// A resource names its own type in resourceType, which FHIR writes on every
+// resource because the element's type does not say which one it is; that type
+// is the object's, and the declared one only the base it derives from. An
+// object without a resourceType is not a resource, and nil leaves it to the
+// declared type.
+func asResource(data []byte) *ObjectValue {
+	obj := NewObjectValue(data)
+	if _, resourceType := obj.fieldSummary(); resourceType != "" {
+		obj.typeName = resourceType
+		return obj
+	}
+	return nil
 }
 
 // parseTypedString reads a JSON string as the temporal type the model declares,
