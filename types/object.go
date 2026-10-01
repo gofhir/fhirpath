@@ -1144,6 +1144,45 @@ func JSONToCollection(data []byte) (Collection, error) {
 	}
 }
 
+// JSONToCollectionWithType converts JSON bytes to a Collection, reading the
+// value as the FHIR type a model declares for it, as navigation reads a value
+// it reaches: "2019-12-08" declared dateTime is a dateTime, not the Date its
+// shape suggests, and an object declared Quantity is a Quantity. The items of
+// an array are each read as the type. An empty fhirType reads as
+// JSONToCollection does.
+//
+// This is for a root that is an element rather than a resource — what a
+// validator evaluates an element's invariants on.
+func JSONToCollectionWithType(data []byte, fhirType string) (Collection, error) {
+	if fhirType == "" {
+		return JSONToCollection(data)
+	}
+
+	value, dataType, _, err := jsonparser.Get(data)
+	if err != nil {
+		return nil, err
+	}
+
+	switch dataType {
+	case jsonparser.Array:
+		result := Collection{}
+		//nolint:errcheck // ArrayEach only returns errors for non-arrays; value is an array
+		jsonparser.ArrayEach(value, func(item []byte, itemType jsonparser.ValueType, _ int, _ error) {
+			if v := jsonValueToFHIRValueWithType(item, itemType, fhirType); v != nil {
+				result = append(result, v)
+			}
+		})
+		return result, nil
+	case jsonparser.Null:
+		return Collection{}, nil
+	default:
+		if v := jsonValueToFHIRValueWithType(value, dataType, fhirType); v != nil {
+			return Collection{v}, nil
+		}
+		return Collection{}, nil
+	}
+}
+
 // ToQuantity attempts to convert an ObjectValue to a Quantity.
 // This is used when the object represents a FHIR Quantity type
 // (with fields like "value", "unit", "code", "system").
