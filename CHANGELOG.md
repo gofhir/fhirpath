@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.6](https://github.com/gofhir/fhirpath/compare/v1.9.5...v1.9.6) (2026-10-01)
+
+
+### Bug Fixes
+
+* a resource takes the type it names, not the element's Resource ([#64](https://github.com/gofhir/fhirpath/issues/64)) ([c90d523](https://github.com/gofhir/fhirpath/commit/c90d5234d32eea82a9999baffd7a90d536941fca))
+
 ## [1.9.5](https://github.com/gofhir/fhirpath/compare/v1.9.4...v1.9.5) (2026-09-30)
 
 
