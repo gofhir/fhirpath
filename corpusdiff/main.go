@@ -18,8 +18,8 @@
 //
 // Usage:
 //
-//	corpusdiff fetch   -fhir r4|r5 -cache DIR
-//	corpusdiff eval    -fhir r4|r5 -cache DIR -out FILE
+//	corpusdiff fetch   -fhir r4|r4b|r5 -cache DIR
+//	corpusdiff eval    -fhir r4|r4b|r5 -cache DIR -out FILE
 //	corpusdiff compare [-v] BASE HEAD
 package main
 
@@ -44,6 +44,7 @@ import (
 	"github.com/gofhir/fhirpath"
 	"github.com/gofhir/fhirpath/eval"
 	"github.com/gofhir/models/r4"
+	"github.com/gofhir/models/r4b"
 	"github.com/gofhir/models/r5"
 )
 
@@ -52,8 +53,9 @@ var versions = map[string]struct {
 	core, examples string
 	model          func() fhirpath.Model
 }{
-	"r4": {"hl7.fhir.r4.core/4.0.1", "hl7.fhir.r4.examples/4.0.1", func() fhirpath.Model { return r4.FHIRPathModel() }},
-	"r5": {"hl7.fhir.r5.core/5.0.0", "hl7.fhir.r5.examples/5.0.0", func() fhirpath.Model { return r5.FHIRPathModel() }},
+	"r4":  {"hl7.fhir.r4.core/4.0.1", "hl7.fhir.r4.examples/4.0.1", func() fhirpath.Model { return r4.FHIRPathModel() }},
+	"r4b": {"hl7.fhir.r4b.core/4.3.0", "hl7.fhir.r4b.examples/4.3.0", func() fhirpath.Model { return r4b.FHIRPathModel() }},
+	"r5":  {"hl7.fhir.r5.core/5.0.0", "hl7.fhir.r5.examples/5.0.0", func() fhirpath.Model { return r5.FHIRPathModel() }},
 }
 
 // maxResource leaves out the few examples above it — Bundles of tens of
@@ -84,15 +86,15 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: corpusdiff fetch -fhir r4|r5 -cache DIR")
-	fmt.Fprintln(os.Stderr, "       corpusdiff eval -fhir r4|r5 -cache DIR -out FILE")
+	fmt.Fprintln(os.Stderr, "usage: corpusdiff fetch -fhir r4|r4b|r5 -cache DIR")
+	fmt.Fprintln(os.Stderr, "       corpusdiff eval -fhir r4|r4b|r5 -cache DIR -out FILE")
 	fmt.Fprintln(os.Stderr, "       corpusdiff compare [-v] BASE HEAD")
 	os.Exit(2)
 }
 
 func fetchCommand(args []string) error {
 	flags := flag.NewFlagSet("fetch", flag.ExitOnError)
-	fhirVersion := flags.String("fhir", "r4", "FHIR version: r4 or r5")
+	fhirVersion := flags.String("fhir", "r4", "FHIR version: r4, r4b or r5")
 	cache := flags.String("cache", "build/corpusdiff/cache", "where the packages are kept")
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -112,7 +114,7 @@ func fetchCommand(args []string) error {
 
 func evalCommand(args []string) error {
 	flags := flag.NewFlagSet("eval", flag.ExitOnError)
-	fhirVersion := flags.String("fhir", "r4", "FHIR version: r4 or r5")
+	fhirVersion := flags.String("fhir", "r4", "FHIR version: r4, r4b or r5")
 	cache := flags.String("cache", "build/corpusdiff/cache", "where the packages are kept")
 	out := flags.String("out", "", "file to write the answers to")
 	if err := flags.Parse(args); err != nil {

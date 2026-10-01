@@ -18,7 +18,7 @@
 #   scripts/corpusdiff.sh [BASE] [FHIR]
 #
 #   BASE   revision to compare against   (default: main)
-#   FHIR   r4, r5 or both                (default: both)
+#   FHIR   r4, r4b, r5 or all            (default: all)
 #
 # Environment:
 #   VERBOSE   list every differing evaluation, not one per expression
@@ -26,7 +26,7 @@
 set -euo pipefail
 
 BASE="${1:-main}"
-FHIR="${2:-both}"
+FHIR="${2:-all}"
 
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$repo_root"
@@ -43,9 +43,9 @@ if ! git rev-parse --verify --quiet "$BASE" >/dev/null; then
 fi
 
 case "$FHIR" in
-	r4 | r5) versions=("$FHIR") ;;
-	both) versions=(r4 r5) ;;
-	*) echo "corpusdiff: FHIR must be r4, r5 or both, not $FHIR" >&2; exit 1 ;;
+	r4 | r4b | r5) versions=("$FHIR") ;;
+	all) versions=(r4 r4b r5) ;;
+	*) echo "corpusdiff: FHIR must be r4, r4b, r5 or all, not $FHIR" >&2; exit 1 ;;
 esac
 
 rm -rf "$worktree" "$out_dir/tool-base"

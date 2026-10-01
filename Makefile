@@ -113,10 +113,10 @@ difftest:
 # Fetches the packages from packages2.fhir.org on first use. Not part of `test`:
 # it takes minutes and the network.
 #
-#   make corpusdiff                     # this tree against main, R4 and R5
+#   make corpusdiff                     # this tree against main, R4, R4B and R5
 #   make corpusdiff BASE=v1.9.1 FHIR=r4
 #   make corpusdiff VERBOSE=1           # every differing evaluation
-FHIR ?= both
+FHIR ?= all
 
 corpusdiff:
 	@VERBOSE=$(VERBOSE) scripts/corpusdiff.sh $(BASE) $(FHIR)
