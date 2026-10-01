@@ -3,7 +3,7 @@ ANTLR_JAR     := build/antlr-$(ANTLR_VERSION)-complete.jar
 ANTLR_URL     := https://www.antlr.org/download/antlr-$(ANTLR_VERSION)-complete.jar
 GRAMMAR       := grammar/fhirpath.g4
 
-.PHONY: help generate generate-check test test-race bench bench-compare lint conformance difftest clean
+.PHONY: help generate generate-check test test-race bench bench-compare lint conformance difftest corpusdiff clean
 
 help:
 	@echo "generate        Regenerate the parser from $(GRAMMAR)"
@@ -15,6 +15,7 @@ help:
 	@echo "lint            Run golangci-lint"
 	@echo "conformance     Report conformance against the official FHIRPath suite"
 	@echo "difftest        Compare this engine's answers against fhirpath.js"
+	@echo "corpusdiff      Compare this tree's answers over the FHIR examples against BASE"
 	@echo "conformance-update  Re-baseline the conformance known-failures lists"
 	@echo "clean           Remove build artifacts"
 
@@ -86,6 +87,7 @@ GOLANGCI := go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLA
 lint:
 	$(GOLANGCI) run ./...
 	cd conformance && $(GOLANGCI) run ./...
+	cd corpusdiff && $(GOLANGCI) run ./...
 
 # The harness lives in its own module so that the engine's go.mod stays free of
 # the FHIR model packages.
@@ -102,6 +104,22 @@ conformance:
 difftest:
 	@cd difftest && [ -d node_modules ] || npm install --silent
 	@cd difftest && go run . $(DIFFTEST_ARGS)
+
+# What two revisions answer for every element path and constraint over the
+# official FHIR examples, with the version's model. The suite and difftest both
+# passed a release that broke four choice elements across twenty R4 examples;
+# this is what found it. Every difference it lists is worth reading.
+#
+# Fetches the packages from packages2.fhir.org on first use. Not part of `test`:
+# it takes minutes and the network.
+#
+#   make corpusdiff                     # this tree against main, R4, R4B and R5
+#   make corpusdiff BASE=v1.9.1 FHIR=r4
+#   make corpusdiff VERBOSE=1           # every differing evaluation
+FHIR ?= all
+
+corpusdiff:
+	@VERBOSE=$(VERBOSE) scripts/corpusdiff.sh $(BASE) $(FHIR)
 
 conformance-update:
 	@cd conformance && go test -run TestOfficialSuite -update-known-failures .
