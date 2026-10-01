@@ -86,7 +86,9 @@ type Context struct {
 	terminologyService TerminologyService
 	profileValidator   ProfileValidator
 	model              Model  // FHIR version-specific model data (nil = use heuristics)
-	path               string // current FHIR navigation path (e.g., "Patient.name")
+	path               string // the root's FHIR path, given with SetPath (e.g., "Patient.name")
+	data               []byte // the root as read by NewContext, to read again under a model's type
+	placed             bool   // whether the root is read under a model's type. See placeRoot.
 }
 
 // FHIR environment variables with a fixed value, defined by the FHIR
@@ -117,7 +119,11 @@ func NewContext(resource []byte) *Context {
 	//nolint:errcheck // Empty collection is acceptable for invalid JSON in context creation
 	root, _ := types.JSONToCollection(resource)
 
-	return NewContextForRoot(root)
+	ctx := NewContextForRoot(root)
+	// Kept so that the root can be read again under the type a model gives
+	// it, once a model and the root's path are both known. See placeRoot.
+	ctx.data = resource
+	return ctx
 }
 
 // NewContextForRoot creates an evaluation context for a resource that has
@@ -217,6 +223,7 @@ func (c *Context) GetProfileValidator() ProfileValidator {
 // SetModel sets the FHIR model for version-specific type resolution.
 func (c *Context) SetModel(m Model) {
 	c.model = m
+	c.placeRoot()
 }
 
 // GetModel returns the FHIR model, or nil if not set.
@@ -229,6 +236,69 @@ func (c *Context) GetModel() Model {
 // resolve the root's fields. A resource needs none.
 func (c *Context) SetPath(path string) {
 	c.path = path
+	c.placeRoot()
+}
+
+// placeRoot reads the root again as the type the model gives the path set with
+// SetPath, once both are known, in whichever order they were given. A root that
+// is an element — what a validator evaluates an element's invariants on — was
+// otherwise typed from its shape: "2019-12-08" at Observation.effectiveDateTime
+// was a Date, and $this is dateTime was false.
+//
+// A path the model does not know, no path, or no model reads the root as
+// NewContext did: a context reused for another element follows the path it is
+// given now, not one it was given before. A root not read from JSON by
+// NewContext is left as it is.
+func (c *Context) placeRoot() {
+	if c.data == nil {
+		return
+	}
+
+	fhirType := ""
+	if c.model != nil && c.path != "" {
+		fhirType = rootType(c.model, c.path)
+	}
+	if fhirType == "" && !c.placed {
+		return
+	}
+
+	root, err := types.JSONToCollectionWithType(c.data, fhirType)
+	if err != nil {
+		return
+	}
+	c.root = root
+	c.this = root
+	c.placed = fhirType != ""
+}
+
+// rootType returns the type a model gives a path. A model may know a choice
+// element only by its base name — Observation.effective, with dateTime among
+// its choice types — so a variant's path that it does not know is tried as the
+// base name and a choice type: Observation.effectiveDateTime as
+// Observation.effective and dateTime.
+func rootType(m Model, path string) string {
+	path = m.ResolvePath(path)
+	if t := m.TypeOf(path); t != "" {
+		return t
+	}
+
+	dot := strings.LastIndex(path, ".")
+	if dot < 0 {
+		return ""
+	}
+	parent, name := path[:dot], path[dot+1:]
+	for i := 1; i < len(name); i++ {
+		if name[i] < 'A' || name[i] > 'Z' {
+			continue
+		}
+		base, suffix := name[:i], name[i:]
+		for _, choiceType := range m.ChoiceTypes(parent + "." + base) {
+			if choiceType != "" && strings.ToUpper(choiceType[:1])+choiceType[1:] == suffix {
+				return choiceType
+			}
+		}
+	}
+	return ""
 }
 
 // Path returns the path set with SetPath.
