@@ -7,6 +7,24 @@
 
 * functions that take one value end with an error when given more ([#60](https://github.com/gofhir/fhirpath/issues/60)) ([190d543](https://github.com/gofhir/fhirpath/commit/190d54314ad867f1e22f81423235033d04181490))
 
+  Eighteen functions defined on a single value answered for the first item of
+  a collection, or answered empty, instead of ending with the error the
+  specification requires, as the conversions already did in 1.9.2:
+
+  | | was | is |
+  |---|---|---|
+  | `abs`, `ceiling`, `exp`, `floor`, `ln`, `log`, `power`, `round`, `sqrt`, `truncate` | the first item's answer: `(1 \| -2).abs()` is `1` | `SingletonExpectedError` |
+  | `lowBoundary`, `highBoundary`, `precision` | the first item's answer | `SingletonExpectedError` |
+  | `encode`, `decode`, `escape`, `unescape`, `comparable` | empty | `SingletonExpectedError` |
+
+  **An expression that relied on the first item now fails.** Where the first
+  item was meant, say so: `first().abs()`. A single item or an empty
+  collection answers as before, and no R4 or R5 example relied on it.
+
+  `as()` over a collection is unchanged: it filters by type rather than
+  raising the error, a divergence taken on purpose and recorded in
+  `CONFORMANCE.md`.
+
 ## [1.9.4](https://github.com/gofhir/fhirpath/compare/v1.9.3...v1.9.4) (2026-09-30)
 
 
