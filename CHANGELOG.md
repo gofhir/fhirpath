@@ -7,6 +7,31 @@
 
 * a resource takes the type it names, not the element's Resource ([#64](https://github.com/gofhir/fhirpath/issues/64)) ([c90d523](https://github.com/gofhir/fhirpath/commit/c90d5234d32eea82a9999baffd7a90d536941fca))
 
+  With a model, a resource held by an element declared as the abstract
+  `Resource` — `Bundle.entry.resource`, every `contained`,
+  `Parameters.parameter.resource` — was typed as `Resource`, not as the type
+  its `resourceType` names:
+
+  | with a model | was | is |
+  |---|---|---|
+  | `entry.resource.type().name` | `Resource` | `Patient` |
+  | `entry.resource is Patient` | `false` | `true` |
+  | `entry.resource.ofType(Patient)` | empty | the Patient |
+  | a field of it, `contained.birthDate.type().name` | guessed, `Date` | `date`, from the model |
+  | `contained.id.type().name`, id `"2020"` | `Date` | `String` |
+
+  FHIR's `bdl-11` failed on every document Bundle, `bdl-12` on every message,
+  and `dom-3` raised an error where a contained resource's id looked like a
+  date. Over the official R4, R4B and R5 examples, those invariants now hold
+  and nothing else changes.
+
+  **Types change with a model.** An expression that asked for `Resource`
+  where it meant the resource, or that read a `System.String` element
+  (`Resource.id`, `Extension.url`) as the date it looked like, answers
+  differently. Such an element is now the System type its type code names, as
+  `http://hl7.org/fhirpath/System.String` says, rather than a FHIR type named
+  by that URL. Without a model nothing changes.
+
 ## [1.9.5](https://github.com/gofhir/fhirpath/compare/v1.9.4...v1.9.5) (2026-09-30)
 
 
