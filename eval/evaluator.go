@@ -2277,7 +2277,9 @@ func (e *Evaluator) navigateMember(input types.Collection, name string) types.Co
 			children = obj.GetCollection(name)
 		}
 		if len(children) > 0 {
-			if fhirType != "" {
+			// A resource held by an element resolves its fields beneath its
+			// own type, so it is not placed at the element.
+			if fhirType != "" && !types.IsAbstractResourceType(fhirType) {
 				placeAt(children, elementPath)
 			}
 			result = append(result, children...)
