@@ -90,6 +90,42 @@ func TestARootWithoutAModelOrAPathIsReadAsBefore(t *testing.T) {
 	}
 }
 
+// A context reused for another element follows the path it is given now: a
+// root typed for one path is read as it was once the path, or the model, no
+// longer types it.
+func TestARootFollowsTheCurrentPath(t *testing.T) {
+	model := &testModel{typeOf: map[string]string{
+		"Observation.effectiveDateTime": "dateTime",
+		"Patient.birthDate":             "date",
+	}}
+	expr := fhirpath.MustCompile("$this.type().name")
+
+	ctx := eval.NewContext([]byte(`"2019-12-08"`))
+	ctx.SetModel(model)
+
+	for _, step := range []struct {
+		set  func()
+		want string
+	}{
+		{func() { ctx.SetPath("Observation.effectiveDateTime") }, "[dateTime]"},
+		{func() { ctx.SetPath("Patient.birthDate") }, "[date]"},
+		{func() { ctx.SetPath("Basic.unknown") }, "[Date]"},
+		{func() { ctx.SetPath("Observation.effectiveDateTime") }, "[dateTime]"},
+		{func() { ctx.SetPath("") }, "[Date]"},
+		{func() { ctx.SetPath("Patient.birthDate") }, "[date]"},
+		{func() { ctx.SetModel(nil) }, "[Date]"},
+	} {
+		step.set()
+		result, err := expr.EvaluateWithContext(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := result.String(); got != step.want {
+			t.Errorf("at path %q = %s, want %s", ctx.Path(), got, step.want)
+		}
+	}
+}
+
 // A caller building the root itself can type it the same way.
 func TestJSONToCollectionWithType(t *testing.T) {
 	root, err := types.JSONToCollectionWithType([]byte(`"2019-12-08"`), "dateTime")

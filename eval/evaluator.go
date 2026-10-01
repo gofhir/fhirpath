@@ -88,6 +88,7 @@ type Context struct {
 	model              Model  // FHIR version-specific model data (nil = use heuristics)
 	path               string // the root's FHIR path, given with SetPath (e.g., "Patient.name")
 	data               []byte // the root as read by NewContext, to read again under a model's type
+	placed             bool   // whether the root is read under a model's type. See placeRoot.
 }
 
 // FHIR environment variables with a fixed value, defined by the FHIR
@@ -242,20 +243,32 @@ func (c *Context) SetPath(path string) {
 // SetPath, once both are known, in whichever order they were given. A root that
 // is an element — what a validator evaluates an element's invariants on — was
 // otherwise typed from its shape: "2019-12-08" at Observation.effectiveDateTime
-// was a Date, and $this is dateTime was false. A path the model does not know,
-// or a root not read from JSON by NewContext, is left as it is.
+// was a Date, and $this is dateTime was false.
+//
+// A path the model does not know, no path, or no model reads the root as
+// NewContext did: a context reused for another element follows the path it is
+// given now, not one it was given before. A root not read from JSON by
+// NewContext is left as it is.
 func (c *Context) placeRoot() {
-	if c.data == nil || c.model == nil || c.path == "" {
+	if c.data == nil {
 		return
 	}
-	fhirType := rootType(c.model, c.path)
-	if fhirType == "" {
+
+	fhirType := ""
+	if c.model != nil && c.path != "" {
+		fhirType = rootType(c.model, c.path)
+	}
+	if fhirType == "" && !c.placed {
 		return
 	}
-	if root, err := types.JSONToCollectionWithType(c.data, fhirType); err == nil {
-		c.root = root
-		c.this = root
+
+	root, err := types.JSONToCollectionWithType(c.data, fhirType)
+	if err != nil {
+		return
 	}
+	c.root = root
+	c.this = root
+	c.placed = fhirType != ""
 }
 
 // rootType returns the type a model gives a path. A model may know a choice
