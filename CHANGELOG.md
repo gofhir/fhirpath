@@ -1,5 +1,36 @@
 # Changelog
 
+## [1.9.7](https://github.com/gofhir/fhirpath/compare/v1.9.6...v1.9.7) (2026-10-01)
+
+
+### Bug Fixes
+
+* a root takes the type the model gives the path set with SetPath ([#67](https://github.com/gofhir/fhirpath/issues/67)) ([8d2ca02](https://github.com/gofhir/fhirpath/commit/8d2ca02fed4b4cccad2169a6c57b84840b7fa955))
+
+  A validator evaluates an element's invariants with the element as the root,
+  and gives the root's path with `SetPath` so that a model can type it. A
+  primitive root was typed from its shape anyway:
+
+  | root, with a model and `SetPath` | was | is |
+  |---|---|---|
+  | `"2019-12-08"` at `Observation.effectiveDateTime` | `Date` | `dateTime` |
+  | `"2019-12-08"` at `Patient.birthDate` | `Date` | `date` |
+  | `"final"` at `Observation.status` | `String` | `code` |
+
+  AU Core's `au-core-obs-02` starts with `$this is dateTime`, and failed on a
+  dateTime of day precision. A root read by `NewContext` is now read again as
+  the type the model gives its path, once both are set, in either order; a
+  choice the model knows only by its base name is resolved through its choice
+  types. With no model, no path, or a path the model does not know, the root
+  is read as before.
+
+  **New:** `types.JSONToCollectionWithType(data, fhirType)` reads JSON as a
+  declared type. A root given through `NewContextForRoot` is not retyped, so a
+  caller that builds its own root should build it with this.
+
+  **Types change with a model and a path.** An expression evaluated on such a
+  root that relied on the guessed type answers differently.
+
 ## [1.9.6](https://github.com/gofhir/fhirpath/compare/v1.9.5...v1.9.6) (2026-10-01)
 
 
