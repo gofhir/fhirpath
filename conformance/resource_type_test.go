@@ -5,10 +5,11 @@ import (
 
 	"github.com/gofhir/fhirpath"
 	"github.com/gofhir/models/r4"
+	"github.com/gofhir/models/r4b"
 	"github.com/gofhir/models/r5"
 )
 
-// With the generated models, a resource in an element declared Resource —
+// With the generated R4, R4B and R5 models, a resource in an element declared Resource —
 // Bundle.entry.resource, contained — takes the type its resourceType names, and
 // an id the model declares as System.String is a String. bdl-11 depends on the
 // first: type = 'document' implies entry.first().resource.is(Composition).
@@ -36,7 +37,7 @@ func TestAResourceTakesTheTypeItNamesWithTheGeneratedModels(t *testing.T) {
 	for _, model := range []struct {
 		name  string
 		model fhirpath.Model
-	}{{"r4", r4.FHIRPathModel()}, {"r5", r5.FHIRPathModel()}} {
+	}{{"r4", r4.FHIRPathModel()}, {"r4b", r4b.FHIRPathModel()}, {"r5", r5.FHIRPathModel()}} {
 		for _, tt := range tests {
 			t.Run(model.name+"/"+tt.expr, func(t *testing.T) {
 				result, err := fhirpath.MustCompile(tt.expr).EvaluateWithOptions([]byte(tt.resource), fhirpath.WithModel(model.model))
