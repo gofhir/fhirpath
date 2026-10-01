@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.7](https://github.com/gofhir/fhirpath/compare/v1.9.6...v1.9.7) (2026-10-01)
+
+
+### Bug Fixes
+
+* a root takes the type the model gives the path set with SetPath ([#67](https://github.com/gofhir/fhirpath/issues/67)) ([8d2ca02](https://github.com/gofhir/fhirpath/commit/8d2ca02fed4b4cccad2169a6c57b84840b7fa955))
+
 ## [1.9.6](https://github.com/gofhir/fhirpath/compare/v1.9.5...v1.9.6) (2026-10-01)
 
 
