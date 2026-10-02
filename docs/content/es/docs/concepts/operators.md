@@ -210,7 +210,9 @@ false implies false  --> true
 true.not()           --> false
 ```
 
-Los dos operandos se evalúan siempre. `false and {}` es `false` por la tabla de verdad, no porque se omita el lado derecho: un error en el lado derecho igual termina la evaluación, así que `false and (true | false).not()` es un error. La especificación deja el cortocircuito a criterio de la implementación y advierte que no hay que depender de él; fhirpath.js tampoco lo hace. Si el lado derecho no debe ejecutarse, usa `iif()`.
+Cuando el operando izquierdo decide el resultado por sí solo, el derecho no se evalúa: `true or X` es `true`, `false and X` es `false` y `false implies X` es `true`, aunque `X` produjera un error. Así, `false and (true | false).not()` es `false`. Solo un Boolean único decide: un operando izquierdo vacío, o que no es Boolean, deja que se evalúe el derecho, y `xor` evalúa siempre los dos.
+
+Es lo que hace el validador de HL7, y los invariantes publicados de FHIR dependen de ello (`tim-9` en R4, `eld-11` en R5). La especificación lo permite pero advierte que no hay que depender de él, y fhirpath.js evalúa los dos operandos, así que una expresión pensada para correr en otros motores debería proteger igual el lado derecho con `iif()`. Ver CONFORMANCE.md.
 
 ## Operadores de Colección
 

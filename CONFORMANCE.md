@@ -230,7 +230,8 @@ Against fhirpath.js 5.2.0, with each engine given its model:
 | Neither matches, and they differ | 3 | 2 |
 
 The one case where fhirpath.js is right and this engine is not is `as()` over a
-collection, a divergence taken on purpose and recorded below.
+collection, a divergence taken on purpose and recorded below, as is short-circuiting
+`and`, `or` and `implies`, which no case in the suite exercises.
 
 Not every case can be compared. Those asserting a semantic fault are decided by
 static analysis, which this harness does not run — `make conformance` does — and
@@ -505,6 +506,52 @@ Worth noting while reading dom-3: one clause is duplicated in both versions —
 `descendants().where(ofType(canonical) = '#').exists()` appears twice, where the
 symmetry with the first branch calls for `uri` and `url`. That defect is
 upstream and unrelated to this engine.
+
+## A divergence taken on purpose: `and`, `or` and `implies` decide from the left
+
+When the left operand of `or` is `true`, of `and` is `false`, or of `implies`
+is `false`, this engine answers without evaluating the right one. fhirpath.js
+evaluates both, and an error the right operand raises ends its evaluation.
+
+The specification allows either. Section 6.5 says implementations "may use
+short-circuit evaluation to reduce computation", then that "authors should not
+rely on such behavior, and implementations must not change semantics with
+short-circuit evaluation". Read strictly, the second half would make the right
+operand's error the answer, which is what fhirpath.js does.
+
+FHIR's published invariants are written for the other reading:
+
+    tim-9 (R4, R4B)  offset.empty() or (when.exists() and
+                       ((when in ('C' | 'CM' | 'CD' | 'CV')).not()))
+    eld-11 (R5)      binding.empty() or type.code.empty() or
+                       type.code.contains(':') or ...
+
+On a timing with two `when` values and no offset, `in` raises an error although
+`offset.empty()` is true. On every element with more than one type, which is
+every choice element, `contains` raises an error although `binding.empty()` is
+true. R5 rewrote tim-9 to `when.select($this in ...).allFalse()`, which does not
+depend on it; eld-11 still does.
+
+The HL7 validator short-circuits, in every FHIR version:
+
+```java
+private List<Base> preOperate(List<Base> left, Operation operation, ExpressionNode expr) {
+  if (left.size() == 0) return null;
+  switch (operation) {
+  case And:     return isBoolean(left, false) ? makeBoolean(false) : null;
+  case Or:      return isBoolean(left, true) ? makeBoolean(true) : null;
+  case Implies: return asBool(left, expr) == Equality.False ? makeBoolean(true) : null;
+  ...
+```
+
+and does not evaluate the right operand when that returns a result. This engine
+follows it exactly. Only a single Boolean decides: an empty left operand leaves
+the right one to three-valued logic, which `{} or true` needs, and so does one
+that is not a Boolean. `xor` evaluates both. No case in the official suite
+asserts an error behind a deciding left operand, so its results are unchanged.
+
+An expression that has to run on engines that evaluate both operands should
+still guard the right side with `iif()`, as the specification advises.
 
 ## A default timezone offset is the caller's policy, not the engine's
 

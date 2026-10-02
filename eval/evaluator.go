@@ -1754,6 +1754,9 @@ func (e *Evaluator) VisitAndExpression(ctx *grammar.AndExpressionContext) interf
 		return err
 	}
 	leftCol := left.(types.Collection)
+	if result, decided := decidedByLeft(leftCol, "and"); decided {
+		return result
+	}
 
 	right := e.Visit(ctx.Expression(1))
 	if err, ok := right.(error); ok {
@@ -1762,6 +1765,42 @@ func (e *Evaluator) VisitAndExpression(ctx *grammar.AndExpressionContext) interf
 	rightCol := right.(types.Collection)
 
 	return applyAnd(leftCol, rightCol, "and")
+}
+
+// decidedByLeft returns the result of and, or or implies when its left operand
+// alone decides it, so that the right one is not evaluated: true or X is true,
+// false and X is false, and false implies X is true, whatever X is or raises.
+//
+// The specification allows it — implementations "may use short-circuit
+// evaluation to reduce computation" (6.5) — and the HL7 validator does it
+// (FHIRPathEngine.preOperate). FHIR's published invariants are written for it:
+// tim-9 in R4 evaluates when in (...) on every timing with no offset, and
+// eld-11 in R5 type.code.contains(':') on every element without a binding,
+// each of which raises an error on some instances where the left operand has
+// already decided. fhirpath.js evaluates both; that divergence is taken on
+// purpose and recorded in CONFORMANCE.md.
+//
+// As in the HL7 validator, only a single Boolean decides. An empty left operand
+// leaves the right one to three-valued logic, which needs it for {} or true,
+// and so does one that is not a Boolean. xor always needs both.
+func decidedByLeft(left types.Collection, op string) (types.Collection, bool) {
+	if len(left) != 1 {
+		return nil, false
+	}
+	b, ok := left[0].(types.Boolean)
+	if !ok {
+		return nil, false
+	}
+
+	switch {
+	case op == "or" && b.Bool():
+		return types.Collection{types.NewBoolean(true)}, true
+	case op == "and" && !b.Bool():
+		return types.Collection{types.NewBoolean(false)}, true
+	case op == "implies" && !b.Bool():
+		return types.Collection{types.NewBoolean(true)}, true
+	}
+	return nil, false
 }
 
 // applyAnd applies 'and'. The operator is taken for symmetry with the other
@@ -1778,13 +1817,18 @@ func (e *Evaluator) VisitOrExpression(ctx *grammar.OrExpressionContext) interfac
 	}
 	leftCol := left.(types.Collection)
 
+	op := ctx.GetChild(1).(antlr.TerminalNode).GetText()
+	if result, decided := decidedByLeft(leftCol, op); decided {
+		return result
+	}
+
 	right := e.Visit(ctx.Expression(1))
 	if err, ok := right.(error); ok {
 		return err
 	}
 	rightCol := right.(types.Collection)
 
-	return applyOr(leftCol, rightCol, ctx.GetChild(1).(antlr.TerminalNode).GetText())
+	return applyOr(leftCol, rightCol, op)
 }
 
 // applyOr applies 'or' and 'xor'.
@@ -1806,6 +1850,9 @@ func (e *Evaluator) VisitImpliesExpression(ctx *grammar.ImpliesExpressionContext
 		return err
 	}
 	leftCol := left.(types.Collection)
+	if result, decided := decidedByLeft(leftCol, "implies"); decided {
+		return result
+	}
 
 	right := e.Visit(ctx.Expression(1))
 	if err, ok := right.(error); ok {
