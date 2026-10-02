@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.8](https://github.com/gofhir/fhirpath/compare/v1.9.7...v1.9.8) (2026-10-02)
+
+
+### Bug Fixes
+
+* and, or and implies do not evaluate a right operand the left decides ([#69](https://github.com/gofhir/fhirpath/issues/69)) ([f68ddc2](https://github.com/gofhir/fhirpath/commit/f68ddc2b8d583b032ffbf609bf71e70727251698))
+
 ## [1.9.7](https://github.com/gofhir/fhirpath/compare/v1.9.6...v1.9.7) (2026-10-01)
 
 
