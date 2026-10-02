@@ -1,5 +1,35 @@
 # Changelog
 
+## [1.9.8](https://github.com/gofhir/fhirpath/compare/v1.9.7...v1.9.8) (2026-10-02)
+
+
+### Bug Fixes
+
+* and, or and implies do not evaluate a right operand the left decides ([#69](https://github.com/gofhir/fhirpath/issues/69)) ([f68ddc2](https://github.com/gofhir/fhirpath/commit/f68ddc2b8d583b032ffbf609bf71e70727251698))
+
+  When the left operand alone decides the result, the right one is no longer
+  evaluated, as in the HL7 validator (`FHIRPathEngine.preOperate`):
+
+  | | was | is |
+  |---|---|---|
+  | `true or X`, where `X` raises an error | the error | `true` |
+  | `false and X` | the error | `false` |
+  | `false implies X` | the error | `true` |
+
+  FHIR's published invariants rely on it: `tim-9` (R4, R4B) failed on a timing
+  with two `when` values and no offset, and `eld-11` (R5) on every element with
+  more than one type. Over the R4B examples, two `StructureDefinition`
+  constraints that raised a `TypeError` behind a false left operand now hold.
+
+  Only a single Boolean decides. An empty left operand, or one that is not a
+  Boolean, still evaluates the right one, so `{} or true` is `true` as before,
+  and `xor` evaluates both. The official suite is unchanged.
+
+  **An error on the right of a deciding left operand is no longer reported.**
+  fhirpath.js evaluates both operands, so this is a divergence taken on
+  purpose, recorded in `CONFORMANCE.md`; an expression that must behave the
+  same on every engine should guard its right side with `iif()`.
+
 ## [1.9.7](https://github.com/gofhir/fhirpath/compare/v1.9.6...v1.9.7) (2026-10-01)
 
 
