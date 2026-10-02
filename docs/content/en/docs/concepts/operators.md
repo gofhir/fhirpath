@@ -210,7 +210,9 @@ false implies false  --> true
 true.not()           --> false
 ```
 
-Both operands are always evaluated. `false and {}` is `false` because of the truth table, not because the right side is skipped: an error on the right side still ends the evaluation, so `false and (true | false).not()` is an error. The specification leaves short-circuiting to the implementation and tells authors not to rely on it; fhirpath.js does not short-circuit either. Where the right side must not run, use `iif()`.
+When the left operand alone decides the result, the right one is not evaluated: `true or X` is `true`, `false and X` is `false`, and `false implies X` is `true`, even where `X` would raise an error. So `false and (true | false).not()` is `false`. Only a single Boolean decides: an empty left operand, or one that is not a Boolean, leaves the right one to be evaluated, and `xor` always evaluates both.
+
+This is what the HL7 validator does, and FHIR's published invariants rely on it (`tim-9` in R4, `eld-11` in R5). The specification allows it but tells authors not to rely on it, and fhirpath.js evaluates both operands, so an expression meant to run elsewhere should still guard the right side with `iif()`. See CONFORMANCE.md.
 
 ## Collection Operators
 

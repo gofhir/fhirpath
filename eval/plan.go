@@ -137,11 +137,11 @@ func compileOperator(tree antlr.ParseTree) (Node, bool) {
 	case *grammar.MembershipExpressionContext:
 		return compileBinary(ctx.Expression(0), ctx.Expression(1), operatorOf(ctx), applyMembership), true
 	case *grammar.AndExpressionContext:
-		return compileBinary(ctx.Expression(0), ctx.Expression(1), "and", applyAnd), true
+		return compileLogical(ctx.Expression(0), ctx.Expression(1), "and", applyAnd), true
 	case *grammar.OrExpressionContext:
-		return compileBinary(ctx.Expression(0), ctx.Expression(1), operatorOf(ctx), applyOr), true
+		return compileLogical(ctx.Expression(0), ctx.Expression(1), operatorOf(ctx), applyOr), true
 	case *grammar.ImpliesExpressionContext:
-		return compileBinary(ctx.Expression(0), ctx.Expression(1), "implies", applyImplies), true
+		return compileLogical(ctx.Expression(0), ctx.Expression(1), "implies", applyImplies), true
 	case *grammar.UnionExpressionContext:
 		return compileUnion(ctx), true
 
@@ -521,6 +521,32 @@ func (e *Evaluator) inScope(n Node) interface{} {
 	endScope := e.ctx.enterIterationScope()
 	defer endScope()
 	return n(e)
+}
+
+// compileLogical compiles and, or, xor and implies: a binary operator whose
+// right operand is not evaluated when the left one decides the result. See
+// decidedByLeft.
+func compileLogical(leftExpr, rightExpr grammar.IExpressionContext, op string,
+	apply func(left, right types.Collection, op string) interface{}) Node {
+	left := Compile(leftExpr)
+	right := Compile(rightExpr)
+
+	return func(e *Evaluator) interface{} {
+		leftResult := left(e)
+		if err, ok := leftResult.(error); ok {
+			return err
+		}
+		leftCol := leftResult.(types.Collection)
+		if result, decided := decidedByLeft(leftCol, op); decided {
+			return result
+		}
+
+		rightResult := right(e)
+		if err, ok := rightResult.(error); ok {
+			return err
+		}
+		return apply(leftCol, rightResult.(types.Collection), op)
+	}
 }
 
 // compileBinary compiles the shape every binary operator shares: evaluate both
