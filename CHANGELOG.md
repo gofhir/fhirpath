@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.9.9](https://github.com/gofhir/fhirpath/compare/v1.9.8...v1.9.9) (2026-10-03)
+
+
+### Bug Fixes
+
+* a primitive's id and extensions are reached by navigation ([#71](https://github.com/gofhir/fhirpath/issues/71)) ([e485f9f](https://github.com/gofhir/fhirpath/commit/e485f9f9a38a6f05780756455c9fed925f889af2))
+
 ## [1.9.8](https://github.com/gofhir/fhirpath/compare/v1.9.7...v1.9.8) (2026-10-02)
 
 
