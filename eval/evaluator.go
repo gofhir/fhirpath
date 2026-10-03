@@ -2368,7 +2368,10 @@ func (e *Evaluator) navigateMember(input types.Collection, name string) types.Co
 	result := types.Collection{}
 
 	for _, item := range input {
-		obj, ok := item.(*types.ObjectValue)
+		// A primitive's fields — its id and extensions — are those of the
+		// element FHIR writes beside it, so a primitive is navigated through
+		// that element.
+		obj, ok := types.ElementOf(item)
 		if !ok {
 			continue
 		}

@@ -128,7 +128,9 @@ func fnChildren(ctx *eval.Context, input types.Collection, _ []interface{}) (typ
 	res := typeResolver(ctx)
 
 	for _, item := range input {
-		if obj, ok := item.(*types.ObjectValue); ok {
+		// A primitive's children are those of its element: its id and
+		// extensions.
+		if obj, ok := types.ElementOf(item); ok {
 			for _, child := range obj.TypedChildren(pathOf(ctx, obj), res) {
 				result = append(result, child.Value)
 			}
@@ -171,7 +173,9 @@ func fnDescendants(ctx *eval.Context, input types.Collection, _ []interface{}) (
 		current := queue[0]
 		queue = queue[1:]
 
-		obj, ok := current.value.(*types.ObjectValue)
+		// A primitive is descended into through its element, as children()
+		// does.
+		obj, ok := types.ElementOf(current.value)
 		if !ok || current.depth >= maxDepth {
 			continue
 		}
