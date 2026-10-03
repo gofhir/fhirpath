@@ -1,5 +1,37 @@
 # Changelog
 
+## [1.9.9](https://github.com/gofhir/fhirpath/compare/v1.9.8...v1.9.9) (2026-10-03)
+
+
+### Bug Fixes
+
+* a primitive's id and extensions are reached by navigation ([#71](https://github.com/gofhir/fhirpath/issues/71)) ([e485f9f](https://github.com/gofhir/fhirpath/commit/e485f9f9a38a6f05780756455c9fed925f889af2))
+
+  FHIR writes a primitive's `id` and extensions in the element beside it,
+  under `_name`. `extension(url)` reached them; the `extension` property and
+  `children()` did not:
+
+  | on `"birthDate":"2020","_birthDate":{"id":"b1","extension":[…]}` | was | is |
+  |---|---|---|
+  | `birthDate.extension.count()` | 0 | 1 |
+  | `birthDate.id` | empty | `b1` |
+  | `name.family.extension.count()` | 0 | 1 |
+  | `birthDate.children().count()` | 0 | 2 |
+
+  CH Core's `ch-core-hm-3` and `ch-core-hm-4`, which compare
+  `descendants().extension` with `family.extension` and `given.extension`,
+  failed on every example that puts the eCH-11 name extension there.
+
+  **`children()` and `descendants()` count differently.** An object's children
+  read a primitive and its `_name` element together, as navigation does: one
+  child carrying the `id` and extensions, and no `_name` node beside it, so
+  `children().count()` on a Patient with `birthDate` and `_birthDate` is one
+  less than before. `descendants()` reaches the same extensions, now through
+  the primitive. A field named with an underscore that is not shaped as an
+  element (an object, or an array of objects and nulls) is a child as before.
+
+  Over the official R4, R4B and R5 examples, no answer changes.
+
 ## [1.9.8](https://github.com/gofhir/fhirpath/compare/v1.9.7...v1.9.8) (2026-10-02)
 
 
