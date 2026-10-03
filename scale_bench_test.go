@@ -52,6 +52,21 @@ func BenchmarkScaleDeepNav(b *testing.B) {
 	}
 }
 
+// descendants() walks every node of the bundle, reading each object's children
+// once, primitives paired with the elements beside them.
+func BenchmarkScaleDescendants(b *testing.B) {
+	expr := MustCompile("Bundle.descendants().count()")
+	for _, n := range []int{10, 100, 500} {
+		data := makeBundle(n)
+		b.Run(fmt.Sprintf("entries=%d", n), func(b *testing.B) {
+			b.ReportAllocs()
+			for i := 0; i < b.N; i++ {
+				_, _ = expr.Evaluate(data)
+			}
+		})
+	}
+}
+
 // where() over the bundle: a predicate evaluated per element.
 func BenchmarkScaleWhere(b *testing.B) {
 	expr := MustCompile("Bundle.entry.resource.where(active = true).name.family")

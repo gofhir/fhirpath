@@ -1,0 +1,64 @@
+package fhirpath_test
+
+import (
+	"testing"
+
+	"github.com/gofhir/fhirpath"
+)
+
+// FHIR writes a primitive's id and extensions in the element beside it, under
+// _name. They belong to the primitive: birthDate.extension is the extensions
+// of birthDate. extension(url) and descendants() reached them, while the
+// extension property and children() did not, so CH Core's ch-core-hm-3, which
+// compares descendants().extension with family.extension, failed on every
+// example that puts the extension on family.
+func TestAPrimitivesElementIsReachedByNavigation(t *testing.T) {
+	patient := `{"resourceType":"Patient","birthDate":"2020",` +
+		`"_birthDate":{"id":"b1","extension":[{"url":"u","valueCode":"o"}]},` +
+		`"name":[{"family":"M","_family":{"extension":[{"url":"u","valueCode":"o"}]},` +
+		`"given":[null,"James"],"_given":[{"extension":[{"url":"u","valueCode":"absent"}]},null]}]}`
+
+	tests := []struct {
+		expr, want string
+	}{
+		{"birthDate.extension('u').count()", "[1]"},
+		{"birthDate.extension.count()", "[1]"},
+		{"birthDate.extension.where(url = 'u').value", "[o]"},
+		{"birthDate.id", "[b1]"},
+		{"name.family.extension.count()", "[1]"},
+		{"name.given.extension.value", "[absent]"},
+		{"birthDate.children().count()", "[2]"},
+		{"birthDate.descendants().count() > birthDate.children().count()", "[true]"},
+		// A primitive and its element are one child of their parent, not two,
+		// and a value with only an element is still a child.
+		{"children().count()", "[3]"},
+		{"name.children().count()", "[3]"},
+		{"name.descendants().extension.count()", "[2]"},
+		// ch-core-hm-3's shape.
+		{"descendants().extension.where(url = 'u').count() = (birthDate | name.family | name.given).extension.where(url = 'u').count()", "[true]"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.expr, func(t *testing.T) {
+			compiled := fhirpath.MustCompile(tt.expr)
+			result, err := compiled.Evaluate([]byte(patient))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := result.String(); got != tt.want {
+				t.Errorf("%s = %s, want %s", tt.expr, got, tt.want)
+			}
+
+			doc := fhirpath.MustNewDocument([]byte(patient))
+			for i := 0; i < 2; i++ {
+				result, err = doc.EvaluateCompiled(compiled)
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got := result.String(); got != tt.want {
+					t.Errorf("%s on a Document (pass %d) = %s, want %s", tt.expr, i+1, got, tt.want)
+				}
+			}
+		})
+	}
+}

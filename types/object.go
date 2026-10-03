@@ -434,6 +434,12 @@ func (o *ObjectValue) cachedCollection(key fieldKey, build func() Collection) Co
 // for it. Positions with neither a value nor an element are dropped.
 func (o *ObjectValue) fieldCollection(field string, parse func([]byte, jsonparser.ValueType) Value) Collection {
 	value, element := o.readField(field)
+	return pairedCollection(value, element, parse)
+}
+
+// pairedCollection is the collection a field holds, from its value and the
+// element beside it, as fieldCollection describes.
+func pairedCollection(value, element jsonField, parse func([]byte, jsonparser.ValueType) Value) Collection {
 	if value.missing() && element.missing() {
 		return Collection{}
 	}
@@ -640,10 +646,100 @@ type TypedChild struct {
 // basePath is this object's FHIR path (e.g. "Observation.component"); it may be
 // empty, in which case only the object's own type is used to resolve children.
 func (o *ObjectValue) TypedChildren(basePath string, res ElementTypeResolver) []TypedChild {
-	var result []TypedChild
+	// A primitive and the element FHIR writes beside it under _name are one
+	// child, read together as navigation reads them, not two: birthDate carries
+	// the id and extensions of _birthDate, and _birthDate is not a node of its
+	// own. A name held only as an element is still a child.
+	//
+	// Most objects have no such element, and are read field by field as they
+	// stand; only one that does is read again to pair its fields.
+	if children, unpaired := o.unpairedChildren(basePath, res); unpaired {
+		return children
+	}
+
+	fields := o.pairedFields()
+	result := make([]TypedChild, 0, len(fields))
+	for i := range fields {
+		result = o.appendPairedChild(result, &fields[i], basePath, res)
+	}
+	return result
+}
+
+// pairedField is a field of an object read with the element beside it.
+type pairedField struct {
+	name           string
+	value, element jsonField
+}
+
+// pairedFields reads an object's fields, each with the element FHIR writes
+// beside it under _name, in the order the names first appear. They are paired
+// in a slice rather than a map: an element has few fields, and descendants()
+// pairs those of every node it walks.
+func (o *ObjectValue) pairedFields() []pairedField {
+	var fields []pairedField
 
 	//nolint:errcheck // ObjectEach only returns errors for non-objects; o.data is always a valid object
 	jsonparser.ObjectEach(o.data, func(key []byte, value []byte, dataType jsonparser.ValueType, _ int) error {
+		isElement := len(key) > 1 && key[0] == '_'
+		if isElement {
+			key = key[1:]
+		}
+
+		i := 0
+		for i < len(fields) && fields[i].name != string(key) {
+			i++
+		}
+		if i == len(fields) {
+			fields = append(fields, pairedField{name: string(key)})
+		}
+
+		// A repeated key keeps its first occurrence, as readField does.
+		entry := jsonField{data: value, dataType: dataType, found: true}
+		switch {
+		case isElement && !fields[i].element.found:
+			fields[i].element = entry
+		case !isElement && !fields[i].value.found:
+			fields[i].value = entry
+		}
+		return nil
+	})
+
+	return fields
+}
+
+// appendPairedChild appends the children a paired field holds: one per value,
+// each carrying its element, or the element alone where there is no value.
+func (o *ObjectValue) appendPairedChild(result []TypedChild, f *pairedField, basePath string, res ElementTypeResolver) []TypedChild {
+	childPath, fhirType := o.childElement(basePath, f.name, res)
+	parse := jsonValueToFHIRValue
+	if fhirType != "" {
+		parse = typedParser(fhirType)
+	}
+
+	for _, v := range pairedCollection(f.value, f.element, parse) {
+		// A resource resolves its fields beneath its own type, so it is not
+		// placed at the element that holds it.
+		if obj, ok := v.(*ObjectValue); ok && fhirType != "" && !IsAbstractResourceType(fhirType) {
+			obj.elementPath = childPath
+		}
+		result = append(result, TypedChild{Value: v, Path: childPath})
+	}
+	return result
+}
+
+// unpairedChildren reads the children of an object that holds no element
+// beside a primitive: each field as it stands, the items of an array each. It
+// stops at the first _name field, and reports that the object has to be read
+// with its fields paired.
+func (o *ObjectValue) unpairedChildren(basePath string, res ElementTypeResolver) (result []TypedChild, unpaired bool) {
+	unpaired = true
+
+	//nolint:errcheck // The only error is errFieldsFound, which ends the scan
+	jsonparser.ObjectEach(o.data, func(key []byte, value []byte, dataType jsonparser.ValueType, _ int) error {
+		if len(key) > 1 && key[0] == '_' {
+			unpaired = false
+			return errFieldsFound
+		}
 		name := string(key)
 		childPath, fhirType := o.childElement(basePath, name, res)
 
@@ -675,7 +771,10 @@ func (o *ObjectValue) TypedChildren(basePath string, res ElementTypeResolver) []
 		return nil
 	})
 
-	return result
+	if !unpaired {
+		return nil, false
+	}
+	return result, true
 }
 
 // childElement resolves a named child's FHIR type and the path it should carry
