@@ -62,3 +62,30 @@ func TestAPrimitivesElementIsReachedByNavigation(t *testing.T) {
 		})
 	}
 }
+
+// Only what FHIR writes beside a primitive — an object, or an array of objects
+// and nulls — is taken as its element. Any other field named with an
+// underscore is a field like any other, and a repeated key keeps every
+// occurrence, whichever way an object's children are read.
+func TestAFieldThatIsNotAPrimitivesElementIsAChildAsItStands(t *testing.T) {
+	tests := []struct {
+		resource, expr, want string
+	}{
+		{`{"resourceType":"Patient","_tags":["a","b"],"_meta":"x"}`, "children().count()", "[4]"},
+		{`{"resourceType":"Patient","_tags":["a","b"],"_meta":"x"}`, "_tags", "[a, b]"},
+		{`{"resourceType":"Patient","_tags":["a","b"],"_active":{"id":"z"},"active":true}`, "children().count()", "[4]"},
+		{`{"resourceType":"Patient","birthDate":"2020","birthDate":"2021"}`, "children().count()", "[3]"},
+		{`{"resourceType":"Patient","birthDate":"2020","birthDate":"2021","_active":{"id":"z"}}`, "children().count()", "[4]"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.resource+" "+tt.expr, func(t *testing.T) {
+			result, err := fhirpath.Evaluate([]byte(tt.resource), tt.expr)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := result.String(); got != tt.want {
+				t.Errorf("%s = %s, want %s", tt.expr, got, tt.want)
+			}
+		})
+	}
+}

@@ -403,7 +403,9 @@ func (o *ObjectValue) cachedCollection(key fieldKey, build func() Collection) Co
 
 	col := build()
 	for _, value := range col {
-		if child, ok := value.(*ObjectValue); ok {
+		// A primitive's element is read through as an object is, so it keeps
+		// what it reads as well.
+		if child, ok := ElementOf(value); ok {
 			child.caching = true
 		}
 	}
@@ -680,7 +682,11 @@ func (o *ObjectValue) pairedFields() []pairedField {
 
 	//nolint:errcheck // ObjectEach only returns errors for non-objects; o.data is always a valid object
 	jsonparser.ObjectEach(o.data, func(key []byte, value []byte, dataType jsonparser.ValueType, _ int) error {
-		isElement := len(key) > 1 && key[0] == '_'
+		entry := jsonField{data: value, dataType: dataType, found: true}
+
+		// Only what FHIR writes beside a primitive is its element; any other
+		// field named with an underscore is a field like any other.
+		isElement := len(key) > 1 && key[0] == '_' && elementShaped(entry)
 		if isElement {
 			key = key[1:]
 		}
@@ -689,22 +695,45 @@ func (o *ObjectValue) pairedFields() []pairedField {
 		for i < len(fields) && fields[i].name != string(key) {
 			i++
 		}
-		if i == len(fields) {
+		switch {
+		case i == len(fields):
 			fields = append(fields, pairedField{name: string(key)})
+		case !isElement && fields[i].value.found:
+			// A repeated key is invalid JSON to rely on, but every occurrence
+			// is a child, as it is for an object without elements.
+			fields = append(fields, pairedField{name: string(key), value: entry})
+			return nil
 		}
 
-		// A repeated key keeps its first occurrence, as readField does.
-		entry := jsonField{data: value, dataType: dataType, found: true}
 		switch {
 		case isElement && !fields[i].element.found:
 			fields[i].element = entry
-		case !isElement && !fields[i].value.found:
+		case !isElement:
 			fields[i].value = entry
 		}
 		return nil
 	})
 
 	return fields
+}
+
+// elementShaped reports whether a field holds what FHIR writes beside a
+// primitive: an object, or an array of objects and nulls.
+func elementShaped(field jsonField) bool {
+	switch field.dataType {
+	case jsonparser.Object:
+		return true
+	case jsonparser.Array:
+		shaped := true
+		//nolint:errcheck // ArrayEach only returns errors for non-arrays; the field is an array
+		jsonparser.ArrayEach(field.data, func(_ []byte, itemType jsonparser.ValueType, _ int, _ error) {
+			if itemType != jsonparser.Object && itemType != jsonparser.Null {
+				shaped = false
+			}
+		})
+		return shaped
+	}
+	return false
 }
 
 // appendPairedChild appends the children a paired field holds: one per value,
