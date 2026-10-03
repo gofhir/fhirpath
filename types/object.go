@@ -703,6 +703,9 @@ func (o *ObjectValue) pairedFields() []pairedField {
 			// is a child, as it is for an object without elements.
 			fields = append(fields, pairedField{name: string(key), value: entry})
 			return nil
+		case isElement && fields[i].element.found:
+			fields = append(fields, pairedField{name: string(key), element: entry})
+			return nil
 		}
 
 		switch {

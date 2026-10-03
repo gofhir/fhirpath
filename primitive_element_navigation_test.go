@@ -76,6 +76,8 @@ func TestAFieldThatIsNotAPrimitivesElementIsAChildAsItStands(t *testing.T) {
 		{`{"resourceType":"Patient","_tags":["a","b"],"_active":{"id":"z"},"active":true}`, "children().count()", "[4]"},
 		{`{"resourceType":"Patient","birthDate":"2020","birthDate":"2021"}`, "children().count()", "[3]"},
 		{`{"resourceType":"Patient","birthDate":"2020","birthDate":"2021","_active":{"id":"z"}}`, "children().count()", "[4]"},
+		{`{"resourceType":"Patient","active":true,"_active":{"id":"a"},"active":false,"_active":{"id":"b"}}`, "children().count()", "[4]"},
+		{`{"resourceType":"Patient","active":true,"_active":{"id":"a"},"active":false,"_active":{"id":"b"}}`, "descendants().where($this = 'b').count()", "[1]"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.resource+" "+tt.expr, func(t *testing.T) {
