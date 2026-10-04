@@ -1020,18 +1020,42 @@ func decodeJSONString(data []byte) string {
 	// Unescaped by the parser that read the document, into one buffer, rather
 	// than by wrapping the content in quotes for encoding/json to validate and
 	// copy again.
-	if unescaped, err := jsonparser.Unescape(data, nil); err == nil {
-		return string(unescaped)
+	// A surrogate escape, \uD800 to \uDFFF, is left to encoding/json: the
+	// parser refuses a lone one and decodes an invalid pair into the wrong
+	// character without an error, where encoding/json writes U+FFFD. FHIR
+	// content all but never carries one.
+	if !hasSurrogateEscape(data) {
+		if unescaped, err := jsonparser.Unescape(data, nil); err == nil {
+			return string(unescaped)
+		}
 	}
 
-	// The parser refuses what encoding/json reads leniently, a lone surrogate
-	// above all, which it replaces with U+FFFD; such content is read as
+	// Content the parser refuses, or one with a surrogate escape, is read as
 	// encoding/json reads it, as it always was.
 	var s string
 	if err := json.Unmarshal(append([]byte{'"'}, append(data, '"')...), &s); err != nil {
 		return string(data)
 	}
 	return s
+}
+
+// hasSurrogateEscape reports whether JSON string content may hold a \u escape
+// for a UTF-16 surrogate. An escaped backslash before one is taken as one too,
+// which costs only taking the slower way.
+func hasSurrogateEscape(data []byte) bool {
+	for {
+		i := bytes.Index(data, []byte(`\u`))
+		if i < 0 || i+3 >= len(data) {
+			return false
+		}
+		if data[i+2] == 'd' || data[i+2] == 'D' {
+			switch data[i+3] {
+			case '8', '9', 'a', 'b', 'c', 'd', 'e', 'f', 'A', 'B', 'C', 'D', 'E', 'F':
+				return true
+			}
+		}
+		data = data[i+2:]
+	}
 }
 
 // jsonValueToFHIRValue converts a JSON value to a FHIRPath Value.

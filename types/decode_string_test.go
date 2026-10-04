@@ -14,6 +14,10 @@ func TestDecodeJSONStringAnswersAsEncodingJSON(t *testing.T) {
 		`é`, `é`, `😀`, `x\ud83dy`, `\ude00`, `\ud83dA`,
 		`<div xmlns=\"http://www.w3.org/1999/xhtml\">\n  <p>text</p>\n</div>`,
 		`trailing\\`, `\u0000nul`, `\u001f`,
+		// Invalid surrogate pairs, which jsonparser decodes without an error.
+		`\uD800\uE000`, `\uD800\uFFFF`, `\uDC00\uDC00`, `\ud83d\ud83d`, `a\uDBFF\uDFFFb`,
+		// An escaped backslash before what looks like a surrogate escape.
+		`\\ud800`,
 		// Not valid JSON string content.
 		`bad\q`, `\u12`, `\u12zz`, `end\`,
 	} {
