@@ -116,8 +116,10 @@ const (
 // The fixed FHIR constants %ucum, %sct and %loinc are also defined; callers can
 // override any of them via SetVariable.
 func NewContext(resource []byte) *Context {
+	// Read without scanning the whole document first: a malformed one is
+	// answered empty either way.
 	//nolint:errcheck // Empty collection is acceptable for invalid JSON in context creation
-	root, _ := types.JSONToCollection(resource)
+	root, _ := types.ReadRoot(resource)
 
 	markPrivate(root)
 
