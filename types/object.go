@@ -618,7 +618,7 @@ type indexedField struct {
 func (o *ObjectValue) buildIndex() {
 	// Offsets are kept in 32 bits; an object too large for them is read by
 	// scanning, as it always was.
-	if len(o.data) > math.MaxUint32 {
+	if uint64(len(o.data)) > math.MaxUint32 {
 		return
 	}
 
