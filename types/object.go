@@ -31,12 +31,11 @@ type ObjectValue struct {
 	// private records that one goroutine reads the object, so it can keep
 	// what it works out about itself. See MarkPrivate.
 	private      bool
-	reads        uint8               // how many times a field was read by scanning. See readField.
-	index        []indexedField      // the object's fields once indexed. See readField.
-	keys         map[string]struct{} // the object's keys, once read, for an object that caches
-	explicitType string              // optional explicit FHIR type from polymorphic resolution
-	elementPath  string              // the element the object was reached as. See ElementPath.
-	typeName     string              // the type once answered, which does not change. See Type.
+	reads        uint8          // how many times a field was read by scanning. See readField.
+	index        []indexedField // the object's fields once indexed. See readField.
+	explicitType string         // optional explicit FHIR type from polymorphic resolution
+	elementPath  string         // the element the object was reached as. See ElementPath.
+	typeName     string         // the type once answered, which does not change. See Type.
 }
 
 // EnableCaching makes the object keep the fields it reads, and the objects it
@@ -1292,7 +1291,7 @@ func (o *ObjectValue) GetChoiceCollection(name string, suffixes []string) Collec
 //
 // The answer as a whole is not kept, since another model may give the element
 // other choice types; each variant read is kept, as GetCollectionWithType keeps
-// it, and so are the object's keys.
+// it, and the object's keys are read from its field index.
 func (o *ObjectValue) GetChoiceCollectionWithType(name string, choiceTypes []string) Collection {
 	for _, i := range o.choiceSuffixes(name, choiceTypes) {
 		choiceType := choiceTypes[i]
@@ -1309,19 +1308,13 @@ func (o *ObjectValue) GetChoiceCollectionWithType(name string, choiceTypes []str
 // element beside it. The suffix is matched with its first letter capitalized,
 // as a variant is spelled: string matches valueString.
 func (o *ObjectValue) choiceSuffixes(name string, suffixes []string) []int {
-	if o.caching {
-		return o.choiceSuffixesFromKeys(name, suffixes)
-	}
-
 	var found []int
-
-	//nolint:errcheck // The callback never fails
-	jsonparser.ObjectEach(o.data, func(key, _ []byte, _ jsonparser.ValueType, _ int) error {
+	o.eachKey(func(key []byte) {
 		if len(key) > 0 && key[0] == '_' {
 			key = key[1:]
 		}
 		if len(key) <= len(name) || string(key[:len(name)]) != name {
-			return nil
+			return
 		}
 
 		rest := key[len(name):]
@@ -1330,41 +1323,44 @@ func (o *ObjectValue) choiceSuffixes(name string, suffixes []string) []int {
 				if !slices.Contains(found, i) {
 					found = append(found, i)
 				}
-				break
+				return
 			}
 		}
-		return nil
 	})
 
 	slices.Sort(found)
 	return found
 }
 
-// choiceSuffixesFromKeys answers choiceSuffixes from the keys an object that
-// caches has kept, so asking again reads nothing.
-func (o *ObjectValue) choiceSuffixesFromKeys(name string, suffixes []string) []int {
-	if o.keys == nil {
-		o.keys = make(map[string]struct{})
-		//nolint:errcheck // The callback never fails
-		jsonparser.ObjectEach(o.data, func(key, _ []byte, _ jsonparser.ValueType, _ int) error {
-			o.keys[string(key)] = struct{}{}
-			return nil
-		})
+// eachKey calls fn with each of the object's keys, in order, from the index
+// when the object has one. It indexes an object that caches, which will be
+// read again, and one read twice before; looking for a choice's variants
+// follows a field read that found nothing, so indexing on that second access
+// would build an index most objects read once never use. It counts as a read
+// either way. See readField.
+func (o *ObjectValue) eachKey(fn func(key []byte)) {
+	if o.index == nil && o.keeps() && o.reads != unindexed && (o.caching || o.reads >= 2) {
+		o.buildIndex()
+		if o.index == nil {
+			o.reads = unindexed
+		}
 	}
 
-	var found []int
-	for i, suffix := range suffixes {
-		if suffix == "" {
-			continue
+	if o.index != nil {
+		for i := range o.index {
+			fn(o.data[o.index[i].keyStart:o.index[i].keyEnd])
 		}
-		field := name + string(upperASCII(suffix[0])) + suffix[1:]
-		_, asValue := o.keys[field]
-		_, asElement := o.keys["_"+field]
-		if asValue || asElement {
-			found = append(found, i)
-		}
+		return
 	}
-	return found
+
+	if o.keeps() && o.reads < 2 {
+		o.reads++
+	}
+	//nolint:errcheck // The callback never fails
+	jsonparser.ObjectEach(o.data, func(key, _ []byte, _ jsonparser.ValueType, _ int) error {
+		fn(key)
+		return nil
+	})
 }
 
 // upperASCII capitalizes an ASCII letter and leaves any other byte as it is.
