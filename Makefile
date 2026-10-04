@@ -3,7 +3,7 @@ ANTLR_JAR     := build/antlr-$(ANTLR_VERSION)-complete.jar
 ANTLR_URL     := https://www.antlr.org/download/antlr-$(ANTLR_VERSION)-complete.jar
 GRAMMAR       := grammar/fhirpath.g4
 
-.PHONY: help generate generate-check test test-race bench bench-compare lint conformance difftest corpusdiff clean
+.PHONY: help generate generate-check test test-race bench bench-compare bench-corpus lint conformance difftest corpusdiff clean
 
 help:
 	@echo "generate        Regenerate the parser from $(GRAMMAR)"
@@ -12,6 +12,7 @@ help:
 	@echo "test-race       Run the test suite with the race detector"
 	@echo "bench           Run the benchmarks"
 	@echo "bench-compare   Compare the benchmarks against another revision"
+	@echo "bench-corpus    Measure evaluation over a sample of the official R4 examples"
 	@echo "lint            Run golangci-lint"
 	@echo "conformance     Report conformance against the official FHIRPath suite"
 	@echo "difftest        Compare this engine's answers against fhirpath.js"
@@ -77,6 +78,14 @@ BASE ?= main
 
 bench-compare:
 	@COUNT=$(COUNT) BENCHTIME=$(BENCHTIME) scripts/bench-compare.sh $(BASE) '$(BENCH)' 
+
+# What evaluation costs over real resources rather than one expression: a tenth
+# of the official R4 examples with every element path and constraint, as a
+# Document with the model, one-shot without it, and with a fresh context per
+# evaluation as gofhir/validator does. Reports ns/eval. Fetches the packages on
+# first use, as corpusdiff does.
+bench-corpus:
+	cd corpusdiff && go test -run '^$$' -bench BenchmarkCorpus -benchmem -count=$(COUNT) .
 
 # Run through go run so that this matches CI exactly without anyone having to
 # install a particular build. Keep in sync with GOLANGCI_VERSION in
