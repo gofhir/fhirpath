@@ -7,6 +7,7 @@ import (
 	"math"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/buger/jsonparser"
 	"github.com/shopspring/decimal"
@@ -1024,7 +1025,7 @@ func decodeJSONString(data []byte) string {
 	// parser refuses a lone one and decodes an invalid pair into the wrong
 	// character without an error, where encoding/json writes U+FFFD. FHIR
 	// content all but never carries one.
-	if !hasSurrogateEscape(data) {
+	if !hasSurrogateEscape(data) && plainContent(data) {
 		if unescaped, err := jsonparser.Unescape(data, nil); err == nil {
 			return string(unescaped)
 		}
@@ -1037,6 +1038,19 @@ func decodeJSONString(data []byte) string {
 		return string(data)
 	}
 	return s
+}
+
+// plainContent reports whether JSON string content is valid UTF-8 without raw
+// control characters, which is all the parser decodes as encoding/json does:
+// encoding/json writes U+FFFD for an invalid byte, and refuses a control
+// character, where the parser copies either through.
+func plainContent(data []byte) bool {
+	for _, b := range data {
+		if b < 0x20 {
+			return false
+		}
+	}
+	return utf8.Valid(data)
 }
 
 // hasSurrogateEscape reports whether JSON string content may hold a \u escape

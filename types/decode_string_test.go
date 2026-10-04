@@ -18,6 +18,9 @@ func TestDecodeJSONStringAnswersAsEncodingJSON(t *testing.T) {
 		`\uD800\uE000`, `\uD800\uFFFF`, `\uDC00\uDC00`, `\ud83d\ud83d`, `a\uDBFF\uDFFFb`,
 		// An escaped backslash before what looks like a surrogate escape.
 		`\\ud800`,
+		// An escape beside an invalid UTF-8 byte, and beside a raw control
+		// character, both of which encoding/json treats in its own way.
+		"a\\nb\xff", "\xc3\\n", "a\\nb\x01c", "tab\there\\n",
 		// Not valid JSON string content.
 		`bad\q`, `\u12`, `\u12zz`, `end\`,
 	} {
