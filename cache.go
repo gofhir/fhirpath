@@ -1,27 +1,34 @@
 package fhirpath
 
 import (
-	"container/list"
 	"sync"
-	"time"
+	"sync/atomic"
 )
 
 // ExpressionCache provides thread-safe caching of compiled FHIRPath expressions
 // with LRU eviction. Use this in production to avoid recompiling the same expressions.
+//
+// A hit takes only a read lock, so many goroutines can hit the cache at once,
+// as a validator evaluating in parallel does: it marks the entry referenced,
+// atomically, and nothing else. Eviction approximates least recently used the
+// way CLOCK does: a hand sweeps the entries in a ring, sparing one referenced
+// since it last passed and clearing the mark, and evicting the first that was
+// not. That costs a miss on a full cache a few steps, not a pass over every
+// entry, which matters to a caller compiling expressions built on the fly.
 type ExpressionCache struct {
-	mu      sync.RWMutex
-	cache   map[string]*cacheEntry
-	lruList *list.List // Front = most recently used
-	limit   int
-	hits    int64
-	misses  int64
+	mu     sync.RWMutex
+	cache  map[string]*cacheEntry
+	ring   []string // the cached expressions in the order the hand visits them
+	hand   int
+	limit  int
+	hits   atomic.Int64
+	misses atomic.Int64
 }
 
 type cacheEntry struct {
-	expr     *Expression
-	key      string
-	element  *list.Element
-	lastUsed time.Time
+	expr       *Expression
+	slot       int         // the entry's place in the ring
+	referenced atomic.Bool // hit since the hand last passed
 }
 
 // CacheStats holds cache performance statistics.
@@ -36,24 +43,18 @@ type CacheStats struct {
 // If limit <= 0, the cache is unbounded.
 func NewExpressionCache(limit int) *ExpressionCache {
 	return &ExpressionCache{
-		cache:   make(map[string]*cacheEntry),
-		lruList: list.New(),
-		limit:   limit,
+		cache: make(map[string]*cacheEntry),
+		limit: limit,
 	}
 }
 
 // Get retrieves a compiled expression from the cache, compiling it if necessary.
 func (c *ExpressionCache) Get(expr string) (*Expression, error) {
-	// Try read lock first
 	c.mu.RLock()
 	if entry, ok := c.cache[expr]; ok {
+		entry.referenced.Store(true)
+		c.hits.Add(1)
 		c.mu.RUnlock()
-		// Promote to front (most recently used) - needs write lock
-		c.mu.Lock()
-		c.lruList.MoveToFront(entry.element)
-		entry.lastUsed = time.Now()
-		c.hits++
-		c.mu.Unlock()
 		return entry.expr, nil
 	}
 	c.mu.RUnlock()
@@ -68,44 +69,43 @@ func (c *ExpressionCache) Get(expr string) (*Expression, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Double-check after acquiring write lock
+	// Double-check after acquiring write lock. Another goroutine added it
+	// meanwhile; this call still compiled it, so it counts as a miss.
 	if entry, ok := c.cache[expr]; ok {
-		c.lruList.MoveToFront(entry.element)
-		entry.lastUsed = time.Now()
+		entry.referenced.Store(true)
+		c.misses.Add(1)
 		return entry.expr, nil
 	}
 
-	c.misses++
+	c.misses.Add(1)
 
-	// LRU eviction if limit reached
+	entry := &cacheEntry{expr: compiled}
 	if c.limit > 0 && len(c.cache) >= c.limit {
-		c.evictLRU()
+		// The new entry takes the evicted one's place in the ring.
+		entry.slot = c.evict()
+		c.ring[entry.slot] = expr
+	} else {
+		entry.slot = len(c.ring)
+		c.ring = append(c.ring, expr)
 	}
-
-	// Create new entry
-	entry := &cacheEntry{
-		expr:     compiled,
-		key:      expr,
-		lastUsed: time.Now(),
-	}
-	entry.element = c.lruList.PushFront(entry)
 	c.cache[expr] = entry
 
 	return compiled, nil
 }
 
-// evictLRU removes the least recently used entry.
-// Must be called with write lock held.
-func (c *ExpressionCache) evictLRU() {
-	if c.lruList.Len() == 0 {
-		return
-	}
-	// Remove from back (least recently used)
-	oldest := c.lruList.Back()
-	if oldest != nil {
-		entry := oldest.Value.(*cacheEntry)
-		c.lruList.Remove(oldest)
-		delete(c.cache, entry.key)
+// evict removes the entry the hand settles on and returns its place in the
+// ring. Must be called with write lock held, on a cache with entries.
+func (c *ExpressionCache) evict() int {
+	for {
+		slot := c.hand
+		c.hand = (c.hand + 1) % len(c.ring)
+
+		entry := c.cache[c.ring[slot]]
+		if entry.referenced.Swap(false) {
+			continue
+		}
+		delete(c.cache, c.ring[slot])
+		return slot
 	}
 }
 
@@ -123,9 +123,10 @@ func (c *ExpressionCache) Clear() {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.cache = make(map[string]*cacheEntry)
-	c.lruList = list.New()
-	c.hits = 0
-	c.misses = 0
+	c.ring = nil
+	c.hand = 0
+	c.hits.Store(0)
+	c.misses.Store(0)
 }
 
 // Size returns the number of cached expressions.
@@ -142,8 +143,8 @@ func (c *ExpressionCache) Stats() CacheStats {
 	return CacheStats{
 		Size:   len(c.cache),
 		Limit:  c.limit,
-		Hits:   c.hits,
-		Misses: c.misses,
+		Hits:   c.hits.Load(),
+		Misses: c.misses.Load(),
 	}
 }
 
@@ -151,11 +152,12 @@ func (c *ExpressionCache) Stats() CacheStats {
 func (c *ExpressionCache) HitRate() float64 {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	total := c.hits + c.misses
+	hits := c.hits.Load()
+	total := hits + c.misses.Load()
 	if total == 0 {
 		return 0
 	}
-	return float64(c.hits) / float64(total) * 100
+	return float64(hits) / float64(total) * 100
 }
 
 // DefaultCache is a global expression cache for convenience.
