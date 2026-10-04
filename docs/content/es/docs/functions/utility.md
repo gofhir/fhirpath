@@ -46,7 +46,7 @@ result, _ := fhirpath.Evaluate(patient, "Patient.name.trace('names', given)")
 **Casos Limite / Notas:**
 
 - La funcion **no** modifica el resultado. Es puramente un efecto secundario para registro.
-- Por defecto, la salida de trace se escribe en `stderr` en formato de texto plano.
+- Por defecto, la salida de trace se descarta: no se escribe nada hasta configurar un registrador. El `dom-3` de FHIR llama a `trace()` en cada DomainResource en R4, así que escribir por defecto llenaba los logs de un validador. (Antes de 1.9.12 se escribía texto plano en `stderr`; `funcs.NewDefaultTraceLogger(os.Stderr, false)` lo restaura.)
 - El registrador de trace puede personalizarse usando `funcs.SetTraceLogger()`:
   - `funcs.NewDefaultTraceLogger(writer, false)` para salida en texto plano.
   - `funcs.NewDefaultTraceLogger(writer, true)` para salida estructurada en JSON.
