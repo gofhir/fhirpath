@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.0](https://github.com/gofhir/fhirpath/compare/v1.9.12...v1.10.0) (2026-10-04)
+
+
+### Features
+
+* an object read from the input knows where it sits in it (Location) ([#88](https://github.com/gofhir/fhirpath/issues/88)) ([48264d0](https://github.com/gofhir/fhirpath/commit/48264d077b0d46fea8dffb3efb14ae1f16645607))
+
 ## [1.9.12](https://github.com/gofhir/fhirpath/compare/v1.9.11...v1.9.12) (2026-10-04)
 
 
