@@ -69,9 +69,11 @@ func (c *ExpressionCache) Get(expr string) (*Expression, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
-	// Double-check after acquiring write lock
+	// Double-check after acquiring write lock. Another goroutine added it
+	// meanwhile; this call still compiled it, so it counts as a miss.
 	if entry, ok := c.cache[expr]; ok {
 		entry.referenced.Store(true)
+		c.misses.Add(1)
 		return entry.expr, nil
 	}
 
