@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.9.12](https://github.com/gofhir/fhirpath/compare/v1.9.11...v1.9.12) (2026-10-04)
+
+
+### Bug Fixes
+
+* trace() writes nothing unless a logger is configured ([#84](https://github.com/gofhir/fhirpath/issues/84)) ([116b2b2](https://github.com/gofhir/fhirpath/commit/116b2b2d7388dca24914697d21e7e3abb13c669f))
+
+
+### Performance Improvements
+
+* a checked root placed under a model's type is not scanned again ([#85](https://github.com/gofhir/fhirpath/issues/85)) ([d442f9d](https://github.com/gofhir/fhirpath/commit/d442f9dc45369b072a7c4318b539c0916cba9307))
+
 ## [1.9.11](https://github.com/gofhir/fhirpath/compare/v1.9.10...v1.9.11) (2026-10-04)
 
 
