@@ -18,8 +18,8 @@
 //
 // Usage:
 //
-//	corpusdiff fetch   -fhir r4|r4b|r5 -cache DIR
-//	corpusdiff eval    -fhir r4|r4b|r5 -cache DIR -out FILE
+//	corpusdiff fetch   -fhir r4|r4b|r5|au-core|ch-core -cache DIR
+//	corpusdiff eval    -fhir r4|r4b|r5|au-core|ch-core -cache DIR -out FILE
 //	corpusdiff compare [-v] BASE HEAD
 package main
 
@@ -52,11 +52,23 @@ import (
 var versions = map[string]struct {
 	core, examples string
 	model          func() fhirpath.Model
+	// ig marks an implementation guide: core is its package, whose profiles
+	// hold the constraints and whose example folder holds the instances, each
+	// checked against the profiles it claims.
+	ig bool
 }{
-	"r4":  {"hl7.fhir.r4.core/4.0.1", "hl7.fhir.r4.examples/4.0.1", func() fhirpath.Model { return r4.FHIRPathModel() }},
-	"r4b": {"hl7.fhir.r4b.core/4.3.0", "hl7.fhir.r4b.examples/4.3.0", func() fhirpath.Model { return r4b.FHIRPathModel() }},
-	"r5":  {"hl7.fhir.r5.core/5.0.0", "hl7.fhir.r5.examples/5.0.0", func() fhirpath.Model { return r5.FHIRPathModel() }},
+	"r4":  {"hl7.fhir.r4.core/4.0.1", "hl7.fhir.r4.examples/4.0.1", func() fhirpath.Model { return r4.FHIRPathModel() }, false},
+	"r4b": {"hl7.fhir.r4b.core/4.3.0", "hl7.fhir.r4b.examples/4.3.0", func() fhirpath.Model { return r4b.FHIRPathModel() }, false},
+	"r5":  {"hl7.fhir.r5.core/5.0.0", "hl7.fhir.r5.examples/5.0.0", func() fhirpath.Model { return r5.FHIRPathModel() }, false},
+	// AU Core and CH Core are where au-core-obs-02 and ch-core-hm-3 failed:
+	// constraints of profiles, evaluated on elements, which the core examples
+	// do not reach.
+	"au-core": {"hl7.fhir.au.core/3.0.0-ballot1", "", func() fhirpath.Model { return r4.FHIRPathModel() }, true},
+	"ch-core": {"ch.fhir.ig.ch-core/7.0.0-ballot", "", func() fhirpath.Model { return r4.FHIRPathModel() }, true},
 }
+
+// kindResource is a StructureDefinition's kind for a resource.
+const kindResource = "resource"
 
 // maxResource leaves out the few examples above it — Bundles of tens of
 // megabytes — whose constraints run on their entries, which the corpus has on
@@ -86,15 +98,15 @@ func main() {
 }
 
 func usage() {
-	fmt.Fprintln(os.Stderr, "usage: corpusdiff fetch -fhir r4|r4b|r5 -cache DIR")
-	fmt.Fprintln(os.Stderr, "       corpusdiff eval -fhir r4|r4b|r5 -cache DIR -out FILE")
+	fmt.Fprintln(os.Stderr, "usage: corpusdiff fetch -fhir r4|r4b|r5|au-core|ch-core -cache DIR")
+	fmt.Fprintln(os.Stderr, "       corpusdiff eval -fhir r4|r4b|r5|au-core|ch-core -cache DIR -out FILE")
 	fmt.Fprintln(os.Stderr, "       corpusdiff compare [-v] BASE HEAD")
 	os.Exit(2)
 }
 
 func fetchCommand(args []string) error {
 	flags := flag.NewFlagSet("fetch", flag.ExitOnError)
-	fhirVersion := flags.String("fhir", "r4", "FHIR version: r4, r4b or r5")
+	fhirVersion := flags.String("fhir", "r4", "FHIR version or guide: r4, r4b, r5, au-core or ch-core")
 	cache := flags.String("cache", "build/corpusdiff/cache", "where the packages are kept")
 	if err := flags.Parse(args); err != nil {
 		return err
@@ -105,6 +117,9 @@ func fetchCommand(args []string) error {
 		usage()
 	}
 	for _, pkg := range []string{version.core, version.examples} {
+		if pkg == "" {
+			continue
+		}
 		if _, err := fetch(*cache, pkg); err != nil {
 			return err
 		}
@@ -114,7 +129,7 @@ func fetchCommand(args []string) error {
 
 func evalCommand(args []string) error {
 	flags := flag.NewFlagSet("eval", flag.ExitOnError)
-	fhirVersion := flags.String("fhir", "r4", "FHIR version: r4, r4b or r5")
+	fhirVersion := flags.String("fhir", "r4", "FHIR version or guide: r4, r4b, r5, au-core or ch-core")
 	cache := flags.String("cache", "build/corpusdiff/cache", "where the packages are kept")
 	out := flags.String("out", "", "file to write the answers to")
 	if err := flags.Parse(args); err != nil {
@@ -129,6 +144,9 @@ func evalCommand(args []string) error {
 	coreDir, err := fetch(*cache, version.core)
 	if err != nil {
 		return err
+	}
+	if version.ig {
+		return evalGuide(coreDir, version.model(), *out, *fhirVersion)
 	}
 	examplesDir, err := fetch(*cache, version.examples)
 	if err != nil {
@@ -148,7 +166,17 @@ func evalCommand(args []string) error {
 
 	// A file cut short would read as evaluations one side does not have, so
 	// every write is checked, the last ones included.
+	checks, err := buildElementChecks(coreDir)
+	if err != nil {
+		return err
+	}
+
 	n, err := evaluate(corpus, examplesDir, version.model(), w)
+	if err == nil {
+		var elements int
+		elements, err = evaluateElements(checks, examplesDir, version.model(), w)
+		n += elements
+	}
 	if err == nil {
 		err = w.Flush()
 	}
@@ -209,8 +237,8 @@ func fetch(cache, pkg string) (string, error) {
 	return filepath.Join(dir, "package"), nil
 }
 
-// extract writes a package tarball's top-level JSON files under dir and says
-// how many there were. Nothing else is needed, and a name that climbs out of
+// extract writes a package tarball's JSON files under dir — the top-level ones
+// and a guide's examples — and says how many there were. Nothing else is needed, and a name that climbs out of
 // the directory, or is not a regular file, is not written anywhere.
 func extract(r io.Reader, dir string) (int, error) {
 	gz, err := gzip.NewReader(r)
@@ -229,7 +257,8 @@ func extract(r io.Reader, dir string) (int, error) {
 			return extracted, err
 		}
 		name := filepath.Clean(hdr.Name)
-		if hdr.Typeflag != tar.TypeReg || filepath.Dir(name) != "package" || !strings.HasSuffix(name, ".json") {
+		folder := filepath.Dir(name)
+		if hdr.Typeflag != tar.TypeReg || (folder != "package" && folder != filepath.Join("package", "example")) || !strings.HasSuffix(name, ".json") {
 			continue
 		}
 		if err := writeFile(filepath.Join(dir, name), tr); err != nil {
@@ -288,7 +317,7 @@ func buildCorpus(coreDir, examplesDir string) (map[string][]string, error) {
 			return nil, err
 		}
 		var sd structureDefinition
-		if json.Unmarshal(data, &sd) != nil || sd.Kind != "resource" || sd.Derivation != "specialization" {
+		if json.Unmarshal(data, &sd) != nil || sd.Kind != kindResource || sd.Derivation != "specialization" {
 			continue
 		}
 		corpus[sd.Type] = expressionsFor(&sd, together)
@@ -471,7 +500,7 @@ func evaluate(corpus map[string][]string, examplesDir string, model fhirpath.Mod
 				kept, keptErr := doc.EvaluateWithOptions(expr, fhirpath.WithModel(model))
 				line = answer(raw, rawErr) + "\t" + answer(kept, keptErr)
 			}
-			if _, err := fmt.Fprintf(w, "%s\t%s\t%s\n", filepath.Base(file), text, line); err != nil {
+			if _, err := fmt.Fprintf(w, "%s\t%s\t%s\n", filepath.Base(file), oneLine(text), line); err != nil {
 				return n, err
 			}
 			n++

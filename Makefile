@@ -115,14 +115,17 @@ difftest:
 	@cd difftest && go run . $(DIFFTEST_ARGS)
 
 # What two revisions answer for every element path and constraint over the
-# official FHIR examples, with the version's model. The suite and difftest both
-# passed a release that broke four choice elements across twenty R4 examples;
-# this is what found it. Every difference it lists is worth reading.
+# official FHIR examples, with the version's model: on the resource as the root,
+# and element by element with SetPath as a validator evaluates invariants. The
+# AU Core and CH Core guides add their profiles and examples, data type
+# profiles included. The suite and difftest both passed releases that broke
+# choices across twenty R4 examples and failed au-core-obs-02 and ch-core-hm-3;
+# this is what finds them. Every difference it lists is worth reading.
 #
 # Fetches the packages from packages2.fhir.org on first use. Not part of `test`:
 # it takes minutes and the network.
 #
-#   make corpusdiff                     # this tree against main, R4, R4B and R5
+#   make corpusdiff                     # this tree against main: R4, R4B, R5, AU Core, CH Core
 #   make corpusdiff BASE=v1.9.1 FHIR=r4
 #   make corpusdiff VERBOSE=1           # every differing evaluation
 FHIR ?= all

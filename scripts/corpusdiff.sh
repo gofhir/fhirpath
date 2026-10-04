@@ -18,7 +18,7 @@
 #   scripts/corpusdiff.sh [BASE] [FHIR]
 #
 #   BASE   revision to compare against   (default: main)
-#   FHIR   r4, r4b, r5 or all            (default: all)
+#   FHIR   r4, r4b, r5, au-core, ch-core or all   (default: all)
 #
 # Environment:
 #   VERBOSE   list every differing evaluation, not one per expression
@@ -43,9 +43,9 @@ if ! git rev-parse --verify --quiet "$BASE" >/dev/null; then
 fi
 
 case "$FHIR" in
-	r4 | r4b | r5) versions=("$FHIR") ;;
-	all) versions=(r4 r4b r5) ;;
-	*) echo "corpusdiff: FHIR must be r4, r4b, r5 or all, not $FHIR" >&2; exit 1 ;;
+	r4 | r4b | r5 | au-core | ch-core) versions=("$FHIR") ;;
+	all) versions=(r4 r4b r5 au-core ch-core) ;;
+	*) echo "corpusdiff: FHIR must be r4, r4b, r5, au-core, ch-core or all, not $FHIR" >&2; exit 1 ;;
 esac
 
 rm -rf "$worktree" "$out_dir/tool-base"
