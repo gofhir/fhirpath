@@ -44,6 +44,16 @@ func DefaultOptions() *EvalOptions {
 	}
 }
 
+// defaultOptions are DefaultOptions as a value, which configureContext copies
+// rather than allocating options for every evaluation. Its Variables is nil,
+// unlike what DefaultOptions returns, so that a copy does not share one map;
+// WithVariable makes one when it sets a variable.
+var defaultOptions = func() EvalOptions {
+	options := *DefaultOptions()
+	options.Variables = nil
+	return options
+}()
+
 // EvalOption is a functional option for configuring evaluation.
 type EvalOption func(*EvalOptions)
 
@@ -113,18 +123,22 @@ func (e *Expression) EvaluateWithOptions(resource []byte, opts ...EvalOption) (t
 // applied to an evaluation over a resource read for the occasion and to one
 // over a Document, which carries a reading of its own.
 func configureContext(evalCtx *eval.Context, opts ...EvalOption) (configured *eval.Context, done func()) {
-	options := DefaultOptions()
+	options := defaultOptions
+	// An option a caller writes may set a variable into the map directly, as
+	// DefaultOptions always offered one, so there is one whenever an option is
+	// given; an evaluation given none makes none.
+	if len(opts) > 0 {
+		options.Variables = make(map[string]types.Collection)
+	}
 	for _, opt := range opts {
-		opt(options)
+		opt(&options)
 	}
 
-	// Create context with timeout if specified
-	ctx := options.Ctx
+	// The timeout is a deadline the context checks, not a timer: see
+	// eval.Context.SetDeadline.
 	done = func() {}
 	if options.Timeout > 0 {
-		var cancel context.CancelFunc
-		ctx, cancel = context.WithTimeout(ctx, options.Timeout)
-		done = cancel
+		done = evalCtx.SetDeadline(time.Now().Add(options.Timeout))
 	}
 
 	// Set variables
@@ -135,7 +149,7 @@ func configureContext(evalCtx *eval.Context, opts ...EvalOption) (configured *ev
 	// Set limits in context
 	evalCtx.SetLimit("maxDepth", options.MaxDepth)
 	evalCtx.SetLimit("maxCollectionSize", options.MaxCollectionSize)
-	evalCtx.SetContext(ctx)
+	evalCtx.SetContext(options.Ctx)
 
 	// Set resolver if provided
 	if options.Resolver != nil {

@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/antlr4-go/antlr/v4"
 
@@ -81,6 +82,9 @@ type Context struct {
 	outer              types.Collection            // scope a function's arguments are evaluated in
 	defined            map[string]types.Collection // variables introduced by defineVariable()
 	limits             map[string]int
+	maxDepth           int       // see SetLimit
+	maxCollectionSize  int       // see SetLimit
+	deadline           *deadline // see SetDeadline
 	goCtx              context.Context
 	resolver           Resolver
 	terminologyService TerminologyService
@@ -184,15 +188,31 @@ func (c *Context) builtinVariable(name string) (types.Collection, bool) {
 }
 
 // SetLimit sets a limit value (e.g., maxDepth, maxCollectionSize).
+//
+// The two limits every evaluation sets are kept in fields, so that setting
+// them costs no map; any other name is kept in one.
 func (c *Context) SetLimit(name string, value int) {
-	if c.limits == nil {
-		c.limits = make(map[string]int)
+	switch name {
+	case "maxDepth":
+		c.maxDepth = value
+	case "maxCollectionSize":
+		c.maxCollectionSize = value
+	default:
+		if c.limits == nil {
+			c.limits = make(map[string]int)
+		}
+		c.limits[name] = value
 	}
-	c.limits[name] = value
 }
 
 // GetLimit gets a limit value.
 func (c *Context) GetLimit(name string) int {
+	switch name {
+	case "maxDepth":
+		return c.maxDepth
+	case "maxCollectionSize":
+		return c.maxCollectionSize
+	}
 	if c.limits == nil {
 		return 0
 	}
@@ -204,12 +224,53 @@ func (c *Context) SetContext(ctx context.Context) {
 	c.goCtx = ctx
 }
 
-// Context returns the Go context.
+// Context returns the Go context, carrying the evaluation's deadline when one
+// was set with SetDeadline.
 func (c *Context) Context() context.Context {
-	if c.goCtx == nil {
-		return context.Background()
+	base := c.goCtx
+	if base == nil {
+		base = context.Background()
 	}
-	return c.goCtx
+	if c.deadline == nil {
+		return base
+	}
+	return c.deadline.context(base)
+}
+
+// deadline is when an evaluation runs out of time, and the Go context carrying
+// it once something asked for one. It is shared by the copies of a context an
+// evaluation makes, so that one timer serves them all and releasing it stops
+// it.
+type deadline struct {
+	at     time.Time
+	ctx    context.Context
+	cancel context.CancelFunc
+}
+
+func (d *deadline) context(base context.Context) context.Context {
+	if d.ctx == nil {
+		d.ctx, d.cancel = context.WithDeadline(base, d.at)
+	}
+	return d.ctx
+}
+
+// SetDeadline sets when the evaluation runs out of time, and returns the
+// function that releases what keeping it costs, to be called once the
+// evaluation is done, as a context.CancelFunc is.
+//
+// It answers what context.WithTimeout did without starting a timer for every
+// evaluation: CheckCancellation compares the time with the deadline, and the
+// Go context carrying it is made only when something calls out with one — a
+// resolver, a terminology service, a regular expression — which most
+// evaluations never do.
+func (c *Context) SetDeadline(at time.Time) (release func()) {
+	d := &deadline{at: at}
+	c.deadline = d
+	return func() {
+		if d.cancel != nil {
+			d.cancel()
+		}
+	}
 }
 
 // SetResolver sets the reference resolver.
@@ -355,6 +416,9 @@ func (c *Context) PathOf(obj *types.ObjectValue) string {
 
 // CheckCancellation checks if the context has been canceled.
 func (c *Context) CheckCancellation() error {
+	if c.deadline != nil && !time.Now().Before(c.deadline.at) {
+		return context.DeadlineExceeded
+	}
 	if c.goCtx == nil {
 		return nil
 	}
