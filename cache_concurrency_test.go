@@ -60,3 +60,40 @@ func TestCachesCanBeHitFromSeveralGoroutines(t *testing.T) {
 		t.Errorf("regex cache holds %d entries over a limit of 4", size)
 	}
 }
+
+// Eviction keeps what is used: an entry hit since the hand last passed it is
+// spared, and one that was not is evicted, so a hot expression survives a
+// stream of one-off ones — expressions built with an id pasted in.
+func TestEvictionKeepsTheExpressionsInUse(t *testing.T) {
+	c := NewExpressionCache(8)
+	hot := "Patient.name.given"
+	if _, err := c.Get(hot); err != nil {
+		t.Fatal(err)
+	}
+	for i := 0; i < 200; i++ {
+		if _, err := c.Get(hot); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := c.Get(fmt.Sprintf("Patient.id = 'p%d'", i)); err != nil {
+			t.Fatal(err)
+		}
+		if size := c.Size(); size > 8 {
+			t.Fatalf("cache holds %d entries over a limit of 8", size)
+		}
+	}
+	before := c.Stats().Misses
+	if _, err := c.Get(hot); err != nil {
+		t.Fatal(err)
+	}
+	if c.Stats().Misses != before {
+		t.Error("the expression hit on every round was evicted by one-off ones")
+	}
+
+	c.Clear()
+	if c.Size() != 0 || c.Stats().Hits != 0 {
+		t.Errorf("after Clear: size %d, hits %d", c.Size(), c.Stats().Hits)
+	}
+	if _, err := c.Get(hot); err != nil || c.Size() != 1 {
+		t.Errorf("after Clear the cache does not take entries again: size %d, %v", c.Size(), err)
+	}
+}
