@@ -1,5 +1,49 @@
 # Changelog
 
+## [1.9.11](https://github.com/gofhir/fhirpath/compare/v1.9.10...v1.9.11) (2026-10-04)
+
+
+### Performance Improvements
+
+Together, against 1.9.10 over a sample of the R4 examples: a `Document` with the
+model 6.37 to 4.77 µs per evaluation (−25%, 21% less memory); a fresh context
+per evaluation, as a validator makes, 57.0 to 39.9 µs (−30%) for a caller that
+moves to `NewContextForValidJSON`, and unchanged with `NewContext`; one-shot
+`Evaluate` 1% faster.
+
+* an evaluation's setup costs no timer, map or options allocation ([#82](https://github.com/gofhir/fhirpath/issues/82)) ([2596062](https://github.com/gofhir/fhirpath/commit/25960628a30c565fb76303694fd9cd674e7a22f4))
+
+  `EvaluateWithOptions` allocated its options with a map for variables, kept its
+  limits in a map and started a timer for the default five-second timeout: 391
+  to 168 ns and 12 to 7 allocations before evaluating anything. The timeout is
+  now a deadline the context checks; the Go context carrying it is made only
+  when a resolver, terminology service or regular expression asks, so they
+  still receive it, and the error past it is still `context.DeadlineExceeded`.
+  New: `eval.Context.SetDeadline`.
+* look for a choice's variants in the field index ([#80](https://github.com/gofhir/fhirpath/issues/80)) ([864dbd5](https://github.com/gofhir/fhirpath/commit/864dbd56003cde38015cad898378bd62377a50ec))
+
+  Trying a missing field as a choice element read the object's keys with a scan
+  of its own; it reads them from the field index now. A `Document`: 6.40 to
+  5.59 µs per evaluation.
+* NewContextForValidJSON reads a checked document without scanning it first ([#79](https://github.com/gofhir/fhirpath/issues/79)) ([6f21f7d](https://github.com/gofhir/fhirpath/commit/6f21f7d51c92a2b9dff8d40e347fc699262d7847))
+
+  The commit is titled "NewContext reads its root without scanning the whole
+  document", after a first version the review turned back; it is not what
+  shipped. **`NewContext` is unchanged**: it checks the document and answers a
+  malformed one empty. The new `eval.NewContextForValidJSON` skips that scan
+  for a document its caller has already decoded or checked, as a validator
+  does, and answers exactly as `NewContext` for a well-formed one; on one that
+  is not, it reads what it can. `types.ReadRoot` is the read behind it. In the
+  corpus benchmark's context mode, a fresh context per evaluation: 57.0 to
+  40.9 µs per evaluation.
+* unescape JSON strings with the parser that read them ([#81](https://github.com/gofhir/fhirpath/issues/81)) ([4e9944e](https://github.com/gofhir/fhirpath/commit/4e9944ea3a9c67c87af077a5ec290823a6f6e085))
+
+  A string with an escape, a narrative above all, was decoded through
+  `encoding/json`; plain content is now unescaped by jsonparser, 734 to about
+  206 ns, and anything else, a surrogate escape, invalid UTF-8 or a control
+  character, still by `encoding/json`, so every string decodes as it did,
+  checked by fuzzing against `encoding/json`.
+
 ## [1.9.10](https://github.com/gofhir/fhirpath/compare/v1.9.9...v1.9.10) (2026-10-04)
 
 
