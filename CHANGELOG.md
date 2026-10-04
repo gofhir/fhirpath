@@ -7,10 +7,26 @@
 
 * trace() writes nothing unless a logger is configured ([#84](https://github.com/gofhir/fhirpath/issues/84)) ([116b2b2](https://github.com/gofhir/fhirpath/commit/116b2b2d7388dca24914697d21e7e3abb13c669f))
 
+  `trace()` wrote a line to stderr on every call by default, and R4's `dom-3`, a
+  SHALL invariant on every DomainResource, ends in `.trace('unmatched', id)`: a
+  validator with the defaults wrote one line per resource it validated. The
+  default logger now discards, as the HL7 validator traces only when a tracer
+  is set, and `trace()` builds no entry when there is nowhere to write it. It
+  still returns its input unchanged.
+
+  **To see traces on stderr as before**, set a logger once:
+  `funcs.SetTraceLogger(funcs.NewDefaultTraceLogger(os.Stderr, false))`.
+
 
 ### Performance Improvements
 
 * a checked root placed under a model's type is not scanned again ([#85](https://github.com/gofhir/fhirpath/issues/85)) ([d442f9d](https://github.com/gofhir/fhirpath/commit/d442f9dc45369b072a7c4318b539c0916cba9307))
+
+  A context from `eval.NewContextForValidJSON` given a model and a path read its
+  root again with a full scan when placing it under the model's type, the scan
+  that function exists to skip. It reads it as it stands now, through the new
+  `types.ReadRootWithType`: a 200 KB element, 140 to 70 µs. Contexts from
+  `NewContext` are placed as before.
 
 ## [1.9.11](https://github.com/gofhir/fhirpath/compare/v1.9.10...v1.9.11) (2026-10-04)
 
