@@ -4,6 +4,7 @@ import (
 	"context"
 	"regexp"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/gofhir/fhirpath/eval"
@@ -17,6 +18,7 @@ type RegexCache struct {
 	mu      sync.RWMutex
 	cache   map[string]*regexEntry
 	order   []string // LRU order tracking
+	clock   atomic.Uint64
 	limit   int
 	maxLen  int           // Maximum regex pattern length
 	timeout time.Duration // Default timeout for regex operations
@@ -24,7 +26,7 @@ type RegexCache struct {
 
 type regexEntry struct {
 	re       *regexp.Regexp
-	lastUsed time.Time
+	lastUsed atomic.Uint64 // the cache's clock reading when last used
 }
 
 // DefaultRegexCache is a global regex cache for production use.
@@ -58,9 +60,12 @@ func (c *RegexCache) Compile(pattern string) (*regexp.Regexp, error) {
 	}
 
 	// Try cache first
+	// A hit is a read: when the entry was last used is stamped atomically,
+	// which many goroutines can do under the read lock at once. It used to be
+	// written plainly under that lock, which raced.
 	c.mu.RLock()
 	if entry, ok := c.cache[pattern]; ok {
-		entry.lastUsed = time.Now()
+		entry.lastUsed.Store(c.clock.Add(1))
 		c.mu.RUnlock()
 		return entry.re, nil
 	}
@@ -110,10 +115,9 @@ func (c *RegexCache) Compile(pattern string) (*regexp.Regexp, error) {
 		c.evictLRU()
 	}
 
-	c.cache[pattern] = &regexEntry{
-		re:       re,
-		lastUsed: time.Now(),
-	}
+	entry := &regexEntry{re: re}
+	entry.lastUsed.Store(c.clock.Add(1))
+	c.cache[pattern] = entry
 	c.order = append(c.order, pattern)
 
 	return re, nil
@@ -129,14 +133,14 @@ func (c *RegexCache) evictLRU() {
 	// Find oldest entry
 	oldest := c.order[0]
 	oldestIdx := 0
-	oldestTime := c.cache[oldest].lastUsed
+	oldestUse := c.cache[oldest].lastUsed.Load()
 
 	for i, pattern := range c.order {
 		if entry, ok := c.cache[pattern]; ok {
-			if entry.lastUsed.Before(oldestTime) {
+			if use := entry.lastUsed.Load(); use < oldestUse {
 				oldest = pattern
 				oldestIdx = i
-				oldestTime = entry.lastUsed
+				oldestUse = use
 			}
 		}
 	}

@@ -8,7 +8,9 @@ import (
 // Evaluate parses and evaluates a FHIRPath expression against a JSON resource.
 // This is a convenience function that compiles and evaluates in one step.
 func Evaluate(resource []byte, expr string) (types.Collection, error) {
-	compiled, err := Compile(expr)
+	// Compiled once and reused: parsing costs several times what evaluating
+	// does, and this is the call a caller reaches for first.
+	compiled, err := DefaultCache.Get(expr)
 	if err != nil {
 		return nil, err
 	}
