@@ -119,6 +119,8 @@ func NewContext(resource []byte) *Context {
 	//nolint:errcheck // Empty collection is acceptable for invalid JSON in context creation
 	root, _ := types.JSONToCollection(resource)
 
+	markPrivate(root)
+
 	ctx := NewContextForRoot(root)
 	// Kept so that the root can be read again under the type a model gives
 	// it, once a model and the root's path are both known. See placeRoot.
@@ -266,9 +268,20 @@ func (c *Context) placeRoot() {
 	if err != nil {
 		return
 	}
+	markPrivate(root)
 	c.root = root
 	c.this = root
 	c.placed = fhirType != ""
+}
+
+// markPrivate marks the objects of a root this context read itself private:
+// no other goroutine holds them. See types.ObjectValue.MarkPrivate.
+func markPrivate(root types.Collection) {
+	for _, value := range root {
+		if obj, ok := value.(*types.ObjectValue); ok {
+			obj.MarkPrivate()
+		}
+	}
 }
 
 // rootType returns the type a model gives a path. A model may know a choice
