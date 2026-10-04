@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.9.11](https://github.com/gofhir/fhirpath/compare/v1.9.10...v1.9.11) (2026-10-04)
+
+
+### Performance Improvements
+
+* an evaluation's setup costs no timer, map or options allocation ([#82](https://github.com/gofhir/fhirpath/issues/82)) ([2596062](https://github.com/gofhir/fhirpath/commit/25960628a30c565fb76303694fd9cd674e7a22f4))
+* look for a choice's variants in the field index ([#80](https://github.com/gofhir/fhirpath/issues/80)) ([864dbd5](https://github.com/gofhir/fhirpath/commit/864dbd56003cde38015cad898378bd62377a50ec))
+* NewContext reads its root without scanning the whole document ([#79](https://github.com/gofhir/fhirpath/issues/79)) ([6f21f7d](https://github.com/gofhir/fhirpath/commit/6f21f7d51c92a2b9dff8d40e347fc699262d7847))
+* unescape JSON strings with the parser that read them ([#81](https://github.com/gofhir/fhirpath/issues/81)) ([4e9944e](https://github.com/gofhir/fhirpath/commit/4e9944ea3a9c67c87af077a5ec290823a6f6e085))
+
 ## [1.9.10](https://github.com/gofhir/fhirpath/compare/v1.9.9...v1.9.10) (2026-10-04)
 
 
