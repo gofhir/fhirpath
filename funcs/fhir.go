@@ -114,7 +114,14 @@ func fnResolve(ctx *eval.Context, input types.Collection, args []interface{}) (t
 			continue
 		}
 
-		result = append(result, col...)
+		// The resource was not read from the input, so it has no location in
+		// it: it is read again as an object that is no input's root.
+		for _, v := range col {
+			if obj, ok := v.(*types.ObjectValue); ok {
+				v = types.NewObjectValue(obj.Data())
+			}
+			result = append(result, v)
+		}
 	}
 
 	return result, nil

@@ -6,6 +6,7 @@ import (
 	"errors"
 	"math"
 	"slices"
+	"strconv"
 	"strings"
 	"unicode/utf8"
 
@@ -31,12 +32,20 @@ type ObjectValue struct {
 	caching bool
 	// private records that one goroutine reads the object, so it can keep
 	// what it works out about itself. See MarkPrivate.
-	private      bool
+	private bool
+	// root records that the object is the root of the input it was read from.
+	// See Location.
+	root         bool
 	reads        uint8          // how many times a field was read by scanning. See readField.
 	index        []indexedField // the object's fields once indexed. See readField.
 	explicitType string         // optional explicit FHIR type from polymorphic resolution
 	elementPath  string         // the element the object was reached as. See ElementPath.
 	typeName     string         // the type once answered, which does not change. See Type.
+	// parent is the object this one was read out of, nil for a root or an
+	// object no read created. It is all an object keeps of where it sits, and
+	// fits in the room the struct already takes: the field and the index are
+	// found from it only when asked. See Location.
+	parent *ObjectValue
 }
 
 // EnableCaching makes the object keep the fields it reads, and the objects it
@@ -65,6 +74,153 @@ func (o *ObjectValue) ElementPath() string {
 // SetElementPath records the path of the element the object was reached as.
 func (o *ObjectValue) SetElementPath(path string) {
 	o.elementPath = path
+}
+
+// Location is where the object sits in the input it was read from, spelled
+// from the root with the index of each item of an array:
+//
+//	Patient
+//	Patient.contact[1]
+//	Patient.contact[0].name
+//	Bundle.entry[0].resource.contact[2].name
+//
+// Two objects with the same content are equal, and reached by the same
+// expression they have the same ElementPath, but they do not sit in the same
+// place. Location tells them apart, which is what checking a result against an
+// element found some other way — a validator's own walk of the resource —
+// takes.
+//
+// The root is named by its resourceType, and a root without one, an element
+// read as the root, by nothing: its fields are located as "given[0]". A field
+// is named by its key as the JSON spells it, so a choice element is
+// "Patient.deceasedBoolean", and an index counts every position of the JSON
+// array, nulls included, so it matches the instance's own indexing rather
+// than a FHIRPath collection's, which drops a position with neither a value
+// nor an element.
+//
+// A primitive has no location of its own. The element FHIR writes beside it
+// under _name, which [ElementOf] returns, is located as the primitive is
+// named: "Patient.name[0].given[1]" for the element of the second given,
+// "Patient.birthDate" for what is read from _birthDate.
+//
+// The location is the same however the object was reached — a path,
+// children(), descendants(), a where() or an ofType() keeping it, resolve()
+// to a contained resource or an entry of the same Bundle. It is "" for an
+// object that was not read from the input: one a function made, a resource
+// a Resolver handed back, the items of a JSON array read as the root.
+//
+// The object keeps only the object it was read out of, a pointer that fits in
+// the room the struct already takes, so navigation pays nothing for it.
+// Location reads each ancestor's JSON to find the field and index instead,
+// which costs less than evaluating the path again and allocates only the
+// string. It only reads, and may be called on objects other goroutines read.
+func (o *ObjectValue) Location() string {
+	// Collect the chain up to the root, on the stack for any ordinary depth.
+	var stack [16]*ObjectValue
+	chain := stack[:0]
+	top := o
+	for ; top.parent != nil; top = top.parent {
+		chain = append(chain, top)
+	}
+	if !top.root {
+		return ""
+	}
+
+	// Spelled into a buffer on the stack, so that the string is the one
+	// allocation for any ordinary path.
+	var buf [128]byte
+	path := buf[:0]
+	if resourceType, dataType, _, err := jsonparser.Get(top.data, "resourceType"); err == nil && dataType == jsonparser.String {
+		path = append(path, resourceType...)
+	}
+	for i := len(chain) - 1; i >= 0; i-- {
+		child := chain[i]
+		key, index, found := child.parent.locate(child.data)
+		if !found {
+			return ""
+		}
+		if len(path) > 0 {
+			path = append(path, '.')
+		}
+		path = append(path, key...)
+		if index >= 0 {
+			path = append(path, '[')
+			path = strconv.AppendInt(path, int64(index), 10)
+			path = append(path, ']')
+		}
+	}
+	return string(path)
+}
+
+// locate finds the field of the object that holds child, which was read out
+// of it: the key, without the underscore of a primitive's element, and the
+// index in the field's array, or -1 when the field is not an array.
+//
+// The child is a slice of the object's JSON, so it is found by where it
+// starts rather than by what it holds: an equal sibling starts elsewhere.
+func (o *ObjectValue) locate(child []byte) (key []byte, index int, found bool) {
+	index = -1
+	//nolint:errcheck // The only error is errFieldsFound, which ends the scan
+	jsonparser.ObjectEach(o.data, func(k, entry []byte, entryType jsonparser.ValueType, _ int) error {
+		switch entryType {
+		case jsonparser.Object:
+			found = sameStart(entry, child)
+		case jsonparser.Array:
+			index = arrayIndexOf(entry, child)
+			found = index >= 0
+		}
+		if !found {
+			return nil
+		}
+		key = k
+		if len(key) > 1 && key[0] == '_' {
+			key = key[1:]
+		}
+		return errFieldsFound
+	})
+	return key, index, found
+}
+
+// arrayIndexOf returns the index of the item of a JSON array that starts
+// where child does, or -1 when none does. It stops at that item, which
+// jsonparser.ArrayEach cannot: an object is found in a long array — an entry
+// of a Bundle — by reading only the items before it.
+func arrayIndexOf(array, child []byte) int {
+	offset := 1 // past the [
+	for i := 0; ; i++ {
+		item, _, end, err := jsonparser.Get(array[offset:])
+		if err != nil {
+			return -1
+		}
+		if sameStart(item, child) {
+			return i
+		}
+		offset += end
+		for offset < len(array) && isJSONSpace(array[offset]) {
+			offset++
+		}
+		if offset >= len(array) || array[offset] != ',' {
+			return -1
+		}
+		offset++
+	}
+}
+
+// sameStart reports whether two slices start at the same byte of the same
+// JSON.
+func sameStart(a, b []byte) bool {
+	return len(a) > 0 && len(b) > 0 && &a[0] == &b[0]
+}
+
+// asRoot records that the objects of a collection read as the root of an
+// input are its root. See Location.
+func asRoot(col Collection) Collection {
+	for _, value := range col {
+		if obj, ok := value.(*ObjectValue); ok {
+			obj.root = true
+		}
+	}
+	return col
 }
 
 // MarkPrivate records that only one goroutine reads the object, which lets it
@@ -393,7 +549,7 @@ func (o *ObjectValue) Get(field string) (Value, bool) {
 	// Convert to Value, and keep it where no other goroutine reads the object.
 	// What it reads is new, so it is private either way.
 	v := jsonValueToFHIRValue(value, dataType)
-	markPrivate(Collection{v})
+	o.adopt(v)
 	if o.keeps() {
 		if o.fields == nil {
 			o.fields = make(map[string]Value, 4)
@@ -422,13 +578,20 @@ func (o *ObjectValue) GetCollection(field string) Collection {
 	})
 }
 
-// markPrivate marks the objects in a collection, and the elements of the
-// primitives in it, private: they were just read, and nothing else holds them.
-func markPrivate(col Collection) {
+// adopt records what was just read out of the object: the value, or the
+// element of a primitive, is private, since nothing else holds it, and was
+// read out of this object, which is where it sits. See Location.
+func (o *ObjectValue) adopt(value Value) {
+	if obj, ok := ElementOf(value); ok {
+		obj.private = true
+		obj.parent = o
+	}
+}
+
+// adoptAll adopts each value of a collection just read out of the object.
+func (o *ObjectValue) adoptAll(col Collection) {
 	for _, value := range col {
-		if obj, ok := ElementOf(value); ok {
-			obj.private = true
-		}
+		o.adopt(value)
 	}
 }
 
@@ -454,7 +617,7 @@ func (o *ObjectValue) cachedCollection(key fieldKey, build func() Collection) Co
 		// What was just read is created by the read and belongs to whoever
 		// reads this object, even when this object is shared.
 		col := build()
-		markPrivate(col)
+		o.adoptAll(col)
 		return col
 	}
 
@@ -469,6 +632,7 @@ func (o *ObjectValue) cachedCollection(key fieldKey, build func() Collection) Co
 		if child, ok := ElementOf(value); ok {
 			child.caching = true
 			child.private = true
+			child.parent = o
 		}
 	}
 
@@ -781,6 +945,7 @@ func (o *ObjectValue) Children() Collection {
 		}
 		return nil
 	})
+	o.adoptAll(result)
 	return result
 }
 
@@ -913,7 +1078,7 @@ func (o *ObjectValue) appendPairedChild(result []TypedChild, f *pairedField, bas
 		if obj, ok := v.(*ObjectValue); ok && fhirType != "" && !IsAbstractResourceType(fhirType) {
 			obj.elementPath = childPath
 		}
-		markPrivate(Collection{v})
+		o.adopt(v)
 		result = append(result, TypedChild{Value: v, Path: childPath})
 	}
 	return result
@@ -948,7 +1113,7 @@ func (o *ObjectValue) unpairedChildren(basePath string, res ElementTypeResolver)
 				if obj, ok := v.(*ObjectValue); ok && fhirType != "" && !IsAbstractResourceType(fhirType) {
 					obj.elementPath = childPath
 				}
-				markPrivate(Collection{v})
+				o.adopt(v)
 				result = append(result, TypedChild{Value: v, Path: childPath})
 			}
 		}
@@ -1466,7 +1631,7 @@ func JSONToCollection(data []byte) (Collection, error) {
 
 	switch dataType {
 	case jsonparser.Object:
-		return Collection{NewObjectValue(value)}, nil
+		return asRoot(Collection{NewObjectValue(value)}), nil
 	case jsonparser.Array:
 		return jsonArrayToCollection(value), nil
 	case jsonparser.Null:
@@ -1500,7 +1665,7 @@ func ReadRoot(data []byte) (Collection, error) {
 		end--
 	}
 	if end-start >= 2 && data[start] == '{' && data[end-1] == '}' {
-		return Collection{NewObjectValue(data[start:end])}, nil
+		return asRoot(Collection{NewObjectValue(data[start:end])}), nil
 	}
 	return JSONToCollection(data)
 }
@@ -1525,7 +1690,7 @@ func ReadRootWithType(data []byte, fhirType string) (Collection, error) {
 		end--
 	}
 	if end-start >= 2 && data[start] == '{' && data[end-1] == '}' {
-		return Collection{jsonValueToFHIRValueWithType(data[start:end], jsonparser.Object, fhirType)}, nil
+		return asRoot(Collection{jsonValueToFHIRValueWithType(data[start:end], jsonparser.Object, fhirType)}), nil
 	}
 	return JSONToCollectionWithType(data, fhirType)
 }
@@ -1563,7 +1728,7 @@ func JSONToCollectionWithType(data []byte, fhirType string) (Collection, error) 
 		return Collection{}, nil
 	default:
 		if v := jsonValueToFHIRValueWithType(value, dataType, fhirType); v != nil {
-			return Collection{v}, nil
+			return asRoot(Collection{v}), nil
 		}
 		return Collection{}, nil
 	}
