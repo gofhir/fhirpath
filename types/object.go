@@ -1017,6 +1017,16 @@ func decodeJSONString(data []byte) string {
 		return string(data)
 	}
 
+	// Unescaped by the parser that read the document, into one buffer, rather
+	// than by wrapping the content in quotes for encoding/json to validate and
+	// copy again.
+	if unescaped, err := jsonparser.Unescape(data, nil); err == nil {
+		return string(unescaped)
+	}
+
+	// The parser refuses what encoding/json reads leniently, a lone surrogate
+	// above all, which it replaces with U+FFFD; such content is read as
+	// encoding/json reads it, as it always was.
 	var s string
 	if err := json.Unmarshal(append([]byte{'"'}, append(data, '"')...), &s); err != nil {
 		return string(data)
