@@ -7,6 +7,7 @@ import (
 	"math"
 	"slices"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/buger/jsonparser"
 	"github.com/shopspring/decimal"
@@ -1016,11 +1017,58 @@ func decodeJSONString(data []byte) string {
 		return string(data)
 	}
 
+	// Unescaped by the parser that read the document, into one buffer, rather
+	// than by wrapping the content in quotes for encoding/json to validate and
+	// copy again.
+	// A surrogate escape, \uD800 to \uDFFF, is left to encoding/json: the
+	// parser refuses a lone one and decodes an invalid pair into the wrong
+	// character without an error, where encoding/json writes U+FFFD. FHIR
+	// content all but never carries one.
+	if !hasSurrogateEscape(data) && plainContent(data) {
+		if unescaped, err := jsonparser.Unescape(data, nil); err == nil {
+			return string(unescaped)
+		}
+	}
+
+	// Content the parser refuses, or one with a surrogate escape, is read as
+	// encoding/json reads it, as it always was.
 	var s string
 	if err := json.Unmarshal(append([]byte{'"'}, append(data, '"')...), &s); err != nil {
 		return string(data)
 	}
 	return s
+}
+
+// plainContent reports whether JSON string content is valid UTF-8 without raw
+// control characters, which is all the parser decodes as encoding/json does:
+// encoding/json writes U+FFFD for an invalid byte, and refuses a control
+// character, where the parser copies either through.
+func plainContent(data []byte) bool {
+	for _, b := range data {
+		if b < 0x20 {
+			return false
+		}
+	}
+	return utf8.Valid(data)
+}
+
+// hasSurrogateEscape reports whether JSON string content may hold a \u escape
+// for a UTF-16 surrogate. An escaped backslash before one is taken as one too,
+// which costs only taking the slower way.
+func hasSurrogateEscape(data []byte) bool {
+	for {
+		i := bytes.Index(data, []byte(`\u`))
+		if i < 0 || i+3 >= len(data) {
+			return false
+		}
+		if data[i+2] == 'd' || data[i+2] == 'D' {
+			switch data[i+3] {
+			case '8', '9', 'a', 'b', 'c', 'd', 'e', 'f', 'A', 'B', 'C', 'D', 'E', 'F':
+				return true
+			}
+		}
+		data = data[i+2:]
+	}
 }
 
 // jsonValueToFHIRValue converts a JSON value to a FHIRPath Value.
