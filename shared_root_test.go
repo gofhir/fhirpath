@@ -80,3 +80,35 @@ func TestAReturnedObjectCanBeSharedAcrossGoroutines(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+// An expression can return the root it was given — $this, a where() keeping
+// it, %resource — and a shared root comes back shared without being written
+// to. Run with -race.
+func TestReturningASharedRootDoesNotWriteToIt(t *testing.T) {
+	shared, err := types.JSONToCollection([]byte(`{"resourceType":"Patient","id":"p","active":true}`))
+	if err != nil {
+		t.Fatal(err)
+	}
+	exprs := []*fhirpath.Expression{
+		fhirpath.MustCompile("$this"),
+		fhirpath.MustCompile("%resource"),
+		fhirpath.MustCompile("where(active)"),
+		fhirpath.MustCompile("$this is Patient"),
+	}
+
+	var wg sync.WaitGroup
+	for g := 0; g < 8; g++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 50; i++ {
+				for _, expr := range exprs {
+					if _, err := expr.EvaluateWithContext(eval.NewContextForRoot(shared)); err != nil {
+						t.Error(err)
+					}
+				}
+			}
+		}()
+	}
+	wg.Wait()
+}

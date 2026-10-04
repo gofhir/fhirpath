@@ -84,7 +84,11 @@ func (o *ObjectValue) MarkPrivate() {
 // are handed to a caller who may share them. An object that caches stays
 // single-goroutine, as caching documents.
 func (o *ObjectValue) MarkShared() {
-	o.private = false
+	// An object already shared is only read: other goroutines may be reading
+	// it now, so it is not written even to the value it already has.
+	if o.private {
+		o.private = false
+	}
 }
 
 // keeps reports whether the object may write what it works out to itself.
