@@ -3,7 +3,6 @@ package funcs
 import (
 	"encoding/json"
 	"io"
-	"os"
 	"sync"
 	"time"
 
@@ -73,14 +72,18 @@ type NullTraceLogger struct{}
 // Log does nothing.
 func (NullTraceLogger) Log(TraceEntry) {}
 
-// traceLogger is the global trace logger instance.
+// traceLogger is the global trace logger instance. It discards by default:
+// FHIR's dom-3 calls trace() on every DomainResource in R4, so writing to
+// stderr filled the logs of a validator that had not asked for traces. The
+// HL7 validator likewise traces only when a tracer is set.
 var (
-	traceLogger   TraceLogger = NewDefaultTraceLogger(os.Stderr, false)
+	traceLogger   TraceLogger = NullTraceLogger{}
 	traceLoggerMu sync.RWMutex
 )
 
-// SetTraceLogger sets the global trace logger.
-// Use NullTraceLogger{} to disable trace output in production.
+// SetTraceLogger sets the global trace logger. trace() writes nothing until
+// one is set; NewDefaultTraceLogger(os.Stderr, false) writes plain text to
+// stderr, as trace() did by default before 1.9.12.
 func SetTraceLogger(logger TraceLogger) {
 	traceLoggerMu.Lock()
 	defer traceLoggerMu.Unlock()
@@ -156,6 +159,12 @@ func fnTrace(_ *eval.Context, input types.Collection, args []interface{}) (types
 		return nil, eval.InvalidArgumentsError("trace", 1, 0)
 	}
 
+	// With nothing to write to, there is no entry to build.
+	logger := GetTraceLogger()
+	if _, null := logger.(NullTraceLogger); null {
+		return input, nil
+	}
+
 	name := ""
 	if n, ok := toStringArg(args[0]); ok {
 		name = n
@@ -176,7 +185,7 @@ func fnTrace(_ *eval.Context, input types.Collection, args []interface{}) (types
 	}
 
 	// Log using the configured logger
-	GetTraceLogger().Log(entry)
+	logger.Log(entry)
 
 	return input, nil
 }

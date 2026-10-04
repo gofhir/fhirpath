@@ -46,7 +46,7 @@ result, _ := fhirpath.Evaluate(patient, "Patient.name.trace('names', given)")
 **Edge Cases / Notes:**
 
 - The function does **not** modify the result. It is purely a side effect for logging.
-- By default, trace output is written to `stderr` in plain text format.
+- By default, trace output is discarded: nothing is written until a logger is configured. FHIR's `dom-3` calls `trace()` on every DomainResource in R4, so writing by default filled a validator's logs. (Before 1.9.12 the default wrote plain text to `stderr`; `funcs.NewDefaultTraceLogger(os.Stderr, false)` restores that.)
 - The trace logger can be customized using `funcs.SetTraceLogger()`:
   - `funcs.NewDefaultTraceLogger(writer, false)` for plain text output.
   - `funcs.NewDefaultTraceLogger(writer, true)` for JSON-structured output.
