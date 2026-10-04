@@ -76,6 +76,17 @@ func (o *ObjectValue) MarkPrivate() {
 	o.private = true
 }
 
+// MarkShared undoes MarkPrivate: the object may be read from several goroutines
+// from now on, so it no longer writes what it works out to itself. What it
+// wrote while private stays, and is only read.
+//
+// An evaluation marks what it returns shared: the objects it read privately
+// are handed to a caller who may share them. An object that caches stays
+// single-goroutine, as caching documents.
+func (o *ObjectValue) MarkShared() {
+	o.private = false
+}
+
 // keeps reports whether the object may write what it works out to itself.
 func (o *ObjectValue) keeps() bool {
 	return o.private || o.caching

@@ -489,7 +489,7 @@ func (e *Evaluator) Evaluate(tree antlr.ParseTree) (types.Collection, error) {
 		return nil, err
 	}
 	if col, ok := result.(types.Collection); ok {
-		return col, nil
+		return handOver(col), nil
 	}
 	return types.Collection{}, nil
 }

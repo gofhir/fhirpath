@@ -45,3 +45,38 @@ func TestASharedRootCanBeReadFromSeveralGoroutines(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+// What an evaluation returns is handed to the caller, who may share it across
+// goroutines as a root of its own: Bundle.entry.resource read once, each
+// resource then validated in parallel. Objects private while the evaluation
+// read them are not private once returned. Run with -race.
+func TestAReturnedObjectCanBeSharedAcrossGoroutines(t *testing.T) {
+	bundle := []byte(`{"resourceType":"Bundle","type":"collection","entry":[` +
+		`{"resource":{"resourceType":"Patient","id":"p","gender":"female","name":[{"family":"F"}],` +
+		`"extension":[{"url":"http://example.org/e","valueCode":"x"}]}}]}`)
+	resources, err := fhirpath.MustCompile("entry.resource").Evaluate(bundle)
+	if err != nil || len(resources) != 1 {
+		t.Fatalf("entry.resource = %v, %v", resources, err)
+	}
+
+	exprs := []*fhirpath.Expression{
+		fhirpath.MustCompile("id | gender | name.family"),
+		fhirpath.MustCompile("$this is Patient"),
+		fhirpath.MustCompile("extension('http://example.org/e').value"),
+	}
+	var wg sync.WaitGroup
+	for g := 0; g < 8; g++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < 50; i++ {
+				for _, expr := range exprs {
+					if _, err := expr.EvaluateWithContext(eval.NewContextForRoot(resources)); err != nil {
+						t.Error(err)
+					}
+				}
+			}
+		}()
+	}
+	wg.Wait()
+}
