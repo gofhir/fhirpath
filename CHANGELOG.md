@@ -6,9 +6,10 @@
 ### Performance Improvements
 
 Together, against 1.9.10 over a sample of the R4 examples: a `Document` with the
-model 6.41 to 4.53 µs per evaluation (−29%, 22% less memory), one-shot 61.7 to
-44.5 µs (−28%), and a fresh context per evaluation 56.9 to 40.9 µs with
-`NewContextForValidJSON`.
+model 6.37 to 4.77 µs per evaluation (−25%, 21% less memory); a fresh context
+per evaluation, as a validator makes, 57.0 to 39.9 µs (−30%) for a caller that
+moves to `NewContextForValidJSON`, and unchanged with `NewContext`; one-shot
+`Evaluate` 1% faster.
 
 * an evaluation's setup costs no timer, map or options allocation ([#82](https://github.com/gofhir/fhirpath/issues/82)) ([2596062](https://github.com/gofhir/fhirpath/commit/25960628a30c565fb76303694fd9cd674e7a22f4))
 
