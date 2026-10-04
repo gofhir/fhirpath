@@ -368,11 +368,19 @@ func (c *Context) EnforceCollectionLimit(col types.Collection) (types.Collection
 }
 
 // Root returns the root collection.
+//
+// A root NewContext read is the context's own: it is private, so it keeps
+// what it works out about itself, and must not be read from other goroutines
+// while this context evaluates. To share a resource across goroutines, read it
+// with types.JSONToCollection, which gives a root that is only ever read, or
+// call MarkShared on the objects of this one once the context is done with it.
+// A root given to NewContextForRoot is returned as it was given.
 func (c *Context) Root() types.Collection {
 	return c.root
 }
 
-// This returns the current $this value.
+// This returns the current $this value. Before evaluation it is the root, with
+// the same ownership as Root describes.
 func (c *Context) This() types.Collection {
 	return c.this
 }
