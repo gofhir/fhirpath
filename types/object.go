@@ -1510,6 +1510,26 @@ func isJSONSpace(b byte) bool {
 	return b == ' ' || b == '\t' || b == '\n' || b == '\r'
 }
 
+// ReadRootWithType is JSONToCollectionWithType for a document already known to
+// be well formed, as ReadRoot is JSONToCollection's: an object is read as the
+// declared type as it stands, without first scanning the whole of it.
+func ReadRootWithType(data []byte, fhirType string) (Collection, error) {
+	if fhirType == "" {
+		return ReadRoot(data)
+	}
+	start, end := 0, len(data)
+	for start < end && isJSONSpace(data[start]) {
+		start++
+	}
+	for end > start && isJSONSpace(data[end-1]) {
+		end--
+	}
+	if end-start >= 2 && data[start] == '{' && data[end-1] == '}' {
+		return Collection{jsonValueToFHIRValueWithType(data[start:end], jsonparser.Object, fhirType)}, nil
+	}
+	return JSONToCollectionWithType(data, fhirType)
+}
+
 // JSONToCollectionWithType converts JSON bytes to a Collection, reading the
 // value as the FHIR type a model declares for it, as navigation reads a value
 // it reaches: "2019-12-08" declared dateTime is a dateTime, not the Date its

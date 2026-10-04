@@ -92,6 +92,7 @@ type Context struct {
 	model              Model  // FHIR version-specific model data (nil = use heuristics)
 	path               string // the root's FHIR path, given with SetPath (e.g., "Patient.name")
 	data               []byte // the root as read by NewContext, to read again under a model's type
+	validJSON          bool   // data was given as already checked. See NewContextForValidJSON.
 	placed             bool   // whether the root is read under a model's type. See placeRoot.
 }
 
@@ -138,7 +139,9 @@ func NewContext(resource []byte) *Context {
 func NewContextForValidJSON(resource []byte) *Context {
 	//nolint:errcheck // Empty collection is acceptable for invalid JSON in context creation
 	root, _ := types.ReadRoot(resource)
-	return newContextFor(resource, root)
+	ctx := newContextFor(resource, root)
+	ctx.validJSON = true
+	return ctx
 }
 
 // newContextFor makes the context for a root read from resource.
@@ -345,7 +348,13 @@ func (c *Context) placeRoot() {
 		return
 	}
 
-	root, err := types.JSONToCollectionWithType(c.data, fhirType)
+	// A document its caller checked is read again without scanning it, as it
+	// was read the first time.
+	read := types.JSONToCollectionWithType
+	if c.validJSON {
+		read = types.ReadRootWithType
+	}
+	root, err := read(c.data, fhirType)
 	if err != nil {
 		return
 	}

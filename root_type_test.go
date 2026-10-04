@@ -140,3 +140,38 @@ func TestJSONToCollectionWithType(t *testing.T) {
 		t.Errorf("$this is dateTime = %s, want [true]", got)
 	}
 }
+
+// A context made for a checked document places its root under the model's type
+// as NewContext's does, reading it again without the scan NewContext's makes.
+func TestAValidJSONRootTakesTheModelsTypeAsNewContextsDoes(t *testing.T) {
+	model := &testModel{typeOf: map[string]string{
+		"Observation.valueQuantity":     "Quantity",
+		"Quantity.value":                "decimal",
+		"Observation.effectiveDateTime": "dateTime",
+	}}
+
+	for _, tt := range []struct {
+		root, path, expr string
+	}{
+		{` {"value":5,"unit":"mg"} `, "Observation.valueQuantity", "$this.type().name"},
+		{` {"value":5,"unit":"mg"} `, "Observation.valueQuantity", "value.type().name"},
+		{`"2019-12-08"`, "Observation.effectiveDateTime", "$this is dateTime"},
+	} {
+		t.Run(tt.path+" "+tt.expr, func(t *testing.T) {
+			expr := fhirpath.MustCompile(tt.expr)
+			evaluate := func(ctx *eval.Context) string {
+				ctx.SetModel(model)
+				ctx.SetPath(tt.path)
+				result, err := expr.EvaluateWithContext(ctx)
+				if err != nil {
+					t.Fatal(err)
+				}
+				return result.String()
+			}
+			want := evaluate(eval.NewContext([]byte(tt.root)))
+			if got := evaluate(eval.NewContextForValidJSON([]byte(tt.root))); got != want {
+				t.Errorf("%s at %s = %s, want %s as NewContext answers", tt.expr, tt.path, got, want)
+			}
+		})
+	}
+}
