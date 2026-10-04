@@ -26,7 +26,10 @@ type ObjectValue struct {
 	// discarded with it, so keeping what it read would cost memory that nothing
 	// goes on to use. It is turned on for an object that outlives one
 	// evaluation, which is what a Document is for.
-	caching      bool
+	caching bool
+	// private records that one goroutine reads the object, so it can keep
+	// what it works out about itself. See MarkPrivate.
+	private      bool
 	keys         map[string]struct{} // the object's keys, once read, for an object that caches
 	explicitType string              // optional explicit FHIR type from polymorphic resolution
 	elementPath  string              // the element the object was reached as. See ElementPath.
@@ -59,6 +62,38 @@ func (o *ObjectValue) ElementPath() string {
 // SetElementPath records the path of the element the object was reached as.
 func (o *ObjectValue) SetElementPath(path string) {
 	o.elementPath = path
+}
+
+// MarkPrivate records that only one goroutine reads the object, which lets it
+// keep what it works out about itself — its type, the fields read through Get
+// — instead of working them out again each time.
+//
+// An object that is not private is only ever read, so a root a caller builds
+// can be evaluated against from several goroutines at once. An object that
+// caches is private as well. Objects read out of a private or caching one are
+// private in turn: each is created by the read, not shared.
+func (o *ObjectValue) MarkPrivate() {
+	o.private = true
+}
+
+// MarkShared undoes MarkPrivate: the object may be read from several goroutines
+// from now on, so it no longer writes what it works out to itself. What it
+// wrote while private stays, and is only read.
+//
+// An evaluation marks what it returns shared: the objects it read privately
+// are handed to a caller who may share them. An object that caches stays
+// single-goroutine, as caching documents.
+func (o *ObjectValue) MarkShared() {
+	// An object already shared is only read: other goroutines may be reading
+	// it now, so it is not written even to the value it already has.
+	if o.private {
+		o.private = false
+	}
+}
+
+// keeps reports whether the object may write what it works out to itself.
+func (o *ObjectValue) keeps() bool {
+	return o.private || o.caching
 }
 
 // NewObjectValue creates a new ObjectValue from JSON bytes.
@@ -111,8 +146,13 @@ func (o *ObjectValue) Type() string {
 		return o.typeName
 	}
 
-	o.typeName = o.readType()
-	return o.typeName
+	// Kept only where no other goroutine reads the object; a shared one works
+	// it out each time rather than write to it.
+	typeName := o.readType()
+	if o.keeps() {
+		o.typeName = typeName
+	}
+	return typeName
 }
 
 // readType reads the object once and answers what it is.
@@ -347,12 +387,16 @@ func (o *ObjectValue) Get(field string) (Value, bool) {
 		return nil, false
 	}
 
-	// Convert to Value and cache
+	// Convert to Value, and keep it where no other goroutine reads the object.
+	// What it reads is new, so it is private either way.
 	v := jsonValueToFHIRValue(value, dataType)
-	if o.fields == nil {
-		o.fields = make(map[string]Value, 4)
+	markPrivate(Collection{v})
+	if o.keeps() {
+		if o.fields == nil {
+			o.fields = make(map[string]Value, 4)
+		}
+		o.fields[field] = v
 	}
-	o.fields[field] = v
 
 	return v, true
 }
@@ -375,6 +419,16 @@ func (o *ObjectValue) GetCollection(field string) Collection {
 	})
 }
 
+// markPrivate marks the objects in a collection, and the elements of the
+// primitives in it, private: they were just read, and nothing else holds them.
+func markPrivate(col Collection) {
+	for _, value := range col {
+		if obj, ok := ElementOf(value); ok {
+			obj.private = true
+		}
+	}
+}
+
 // fieldKey identifies a field together with the way it was read: the same field
 // parsed under a type hint is not the same collection, and a name whose type
 // was read off its spelling is different again, and so is a choice element
@@ -394,7 +448,11 @@ type fieldKey struct {
 // navigated is what the next one starts from.
 func (o *ObjectValue) cachedCollection(key fieldKey, build func() Collection) Collection {
 	if !o.caching {
-		return build()
+		// What was just read is created by the read and belongs to whoever
+		// reads this object, even when this object is shared.
+		col := build()
+		markPrivate(col)
+		return col
 	}
 
 	if col, ok := o.collections[key]; ok {
@@ -407,6 +465,7 @@ func (o *ObjectValue) cachedCollection(key fieldKey, build func() Collection) Co
 		// what it reads as well.
 		if child, ok := ElementOf(value); ok {
 			child.caching = true
+			child.private = true
 		}
 	}
 
@@ -754,6 +813,7 @@ func (o *ObjectValue) appendPairedChild(result []TypedChild, f *pairedField, bas
 		if obj, ok := v.(*ObjectValue); ok && fhirType != "" && !IsAbstractResourceType(fhirType) {
 			obj.elementPath = childPath
 		}
+		markPrivate(Collection{v})
 		result = append(result, TypedChild{Value: v, Path: childPath})
 	}
 	return result
@@ -788,6 +848,7 @@ func (o *ObjectValue) unpairedChildren(basePath string, res ElementTypeResolver)
 				if obj, ok := v.(*ObjectValue); ok && fhirType != "" && !IsAbstractResourceType(fhirType) {
 					obj.elementPath = childPath
 				}
+				markPrivate(Collection{v})
 				result = append(result, TypedChild{Value: v, Path: childPath})
 			}
 		}

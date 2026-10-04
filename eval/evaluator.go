@@ -119,6 +119,8 @@ func NewContext(resource []byte) *Context {
 	//nolint:errcheck // Empty collection is acceptable for invalid JSON in context creation
 	root, _ := types.JSONToCollection(resource)
 
+	markPrivate(root)
+
 	ctx := NewContextForRoot(root)
 	// Kept so that the root can be read again under the type a model gives
 	// it, once a model and the root's path are both known. See placeRoot.
@@ -266,9 +268,20 @@ func (c *Context) placeRoot() {
 	if err != nil {
 		return
 	}
+	markPrivate(root)
 	c.root = root
 	c.this = root
 	c.placed = fhirType != ""
+}
+
+// markPrivate marks the objects of a root this context read itself private:
+// no other goroutine holds them. See types.ObjectValue.MarkPrivate.
+func markPrivate(root types.Collection) {
+	for _, value := range root {
+		if obj, ok := value.(*types.ObjectValue); ok {
+			obj.MarkPrivate()
+		}
+	}
 }
 
 // rootType returns the type a model gives a path. A model may know a choice
@@ -355,11 +368,19 @@ func (c *Context) EnforceCollectionLimit(col types.Collection) (types.Collection
 }
 
 // Root returns the root collection.
+//
+// A root NewContext read is the context's own: it is private, so it keeps
+// what it works out about itself, and must not be read from other goroutines
+// while this context evaluates. To share a resource across goroutines, read it
+// with types.JSONToCollection, which gives a root that is only ever read, or
+// call MarkShared on the objects of this one once the context is done with it.
+// A root given to NewContextForRoot is returned as it was given.
 func (c *Context) Root() types.Collection {
 	return c.root
 }
 
-// This returns the current $this value.
+// This returns the current $this value. Before evaluation it is the root, with
+// the same ownership as Root describes.
 func (c *Context) This() types.Collection {
 	return c.this
 }
@@ -476,7 +497,7 @@ func (e *Evaluator) Evaluate(tree antlr.ParseTree) (types.Collection, error) {
 		return nil, err
 	}
 	if col, ok := result.(types.Collection); ok {
-		return col, nil
+		return handOver(col), nil
 	}
 	return types.Collection{}, nil
 }

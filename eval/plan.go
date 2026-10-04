@@ -577,7 +577,20 @@ func (e *Evaluator) EvaluateNode(n Node) (types.Collection, error) {
 		return nil, err
 	}
 	if col, ok := result.(types.Collection); ok {
-		return col, nil
+		return handOver(col), nil
 	}
 	return types.Collection{}, nil
+}
+
+// handOver marks what an evaluation returns shared. Objects it read were
+// private to it, which let them keep their type and index their fields; the
+// caller receiving them may share them across goroutines, so from here on they
+// are only read. See types.ObjectValue.MarkShared.
+func handOver(col types.Collection) types.Collection {
+	for _, value := range col {
+		if obj, ok := types.ElementOf(value); ok {
+			obj.MarkShared()
+		}
+	}
+	return col
 }
