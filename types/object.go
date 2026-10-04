@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"math"
 	"slices"
 	"strings"
 
@@ -30,6 +31,8 @@ type ObjectValue struct {
 	// private records that one goroutine reads the object, so it can keep
 	// what it works out about itself. See MarkPrivate.
 	private      bool
+	reads        uint8               // how many times a field was read by scanning. See readField.
+	index        []indexedField      // the object's fields once indexed. See readField.
 	keys         map[string]struct{} // the object's keys, once read, for an object that caches
 	explicitType string              // optional explicit FHIR type from polymorphic resolution
 	elementPath  string              // the element the object was reached as. See ElementPath.
@@ -553,6 +556,29 @@ var errFieldsFound = errors.New("fields found")
 // Both are paid per field of every element an expression walks over, which over
 // a Bundle is the greater part of the work.
 func (o *ObjectValue) readField(field string) (value, element jsonField) {
+	if o.index != nil {
+		return o.lookup(field)
+	}
+
+	// A field read scans the object to its end: the element beside a value is
+	// rarely there, and only finding both stops early. An object read more
+	// than once — a resource every constraint reads, an element whose fields
+	// an expression compares — is therefore scanned whole each time, and
+	// indexing it on the second read answers every read after that without
+	// scanning. An object read once, as most are, pays nothing for it. Only an
+	// object one goroutine reads is indexed, since indexing writes to it.
+	if o.keeps() && o.reads != unindexed {
+		if o.reads > 0 {
+			o.buildIndex()
+			if o.index != nil {
+				return o.lookup(field)
+			}
+			o.reads = unindexed
+		} else {
+			o.reads++
+		}
+	}
+
 	//nolint:errcheck // The only error is errFieldsFound, which ends the scan
 	jsonparser.ObjectEach(o.data, func(key, entry []byte, entryType jsonparser.ValueType, _ int) error {
 		switch {
@@ -572,6 +598,80 @@ func (o *ObjectValue) readField(field string) (value, element jsonField) {
 		return nil
 	})
 
+	return value, element
+}
+
+// unindexed marks, in reads, an object whose fields cannot be indexed, so that
+// it is not tried again.
+const unindexed = math.MaxUint8
+
+// indexedField is a field of an object as its index keeps it: where its key
+// and value lie in the object's JSON, rather than the slices themselves, which
+// would take three times the room for every field of every indexed object.
+type indexedField struct {
+	keyStart, keyEnd     uint32
+	valueStart, valueEnd uint32
+	dataType             jsonparser.ValueType
+}
+
+// buildIndex reads every field of the object once, keeping where each is.
+func (o *ObjectValue) buildIndex() {
+	// Offsets are kept in 32 bits; an object too large for them is read by
+	// scanning, as it always was.
+	if uint64(len(o.data)) > math.MaxUint32 {
+		return
+	}
+
+	index := make([]indexedField, 0, 8)
+	base := cap(o.data)
+	unindexable := false
+	//nolint:errcheck // ObjectEach only returns errors for non-objects; o.data is always a valid object
+	jsonparser.ObjectEach(o.data, func(key, entry []byte, entryType jsonparser.ValueType, end int) error {
+		// A key written with escapes is handed over unescaped, from a buffer of
+		// its own, and is then not where its capacity says. FHIR does not
+		// write one, but an object that does is read by scanning.
+		keyStart := base - cap(key)
+		if keyStart < 0 || keyStart+len(key) > len(o.data) || !bytes.Equal(o.data[keyStart:keyStart+len(key)], key) {
+			unindexable = true
+			return errFieldsFound
+		}
+
+		// A key is a slice of o.data, so its offset follows from its capacity,
+		// as above. A value is handed over capped at its length, so its offset
+		// follows from where it ends instead: end is past it, and past the
+		// closing quote of a string, which the value leaves out.
+		valueEnd := end
+		if entryType == jsonparser.String {
+			valueEnd--
+		}
+		index = append(index, indexedField{
+			keyStart:   uint32(keyStart),              //nolint:gosec // within len(o.data), checked above
+			keyEnd:     uint32(keyStart + len(key)),   //nolint:gosec // within len(o.data), checked above
+			valueStart: uint32(valueEnd - len(entry)), //nolint:gosec // within len(o.data), checked above
+			valueEnd:   uint32(valueEnd),              //nolint:gosec // within len(o.data), checked above
+			dataType:   entryType,
+		})
+		return nil
+	})
+	if unindexable {
+		return
+	}
+	o.index = index
+}
+
+// lookup answers readField from the index, the first occurrence of a repeated
+// key as a scan would.
+func (o *ObjectValue) lookup(field string) (value, element jsonField) {
+	for i := range o.index {
+		f := &o.index[i]
+		key := o.data[f.keyStart:f.keyEnd]
+		switch {
+		case !value.found && string(key) == field:
+			value = jsonField{data: o.data[f.valueStart:f.valueEnd:f.valueEnd], dataType: f.dataType, found: true}
+		case !element.found && len(key) == len(field)+1 && key[0] == '_' && string(key[1:]) == field:
+			element = jsonField{data: o.data[f.valueStart:f.valueEnd:f.valueEnd], dataType: f.dataType, found: true}
+		}
+	}
 	return value, element
 }
 
