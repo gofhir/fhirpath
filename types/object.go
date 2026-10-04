@@ -1436,6 +1436,36 @@ func JSONToCollection(data []byte) (Collection, error) {
 	}
 }
 
+// ReadRoot reads a document already known to be well formed, as
+// JSONToCollection reads one, without first scanning the whole of it for where
+// its value ends. An object — a resource, an element — is taken as it stands
+// when it begins with { and ends with }, and its fields are read as they are
+// asked for; anything else is read by JSONToCollection.
+//
+// That scan is what tells a malformed document, and it costs more than many
+// evaluations do. Skipping it is only right for a document its caller has
+// decoded or checked: one cut off after a nested object, or followed by more,
+// would be read as far as it goes. A document that has not been checked is
+// read with JSONToCollection.
+func ReadRoot(data []byte) (Collection, error) {
+	start, end := 0, len(data)
+	for start < end && isJSONSpace(data[start]) {
+		start++
+	}
+	for end > start && isJSONSpace(data[end-1]) {
+		end--
+	}
+	if end-start >= 2 && data[start] == '{' && data[end-1] == '}' {
+		return Collection{NewObjectValue(data[start:end])}, nil
+	}
+	return JSONToCollection(data)
+}
+
+// isJSONSpace reports whether b is whitespace between JSON tokens.
+func isJSONSpace(b byte) bool {
+	return b == ' ' || b == '\t' || b == '\n' || b == '\r'
+}
+
 // JSONToCollectionWithType converts JSON bytes to a Collection, reading the
 // value as the FHIR type a model declares for it, as navigation reads a value
 // it reaches: "2019-12-08" declared dateTime is a dateTime, not the Date its
