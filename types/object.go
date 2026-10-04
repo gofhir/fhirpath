@@ -1291,7 +1291,7 @@ func (o *ObjectValue) GetChoiceCollection(name string, suffixes []string) Collec
 //
 // The answer as a whole is not kept, since another model may give the element
 // other choice types; each variant read is kept, as GetCollectionWithType keeps
-// it, and so are the object's keys.
+// it, and the object's keys are read from its field index.
 func (o *ObjectValue) GetChoiceCollectionWithType(name string, choiceTypes []string) Collection {
 	for _, i := range o.choiceSuffixes(name, choiceTypes) {
 		choiceType := choiceTypes[i]
