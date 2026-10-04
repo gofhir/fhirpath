@@ -1,5 +1,54 @@
 # Changelog
 
+## [1.9.10](https://github.com/gofhir/fhirpath/compare/v1.9.9...v1.9.10) (2026-10-04)
+
+
+### Bug Fixes
+
+* a shared root can be read from several goroutines ([#74](https://github.com/gofhir/fhirpath/issues/74)) ([718ac2c](https://github.com/gofhir/fhirpath/commit/718ac2c969db51363d888cabb64724db5fb86008))
+
+  Two data races, both found with `go test -race`:
+
+  - **A shared root.** A root read once with `types.JSONToCollection` and
+    evaluated against from several goroutines (`eval.NewContextForRoot`) was
+    written to: `Type()` kept the type it worked out on the object, and `Get()`
+    kept the fields it read. Navigation alone raced. Only an object one
+    goroutine reads keeps what it works out now, and what an evaluation returns
+    is handed over shared, so results can be shared too.
+  - **The regex cache.** A hit wrote when the pattern was last used under the
+    read lock, so two goroutines evaluating `matches()` with the same pattern
+    raced (fixed in #76).
+
+  **New:** `ObjectValue.MarkPrivate()` and `MarkShared()`. A root built by a
+  caller is shared and only ever read; one read by `eval.NewContext` belongs to
+  that context, and `Context.Root()` documents how to share it.
+
+
+### Performance Improvements
+
+* Evaluate reuses compiled expressions, and a cache hit is a read ([#76](https://github.com/gofhir/fhirpath/issues/76)) ([429d881](https://github.com/gofhir/fhirpath/commit/429d88136ec548654917435f5ed7c91e5087bcbd))
+
+  `fhirpath.Evaluate`, the call the README starts with, compiled its expression
+  on every call; it goes through `DefaultCache` now: 6.7 µs to 2.2 µs, 123
+  allocations to 36. A cache hit takes only the read lock instead of the write
+  lock, so goroutines evaluating in parallel no longer queue on it, and the
+  expression cache evicts the way CLOCK does, in a few steps rather than a
+  pass over every entry.
+* index an object's fields on its second read ([#78](https://github.com/gofhir/fhirpath/issues/78)) ([c0fe42a](https://github.com/gofhir/fhirpath/commit/c0fe42aa45f83d3c58b11593b326624515db4027))
+
+  A field read scanned its object to the end, so an object read k times was
+  scanned k times; over the R4 examples 88% of what a `Document` scanned was
+  such re-reads. An object now indexes its fields on its second read:
+
+  | over the whole R4 example corpus | before | after |
+  |---|---|---|
+  | `Document` with the R4 model | 5.06 s | 2.45 s |
+  | one-shot `Evaluate` | 50.7 s | 20.8 s |
+  | `bdl-3` on the 2 MB `Bundle-searchParams` example | timed out at 5 s | 11 ms |
+
+  Memory grows 3–6%. `make bench-corpus` (#73) measures evaluation over a
+  sample of the official examples.
+
 ## [1.9.9](https://github.com/gofhir/fhirpath/compare/v1.9.8...v1.9.9) (2026-10-03)
 
 
