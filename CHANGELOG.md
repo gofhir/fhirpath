@@ -7,6 +7,22 @@
 
 * an object read from the input knows where it sits in it (Location) ([#88](https://github.com/gofhir/fhirpath/issues/88)) ([48264d0](https://github.com/gofhir/fhirpath/commit/48264d077b0d46fea8dffb3efb14ae1f16645607))
 
+  `(*types.ObjectValue).Location()` spells where an object sits in the input it
+  was read from: `Patient`, `Patient.contact[1]`,
+  `Bundle.entry[0].resource.contact[2].name`. Two equal elements in different
+  places are told apart, which is what checking an extension's `fhirpath`
+  context takes: the element holding the extension has to be one of the nodes
+  the expression returns, as the HL7 validator checks it.
+
+  The root is named by its `resourceType`. A primitive's element, reached with
+  `types.ElementOf`, is located as the primitive is named
+  (`Patient.name[0].given[1]`), and an index counts every position of the JSON
+  array, nulls included. It is `""` for an object not read from the input: one
+  a function made, or a resource a `Resolver` returned. Navigation costs
+  nothing more; `Location()` on a Patient takes about half a microsecond and
+  one allocation, and only reads, so it is safe on results other goroutines
+  read.
+
 ## [1.9.12](https://github.com/gofhir/fhirpath/compare/v1.9.11...v1.9.12) (2026-10-04)
 
 
