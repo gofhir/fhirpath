@@ -1,5 +1,18 @@
 # Changelog
 
+## [1.9.10](https://github.com/gofhir/fhirpath/compare/v1.9.9...v1.9.10) (2026-10-04)
+
+
+### Bug Fixes
+
+* a shared root can be read from several goroutines ([#74](https://github.com/gofhir/fhirpath/issues/74)) ([718ac2c](https://github.com/gofhir/fhirpath/commit/718ac2c969db51363d888cabb64724db5fb86008))
+
+
+### Performance Improvements
+
+* Evaluate reuses compiled expressions, and a cache hit is a read ([#76](https://github.com/gofhir/fhirpath/issues/76)) ([429d881](https://github.com/gofhir/fhirpath/commit/429d88136ec548654917435f5ed7c91e5087bcbd))
+* index an object's fields on its second read ([#78](https://github.com/gofhir/fhirpath/issues/78)) ([c0fe42a](https://github.com/gofhir/fhirpath/commit/c0fe42aa45f83d3c58b11593b326624515db4027))
+
 ## [1.9.9](https://github.com/gofhir/fhirpath/compare/v1.9.8...v1.9.9) (2026-10-03)
 
 
