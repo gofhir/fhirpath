@@ -116,11 +116,29 @@ const (
 // The fixed FHIR constants %ucum, %sct and %loinc are also defined; callers can
 // override any of them via SetVariable.
 func NewContext(resource []byte) *Context {
-	// Read without scanning the whole document first: a malformed one is
-	// answered empty either way.
+	//nolint:errcheck // Empty collection is acceptable for invalid JSON in context creation
+	root, _ := types.JSONToCollection(resource)
+	return newContextFor(resource, root)
+}
+
+// NewContextForValidJSON is NewContext for a document already known to be
+// well formed — one its caller has decoded or checked, as a validator does
+// before evaluating anything on it. It reads the root without first scanning
+// the whole document to check it, which NewContext does and which costs more
+// than many evaluations: the document is read only as far as expressions ask.
+//
+// On a document that is not well formed it answers what it can read, not
+// empty as NewContext does: one cut off after a nested object can read as
+// though it were whole. Use NewContext for a document that has not been
+// checked.
+func NewContextForValidJSON(resource []byte) *Context {
 	//nolint:errcheck // Empty collection is acceptable for invalid JSON in context creation
 	root, _ := types.ReadRoot(resource)
+	return newContextFor(resource, root)
+}
 
+// newContextFor makes the context for a root read from resource.
+func newContextFor(resource []byte, root types.Collection) *Context {
 	markPrivate(root)
 
 	ctx := NewContextForRoot(root)

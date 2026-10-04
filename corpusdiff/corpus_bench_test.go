@@ -105,6 +105,8 @@ func loadSample() (*corpusSample, error) {
 //     resource read again by every expression.
 //   - context: a fresh eval.Context per evaluation, with the resource shared,
 //     cached, as %resource — how gofhir/validator evaluates constraints.
+//   - context-valid: the same with eval.NewContextForValidJSON, for a caller
+//     that has checked the document already, as a validator decoding it has.
 //
 // It reports time and allocations per evaluation. Fetches the R4 packages on
 // first use, as make corpusdiff does.
@@ -159,6 +161,26 @@ func BenchmarkCorpus(b *testing.B) {
 			}
 			for _, expr := range ex.exprs {
 				ctx := eval.NewContext(ex.data)
+				ctx.SetVariable("resource", resource)
+				ctx.SetVariable("rootResource", resource)
+				_, _ = expr.EvaluateWithContext(ctx)
+			}
+		})
+	})
+
+	b.Run("context-valid", func(b *testing.B) {
+		run(b, func(ex sampleExample) {
+			resource, err := types.JSONToCollection(ex.data)
+			if err != nil {
+				return
+			}
+			for _, value := range resource {
+				if obj, ok := value.(*types.ObjectValue); ok {
+					obj.EnableCaching()
+				}
+			}
+			for _, expr := range ex.exprs {
+				ctx := eval.NewContextForValidJSON(ex.data)
 				ctx.SetVariable("resource", resource)
 				ctx.SetVariable("rootResource", resource)
 				_, _ = expr.EvaluateWithContext(ctx)
