@@ -58,3 +58,13 @@ func TestAnEvaluationPastItsTimeoutEndsWithDeadlineExceeded(t *testing.T) {
 		t.Errorf("err = %v, want context.DeadlineExceeded", err)
 	}
 }
+
+// DefaultOptions hands a caller options it can add variables to directly, as
+// it always did.
+func TestDefaultOptionsHaveAVariablesMap(t *testing.T) {
+	options := DefaultOptions()
+	options.Variables["x"] = nil
+	if _, ok := options.Variables["x"]; !ok {
+		t.Error("DefaultOptions().Variables did not keep a variable")
+	}
+}

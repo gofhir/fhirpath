@@ -40,13 +40,19 @@ func DefaultOptions() *EvalOptions {
 		Timeout:           5 * time.Second,
 		MaxDepth:          100,
 		MaxCollectionSize: 10000,
+		Variables:         make(map[string]types.Collection),
 	}
 }
 
 // defaultOptions are DefaultOptions as a value, which configureContext copies
-// rather than allocating options for every evaluation. Variables is nil until
-// WithVariable sets one.
-var defaultOptions = *DefaultOptions()
+// rather than allocating options for every evaluation. Its Variables is nil,
+// unlike what DefaultOptions returns, so that a copy does not share one map;
+// WithVariable makes one when it sets a variable.
+var defaultOptions = func() EvalOptions {
+	options := *DefaultOptions()
+	options.Variables = nil
+	return options
+}()
 
 // EvalOption is a functional option for configuring evaluation.
 type EvalOption func(*EvalOptions)
