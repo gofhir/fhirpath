@@ -124,6 +124,12 @@ func (e *Expression) EvaluateWithOptions(resource []byte, opts ...EvalOption) (t
 // over a Document, which carries a reading of its own.
 func configureContext(evalCtx *eval.Context, opts ...EvalOption) (configured *eval.Context, done func()) {
 	options := defaultOptions
+	// An option a caller writes may set a variable into the map directly, as
+	// DefaultOptions always offered one, so there is one whenever an option is
+	// given; an evaluation given none makes none.
+	if len(opts) > 0 {
+		options.Variables = make(map[string]types.Collection)
+	}
 	for _, opt := range opts {
 		opt(&options)
 	}

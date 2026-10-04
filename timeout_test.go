@@ -68,3 +68,14 @@ func TestDefaultOptionsHaveAVariablesMap(t *testing.T) {
 		t.Error("DefaultOptions().Variables did not keep a variable")
 	}
 }
+
+// An option a caller writes itself finds a map for variables, as it always
+// did, rather than having to make one as WithVariable does.
+func TestACallersOwnOptionCanSetAVariableDirectly(t *testing.T) {
+	setX := func(o *EvalOptions) {
+		o.Variables["x"] = Collection{}
+	}
+	if _, err := MustCompile("%x.exists()").EvaluateWithOptions([]byte(`{"resourceType":"Basic"}`), setX); err != nil {
+		t.Fatal(err)
+	}
+}
