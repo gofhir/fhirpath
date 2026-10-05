@@ -258,10 +258,9 @@ func (o *ObjectValue) rootName() string {
 		return o.field
 	}
 
-	var name string
-	if resourceType, dataType, _, err := jsonparser.Get(o.data, "resourceType"); err == nil && dataType == jsonparser.String {
-		name = string(resourceType)
-	}
+	// Read as Type reads it, so that the root is named by the resource type
+	// navigation gives it: decoded, and the first resourceType that names one.
+	_, name := o.fieldSummary()
 	if atomic.CompareAndSwapInt32(&o.position, rootNameUnread, rootNameReading) {
 		o.field = name
 		atomic.StoreInt32(&o.position, rootNameRead)
@@ -1863,6 +1862,18 @@ func JSONToCollectionWithType(data []byte, fhirType string) (Collection, error) 
 	}
 }
 
+// stringField reads a field that holds a JSON string, decoded: a producer may
+// write http://unitsofmeasure.org as http:\/\/unitsofmeasure.org, as PHP does,
+// or µg as \u00b5g, as Python does, and it is the same string. A field that
+// holds anything else is not read.
+func (o *ObjectValue) stringField(field string) (string, bool) {
+	value, dataType, _, err := jsonparser.Get(o.data, field)
+	if err != nil || dataType != jsonparser.String {
+		return "", false
+	}
+	return decodeJSONString(value), true
+}
+
 // ToQuantity attempts to convert an ObjectValue to a Quantity.
 // This is used when the object represents a FHIR Quantity type
 // (with fields like "value", "unit", "code", "system").
@@ -1889,13 +1900,9 @@ func (o *ObjectValue) ToQuantity() (Quantity, bool) {
 	// Prefer "code" over "unit": code carries the computable UCUM symbol ("mg"),
 	// while unit is a human-readable display ("milligram") that no unit
 	// conversion can interpret. Fall back to unit when there is no code.
-	unit := ""
-	hasCode := false
-	if codeBytes, _, _, err := jsonparser.Get(o.data, "code"); err == nil {
-		unit = string(codeBytes)
-		hasCode = true
-	} else if unitBytes, _, _, err := jsonparser.Get(o.data, "unit"); err == nil {
-		unit = string(unitBytes)
+	unit, hasCode := o.stringField("code")
+	if !hasCode {
+		unit, _ = o.stringField("unit")
 	}
 
 	// FHIR maps time-valued UCUM codes onto FHIRPath's calendar keywords as part
@@ -1904,7 +1911,7 @@ func (o *ObjectValue) ToQuantity() (Quantity, bool) {
 	// System.Quantity can only be applied if the FHIR Quantity has a UCUM code —
 	// i.e. a system of http://unitsofmeasure.org, and a code is present."
 	if hasCode {
-		if systemBytes, _, _, err := jsonparser.Get(o.data, "system"); err == nil && string(systemBytes) == UCUMSystem {
+		if system, _ := o.stringField("system"); system == UCUMSystem {
 			if keyword, mapped := CalendarUnitForUCUMCode(unit); mapped {
 				unit = keyword
 			}
