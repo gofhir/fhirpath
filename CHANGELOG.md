@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.10.2](https://github.com/gofhir/fhirpath/compare/v1.10.1...v1.10.2) (2026-10-05)
+
+
+### Performance Improvements
+
+* a root read without a declared type is typed when it is read ([#96](https://github.com/gofhir/fhirpath/issues/96)) ([60a9d8e](https://github.com/gofhir/fhirpath/commit/60a9d8e9a1142e7583c2bd91b15dcc9c672bce83))
+* a root's name is read once, wherever its resourceType is written ([#95](https://github.com/gofhir/fhirpath/issues/95)) ([e325efc](https://github.com/gofhir/fhirpath/commit/e325efc3b39f76e458eee33012739b6c922db460))
+
 ## [1.10.1](https://github.com/gofhir/fhirpath/compare/v1.10.0...v1.10.1) (2026-10-05)
 
 
