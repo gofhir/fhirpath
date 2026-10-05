@@ -1,0 +1,10 @@
+# The specification texts a spec case may cite, pinned. One per line:
+#   name  sha256  url
+# A case cites one by name; its quote must appear in that text. The texts are
+# not vendored: HL7/FHIRPath publishes no licence. `make spec-sources` downloads
+# them into .spec/ and refuses any whose bytes differ from the hash here, so a
+# republished page cannot silently change what a quote is checked against.
+fhirpath-2.0.0  841b401fb09c66c4f28418109280deff34c672fe9586aa49ad8bbcbc0d4129f4  https://raw.githubusercontent.com/HL7/FHIRPath/c95ad83b35babc67a383369c96535c39e9487fd3/spec/index.adoc
+fhirpath-3.0.0  9bac1eff575bb0222802a900fa010d76699b1192175266c8500374ac522e5136  https://raw.githubusercontent.com/HL7/FHIRPath/c95ad83b35babc67a383369c96535c39e9487fd3/input/pages/index.md
+fhir-r4  07653b0728f7a8c78aadaaae7bdc5a6856c04aa3b42f4ba727d92a61b56ad1a4  https://hl7.org/fhir/R4/fhirpath.html
+fhir-r5  06981694c8760e1ca3e3ea39cbf6e5f781823cc3237f1e66874d3421976f25c7  https://hl7.org/fhir/R5/fhirpath.html

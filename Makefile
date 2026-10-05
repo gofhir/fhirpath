@@ -3,7 +3,7 @@ ANTLR_JAR     := build/antlr-$(ANTLR_VERSION)-complete.jar
 ANTLR_URL     := https://www.antlr.org/download/antlr-$(ANTLR_VERSION)-complete.jar
 GRAMMAR       := grammar/fhirpath.g4
 
-.PHONY: help generate generate-check test test-race bench bench-compare bench-corpus lint conformance difftest corpusdiff clean
+.PHONY: help generate generate-check test test-race bench bench-compare bench-corpus lint conformance spec-sources difftest corpusdiff clean
 
 help:
 	@echo "generate        Regenerate the parser from $(GRAMMAR)"
@@ -14,7 +14,8 @@ help:
 	@echo "bench-compare   Compare the benchmarks against another revision"
 	@echo "bench-corpus    Measure evaluation over a sample of the official R4 examples"
 	@echo "lint            Run golangci-lint"
-	@echo "conformance     Report conformance against the official FHIRPath suite"
+	@echo "conformance     Report conformance against the official FHIRPath suite and the spec cases"
+	@echo "spec-sources    Fetch the pinned specification texts the spec cases quote"
 	@echo "difftest        Compare this engine's answers against fhirpath.js"
 	@echo "corpusdiff      Compare this tree's answers over the FHIR examples against BASE"
 	@echo "conformance-update  Re-baseline the conformance known-failures lists"
@@ -101,7 +102,13 @@ lint:
 # The harness lives in its own module so that the engine's go.mod stays free of
 # the FHIR model packages.
 conformance:
-	@cd conformance && go test -run TestOfficialSuite -v . 2>&1 | grep -E "official suite|skipped [0-9]"
+	@cd conformance && go test -run 'TestOfficialSuite|TestSpecCases' -v . 2>&1 | grep -E "official suite|spec cases|skipped [0-9]"
+
+# The texts the spec cases quote, pinned by hash in
+# conformance/testdata/spec-cases/SPEC_SOURCES and fetched rather than vendored.
+# Without them the conformance harness skips its quote check.
+spec-sources:
+	@python3 scripts/spec-sources.py
 
 # Where two independent engines disagree is a different question from where one
 # of them disagrees with the suite, and it is the question that settled several
@@ -136,7 +143,7 @@ corpusdiff:
 	@VERBOSE=$(VERBOSE) scripts/corpusdiff.sh $(BASE) $(FHIR)
 
 conformance-update:
-	@cd conformance && go test -run TestOfficialSuite -update-known-failures .
+	@cd conformance && go test -run 'TestOfficialSuite|TestSpecCases' -update-known-failures .
 
 clean:
 	rm -rf build

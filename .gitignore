@@ -54,3 +54,7 @@ docs/_vendor/
 
 # ANTLR jar and generation artifacts
 build/
+
+# Claude Code: per-run workflow artifacts and personal settings
+.workflow/
+.claude/settings.local.json

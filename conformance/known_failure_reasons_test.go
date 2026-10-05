@@ -19,8 +19,14 @@ import (
 
 const conformanceDoc = "../CONFORMANCE.md"
 
-var failureKinds = map[string]bool{
+var suiteFailureKinds = map[string]bool{
 	"suite-defect":   true,
+	"deliberate":     true,
+	"needs-external": true,
+	"gap":            true,
+}
+
+var specFailureKinds = map[string]bool{
 	"deliberate":     true,
 	"needs-external": true,
 	"gap":            true,
@@ -38,40 +44,67 @@ func TestKnownFailuresAreExplained(t *testing.T) {
 		{"R5", knownFailuresModelFileR5, suiteDirR5 + "/known-failure-reasons.txt"},
 	} {
 		t.Run(suite.name, func(t *testing.T) {
-			known := loadKnownFailures(t, suite.baseline)
-			reasons := loadFailureReasons(t, suite.reasons)
-
-			for _, id := range sortedKeys(known) {
-				if _, ok := reasons[id]; !ok {
-					t.Errorf("%s fails with the model and %s does not say why", id, suite.reasons)
-				}
-			}
-			for _, id := range sortedKeys(reasons) {
-				r := reasons[id]
-				if !known[id] {
-					t.Errorf("%s is explained in %s but not listed in %s; remove its line", id, suite.reasons, suite.baseline)
-				}
-				if !failureKinds[r.kind] {
-					t.Errorf("%s: unknown kind %q", id, r.kind)
-				}
-				if !anchors[r.anchor] {
-					t.Errorf("%s: %s has no heading with anchor #%s", id, conformanceDoc, r.anchor)
-				}
-				if r.text == "" {
-					t.Errorf("%s: no reason given", id)
-				}
-			}
+			checkFailureReasons(t, anchors, suiteFailureKinds, suite.reasons, suite.baseline)
 		})
+	}
+
+	// A spec case is this project's own, so a failing one is never the
+	// suite's fault: a wrong case is corrected, not listed. Both versions
+	// share one reasons file, since a case is named alike in both.
+	for _, area := range specAreas(t) {
+		t.Run("spec cases "+area, func(t *testing.T) {
+			checkFailureReasons(t, anchors, specFailureKinds, specReasonsFile(area),
+				specBaselineFile(area, "r4"), specBaselineFile(area, "r5"))
+		})
+	}
+}
+
+// checkFailureReasons checks that the cases failing in any of the baselines
+// and the cases a reasons file explains are the same cases.
+func checkFailureReasons(t *testing.T, anchors, kinds map[string]bool, reasonsPath string, baselines ...string) {
+	t.Helper()
+	known := map[string]bool{}
+	for _, b := range baselines {
+		for id := range loadKnownFailures(t, b) {
+			known[id] = true
+		}
+	}
+	reasons := loadFailureReasons(t, reasonsPath)
+
+	for _, id := range sortedKeys(known) {
+		if _, ok := reasons[id]; !ok {
+			t.Errorf("%s fails and %s does not say why", id, reasonsPath)
+		}
+	}
+	for _, id := range sortedKeys(reasons) {
+		r := reasons[id]
+		if !known[id] {
+			t.Errorf("%s is explained in %s but fails in none of %s; remove its line", id, reasonsPath, strings.Join(baselines, ", "))
+		}
+		if !kinds[r.kind] {
+			t.Errorf("%s: kind %q is not one of %s", id, r.kind, strings.Join(sortedKeys(kinds), ", "))
+		}
+		// A pending gap may not have a section yet; anything else is a
+		// position taken, and is argued in CONFORMANCE.md.
+		if (r.kind != "gap" || r.anchor != "-") && !anchors[r.anchor] {
+			t.Errorf("%s: %s has no heading with anchor #%s", id, conformanceDoc, r.anchor)
+		}
+		if r.text == "" {
+			t.Errorf("%s: no reason given", id)
+		}
 	}
 }
 
 func loadFailureReasons(t *testing.T, path string) map[string]failureReason {
 	t.Helper()
+	reasons := map[string]failureReason{}
 	data, err := os.ReadFile(path)
+	if os.IsNotExist(err) {
+		return reasons // nothing fails, or the baseline will say so
+	}
 	if err != nil {
 		t.Fatalf("read failure reasons: %v", err)
 	}
-	reasons := map[string]failureReason{}
 	for n, line := range strings.Split(string(data), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {

@@ -9,7 +9,10 @@
 //
 // Usage:
 //
-//	go run . [-corpus r4|r5|both] [-model] [-v]
+//	go run . [-corpus r4|r5|both|spec|all] [-model] [-v]
+//
+// both is the two official suites, spec is this project's own spec cases, and
+// all is everything.
 package main
 
 import (
@@ -29,7 +32,7 @@ import (
 )
 
 func main() {
-	corpusName := flag.String("corpus", "both", "which suite to run: r4, r5 or both")
+	corpusName := flag.String("corpus", "both", "which cases to run: r4, r5, both (the official suites), spec (this project's spec cases) or all")
 	withModel := flag.Bool("model", true, "supply each engine its FHIR model")
 	verbose := flag.Bool("v", false, "list every divergence rather than a summary")
 	flag.Parse()
@@ -49,11 +52,30 @@ func run(corpusName string, withModel, verbose bool) error {
 	// report says which one answered.
 	fmt.Printf("against fhirpath.js %s\n", version)
 
-	for _, c := range corpora() {
-		if corpusName != "both" && corpusName != c.name {
-			continue
+	spec, err := specCorpora()
+	if err != nil {
+		return err
+	}
+	var selected []corpus
+	switch corpusName {
+	case "both":
+		selected = corpora()
+	case "spec":
+		selected = spec
+	case "all":
+		selected = append(corpora(), spec...)
+	default:
+		for _, c := range corpora() {
+			if c.name == corpusName {
+				selected = append(selected, c)
+			}
 		}
+	}
+	if len(selected) == 0 {
+		return fmt.Errorf("no cases to run for -corpus %s", corpusName)
+	}
 
+	for _, c := range selected {
 		cases, err := c.load(withModel)
 		if err != nil {
 			return err

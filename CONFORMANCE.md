@@ -264,6 +264,27 @@ Two of the R5 groups documented above as needing something outside the engine �
 `htmlChecks` and `%terminologies` — fail in fhirpath.js too, which is some
 comfort about how far outside they are.
 
+## Cases written from the specification
+
+The suite and fhirpath.js have little left to say: one case in R4 where this
+engine is wrong and fhirpath.js right, and that one on purpose. New gaps can only
+come from new cases, so the project writes its own, one area of the language at
+a time, under [`conformance/testdata/spec-cases/`](conformance/testdata/spec-cases).
+
+Each requirement quotes the sentence it comes from, in the 2.0.0 or 3.0.0
+specification or in FHIR's FHIRPath page, and the build checks that the
+sentence is there, verbatim, in a copy pinned by hash. Where the text is silent
+there is no case; the question is listed for a decision instead. The cases run
+in the suite's format, so `make conformance` measures them and `make difftest
+DIFFTEST_ARGS="-corpus spec"` puts them to fhirpath.js. A failing one needs a
+reason, as a suite case does, except that `suite-defect` is not available: a
+wrong case of our own is corrected, not listed.
+
+They are written by the `/fhirpath-cases` workflow in [`.claude/`](.claude),
+whose authors cannot read this engine, fhirpath.js or this file — a case
+written by someone who has seen an engine's answer tends to agree with it —
+and adjudicated by an agent that reads all three.
+
 ## Static analysis
 
 A semantic fault is one that evaluation cannot see. `Patient.name.given1`
