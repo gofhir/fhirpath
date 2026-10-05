@@ -107,11 +107,16 @@ conformance:
 # of them disagrees with the suite, and it is the question that settled several
 # entries in CONFORMANCE.md — each run through fhirpath.js by hand at the time.
 #
-# Needs node, and fhirpath.js installed under difftest/. Not part of `test`: it
-# depends on a JavaScript toolchain that has nothing to do with using this
-# library.
-difftest:
-	@cd difftest && [ -d node_modules ] || npm install --silent
+# Needs node. Not part of `test`: it depends on a JavaScript toolchain that has
+# nothing to do with using this library.
+#
+# fhirpath.js is pinned by difftest/package-lock.json and installed with npm ci,
+# again whenever the lock changes, so every run compares against the release the
+# numbers in CONFORMANCE.md were measured with.
+difftest/node_modules/.package-lock.json: difftest/package-lock.json
+	@cd difftest && npm ci --silent
+
+difftest: difftest/node_modules/.package-lock.json
 	@cd difftest && go run . $(DIFFTEST_ARGS)
 
 # What two revisions answer for every element path and constraint over the
