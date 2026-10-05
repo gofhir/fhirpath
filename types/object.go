@@ -271,10 +271,23 @@ func (o *ObjectValue) rootName() string {
 
 // asRoot records that the objects of a collection read as the root of an
 // input are its root. See Location.
+//
+// A root read without a declared type has its type worked out here, once.
+// A root may be shared by goroutines, and an object that is shared works its
+// type out on every Type() rather than write it down, which for a resource
+// means reading as far as its resourceType: past every entry of a Bundle whose
+// producer wrote resourceType last, as Go's encoding/json does sorting a map's
+// keys, and on every evaluation against it. Here the root is not shared yet.
+// Navigation asks a root its type before anything else, so the read is the one
+// the first evaluation made, moved; a root read under a declared type has its
+// type already.
 func asRoot(col Collection) Collection {
 	for _, value := range col {
 		if obj, ok := value.(*ObjectValue); ok {
 			obj.root = true
+			if obj.typeName == "" {
+				obj.typeName = obj.readType()
+			}
 		}
 	}
 	return col
