@@ -7,6 +7,17 @@
 
 * a root's name and a Quantity's unit are read decoded ([#98](https://github.com/gofhir/fhirpath/issues/98)) ([d8e5cd7](https://github.com/gofhir/fhirpath/commit/d8e5cd7db2dfe8e2caa3913f5a378430ea83636b))
 
+  A JSON string written with escapes is the same string, but two places read
+  one as written. `Location()` named a root whose `resourceType` was written
+  `"Pati\u0065nt"` as `Pati\\u0065nt`, where navigation typed it `Patient`.
+  And `ToQuantity` read a Quantity's `code`, `unit` and `system` undecoded: a
+  `system` written `http:\/\/unitsofmeasure.org`, as PHP writes a slash, was
+  not UCUM, so a `code` of `a` was not a year, and a unit `\u00b5g`, as Python
+  writes what is not ASCII, was not `µg`. Both are read decoded now, the
+  root's name as navigation reads it. A `code` that is `null` or a number,
+  which FHIR does not allow, no longer names the unit `'null'` or `'7'`, and
+  leaves it to `unit`.
+
 ## [1.10.2](https://github.com/gofhir/fhirpath/compare/v1.10.1...v1.10.2) (2026-10-05)
 
 
