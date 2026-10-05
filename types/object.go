@@ -1341,6 +1341,18 @@ func jsonValueToFHIRValueWithType(data []byte, dataType jsonparser.ValueType, fh
 		return NewObjectValueWithType(data, fhirType)
 	}
 
+	// A decimal is a number whose representation is kept, so one without a
+	// fraction is a Decimal as it is written, not an Integer by its shape:
+	// -0 keeps its sign, and 100 its type. A choice variant read without a
+	// model names the type as its key spells it, Decimal for valueDecimal.
+	if dataType == jsonparser.Number && strings.EqualFold(fhirType, "decimal") {
+		d, err := NewDecimal(string(data))
+		if err != nil {
+			return nil
+		}
+		return d.WithFHIRType(fhirType)
+	}
+
 	value := jsonValueToFHIRValue(data, dataType)
 	if value == nil || fhirType == "" {
 		return value
