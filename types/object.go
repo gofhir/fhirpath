@@ -35,17 +35,23 @@ type ObjectValue struct {
 	private bool
 	// root records that the object is the root of the input it was read from.
 	// See Location.
-	root         bool
-	reads        uint8          // how many times a field was read by scanning. See readField.
-	index        []indexedField // the object's fields once indexed. See readField.
-	explicitType string         // optional explicit FHIR type from polymorphic resolution
-	elementPath  string         // the element the object was reached as. See ElementPath.
-	typeName     string         // the type once answered, which does not change. See Type.
-	// parent is the object this one was read out of, nil for a root or an
-	// object no read created. It is all an object keeps of where it sits, and
-	// fits in the room the struct already takes: the field and the index are
-	// found from it only when asked. See Location.
+	root  bool
+	reads uint8 // how many times a field was read by scanning. See readField.
+	// position is the object's index in the field it was read from plus one,
+	// or zero when the field is not an array. See Location.
+	position    int32
+	index       []indexedField // the object's fields once indexed. See readField.
+	elementPath string         // the element the object was reached as. See ElementPath.
+	// typeName is the type the object was read as — a polymorphic field's,
+	// valueQuantity's Quantity — or the type once worked out, which does not
+	// change. See Type.
+	typeName string
+	// Where the object sits: the object it was read out of, nil for a root or
+	// an object no read created, and the field of it the object was read from,
+	// "" where the read did not name one. They fit in the 128 bytes the struct
+	// takes, with position in the room the flags leave. See Location.
 	parent *ObjectValue
+	field  string
 }
 
 // EnableCaching makes the object keep the fields it reads, and the objects it
@@ -109,11 +115,13 @@ func (o *ObjectValue) SetElementPath(path string) {
 // object that was not read from the input: one a function made, a resource
 // a Resolver handed back, the items of a JSON array read as the root.
 //
-// The object keeps only the object it was read out of, a pointer that fits in
-// the room the struct already takes, so navigation pays nothing for it.
-// Location reads each ancestor's JSON to find the field and index instead,
-// which costs less than evaluating the path again and allocates only the
-// string. It only reads, and may be called on objects other goroutines read.
+// A read records on the object the object it was read out of, the field and
+// the index, in the room the struct already takes, so navigation pays nothing
+// for them, and Location spells the path from them without reading any JSON
+// but the root's resourceType: it costs the depth of the path, not the size
+// of what holds it, so locating every entry of a large Bundle is linear. It
+// allocates only the string. It only reads, and may be called on objects other
+// goroutines read.
 func (o *ObjectValue) Location() string {
 	// Collect the chain up to the root, on the stack for any ordinary depth.
 	var stack [16]*ObjectValue
@@ -135,14 +143,22 @@ func (o *ObjectValue) Location() string {
 	}
 	for i := len(chain) - 1; i >= 0; i-- {
 		child := chain[i]
-		key, index, found := child.parent.locate(child.data)
-		if !found {
-			return ""
-		}
 		if len(path) > 0 {
 			path = append(path, '.')
 		}
-		path = append(path, key...)
+		// The read recorded the field and index; only a read that did not
+		// name the field leaves it to be found in the parent's JSON.
+		index := int(child.position) - 1
+		if child.field != "" {
+			path = append(path, child.field...)
+		} else {
+			key, at, found := child.parent.locate(child.data)
+			if !found {
+				return ""
+			}
+			path = append(path, key...)
+			index = at
+		}
 		if index >= 0 {
 			path = append(path, '[')
 			path = strconv.AppendInt(path, int64(index), 10)
@@ -266,8 +282,8 @@ func NewObjectValue(data []byte) *ObjectValue {
 // Used when the type is known from polymorphic field resolution (e.g., valueQuantity → "Quantity").
 func NewObjectValueWithType(data []byte, typeName string) *ObjectValue {
 	return &ObjectValue{
-		data:         data,
-		explicitType: typeName,
+		data:     data,
+		typeName: typeName,
 	}
 }
 
@@ -296,11 +312,7 @@ const (
 // the type of every object it passes — for an inferred type that means the
 // structural checks below, each of which scans the object.
 func (o *ObjectValue) Type() string {
-	// First, check for explicit type set during polymorphic resolution
-	if o.explicitType != "" {
-		return o.explicitType
-	}
-
+	// A type given when the object was read, or one already worked out
 	if o.typeName != "" {
 		return o.typeName
 	}
@@ -549,7 +561,7 @@ func (o *ObjectValue) Get(field string) (Value, bool) {
 	// Convert to Value, and keep it where no other goroutine reads the object.
 	// What it reads is new, so it is private either way.
 	v := jsonValueToFHIRValue(value, dataType)
-	o.adopt(v)
+	o.adoptAt(v, field, -1)
 	if o.keeps() {
 		if o.fields == nil {
 			o.fields = make(map[string]Value, 4)
@@ -585,6 +597,16 @@ func (o *ObjectValue) adopt(value Value) {
 	if obj, ok := ElementOf(value); ok {
 		obj.private = true
 		obj.parent = o
+	}
+}
+
+// adoptAt adopts a value read from the given field of the object, at the
+// given index of it, -1 when the field is not an array, and records where.
+func (o *ObjectValue) adoptAt(value Value, field string, index int) {
+	if obj, ok := ElementOf(value); ok {
+		obj.private = true
+		obj.parent = o
+		obj.place(field, index)
 	}
 }
 
@@ -662,12 +684,15 @@ func (o *ObjectValue) cachedCollection(key fieldKey, build func() Collection) Co
 // for it. Positions with neither a value nor an element are dropped.
 func (o *ObjectValue) fieldCollection(field string, parse func([]byte, jsonparser.ValueType) Value) Collection {
 	value, element := o.readField(field)
-	return pairedCollection(value, element, parse)
+	return pairedCollection(field, value, element, parse)
 }
 
 // pairedCollection is the collection a field holds, from its value and the
 // element beside it, as fieldCollection describes.
-func pairedCollection(value, element jsonField, parse func([]byte, jsonparser.ValueType) Value) Collection {
+//
+// Each item records the field it was read from and its index there, which is
+// all Location needs of it.
+func pairedCollection(field string, value, element jsonField, parse func([]byte, jsonparser.ValueType) Value) Collection {
 	if value.missing() && element.missing() {
 		return Collection{}
 	}
@@ -678,7 +703,11 @@ func pairedCollection(value, element jsonField, parse func([]byte, jsonparser.Va
 		if element.found && element.dataType == jsonparser.Object {
 			elementValue = NewObjectValue(element.data)
 		}
-		return pairValueWithElement(value, elementValue, parse)
+		result := pairValueWithElement(value, elementValue, parse)
+		for _, v := range result {
+			placePaired(v, elementValue, field, 0, value, element)
+		}
+		return result
 	}
 
 	values := positionalEntries(value)
@@ -701,10 +730,42 @@ func pairedCollection(value, element jsonField, parse func([]byte, jsonparser.Va
 			entry = values[i]
 		}
 
-		result = append(result, pairValueWithElement(entry, elementValue, parse)...)
+		for _, v := range pairValueWithElement(entry, elementValue, parse) {
+			placePaired(v, elementValue, field, i, value, element)
+			result = append(result, v)
+		}
 	}
 
 	return result
+}
+
+// placePaired records where an item of a paired field sits: in the field, at
+// index i when the array its object was read from — the value's, or the
+// element's beside it — is one.
+func placePaired(v Value, elementValue *ObjectValue, field string, i int, value, element jsonField) {
+	obj, ok := ElementOf(v)
+	if !ok {
+		return
+	}
+	inArray := value.isArray()
+	if obj == elementValue {
+		inArray = element.isArray()
+	}
+	if !inArray {
+		i = -1
+	}
+	obj.place(field, i)
+}
+
+// place records the field the object was read from and its index there, -1
+// when the field is not an array. An index past what position holds is left
+// to Location to find.
+func (o *ObjectValue) place(field string, index int) {
+	if index >= math.MaxInt32 {
+		return
+	}
+	o.field = field
+	o.position = int32(index + 1) //nolint:gosec // below MaxInt32, checked above
 }
 
 // errFieldsFound stops a scan that has nothing left to look for. jsonparser
@@ -1072,7 +1133,7 @@ func (o *ObjectValue) appendPairedChild(result []TypedChild, f *pairedField, bas
 		parse = typedParser(fhirType)
 	}
 
-	for _, v := range pairedCollection(f.value, f.element, parse) {
+	for _, v := range pairedCollection(f.name, f.value, f.element, parse) {
 		// A resource resolves its fields beneath its own type, so it is not
 		// placed at the element that holds it.
 		if obj, ok := v.(*ObjectValue); ok && fhirType != "" && !IsAbstractResourceType(fhirType) {
@@ -1100,7 +1161,7 @@ func (o *ObjectValue) unpairedChildren(basePath string, res ElementTypeResolver)
 		name := string(key)
 		childPath, fhirType := o.childElement(basePath, name, res)
 
-		appendChild := func(data []byte, dt jsonparser.ValueType) {
+		appendChild := func(data []byte, dt jsonparser.ValueType, index int) {
 			var v Value
 			if fhirType != "" {
 				v = jsonValueToFHIRValueWithType(data, dt, fhirType)
@@ -1113,19 +1174,21 @@ func (o *ObjectValue) unpairedChildren(basePath string, res ElementTypeResolver)
 				if obj, ok := v.(*ObjectValue); ok && fhirType != "" && !IsAbstractResourceType(fhirType) {
 					obj.elementPath = childPath
 				}
-				o.adopt(v)
+				o.adoptAt(v, name, index)
 				result = append(result, TypedChild{Value: v, Path: childPath})
 			}
 		}
 
 		if dataType == jsonparser.Array {
+			index := 0
 			//nolint:errcheck // ArrayEach only returns errors for non-arrays; value is already an array
 			jsonparser.ArrayEach(value, func(item []byte, itemType jsonparser.ValueType, _ int, _ error) {
-				appendChild(item, itemType)
+				appendChild(item, itemType, index)
+				index++
 			})
 			return nil
 		}
-		appendChild(value, dataType)
+		appendChild(value, dataType, -1)
 		return nil
 	})
 
