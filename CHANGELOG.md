@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.3](https://github.com/gofhir/fhirpath/compare/v1.10.2...v1.10.3) (2026-10-05)
+
+
+### Bug Fixes
+
+* a root's name and a Quantity's unit are read decoded ([#98](https://github.com/gofhir/fhirpath/issues/98)) ([d8e5cd7](https://github.com/gofhir/fhirpath/commit/d8e5cd7db2dfe8e2caa3913f5a378430ea83636b))
+
 ## [1.10.2](https://github.com/gofhir/fhirpath/compare/v1.10.1...v1.10.2) (2026-10-05)
 
 
