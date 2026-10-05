@@ -118,7 +118,7 @@ func fnResolve(ctx *eval.Context, input types.Collection, args []interface{}) (t
 		// it: it is read again as an object that is no input's root.
 		for _, v := range col {
 			if obj, ok := v.(*types.ObjectValue); ok {
-				v = types.NewObjectValue(obj.Data())
+				v = types.NewObjectValueWithType(obj.Data(), obj.Type())
 			}
 			result = append(result, v)
 		}
