@@ -16,6 +16,7 @@ import (
 // already vendors it rather than from a second copy.
 type corpus struct {
 	name     string
+	fhir     string // the FHIR version of the inputs and the model, r4 or r5
 	file     string
 	inputDir string
 	// readXML turns one of the suite's XML resources into JSON, which is what
@@ -25,23 +26,47 @@ type corpus struct {
 	readXML func([]byte) ([]byte, error)
 }
 
-func corpora() []corpus {
-	const suites = "../conformance/testdata"
+const suites = "../conformance/testdata"
 
+func corpora() []corpus {
 	return []corpus{
 		{
 			name:     "r4",
+			fhir:     "r4",
 			file:     suites + "/fhirpath-suite/tests-fhir-r4.xml",
 			inputDir: suites + "/fhirpath-suite/input",
 			readXML:  fhirXMLToJSON(r4.UnmarshalResourceXML),
 		},
 		{
 			name:     "r5",
+			fhir:     "r5",
 			file:     suites + "/fhirpath-suite-r5/tests-fhir-r5.xml",
 			inputDir: suites + "/fhirpath-suite-r5/input",
 			readXML:  fhirXMLToJSON(r5.UnmarshalResourceXML),
 		},
 	}
+}
+
+// specCorpora are this project's own cases, one file per area, written in the
+// suite's format from the specification's text (see conformance/spec_cases_test.go).
+// Each runs against both versions' inputs and models, as the conformance
+// harness runs it.
+func specCorpora() ([]corpus, error) {
+	files, err := filepath.Glob(suites + "/spec-cases/*.xml")
+	if err != nil {
+		return nil, err
+	}
+	var out []corpus
+	for _, file := range files {
+		area := strings.TrimSuffix(filepath.Base(file), ".xml")
+		for _, official := range corpora() {
+			c := official
+			c.name = "spec " + area + " " + official.fhir
+			c.file = file
+			out = append(out, c)
+		}
+	}
+	return out, nil
 }
 
 func fhirXMLToJSON[R any](unmarshal func([]byte) (R, error)) func([]byte) ([]byte, error) {
@@ -58,6 +83,7 @@ func fhirXMLToJSON[R any](unmarshal func([]byte) (R, error)) func([]byte) ([]byt
 type suiteFile struct {
 	Groups []struct {
 		Name  string `xml:"name,attr"`
+		FHIR  string `xml:"fhir,attr"`
 		Tests []struct {
 			Name       string `xml:"name,attr"`
 			InputFile  string `xml:"inputfile,attr"`
@@ -89,7 +115,8 @@ func (c corpus) load(withModel bool) ([]testCase, error) {
 
 	model := ""
 	if withModel {
-		model = c.name
+		// The version, not the name: a spec corpus is named after its area.
+		model = c.fhir
 	}
 
 	inputs := map[string]json.RawMessage{}
@@ -98,6 +125,10 @@ func (c corpus) load(withModel bool) ([]testCase, error) {
 	seen := map[string]int{}
 
 	for _, group := range suite.Groups {
+		// A spec case may hold for one FHIR version only.
+		if group.FHIR != "" && group.FHIR != c.fhir {
+			continue
+		}
 		for _, test := range group.Tests {
 			id := group.Name + "/" + test.Name
 			// The suite repeats a name for two different expressions —

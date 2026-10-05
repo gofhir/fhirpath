@@ -96,10 +96,20 @@ jobs:
         run: go test -v -race -coverprofile=coverage.txt -covermode=atomic ./...
 
       # The conformance harness is a separate module so that the engine's go.mod
-      # stays free of the FHIR model packages.
+      # stays free of the FHIR model packages. The spec-case quotes are not
+      # checked here: their texts are fetched in the next step.
       - name: Run the conformance harness
         working-directory: conformance
         run: go test -v ./...
+
+      # Spec cases quote the specification, checked against texts pinned by
+      # hash and fetched rather than vendored. A separate step, so that an
+      # outage or a republished page fails this check alone and never hides
+      # the harness's own result.
+      - name: Check the spec-case quotes against the pinned specification
+        run: |
+          python3 scripts/spec-sources.py
+          cd conformance && SPEC_SOURCES_REQUIRED=1 go test -v -run TestSpecCaseCatalog .
 
       # The harness already fails the run on a regression; this reports the
       # standing conformance number in the job summary.
@@ -107,8 +117,8 @@ jobs:
         if: always()
         working-directory: conformance
         run: |
-          go test -run TestOfficialSuite -v . 2>&1 \
-            | grep -E "official suite|skipped [0-9]" \
+          go test -run 'TestOfficialSuite|TestSpecCases' -v . 2>&1 \
+            | grep -E "official suite|spec cases|skipped [0-9]" \
             | sed 's/^[[:space:]]*suite_test.go:[0-9]*: //' \
             | tee -a "$GITHUB_STEP_SUMMARY"
 

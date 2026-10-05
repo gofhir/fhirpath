@@ -46,6 +46,12 @@ import (
 var updateKnownFailures = flag.Bool("update-known-failures", false,
 	"rewrite testdata/fhirpath-suite/known-failures.txt from this run")
 
+// showKnownFailures logs why each listed failure fails, not only the new ones.
+// A case already in a baseline is otherwise silent, so one edited and still
+// failing would never be judged again.
+var showKnownFailures = flag.Bool("show-known-failures", false,
+	"log the reason for every failing case, listed or not")
+
 const (
 	suiteDir               = "testdata/fhirpath-suite"
 	suiteFile              = suiteDir + "/tests-fhir-r4.xml"
@@ -71,7 +77,10 @@ type suiteFileXML struct {
 }
 
 type suiteGroup struct {
-	Name  string      `xml:"name,attr"`
+	Name string `xml:"name,attr"`
+	// FHIR restricts a group to one FHIR version. The official suites never set
+	// it; a spec case does when what it cites is the FHIR page of one version.
+	FHIR  string      `xml:"fhir,attr"`
 	Tests []suiteCase `xml:"test"`
 }
 
@@ -121,7 +130,10 @@ func (c suiteCase) runsLeniently() bool {
 type variant struct {
 	name         string
 	baselineFile string
-	evaluate     func(expr *fhirpath.Expression, resource []byte) (types.Collection, error)
+	// baselineHeader heads the baseline when it is rewritten; empty means the
+	// official suite's.
+	baselineHeader string
+	evaluate       func(expr *fhirpath.Expression, resource []byte) (types.Collection, error)
 
 	// model is what static analysis needs; a variant without one only evaluates
 	model fhirpath.Model
@@ -148,6 +160,8 @@ func resourceTypeOf(resource []byte) string {
 // them — and evaluates under the rules that changed with R5.
 type corpus struct {
 	name     string
+	title    string // how the run is named in the log
+	fhir     string // the FHIR version the inputs and models are, r4 or r5
 	file     string
 	inputDir string
 	variants []variant
@@ -176,6 +190,8 @@ func corpora() []corpus {
 	return []corpus{
 		{
 			name:     "r4",
+			title:    "official suite r4",
+			fhir:     "r4",
 			file:     suiteFile,
 			inputDir: suiteInputDir,
 			readXML:  fhirXMLToJSON(r4.UnmarshalResourceXML),
@@ -199,6 +215,8 @@ func corpora() []corpus {
 		},
 		{
 			name:     "r5",
+			title:    "official suite r5",
+			fhir:     "r5",
 			file:     suiteFileR5,
 			inputDir: suiteInputDirR5,
 			readXML:  fhirXMLToJSON(r5.UnmarshalResourceXML),
@@ -255,6 +273,9 @@ func runSuite(t *testing.T, c corpus, v variant) {
 	skippedByInput := map[string]int{}
 
 	for _, group := range suite.Groups {
+		if group.FHIR != "" && group.FHIR != c.fhir {
+			continue
+		}
 		for _, tc := range group.Tests {
 			id := group.Name + "/" + tc.Name
 
@@ -269,6 +290,8 @@ func runSuite(t *testing.T, c corpus, v variant) {
 				failures = append(failures, id)
 				if !known[id] {
 					t.Errorf("%s: %v\n  expression: %s", id, err, strings.TrimSpace(tc.Expression.Text))
+				} else if *showKnownFailures {
+					t.Logf("%s (known failure): %v\n  expression: %s", id, err, strings.TrimSpace(tc.Expression.Text))
 				}
 				continue
 			}
@@ -281,13 +304,19 @@ func runSuite(t *testing.T, c corpus, v variant) {
 
 	sort.Strings(failures)
 	if *updateKnownFailures {
-		writeKnownFailures(t, v.baselineFile, failures)
+		writeKnownFailures(t, v.baselineFile, v.baselineHeader, failures)
 	}
 
 	// Coverage is reported, never silently reduced: a case the harness could not
 	// run is as important as one that failed.
-	t.Logf("official suite %s (%s): %d/%d executed cases pass (%.1f%%), %d known failures",
-		c.name, v.name, passed, executed, 100*float64(passed)/float64(executed), len(failures))
+	// A spec area may hold for one FHIR version only, leaving the other with
+	// nothing to run.
+	rate := 0.0
+	if executed > 0 {
+		rate = 100 * float64(passed) / float64(executed)
+	}
+	t.Logf("%s (%s): %d/%d executed cases pass (%.1f%%), %d known failures",
+		c.title, v.name, passed, executed, rate, len(failures))
 	for file, n := range skippedByInput {
 		t.Logf("skipped %d case(s): no usable input %q", n, file)
 	}
@@ -482,8 +511,11 @@ func loadKnownFailures(t *testing.T, path string) map[string]bool {
 	return known
 }
 
-func writeKnownFailures(t *testing.T, path string, failures []string) {
-	content := knownFailuresComment
+func writeKnownFailures(t *testing.T, path, header string, failures []string) {
+	content := header
+	if content == "" {
+		content = knownFailuresComment
+	}
 	if len(failures) > 0 {
 		content += strings.Join(failures, "\n") + "\n"
 	}
