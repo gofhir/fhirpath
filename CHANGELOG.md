@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.10.2](https://github.com/gofhir/fhirpath/compare/v1.10.1...v1.10.2) (2026-10-05)
+
+
+### Performance Improvements
+
+* a root read without a declared type is typed when it is read ([#96](https://github.com/gofhir/fhirpath/issues/96)) ([60a9d8e](https://github.com/gofhir/fhirpath/commit/60a9d8e9a1142e7583c2bd91b15dcc9c672bce83))
+
+  A root read once and shared between evaluations worked its type out each
+  time it was asked, by reading as far as its `resourceType`. JSON does not
+  order keys, and where a producer writes `resourceType` after a large array,
+  as Go's `encoding/json` does sorting a map's keys, every evaluation read past
+  the array: `%resource is Bundle` asked once per entry was quadratic. A root
+  read by `JSONToCollection` or `ReadRoot` has its type worked out when it is
+  read. Over the R4 sample and the navigation benchmarks nothing else moves.
+* a root's name is read once, wherever its resourceType is written ([#95](https://github.com/gofhir/fhirpath/issues/95)) ([e325efc](https://github.com/gofhir/fhirpath/commit/e325efc3b39f76e458eee33012739b6c922db460))
+
+  `Location()` read the root's `resourceType` on every call, so with
+  `resourceType` written after the entries, locating every entry of a Bundle
+  was quadratic again: 871 ms for 4,000 entries. The name is now read the first
+  time anything under the root is located, and kept, safely for a root shared
+  by goroutines: 20 ns an entry wherever `resourceType` is.
+
 ## [1.10.1](https://github.com/gofhir/fhirpath/compare/v1.10.0...v1.10.1) (2026-10-05)
 
 
