@@ -1,5 +1,33 @@
 # Changelog
 
+## [1.10.1](https://github.com/gofhir/fhirpath/compare/v1.10.0...v1.10.1) (2026-10-05)
+
+
+### Bug Fixes
+
+* a number read as decimal is a Decimal as it is written ([#91](https://github.com/gofhir/fhirpath/issues/91)) ([f61f446](https://github.com/gofhir/fhirpath/commit/f61f44694cd6241365e8a71a8cd89e5784858498))
+
+  A FHIR `decimal` keeps its representation, but read under the `decimal` type
+  a JSON number without a fraction was an `Integer` by its shape, labelled
+  decimal: `-0` lost its sign, so `toString()` gave `'0'` where the HL7
+  validator gives `'-0'`, and `100` was a `types.Integer` to Go code checking
+  the type. Such a number is now a `Decimal` as written, through a model, a
+  `Document`, `JSONToCollectionWithType` and `ReadRootWithType`, and an
+  extension's `value` read from `valueDecimal` without a model. A field read
+  with no type at all is still read by its shape.
+
+
+### Performance Improvements
+
+* Location reads no JSON but the root's type, so locating an array is linear ([#93](https://github.com/gofhir/fhirpath/issues/93)) ([c8ec0d6](https://github.com/gofhir/fhirpath/commit/c8ec0d6425b8577f5f19cc94f8e3977dcb1f6aca))
+
+  `Location()` found an object's field and index by reading its parent's JSON,
+  so locating every entry of a Bundle was quadratic: 84 ms for 1,000 entries,
+  5.3 s for 8,000. A read now records the field and index on the object, in
+  room the struct already had, and `Location()` reads no JSON but the root's
+  `resourceType`: about 42 ns an entry at either size. Navigation allocates
+  nothing more, and is about 1% slower for what it records.
+
 ## [1.10.0](https://github.com/gofhir/fhirpath/compare/v1.9.12...v1.10.0) (2026-10-04)
 
 
