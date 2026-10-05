@@ -69,6 +69,14 @@ Cases that do not pass yet live in `known-failures.txt` and
 pre-existing gaps, but it fails on a regression **and** when a listed case starts
 passing — so the list can only shrink, and it never lies about the number.
 
+The list says which cases fail; `known-failure-reasons.txt`, next to each suite's
+baselines, says why. Every case in a model baseline needs a line there with its
+kind — `suite-defect`, `deliberate`, `needs-external` or `gap` — and the heading
+of this file that argues it, and `TestKnownFailuresAreExplained` fails on a case
+without one, on a line for a case that no longer fails, and on an anchor this
+file does not have. A case that fails only without a model needs no line: the
+model run passing it is the explanation.
+
 ## Remaining gaps
 
 | Block | Cases | Notes |
@@ -217,6 +225,14 @@ It reports four kinds, and the order is the order worth reading them in: cases
 this engine gets wrong by the suite's reckoning, cases where both engines agree
 against the suite, cases fhirpath.js gets wrong, and cases the suite states no
 result for.
+
+The run is the same on every machine. fhirpath.js is pinned by
+`difftest/package-lock.json` and installed with `npm ci`, and the report names
+the release that answered. It runs with `TZ=UTC`, because fhirpath.js renders
+the result of date arithmetic in the process's timezone:
+`@1973-12-25T00:00:00.000+10:00 + 0.1 's'` came back as `-03:00` on one machine
+and `-00:00` on another. Answers are still compared as written rather than as
+instants, since an offset one engine drops is a difference worth seeing.
 
 Against fhirpath.js 5.2.0, with each engine given its model:
 
@@ -798,3 +814,6 @@ progress, lines appearing is a regression:
 ```sh
 go test -run TestOfficialSuite -update-known-failures .
 ```
+
+A case that leaves a model baseline takes its line in `known-failure-reasons.txt`
+with it; one that enters needs a line, and a section here if none argues it yet.

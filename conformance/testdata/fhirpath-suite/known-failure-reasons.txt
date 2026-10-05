@@ -1,0 +1,21 @@
+# Why each case in known-failures-model.txt fails, one line per case:
+#   group/test  kind  anchor  reason
+# kind is one of
+#   suite-defect    the suite contradicts the specification; the engine follows the specification
+#   deliberate      the engine departs from the specification on purpose
+#   needs-external  passing needs something outside the engine
+#   gap             the engine is wrong and the fix is pending
+# anchor names the heading of CONFORMANCE.md that records the reasoning.
+#
+# Every case in known-failures-model.txt needs a line here, and every line here a
+# case there; TestKnownFailuresAreExplained checks both. A case that fails only
+# in known-failures.txt needs no line: it passes once the model is supplied, and
+# what the model decides is written in CONFORMANCE.md.
+HighBoundary/HighBoundaryDateTimeMillisecond1  suite-defect  remaining-gaps  expects the minute held at zero; the greatest value the hour can hold is 08:59:59.999, the time fhirpath.js reaches too (without the offset)
+HighBoundary/HighBoundaryDateTimeMillisecond3  suite-defect  remaining-gaps  expects the minute held at zero; the greatest value the hour can hold is 08:59:59.999, the time fhirpath.js reaches too (without the offset)
+HighBoundary/HighBoundaryDecimal15  suite-defect  remaining-gaps  the expected value contradicts the specification's worked examples; fhirpath.js answers as this engine does
+HighBoundary/HighBoundaryDecimal16  suite-defect  remaining-gaps  the expected value contradicts the specification's worked examples; fhirpath.js answers as this engine does
+LowBoundary/LowBoundaryDecimal15  suite-defect  remaining-gaps  expects -0.0 where rounding down to one digit gives -0.1, as the specification's examples do
+testInheritance/testFHIRPathAsFunction21  deliberate  a-divergence-taken-on-purpose-as-over-a-collection  as() over a collection filters, so that R4's dom-3 can be evaluated at all
+testPlus/testPlusDate19  suite-defect  where-the-two-suites-disagree  the R4 suite drops the fractional second; both specifications keep it, and the R5 suite was corrected
+testReplaceMatches/testReplaceMatches2  suite-defect  an-empty-regex-in-replacematches  expects abc, which follows from neither reading of an empty regex

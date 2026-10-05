@@ -41,6 +41,14 @@ func main() {
 }
 
 func run(corpusName string, withModel, verbose bool) error {
+	version, err := fhirpathJSVersion()
+	if err != nil {
+		return err
+	}
+	// The numbers below hold for one release of fhirpath.js and no other, so the
+	// report says which one answered.
+	fmt.Printf("against fhirpath.js %s\n", version)
+
 	for _, c := range corpora() {
 		if corpusName != "both" && corpusName != c.name {
 			continue
@@ -105,6 +113,11 @@ func evaluateWithFHIRPathJS(cases []testCase) (map[string]answer, error) {
 	cmd := exec.Command("node", "evaluate.js")
 	cmd.Stdin = bytes.NewReader(batch)
 	cmd.Stderr = os.Stderr
+	// fhirpath.js renders the result of date arithmetic in the process's own
+	// timezone, so `@1973-12-25T00:00:00.000+10:00 + 0.1 's'` answered -03:00 on
+	// one machine and -00:00 on another. Fixing it here makes the report the same
+	// wherever it runs; the offset fhirpath.js loses stays visible.
+	cmd.Env = append(os.Environ(), "TZ=UTC")
 
 	out, err := cmd.Output()
 	if err != nil {
@@ -121,6 +134,22 @@ func evaluateWithFHIRPathJS(cases []testCase) (map[string]answer, error) {
 		byID[a.ID] = a
 	}
 	return byID, nil
+}
+
+// fhirpathJSVersion reads the release npm installed, which package-lock.json
+// pins.
+func fhirpathJSVersion() (string, error) {
+	data, err := os.ReadFile("node_modules/fhirpath/package.json")
+	if err != nil {
+		return "", fmt.Errorf("reading fhirpath.js's version: %w (has 'npm ci' been run in difftest/?)", err)
+	}
+	var pkg struct {
+		Version string `json:"version"`
+	}
+	if err := json.Unmarshal(data, &pkg); err != nil {
+		return "", fmt.Errorf("reading fhirpath.js's version: %w", err)
+	}
+	return pkg.Version, nil
 }
 
 // evaluateHere answers a case with this engine.
