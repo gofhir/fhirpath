@@ -8,6 +8,7 @@ import (
 	"slices"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"unicode/utf8"
 
 	"github.com/buger/jsonparser"
@@ -38,7 +39,9 @@ type ObjectValue struct {
 	root  bool
 	reads uint8 // how many times a field was read by scanning. See readField.
 	// position is the object's index in the field it was read from plus one,
-	// or zero when the field is not an array. See Location.
+	// or zero when the field is not an array. A root is read from no field,
+	// so for a root it says instead whether field holds its name yet, and is
+	// only read and written atomically. See Location and rootName.
 	position    int32
 	index       []indexedField // the object's fields once indexed. See readField.
 	elementPath string         // the element the object was reached as. See ElementPath.
@@ -48,8 +51,9 @@ type ObjectValue struct {
 	typeName string
 	// Where the object sits: the object it was read out of, nil for a root or
 	// an object no read created, and the field of it the object was read from,
-	// "" where the read did not name one. They fit in the 128 bytes the struct
-	// takes, with position in the room the flags leave. See Location.
+	// "" where the read did not name one. A root keeps its name in field once
+	// asked for it. They fit in the 128 bytes the struct takes, with position
+	// in the room the flags leave. See Location.
 	parent *ObjectValue
 	field  string
 }
@@ -117,11 +121,12 @@ func (o *ObjectValue) SetElementPath(path string) {
 //
 // A read records on the object the object it was read out of, the field and
 // the index, in the room the struct already takes, so navigation pays nothing
-// for them, and Location spells the path from them without reading any JSON
-// but the root's resourceType: it costs the depth of the path, not the size
-// of what holds it, so locating every entry of a large Bundle is linear. It
-// allocates only the string. It only reads, and may be called on objects other
-// goroutines read.
+// for them, and Location spells the path from them and the root's name,
+// which is read once, the first time any object under the root is located. It
+// costs the depth of the path, not the size of what holds it or where the
+// root's resourceType is written in it, so locating every entry of a large
+// Bundle is linear. It allocates only the string, and may be called on
+// objects other goroutines read.
 func (o *ObjectValue) Location() string {
 	// Collect the chain up to the root, on the stack for any ordinary depth.
 	var stack [16]*ObjectValue
@@ -137,10 +142,7 @@ func (o *ObjectValue) Location() string {
 	// Spelled into a buffer on the stack, so that the string is the one
 	// allocation for any ordinary path.
 	var buf [128]byte
-	path := buf[:0]
-	if resourceType, dataType, _, err := jsonparser.Get(top.data, "resourceType"); err == nil && dataType == jsonparser.String {
-		path = append(path, resourceType...)
-	}
+	path := append(buf[:0], top.rootName()...)
 	for i := len(chain) - 1; i >= 0; i-- {
 		child := chain[i]
 		if len(path) > 0 {
@@ -226,6 +228,45 @@ func arrayIndexOf(array, child []byte) int {
 // JSON.
 func sameStart(a, b []byte) bool {
 	return len(a) > 0 && len(b) > 0 && &a[0] == &b[0]
+}
+
+// The states of a root's name, kept in its position. See rootName.
+const (
+	rootNameUnread int32 = iota
+	rootNameReading
+	rootNameRead
+)
+
+// rootName is the resourceType a root is named by in Location, "" for a root
+// without one.
+//
+// It is read from the root's JSON the first time it is asked for and kept,
+// so that locating every entry of a Bundle reads it once: JSON does not order
+// keys, and a producer that writes resourceType after the entries — Go's
+// encoding/json sorts a map's keys — would have each Location read past them
+// all. It is not read when the root is: a root read under a declared type, an
+// element a validator evaluates its invariants on, has no resourceType, and
+// looking for one would read the whole of it, which reading such a root was
+// made to avoid.
+//
+// A root may be shared by goroutines, so the name is published as a sync.Once
+// would, without the room for one: the goroutine that claims the position
+// writes the name, then marks it read; one that sees it read reads the name,
+// and one that finds another reading it works the name out for itself.
+func (o *ObjectValue) rootName() string {
+	if atomic.LoadInt32(&o.position) == rootNameRead {
+		return o.field
+	}
+
+	var name string
+	if resourceType, dataType, _, err := jsonparser.Get(o.data, "resourceType"); err == nil && dataType == jsonparser.String {
+		name = string(resourceType)
+	}
+	if atomic.CompareAndSwapInt32(&o.position, rootNameUnread, rootNameReading) {
+		o.field = name
+		atomic.StoreInt32(&o.position, rootNameRead)
+	}
+	return name
 }
 
 // asRoot records that the objects of a collection read as the root of an

@@ -3,9 +3,11 @@ package fhirpath_test
 import (
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/gofhir/fhirpath"
 	"github.com/gofhir/fhirpath/eval"
@@ -276,5 +278,117 @@ func BenchmarkLocationOfEveryEntry(b *testing.B) {
 			}
 			b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N*n), "ns/entry")
 		})
+	}
+}
+
+// JSON does not order keys, and a producer may write resourceType after the
+// entries: Go's encoding/json sorts a map's keys. The root is named the same
+// wherever its resourceType is, and without one by nothing, and locating the
+// first entries from several goroutines at once, which is when the name is
+// read and kept, races on nothing: run with -race.
+func TestARootIsNamedWhereverItsResourceTypeIs(t *testing.T) {
+	entries := `"entry":[{"resource":{"resourceType":"Patient","id":"a"}},{"resource":{"resourceType":"Patient","id":"b"}}]`
+	for _, tt := range []struct {
+		name, json, want string
+	}{
+		{"first", `{"resourceType":"Bundle",` + entries + `}`, "Bundle.entry[1]"},
+		{"last", `{` + entries + `,"resourceType":"Bundle"}`, "Bundle.entry[1]"},
+		{"absent", `{` + entries + `}`, "entry[1]"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			read := map[string]func([]byte) (types.Collection, error){
+				"JSONToCollection": types.JSONToCollection,
+				"ReadRoot":         types.ReadRoot,
+				"ReadRootWithType": func(data []byte) (types.Collection, error) {
+					return types.ReadRootWithType(data, "Bundle")
+				},
+			}
+			for how, readRoot := range read {
+				col, err := readRoot([]byte(tt.json))
+				if err != nil {
+					t.Fatal(err)
+				}
+				result, err := fhirpath.MustCompile("entry").EvaluateWithContext(eval.NewContextForRoot(col))
+				if err != nil || len(result) != 2 {
+					t.Fatal(err, result)
+				}
+
+				var wg sync.WaitGroup
+				for range 8 {
+					wg.Add(1)
+					go func() {
+						defer wg.Done()
+						if got := result[1].(*types.ObjectValue).Location(); got != tt.want {
+							t.Errorf("%s: entry is at %q, want %q", how, got, tt.want)
+						}
+					}()
+				}
+				wg.Wait()
+				if got := col[0].(*types.ObjectValue).Location(); got != strings.TrimSuffix(strings.TrimSuffix(tt.want, "entry[1]"), ".") {
+					t.Errorf("%s: root is at %q", how, got)
+				}
+			}
+		})
+	}
+}
+
+// Locating every entry of a Bundle costs the same per entry however large the
+// Bundle is and wherever its resourceType is written: per entry, a Bundle of
+// 8000 entries takes about what one of 500 does, where reading past the
+// entries for each one took sixteen times as long. The ratio is of the best of
+// several passes on the same machine, so it holds on a slow or busy one, and
+// a margin of three keeps noise from failing it while still catching a cost
+// that grows with the Bundle.
+func TestLocatingEveryEntryCostsTheSamePerEntryAtAnySize(t *testing.T) {
+	perEntry := func(n int, last bool) time.Duration {
+		var bundle strings.Builder
+		bundle.WriteString("{")
+		if !last {
+			bundle.WriteString(`"resourceType":"Bundle",`)
+		}
+		bundle.WriteString(`"entry":[`)
+		for i := 0; i < n; i++ {
+			if i > 0 {
+				bundle.WriteByte(',')
+			}
+			fmt.Fprintf(&bundle, `{"fullUrl":"urn:uuid:%d","resource":{"resourceType":"Patient","id":"p%d"}}`, i, i)
+		}
+		bundle.WriteString("]")
+		if last {
+			bundle.WriteString(`,"resourceType":"Bundle"`)
+		}
+		bundle.WriteString("}")
+
+		col, err := types.JSONToCollection([]byte(bundle.String()))
+		if err != nil {
+			t.Fatal(err)
+		}
+		entries, err := fhirpath.MustCompile("Bundle.entry").EvaluateWithContext(eval.NewContextForRoot(col))
+		if err != nil || len(entries) != n {
+			t.Fatal(err, len(entries))
+		}
+
+		best := time.Duration(math.MaxInt64)
+		for range 15 {
+			start := time.Now()
+			for _, entry := range entries {
+				_ = entry.(*types.ObjectValue).Location()
+			}
+			elapsed := time.Since(start)
+			best = min(best, elapsed)
+			if elapsed > 2*time.Second {
+				break // already far past linear; no need to wait out the rest
+			}
+		}
+		return best / time.Duration(n)
+	}
+
+	for _, last := range []bool{false, true} {
+		small, large := perEntry(500, last), perEntry(8000, last)
+		ratio := float64(large) / float64(max(small, 1))
+		t.Logf("resourceType last=%v: %v per entry at 500, %v at 8000 (%.1fx)", last, small, large, ratio)
+		if ratio > 3 {
+			t.Errorf("resourceType last=%v: an entry of a Bundle of 8000 takes %.1fx what one of 500 does, want about the same", last, ratio)
+		}
 	}
 }
