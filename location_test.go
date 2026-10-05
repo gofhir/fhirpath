@@ -2,6 +2,8 @@ package fhirpath_test
 
 import (
 	"context"
+	"fmt"
+	"strings"
 	"sync"
 	"testing"
 
@@ -235,5 +237,44 @@ func BenchmarkLocation(b *testing.B) {
 	b.ReportAllocs()
 	for b.Loop() {
 		_ = obj.Location()
+	}
+}
+
+// Locating every item of an array costs the depth of each path, not the size
+// of the array: per entry, the time is the same for a Bundle of 1000 entries
+// as for one of 8000.
+func BenchmarkLocationOfEveryEntry(b *testing.B) {
+	for _, n := range []int{1000, 8000} {
+		b.Run(fmt.Sprintf("entries=%d", n), func(b *testing.B) {
+			var bundle strings.Builder
+			bundle.WriteString(`{"resourceType":"Bundle","entry":[`)
+			for i := 0; i < n; i++ {
+				if i > 0 {
+					bundle.WriteByte(',')
+				}
+				fmt.Fprintf(&bundle, `{"fullUrl":"urn:uuid:%d","resource":{"resourceType":"Patient","id":"p%d"}}`, i, i)
+			}
+			bundle.WriteString(`]}`)
+
+			col, err := types.JSONToCollection([]byte(bundle.String()))
+			if err != nil {
+				b.Fatal(err)
+			}
+			entries, err := fhirpath.MustCompile("Bundle.entry").EvaluateWithContext(eval.NewContextForRoot(col))
+			if err != nil || len(entries) != n {
+				b.Fatal(err, len(entries))
+			}
+			if got := entries[n-1].(*types.ObjectValue).Location(); got != fmt.Sprintf("Bundle.entry[%d]", n-1) {
+				b.Fatal(got)
+			}
+
+			b.ReportAllocs()
+			for b.Loop() {
+				for _, entry := range entries {
+					_ = entry.(*types.ObjectValue).Location()
+				}
+			}
+			b.ReportMetric(float64(b.Elapsed().Nanoseconds())/float64(b.N*n), "ns/entry")
+		})
 	}
 }
