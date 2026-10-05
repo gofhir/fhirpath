@@ -37,6 +37,31 @@ func TestANumberReadAsDecimalKeepsItsRepresentation(t *testing.T) {
 		})
 	}
 
+	// A choice element read without a model takes its type from the variant's
+	// key, which spells it Decimal; with one, the variant is read as the model
+	// types it.
+	extension := []byte(`{"resourceType":"Extension","url":"x","valueDecimal":-0}`)
+	variant := &testModel{typeOf: map[string]string{"Extension.valueDecimal": "decimal"}}
+	for _, tt := range []struct {
+		expr  string
+		model fhirpath.EvalOption
+	}{
+		{"value.toString()", nil},
+		{"valueDecimal.toString()", fhirpath.WithModel(variant)},
+	} {
+		var opts []fhirpath.EvalOption
+		if tt.model != nil {
+			opts = append(opts, tt.model)
+		}
+		result, err := fhirpath.MustCompile(tt.expr).EvaluateWithOptions(extension, opts...)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := result.String(); got != "[-0]" {
+			t.Errorf("%s on valueDecimal -0 = %s, want [-0]", tt.expr, got)
+		}
+	}
+
 	model := &testModel{typeOf: map[string]string{
 		"Observation.valueQuantity": "Quantity",
 		"Quantity.value":            "decimal",
