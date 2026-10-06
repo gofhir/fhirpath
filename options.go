@@ -182,7 +182,13 @@ type modelAdapter struct {
 	model Model
 }
 
-func newModelAdapter(m Model) *modelAdapter {
+// newModelAdapter wraps a model for the evaluator. A model that orders
+// children gets an adapter that does too; one that does not gets one without
+// the method, since having it at all is what tells the evaluator to order.
+func newModelAdapter(m Model) eval.Model {
+	if ordered, ok := m.(ElementOrder); ok {
+		return &orderingModelAdapter{modelAdapter: modelAdapter{model: m}, order: ordered}
+	}
 	return &modelAdapter{model: m}
 }
 
@@ -201,6 +207,17 @@ func (a *modelAdapter) FHIRVersion() string {
 		return versioned.FHIRVersion()
 	}
 	return ""
+}
+
+// orderingModelAdapter is the adapter for a model that implements
+// ElementOrder, forwarding the order a definition lists its children in.
+type orderingModelAdapter struct {
+	modelAdapter
+	order ElementOrder
+}
+
+func (a *orderingModelAdapter) ChildElements(path string) []string {
+	return a.order.ChildElements(path)
 }
 
 // LookupType forwards a type-name lookup, reporting separately whether the
