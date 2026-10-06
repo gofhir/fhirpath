@@ -87,35 +87,6 @@ func IsFHIRPrimitive(value Value) bool {
 	return false
 }
 
-// readFromInput marks a primitive as read from the input, which makes it a
-// FHIR primitive. Anything else is returned as it is.
-func readFromInput(value Value) Value {
-	switch v := value.(type) {
-	case String:
-		v.read = true
-		return v
-	case Boolean:
-		v.read = true
-		return v
-	case Integer:
-		v.read = true
-		return v
-	case Decimal:
-		v.read = true
-		return v
-	case Date:
-		v.read = true
-		return v
-	case DateTime:
-		v.read = true
-		return v
-	case Time:
-		v.read = true
-		return v
-	}
-	return value
-}
-
 // SystemValue returns the System value a primitive holds: the same value,
 // without the FHIR type it was read as, without the element beside it, and no
 // longer a FHIR primitive. FHIR declares it as the primitive's value property,

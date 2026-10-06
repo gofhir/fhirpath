@@ -1355,26 +1355,33 @@ func hasSurrogateEscape(data []byte) bool {
 // jsonValueToFHIRValue converts a JSON value to a FHIRPath Value. A primitive
 // is read from the input, so it is a FHIR primitive. See IsFHIRPrimitive.
 func jsonValueToFHIRValue(data []byte, dataType jsonparser.ValueType) Value {
-	return readFromInput(jsonValue(data, dataType))
+	return jsonValue(data, dataType, true)
 }
 
-// jsonValue is what a JSON value reads as, a primitive by its shape.
-func jsonValue(data []byte, dataType jsonparser.ValueType) Value {
+// jsonValue is what a JSON value reads as, a primitive by its shape, read from
+// the input when read says so. The mark is set before the value is boxed in a
+// Value: setting it after would box the value a second time, an allocation for
+// every primitive read.
+func jsonValue(data []byte, dataType jsonparser.ValueType, read bool) Value {
 	switch dataType {
 	case jsonparser.String:
 		s := decodeJSONString(data)
 		// Heuristic: try to detect ISO 8601 date/datetime patterns
-		if v := tryParseTemporalString(s); v != nil {
+		if v := tryParseTemporalString(s, read); v != nil {
 			return v
 		}
-		return NewString(s)
+		v := NewString(s)
+		v.read = read
+		return v
 
 	case jsonparser.Number:
 		s := string(data)
 		// Check if it's an integer
 		if !strings.Contains(s, ".") && !strings.Contains(s, "e") && !strings.Contains(s, "E") {
 			if i, err := jsonparser.ParseInt(data); err == nil {
-				return NewInteger(i)
+				v := NewInteger(i)
+				v.read = read
+				return v
 			}
 		}
 		// Parse as decimal
@@ -1382,6 +1389,7 @@ func jsonValue(data []byte, dataType jsonparser.ValueType) Value {
 		if err != nil {
 			return nil
 		}
+		d.read = read
 		return d
 
 	case jsonparser.Boolean:
@@ -1389,7 +1397,9 @@ func jsonValue(data []byte, dataType jsonparser.ValueType) Value {
 		if err != nil {
 			return nil
 		}
-		return NewBoolean(b)
+		v := NewBoolean(b)
+		v.read = read
+		return v
 
 	case jsonparser.Object:
 		return NewObjectValue(data)
@@ -1408,19 +1418,21 @@ func jsonValue(data []byte, dataType jsonparser.ValueType) Value {
 // tryParseTemporalString attempts to parse a string as a Date or DateTime
 // using strict pattern matching. Returns nil if the string doesn't match temporal patterns.
 // This provides heuristic type detection when no Model is available.
-func tryParseTemporalString(s string) Value {
+func tryParseTemporalString(s string, read bool) Value {
 	if !looksTemporal(s) {
 		return nil
 	}
 	// Try Date first for short strings (4-10 chars: YYYY to YYYY-MM-DD)
 	if len(s) <= 10 {
 		if d, err := NewDate(s); err == nil {
+			d.read = read
 			return d
 		}
 	}
 	// Try DateTime for anything that could be a datetime (contains T, Z, or TZ offset)
 	if strings.ContainsAny(s, "TZ") || (len(s) > 10 && (s[10] == '+' || s[10] == '-')) {
 		if dt, err := NewDateTime(s); err == nil {
+			dt.read = read
 			return dt
 		}
 	}
@@ -1450,20 +1462,8 @@ func looksTemporal(s string) bool {
 // using the FHIR type hint to parse strings as Date, DateTime, Time, etc.
 func jsonValueToFHIRValueWithType(data []byte, dataType jsonparser.ValueType, fhirType string) Value {
 	if system, ok := strings.CutPrefix(fhirType, systemTypePrefix); ok {
-		// An element the model declares a System type is a System value,
-		// not a FHIR primitive, though it was read from the input.
-		value := systemValue(data, dataType, system)
-		if primitive, ok := SystemValue(value); ok {
-			return primitive
-		}
-		return value
+		return systemValue(data, dataType, system)
 	}
-	return readFromInput(typedJSONValue(data, dataType, fhirType))
-}
-
-// typedJSONValue is what a JSON value reads as under the FHIR type a model
-// declares for it.
-func typedJSONValue(data []byte, dataType jsonparser.ValueType, fhirType string) Value {
 	// Objects carry the type so that Type() reports it
 	if dataType == jsonparser.Object && fhirType != "" {
 		if IsAbstractResourceType(fhirType) {
@@ -1483,6 +1483,7 @@ func typedJSONValue(data []byte, dataType jsonparser.ValueType, fhirType string)
 		if err != nil {
 			return nil
 		}
+		d.read = true
 		return d.WithFHIRType(fhirType)
 	}
 
@@ -1507,7 +1508,8 @@ func typedJSONValue(data []byte, dataType jsonparser.ValueType, fhirType string)
 // http://hl7.org/fhirpath/System.String in R4.
 const systemTypePrefix = "http://hl7.org/fhirpath/System."
 
-// systemValue reads a value the model declares as a System type. It is that
+// systemValue reads a value the model declares as a System type, which is a
+// System value and not a FHIR primitive, though it was read from the input. It is that
 // System type — String in namespace System, not a FHIR type named by a URL —
 // and a string is read as it, so an id of "2020" is not taken for a Date.
 func systemValue(data []byte, dataType jsonparser.ValueType, system string) Value {
@@ -1516,7 +1518,7 @@ func systemValue(data []byte, dataType jsonparser.ValueType, system string) Valu
 			return typed
 		}
 	}
-	return jsonValueToFHIRValue(data, dataType)
+	return jsonValue(data, dataType, false)
 }
 
 // IsAbstractResourceType reports whether a declared type is one of the abstract
@@ -1571,25 +1573,40 @@ func parseTypedString(data []byte, fhirType string) (Value, bool) {
 	return nil, false
 }
 
-// withFHIRType tags a primitive with the type FHIR declared for it. FHIR
+// withFHIRType tags a primitive read from the input with the type FHIR
+// declared for it, and marks it read, in the one copy the tag costs. FHIR
 // primitives are types in their own right — FHIR.boolean is not System.Boolean —
 // so the value carries the name rather than being folded into the system type.
 func withFHIRType(value Value, fhirType string) Value {
 	switch v := value.(type) {
 	case String:
-		return v.WithFHIRType(fhirType)
+		v = v.WithFHIRType(fhirType)
+		v.read = true
+		return v
 	case Boolean:
-		return v.WithFHIRType(fhirType)
+		v = v.WithFHIRType(fhirType)
+		v.read = true
+		return v
 	case Integer:
-		return v.WithFHIRType(fhirType)
+		v = v.WithFHIRType(fhirType)
+		v.read = true
+		return v
 	case Decimal:
-		return v.WithFHIRType(fhirType)
+		v = v.WithFHIRType(fhirType)
+		v.read = true
+		return v
 	case Date:
-		return v.WithFHIRType(fhirType)
+		v = v.WithFHIRType(fhirType)
+		v.read = true
+		return v
 	case DateTime:
-		return v.WithFHIRType(fhirType)
+		v = v.WithFHIRType(fhirType)
+		v.read = true
+		return v
 	case Time:
-		return v.WithFHIRType(fhirType)
+		v = v.WithFHIRType(fhirType)
+		v.read = true
+		return v
 	}
 	return value
 }
