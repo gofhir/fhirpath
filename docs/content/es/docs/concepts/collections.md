@@ -48,7 +48,9 @@ Muchos operadores (como `<`, `+`, `and`) esperan colecciones **singleton** (cole
 
 - Si la colección tiene exactamente **un** elemento, ese elemento se usa como operando.
 - Si la colección está **vacía**, el resultado es vacío (por propagación vacía).
-- Si la colección tiene **más de un** elemento, la evaluación termina con un error (`ErrSingletonExpected`). `=` y `~` son la excepción: comparan colecciones completas, así que `(1 | 2) = (1 | 2)` es `true`.
+- Si la colección tiene **más de un** elemento, la evaluación termina con un error (`ErrSingletonExpected`).
+
+Los operadores booleanos (`and`, `or`, `xor`, `implies`) responden a un operando vacío con lógica de tres valores, así que `{} or true` es `true`; ver [Operadores]({{< relref "operators" >}}). Los operadores definidos sobre colecciones aceptan varios elementos: `=`, `!=`, `~` y `!~` comparan colecciones completas, así que `(1 | 2) = (1 | 2)` es `true`, `|` las une, e `in` toma una colección a su derecha, `contains` a su izquierda.
 
 ```go
 // Single-element collection: works as expected

@@ -48,7 +48,9 @@ Many operators (such as `<`, `+`, `and`) expect **singleton** collections (colle
 
 - If the collection has exactly **one** element, that element is used as the operand.
 - If the collection is **empty**, the result is empty (per empty propagation).
-- If the collection has **more than one** element, evaluation ends with an error (`ErrSingletonExpected`). `=` and `~` are the exception: they compare whole collections, so `(1 | 2) = (1 | 2)` is `true`.
+- If the collection has **more than one** element, evaluation ends with an error (`ErrSingletonExpected`).
+
+The Boolean operators (`and`, `or`, `xor`, `implies`) answer an empty operand by three-valued logic instead, so `{} or true` is `true`; see [Operators]({{< relref "operators" >}}). Operators defined on collections take several items: `=`, `!=`, `~` and `!~` compare whole collections, so `(1 | 2) = (1 | 2)` is `true`, `|` merges them, and `in` takes a collection on its right, `contains` on its left.
 
 ```go
 // Single-element collection: works as expected

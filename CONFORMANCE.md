@@ -582,10 +582,19 @@ private List<Base> preOperate(List<Base> left, Operation operation, ExpressionNo
 ```
 
 and does not evaluate the right operand when that returns a result. This engine
-follows it exactly. Only a single Boolean decides: an empty left operand leaves
+follows it: only a single Boolean decides a result, an empty left operand leaves
 the right one to three-valued logic, which `{} or true` needs, and so does one
-that is not a Boolean. `xor` evaluates both. No case in the official suite
-asserts an error behind a deciding left operand, so its results are unchanged.
+that is not a Boolean. No case in the official suite asserts an error behind a
+deciding left operand, so its results are unchanged.
+
+A left operand of more than one item is the one place the two part. Either way
+the evaluation ends in an error, since the singleton rule refuses the operand
+whatever the right one holds; what differs is which error. The validator raises
+it before the right operand only for `implies`, through `asBool`; for `and` and
+`or` it evaluates the right one first, so an error the right one raises is the
+one reported. This engine refuses the left operand of all four operators, `xor`
+included, before evaluating the right one: the error names the operand at fault,
+and no time is spent on an operand whose answer cannot change the outcome.
 
 An expression that has to run on engines that evaluate both operands should
 still guard the right side with `iif()`, as the specification advises.

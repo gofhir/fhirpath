@@ -1892,13 +1892,16 @@ func (e *Evaluator) VisitAndExpression(ctx *grammar.AndExpressionContext) interf
 // already decided. fhirpath.js evaluates both; that divergence is taken on
 // purpose and recorded in CONFORMANCE.md.
 //
-// As in the HL7 validator, only a single Boolean decides. An empty left operand
-// leaves the right one to three-valued logic, which needs it for {} or true,
-// and so does one that is not a Boolean. xor always needs both.
+// As in the HL7 validator, only a single Boolean decides a result. An empty left
+// operand leaves the right one to three-valued logic, which needs it for
+// {} or true, and so does one that is not a Boolean; xor needs both.
 //
-// A left operand of more than one item decides too, as an error: the singleton
-// rule refuses it whatever the right one holds, so evaluating the right one
-// could only replace that error with one of its own, or spend time first.
+// A left operand of more than one item decides for every operator, xor
+// included, as an error: the singleton rule refuses it whatever the right one
+// holds, so evaluating the right one could only replace that error with one of
+// its own, or spend time first. The HL7 validator does this for implies only,
+// and reports the right operand's error first for and and or; CONFORMANCE.md
+// records the difference.
 func decidedByLeft(left types.Collection, op string) (interface{}, bool) {
 	if len(left) > 1 {
 		return LeftOperandSingletonError(op, len(left)), true
@@ -1930,15 +1933,14 @@ func applyAnd(leftCol, rightCol types.Collection, op string) interface{} {
 	return And(leftCol, rightCol)
 }
 
-// booleanOperandsSingleton refuses an operand of and, or, xor or implies that
-// has more than one item. Three-valued logic answers an empty one, but the
+// booleanOperandsSingleton refuses a right operand of and, or, xor or implies
+// that has more than one item. Three-valued logic answers an empty one, but the
 // singleton rule leaves nothing to answer for several: "the evaluation will end
 // and signal an error to the calling environment". The HL7 validator does the
-// same (FHIRPathEngine.asBool). A left operand of several items, or one that
-// decides the result, is never seen here: decidedByLeft returns before the
-// right one is evaluated.
+// same (FHIRPathEngine.asBool). The left operand is not checked here:
+// decidedByLeft has already refused one of several items.
 func booleanOperandsSingleton(leftCol, rightCol types.Collection, op string) error {
-	if len(leftCol) > 1 || len(rightCol) > 1 {
+	if len(rightCol) > 1 {
 		return OperandSingletonError(op, len(leftCol), len(rightCol))
 	}
 	return nil
