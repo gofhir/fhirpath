@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.10.4](https://github.com/gofhir/fhirpath/compare/v1.10.3...v1.10.4) (2026-10-06)
+
+
+### Bug Fixes
+
+* a FHIR primitive has a value property, as hasValue and getValue read it ([#100](https://github.com/gofhir/fhirpath/issues/100)) ([c84ac69](https://github.com/gofhir/fhirpath/commit/c84ac69b785445a09416c69c21f6e30fa22cdb01))
+
 ## [1.10.3](https://github.com/gofhir/fhirpath/compare/v1.10.2...v1.10.3) (2026-10-05)
 
 
