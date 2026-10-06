@@ -41,3 +41,34 @@ func TestResourceTypeIsNotAChild(t *testing.T) {
 		}
 	}
 }
+
+// An element may have a field named resourceType: R4's
+// ExampleScenario.instance.resourceType is a code naming the type of the
+// instance the scenario describes, and a child like any other. Only a
+// resource's own resourceType is not. A model types the instance a
+// BackboneElement; without one nothing tells it from a resource, and it is
+// read as the Patient its resourceType names, as is() reads it.
+func TestAnElementsResourceTypeFieldIsAChild(t *testing.T) {
+	scenario := []byte(`{"resourceType":"ExampleScenario","status":"draft",` +
+		`"instance":[{"resourceId":"a","resourceType":"Patient"}]}`)
+	model := &testModel{typeOf: map[string]string{
+		"ExampleScenario.instance":              "BackboneElement",
+		"ExampleScenario.instance.resourceId":   "string",
+		"ExampleScenario.instance.resourceType": "code",
+	}}
+
+	for expr, want := range map[string]string{
+		"ExampleScenario.children().count()":                              "[2]",
+		"ExampleScenario.instance.children().count()":                     "[2]",
+		"ExampleScenario.descendants().where($this = 'Patient').exists()": "[true]",
+		"ExampleScenario.instance.resourceType":                           "[Patient]",
+	} {
+		result, err := fhirpath.MustCompile(expr).EvaluateWithOptions(scenario, fhirpath.WithModel(model))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := result.String(); got != want {
+			t.Errorf("%s with a model = %s, want %s", expr, got, want)
+		}
+	}
+}
