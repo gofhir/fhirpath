@@ -1,5 +1,30 @@
 # Changelog
 
+## [1.10.5](https://github.com/gofhir/fhirpath/compare/v1.10.4...v1.10.5) (2026-10-06)
+
+
+### Bug Fixes
+
+* a primitive's value is a child, and a System value is only a System type ([#102](https://github.com/gofhir/fhirpath/issues/102)) ([8f68e52](https://github.com/gofhir/fhirpath/commit/8f68e52b0cb8e5c8531429a6db347b06956a038a))
+
+  FHIR says a primitive's value "will be included in the set returned by
+  children() or descendants()". It is now, as a System value after the
+  primitive's `id` and `extension`. The HL7 validator leaves it out, so
+  counts differ from it:
+
+  | expression | HL7 | here |
+  |---|---|---|
+  | `birthDate.children().count()` (with an `_birthDate` id and extension) | 2 | 3 |
+  | `descendants().where($this = 'b').count()` | 1 | 2 |
+  | `descendants().where(hasValue() and $this = 'b').count()` | 1 | 1 |
+
+  A System value (a literal, a function's result, a primitive's value) is now
+  only a System type for `is()`, `as()` and `ofType()`, with or without a
+  model: `'abc'.is(string)` is false, `'abc'.is(String)` true. A value read
+  from the resource, or built with a FHIR type, matches as before. Answers
+  over the R4, R4B and R5 example corpora are unchanged; `descendants()`
+  allocates about 15% more.
+
 ## [1.10.4](https://github.com/gofhir/fhirpath/compare/v1.10.3...v1.10.4) (2026-10-06)
 
 
