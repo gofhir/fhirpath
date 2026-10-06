@@ -336,7 +336,8 @@ func TestAdditionalAggregateFunctions(t *testing.T) {
 	t.Run("hasValue with multiple values", func(t *testing.T) {
 		fn, _ := Get("hasValue")
 
-		// Multiple primitive values - should return true (has at least one primitive)
+		// "Returns true if the input collection contains a single value which
+		// is a FHIR primitive": several values are not one.
 		result, err := fn.Fn(ctx, types.Collection{
 			types.NewInteger(1),
 			types.NewInteger(2),
@@ -344,8 +345,8 @@ func TestAdditionalAggregateFunctions(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !result[0].(types.Boolean).Bool() {
-			t.Error("expected true for multiple primitive values")
+		if result[0].(types.Boolean).Bool() {
+			t.Error("expected false for multiple primitive values")
 		}
 	})
 
@@ -364,7 +365,8 @@ func TestAdditionalAggregateFunctions(t *testing.T) {
 	t.Run("getValue with multiple values", func(t *testing.T) {
 		fn, _ := Get("getValue")
 
-		// getValue returns all primitive values
+		// "if the input collection contains a single value which is a FHIR
+		// primitive ... Otherwise the return value is empty."
 		result, err := fn.Fn(ctx, types.Collection{
 			types.NewInteger(1),
 			types.NewInteger(2),
@@ -372,8 +374,8 @@ func TestAdditionalAggregateFunctions(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if result.Count() != 2 {
-			t.Errorf("expected 2 values, got %d", result.Count())
+		if !result.Empty() {
+			t.Errorf("expected empty for multiple values, got %d", result.Count())
 		}
 	})
 }

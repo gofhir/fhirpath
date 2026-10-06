@@ -55,3 +55,48 @@ func ElementOf(value Value) (*ObjectValue, bool) {
 	}
 	return nil, false
 }
+
+// IsFHIRPrimitive reports whether a value is known to be a primitive FHIR
+// declares rather than a System value: one read with a FHIR type — given by a
+// model, or by a choice element's key, valueString's string — or with the
+// element FHIR writes beside it under _name, which only FHIR data has.
+//
+// A primitive read with neither, which is every primitive read without a model,
+// cannot be told from a System value of the same kind, a literal; whether to
+// take it for a FHIR one is the caller's to decide.
+func IsFHIRPrimitive(value Value) bool {
+	switch value.(type) {
+	case String, Boolean, Integer, Decimal, Date, DateTime, Time:
+	default:
+		return false
+	}
+	if carrier, ok := value.(ElementCarrier); ok && carrier.HasElement() {
+		return true
+	}
+	return !IsSystemTypeName(value.Type())
+}
+
+// SystemValue returns the System value a primitive holds: the same value,
+// without the FHIR type it was read as and without the element beside it.
+// FHIR declares it as the primitive's value property, "the implicit value
+// property that is actually of type System.String" for a string, so it has no
+// id or extensions of its own. It reports false for anything else.
+func SystemValue(value Value) (Value, bool) {
+	switch v := value.(type) {
+	case String:
+		return v.WithFHIRType("").WithElement(nil), true
+	case Boolean:
+		return v.WithFHIRType("").WithElement(nil), true
+	case Integer:
+		return v.WithFHIRType("").WithElement(nil), true
+	case Decimal:
+		return v.WithFHIRType("").WithElement(nil), true
+	case Date:
+		return v.WithFHIRType("").WithElement(nil), true
+	case DateTime:
+		return v.WithFHIRType("").WithElement(nil), true
+	case Time:
+		return v.WithFHIRType("").WithElement(nil), true
+	}
+	return nil, false
+}

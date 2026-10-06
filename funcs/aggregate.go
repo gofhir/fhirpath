@@ -208,40 +208,33 @@ func fnNot(_ *eval.Context, input types.Collection, _ []interface{}) (types.Coll
 }
 
 // fnHasValue returns true if the input has a primitive value.
-func fnHasValue(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
-	if input.Empty() {
-		return types.Collection{types.NewBoolean(false)}, nil
-	}
-
-	// Check if any element has a primitive value
-	for _, item := range input {
-		switch item.(type) {
-		case types.Boolean, types.String, types.Integer, types.Decimal,
-			types.Date, types.DateTime, types.Time:
-			return types.Collection{types.NewBoolean(true)}, nil
-		}
-	}
-
-	return types.Collection{types.NewBoolean(false)}, nil
+func fnHasValue(ctx *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
+	// "Returns true if the input collection contains a single value which is a
+	// FHIR primitive, and it has a primitive value (e.g. as opposed to not
+	// having a value and just having extensions)." A primitive with only
+	// extensions is read as its element, an object, so it has none.
+	_, has := primitiveValue(ctx, input)
+	return types.Collection{types.NewBoolean(has)}, nil
 }
 
-// fnGetValue returns the primitive value if it exists.
-func fnGetValue(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
-	if input.Empty() {
-		return types.Collection{}, nil
+// fnGetValue returns "the underlying system value for the FHIR primitive if
+// the input collection contains a single value which is a FHIR primitive, and
+// it has a primitive value (see discussion for hasValue()). Otherwise the
+// return value is empty."
+func fnGetValue(ctx *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
+	if value, has := primitiveValue(ctx, input); has {
+		return types.Collection{value}, nil
 	}
+	return types.Collection{}, nil
+}
 
-	// Return primitive values
-	result := types.Collection{}
-	for _, item := range input {
-		switch v := item.(type) {
-		case types.Boolean, types.String, types.Integer, types.Decimal,
-			types.Date, types.DateTime, types.Time:
-			result = append(result, v)
-		}
+// primitiveValue is the System value of the input when it is a single FHIR
+// primitive with a value, which is what hasValue() and getValue() ask about.
+func primitiveValue(ctx *eval.Context, input types.Collection) (types.Value, bool) {
+	if len(input) != 1 || !ctx.IsFHIRPrimitive(input[0]) {
+		return nil, false
 	}
-
-	return result, nil
+	return types.SystemValue(input[0])
 }
 
 // fnCombine combines two collections.

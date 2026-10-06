@@ -317,6 +317,25 @@ func (c *Context) GetModel() Model {
 	return c.model
 }
 
+// IsFHIRPrimitive reports whether a value is a FHIR primitive, which has the
+// value property hasValue() and getValue() read, rather than a System value,
+// which has none: "FHIR.string is a different type to System.String". One read
+// with a FHIR type or with the element beside it is one (see
+// types.IsFHIRPrimitive). Without a model nothing tells a primitive read from
+// the resource from a literal, and every primitive is taken for one, as is()
+// takes 'abc' for a FHIR.string there; with a model, a primitive without a
+// FHIR type is a System value.
+func (c *Context) IsFHIRPrimitive(value types.Value) bool {
+	if types.IsFHIRPrimitive(value) {
+		return true
+	}
+	if c.model != nil {
+		return false
+	}
+	_, primitive := types.SystemValue(value)
+	return primitive
+}
+
 // SetPath sets the FHIR path of the root the expression is evaluated against —
 // "Patient.name" for a HumanName taken out of a Patient — so that a model can
 // resolve the root's fields. A resource needs none.
@@ -2482,9 +2501,22 @@ func (e *Evaluator) navigateMember(input types.Collection, name string) types.Co
 	result := types.Collection{}
 
 	for _, item := range input {
-		// A primitive's fields — its id and extensions — are those of the
-		// element FHIR writes beside it, so a primitive is navigated through
-		// that element.
+		// A FHIR primitive has a value property, "the implicit value property
+		// that is actually of type System.String" for a string: its value as a
+		// System value, without the id and extensions of the element. A
+		// System value has no properties at all.
+		if name == "value" {
+			if value, primitive := types.SystemValue(item); primitive {
+				if e.ctx.IsFHIRPrimitive(item) {
+					result = append(result, value)
+				}
+				continue
+			}
+		}
+
+		// A primitive's other fields — its id and extensions — are those of
+		// the element FHIR writes beside it, so a primitive is navigated
+		// through that element.
 		obj, ok := types.ElementOf(item)
 		if !ok {
 			continue
