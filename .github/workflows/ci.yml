@@ -70,6 +70,29 @@ jobs:
       - name: Verify the parser matches the grammar
         run: make generate-check
 
+  # The engine's go.mod declares the oldest Go a caller may build it with, and
+  # the rest of CI runs on GO_VERSION, newer: nothing else would notice the
+  # engine using a library function that minimum does not have. The version is
+  # read from go.mod, so the two cannot drift, and GOTOOLCHAIN=local keeps go
+  # from switching itself to a newer one. Only the engine's module is tested:
+  # the harnesses need GO_VERSION for gofhir/models.
+  test-minimum:
+    name: Test (minimum Go)
+    runs-on: ubuntu-latest
+    env:
+      GOTOOLCHAIN: local
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up the Go the engine's go.mod declares
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run the engine's tests
+        run: go test -race ./...
+
   test:
     name: Test
     runs-on: ubuntu-latest
