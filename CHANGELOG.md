@@ -7,6 +7,31 @@
 
 * a FHIR primitive has a value property, as hasValue and getValue read it ([#100](https://github.com/gofhir/fhirpath/issues/100)) ([c84ac69](https://github.com/gofhir/fhirpath/commit/c84ac69b785445a09416c69c21f6e30fa22cdb01))
 
+  FHIR gives every primitive "the implicit value property that is actually of
+  type of System.String" for a string, and `value` navigated to nothing:
+  `Patient.birthDate.value` was empty, and DEQM's `ra-3`,
+  `value.startsWith(...)` on a `valueString`, could not hold. `value` on a FHIR
+  primitive is now its System value, so `birthDate.value is System.Date`.
+
+  What is a FHIR primitive is decided by where the value came from: one read
+  from the resource is one, with or without a model, and also where R4 types
+  `Resource.id` or `Extension.url` `System.String` (the HL7 validator reads
+  their FHIR type from `structuredefinition-fhir-type`); a literal or a
+  function's result is a System value. `hasValue()` and `getValue()` follow
+  the same rule and ask for a single value, as FHIR's text says, so these
+  answer differently than before:
+
+  | expression | was | is |
+  |---|---|---|
+  | `given.first().getValue().is(System.String)` with a model | `false` | `true` |
+  | `'abc'.hasValue()` | `true` | `false` |
+  | `'abc'.getValue()` | `abc` | empty |
+  | `given.hasValue()` over two items | `true` | `false` |
+  | `active.toBoolean().hasValue()` | `true` | `false` |
+
+  Answers over the R4, R4B and R5 example corpora are unchanged, and so are
+  bytes and allocations.
+
 ## [1.10.3](https://github.com/gofhir/fhirpath/compare/v1.10.2...v1.10.3) (2026-10-05)
 
 
