@@ -44,20 +44,20 @@ Los operadores Boolean (`and`, `or`, `implies`) tienen reglas especiales de prop
 
 ## Evaluación Singleton
 
-Muchos operadores (como `=`, `<`, `+`) esperan colecciones **singleton** (colecciones con exactamente un elemento). Cuando estos operadores reciben una colección, FHIRPath aplica **evaluación singleton**:
+Muchos operadores (como `<`, `+`, `and`) esperan colecciones **singleton** (colecciones con exactamente un elemento). Cuando estos operadores reciben una colección, FHIRPath aplica **evaluación singleton**:
 
 - Si la colección tiene exactamente **un** elemento, ese elemento se usa como operando.
 - Si la colección está **vacía**, el resultado es vacío (por propagación vacía).
-- Si la colección tiene **más de un** elemento, el comportamiento depende del operador -- la mayoría retorna vacío o genera un error.
+- Si la colección tiene **más de un** elemento, la evaluación termina con un error (`ErrSingletonExpected`). `=` y `~` son la excepción: comparan colecciones completas, así que `(1 | 2) = (1 | 2)` es `true`.
 
 ```go
 // Single-element collection: works as expected
 result, _ := fhirpath.Evaluate(patientJSON, "Patient.birthDate = @1990-05-15")
 // result: [true]
 
-// Multi-element collection on one side: empty result
-result, _ = fhirpath.Evaluate(patientJSON, "Patient.name.given = 'John'")
-// If Patient has multiple given names, this may return empty
+// Colección de varios elementos donde se espera uno: un error
+_, err := fhirpath.Evaluate(patientJSON, "Patient.name.given < 'John'")
+// Si Patient tiene varios nombres de pila, err es un ErrSingletonExpected
 ```
 
 ## Métodos de Colección

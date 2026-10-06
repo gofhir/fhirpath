@@ -44,20 +44,20 @@ The Boolean operators (`and`, `or`, `implies`) have special propagation rules. F
 
 ## Singleton Evaluation
 
-Many operators (such as `=`, `<`, `+`) expect **singleton** collections (collections with exactly one element). When these operators receive a collection, FHIRPath applies **singleton evaluation**:
+Many operators (such as `<`, `+`, `and`) expect **singleton** collections (collections with exactly one element). When these operators receive a collection, FHIRPath applies **singleton evaluation**:
 
 - If the collection has exactly **one** element, that element is used as the operand.
 - If the collection is **empty**, the result is empty (per empty propagation).
-- If the collection has **more than one** element, the behavior depends on the operator -- most return empty or raise an error.
+- If the collection has **more than one** element, evaluation ends with an error (`ErrSingletonExpected`). `=` and `~` are the exception: they compare whole collections, so `(1 | 2) = (1 | 2)` is `true`.
 
 ```go
 // Single-element collection: works as expected
 result, _ := fhirpath.Evaluate(patientJSON, "Patient.birthDate = @1990-05-15")
 // result: [true]
 
-// Multi-element collection on one side: empty result
-result, _ = fhirpath.Evaluate(patientJSON, "Patient.name.given = 'John'")
-// If Patient has multiple given names, this may return empty
+// Multi-element collection where one item is expected: an error
+_, err := fhirpath.Evaluate(patientJSON, "Patient.name.given < 'John'")
+// If Patient has several given names, err is an ErrSingletonExpected
 ```
 
 ## Collection Methods

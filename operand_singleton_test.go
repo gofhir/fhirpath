@@ -39,15 +39,31 @@ func TestBooleanOperandSingleton(t *testing.T) {
 	role := []byte(`{"resourceType":"PractitionerRole","telecom":[{"value":"1"},{"value":"2"}]}`)
 
 	for _, tt := range []struct{ expr, want string }{
-		{"telecom or endpoint", "or expects a single item on each side, got 2 on the left and 0 on the right"},
-		{"telecom and true", "and expects a single item on each side, got 2 on the left and 1 on the right"},
+		{"telecom or endpoint", "or expects a single item on each side, got 2 on the left"},
+		{"telecom and true", "and expects a single item on each side, got 2 on the left"},
 		{"false xor telecom", "xor expects a single item on each side, got 1 on the left and 2 on the right"},
-		{"telecom implies true", "implies expects a single item on each side, got 2 on the left and 1 on the right"},
+		{"telecom implies true", "implies expects a single item on each side, got 2 on the left"},
 	} {
 		t.Run(tt.expr, func(t *testing.T) {
 			_, err := fhirpath.Evaluate(role, tt.expr)
 			if err == nil || !strings.Contains(err.Error(), tt.want) {
 				t.Errorf("%s: error %v, want it to say %q", tt.expr, err, tt.want)
+			}
+		})
+	}
+
+	// A left operand of several items is refused before the right one is
+	// evaluated, so an error the right one would raise does not replace it.
+	for _, expr := range []string{
+		"telecom and ('a' | 'b').length()",
+		"telecom or ('a' | 'b').length()",
+		"telecom xor ('a' | 'b').length()",
+		"telecom implies ('a' | 'b').length()",
+	} {
+		t.Run(expr, func(t *testing.T) {
+			_, err := fhirpath.Evaluate(role, expr)
+			if err == nil || !strings.Contains(err.Error(), "expects a single item on each side, got 2 on the left") {
+				t.Errorf("%s: error %v, want the operator's own", expr, err)
 			}
 		})
 	}

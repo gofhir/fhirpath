@@ -1895,7 +1895,14 @@ func (e *Evaluator) VisitAndExpression(ctx *grammar.AndExpressionContext) interf
 // As in the HL7 validator, only a single Boolean decides. An empty left operand
 // leaves the right one to three-valued logic, which needs it for {} or true,
 // and so does one that is not a Boolean. xor always needs both.
-func decidedByLeft(left types.Collection, op string) (types.Collection, bool) {
+//
+// A left operand of more than one item decides too, as an error: the singleton
+// rule refuses it whatever the right one holds, so evaluating the right one
+// could only replace that error with one of its own, or spend time first.
+func decidedByLeft(left types.Collection, op string) (interface{}, bool) {
+	if len(left) > 1 {
+		return LeftOperandSingletonError(op, len(left)), true
+	}
 	if len(left) != 1 {
 		return nil, false
 	}
@@ -1927,8 +1934,9 @@ func applyAnd(leftCol, rightCol types.Collection, op string) interface{} {
 // has more than one item. Three-valued logic answers an empty one, but the
 // singleton rule leaves nothing to answer for several: "the evaluation will end
 // and signal an error to the calling environment". The HL7 validator does the
-// same (FHIRPathEngine.asBool). A left operand that decides the result is never
-// seen here, since decidedByLeft returns before the right one is evaluated.
+// same (FHIRPathEngine.asBool). A left operand of several items, or one that
+// decides the result, is never seen here: decidedByLeft returns before the
+// right one is evaluated.
 func booleanOperandsSingleton(leftCol, rightCol types.Collection, op string) error {
 	if len(leftCol) > 1 || len(rightCol) > 1 {
 		return OperandSingletonError(op, len(leftCol), len(rightCol))

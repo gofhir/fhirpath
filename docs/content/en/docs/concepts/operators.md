@@ -212,6 +212,8 @@ true.not()           --> false
 
 When the left operand alone decides the result, the right one is not evaluated: `true or X` is `true`, `false and X` is `false`, and `false implies X` is `true`, even where `X` would raise an error. So `false and (true | false).not()` is `false`. Only a single Boolean decides: an empty left operand, or one that is not a Boolean, leaves the right one to be evaluated, and `xor` always evaluates both.
 
+An operand of more than one item is an error, as it is for `not()`: with two telecoms, `telecom or endpoint` raises `ErrSingletonExpected` rather than answering. A left operand of several items is refused before the right one is evaluated.
+
 This is what the HL7 validator does, and FHIR's published invariants rely on it (`tim-9` in R4, `eld-11` in R5). The specification allows it but tells authors not to rely on it, and fhirpath.js evaluates both operands, so an expression meant to run elsewhere should still guard the right side with `iif()`. See CONFORMANCE.md.
 
 ## Collection Operators
