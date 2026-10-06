@@ -208,12 +208,12 @@ func fnNot(_ *eval.Context, input types.Collection, _ []interface{}) (types.Coll
 }
 
 // fnHasValue returns true if the input has a primitive value.
-func fnHasValue(ctx *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
+func fnHasValue(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
 	// "Returns true if the input collection contains a single value which is a
 	// FHIR primitive, and it has a primitive value (e.g. as opposed to not
 	// having a value and just having extensions)." A primitive with only
 	// extensions is read as its element, an object, so it has none.
-	_, has := primitiveValue(ctx, input)
+	_, has := primitiveValue(input)
 	return types.Collection{types.NewBoolean(has)}, nil
 }
 
@@ -221,8 +221,8 @@ func fnHasValue(ctx *eval.Context, input types.Collection, _ []interface{}) (typ
 // the input collection contains a single value which is a FHIR primitive, and
 // it has a primitive value (see discussion for hasValue()). Otherwise the
 // return value is empty."
-func fnGetValue(ctx *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
-	if value, has := primitiveValue(ctx, input); has {
+func fnGetValue(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
+	if value, has := primitiveValue(input); has {
 		return types.Collection{value}, nil
 	}
 	return types.Collection{}, nil
@@ -230,8 +230,8 @@ func fnGetValue(ctx *eval.Context, input types.Collection, _ []interface{}) (typ
 
 // primitiveValue is the System value of the input when it is a single FHIR
 // primitive with a value, which is what hasValue() and getValue() ask about.
-func primitiveValue(ctx *eval.Context, input types.Collection) (types.Value, bool) {
-	if len(input) != 1 || !ctx.IsFHIRPrimitive(input[0]) {
+func primitiveValue(input types.Collection) (types.Value, bool) {
+	if len(input) != 1 || !types.IsFHIRPrimitive(input[0]) {
 		return nil, false
 	}
 	return types.SystemValue(input[0])

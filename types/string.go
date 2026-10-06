@@ -9,6 +9,7 @@ import (
 type String struct {
 	value    string
 	fhirType string // optional FHIR type (e.g., "Oid", "Url", "Uuid", "Id") for subtype discrimination
+	read     bool   // read from the input, so a FHIR primitive. See IsFHIRPrimitive.
 
 	// The FHIR element this value was read with, when it carried one
 	primitiveElement

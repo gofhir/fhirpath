@@ -13,10 +13,11 @@ import (
 // could not hold where the HL7 validator holds it. hasValue() and getValue()
 // read the same property, of "a single value which is a FHIR primitive".
 //
-// With a model a FHIR primitive is told from a System value by its type.
-// Without one a primitive read from the resource cannot be told from a
-// literal, and both are taken for FHIR primitives, as is() takes them; where
-// the two answers differ, both are given.
+// A FHIR primitive is told from a System value by where it came from: one read
+// from the resource is a FHIR primitive, with or without a model; a literal is
+// a System value either way, and so is an element a model declares one, as R4
+// declares Extension.url a System.String. Where a model makes a difference,
+// both answers are given.
 func TestAFHIRPrimitiveHasAValueProperty(t *testing.T) {
 	patient := []byte(`{"resourceType":"Patient","birthDate":"2000-01-01","_birthDate":{"id":"b"},` +
 		`"active":true,"name":[{"family":"Abc","given":["X",null],` +
@@ -57,8 +58,8 @@ func TestAFHIRPrimitiveHasAValueProperty(t *testing.T) {
 		{"Patient.name.given.value", "[X]", "[X]"},
 		{"Patient.name.given.value.count()", "[1]", "[1]"},
 		// A System value has no properties.
-		{"'abc'.value", "[]", "[abc]"},
-		{"Patient.birthDate.value.value", "[]", "[2000-01-01]"},
+		{"'abc'.value", "[]", "[]"},
+		{"Patient.birthDate.value.value", "[]", "[]"},
 		{"Patient.extension.url.value", "[]", "[x]"},
 
 		// hasValue() and getValue(): "a single value which is a FHIR primitive,
@@ -70,8 +71,8 @@ func TestAFHIRPrimitiveHasAValueProperty(t *testing.T) {
 		{"Patient.name.given.first().getValue().is(FHIR.string)", "[false]", "[true]"},
 		{"Patient.name.given.last().hasValue()", "[false]", "[false]"},
 		{"Patient.name.given.hasValue()", "[false]", "[false]"},
-		{"'abc'.hasValue()", "[false]", "[true]"},
-		{"'abc'.getValue()", "[]", "[abc]"},
+		{"'abc'.hasValue()", "[false]", "[false]"},
+		{"'abc'.getValue()", "[]", "[]"},
 		{"Patient.extension.url.hasValue()", "[false]", "[true]"},
 	}
 
@@ -95,5 +96,39 @@ func TestAFHIRPrimitiveHasAValueProperty(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// A primitive read from the resource is a FHIR primitive whether or not a model
+// knows its path, so ele-1, hasValue() or (children().count() > id.count()),
+// holds on it: a root read without a path, which nothing types, or an element
+// the model has no entry for, was taken for a System value and failed it.
+func TestAPrimitiveReadWithoutATypeIsStillAFHIRPrimitive(t *testing.T) {
+	model := &testModel{typeOf: map[string]string{"Patient.name": "HumanName"}}
+	ele1 := fhirpath.MustCompile("hasValue() or (children().count() > id.count())")
+
+	for _, root := range []string{`"2000-01-01"`, `true`, `5`, `1.50`} {
+		result, err := ele1.EvaluateWithOptions([]byte(root), fhirpath.WithModel(model))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := result.String(); got != "[true]" {
+			t.Errorf("ele-1 on the root %s with a model = %s, want [true]", root, got)
+		}
+	}
+
+	patient := []byte(`{"resourceType":"Patient","name":[{"given":["X"]}]}`)
+	for expr, want := range map[string]string{
+		"Patient.name.given.hasValue()": "[true]",
+		"Patient.name.given.value":      "[X]",
+		"Patient.name.given.select(" + "hasValue() or (children().count() > id.count()))": "[true]",
+	} {
+		result, err := fhirpath.MustCompile(expr).EvaluateWithOptions(patient, fhirpath.WithModel(model))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := result.String(); got != want {
+			t.Errorf("%s with a model that does not know HumanName.given = %s, want %s", expr, got, want)
+		}
 	}
 }

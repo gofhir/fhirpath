@@ -1352,8 +1352,14 @@ func hasSurrogateEscape(data []byte) bool {
 	}
 }
 
-// jsonValueToFHIRValue converts a JSON value to a FHIRPath Value.
+// jsonValueToFHIRValue converts a JSON value to a FHIRPath Value. A primitive
+// is read from the input, so it is a FHIR primitive. See IsFHIRPrimitive.
 func jsonValueToFHIRValue(data []byte, dataType jsonparser.ValueType) Value {
+	return readFromInput(jsonValue(data, dataType))
+}
+
+// jsonValue is what a JSON value reads as, a primitive by its shape.
+func jsonValue(data []byte, dataType jsonparser.ValueType) Value {
 	switch dataType {
 	case jsonparser.String:
 		s := decodeJSONString(data)
@@ -1444,9 +1450,20 @@ func looksTemporal(s string) bool {
 // using the FHIR type hint to parse strings as Date, DateTime, Time, etc.
 func jsonValueToFHIRValueWithType(data []byte, dataType jsonparser.ValueType, fhirType string) Value {
 	if system, ok := strings.CutPrefix(fhirType, systemTypePrefix); ok {
-		return systemValue(data, dataType, system)
+		// An element the model declares a System type is a System value,
+		// not a FHIR primitive, though it was read from the input.
+		value := systemValue(data, dataType, system)
+		if primitive, ok := SystemValue(value); ok {
+			return primitive
+		}
+		return value
 	}
+	return readFromInput(typedJSONValue(data, dataType, fhirType))
+}
 
+// typedJSONValue is what a JSON value reads as under the FHIR type a model
+// declares for it.
+func typedJSONValue(data []byte, dataType jsonparser.ValueType, fhirType string) Value {
 	// Objects carry the type so that Type() reports it
 	if dataType == jsonparser.Object && fhirType != "" {
 		if IsAbstractResourceType(fhirType) {

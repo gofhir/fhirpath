@@ -18,6 +18,7 @@ type DateTime struct {
 	millis   int
 	tzOffset int  // timezone offset in minutes, as written
 	hasTZ    bool // whether the value states a timezone offset
+	read     bool // read from the input, so a FHIR primitive. See IsFHIRPrimitive.
 	// The offset to assume when the value states none, supplied by a caller
 	// whose language settles what an unwritten offset means. Kept apart from
 	// the written one on purpose: see WithDefaultOffset.

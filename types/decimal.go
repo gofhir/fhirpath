@@ -13,6 +13,7 @@ type Decimal struct {
 	value    decimal.Decimal
 	original string // original string representation for precision preservation (empty for computed values)
 	fhirType string // FHIR type when the value was read through a model
+	read     bool   // read from the input, so a FHIR primitive. See IsFHIRPrimitive.
 
 	// The FHIR element this value was read with, when it carried one
 	primitiveElement

@@ -11,6 +11,7 @@ import (
 type Integer struct {
 	value    int64
 	fhirType string // FHIR type when the value was read through a model
+	read     bool   // read from the input, so a FHIR primitive. See IsFHIRPrimitive.
 
 	// The FHIR element this value was read with, when it carried one
 	primitiveElement
