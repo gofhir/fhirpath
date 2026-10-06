@@ -35,7 +35,11 @@ func newOrderedModel() *orderedModel {
 			"Observation":           {"id", "meta", "extension", "status", "code", "subject", "value[x]", "component"},
 			"Reference":             {"id", "extension", "reference", "type", "identifier", "display"},
 			"Observation.component": {"id", "extension", "modifierExtension", "code", "value[x]"},
-			"CodeableConcept":       {"id", "extension", "coding", "text"},
+			// What every backbone element has, which its own path, not its
+			// type, completes.
+			"BackboneElement":    {"id", "extension", "modifierExtension"},
+			"Questionnaire.item": {"id", "linkId", "text", "item"},
+			"CodeableConcept":    {"id", "extension", "coding", "text"},
 		},
 	}
 }
@@ -69,6 +73,7 @@ func TestChildrenComeInTheDefinitionsOrder(t *testing.T) {
 		{"Observation.component.first().children().first().children().first()", "[{\"code\":\"a\"}]", "[c1]"},
 		{"Observation.component.children().count()", "[3]", "[3]"},
 		{"Observation.component.code.text", "[t1, t2]", "[t1, t2]"},
+		{"Observation.component.first().children().first()", `[{"text":"t1","coding":[{"code":"a"}]}]`, "[c1]"},
 		// descendants() is children() repeated, in the same order.
 		{"Observation.subject.descendants().first()", "[Patient/1]", "[Peter]"},
 	}
@@ -181,4 +186,28 @@ func BenchmarkDescendantsInDefinitionOrder(b *testing.B) {
 			}
 		}
 	})
+}
+
+// A path defined elsewhere is ordered as the definition it borrows: R4's
+// Questionnaire.item.item is Questionnaire.item, by contentReference.
+func TestAPathDefinedElsewhereIsInItsDefinitionsOrder(t *testing.T) {
+	questionnaire := []byte(`{"resourceType":"Questionnaire",` +
+		`"item":[{"item":[{"text":"inner","linkId":"2"}],"text":"outer","linkId":"1"}]}`)
+	model := newOrderedModel()
+	model.typeOf["Questionnaire.item"] = "BackboneElement"
+	model.typeOf["Questionnaire.item.item"] = "BackboneElement"
+	model.resolvePath = map[string]string{"Questionnaire.item.item": "Questionnaire.item"}
+
+	for expr, want := range map[string]string{
+		"Questionnaire.item.children().first()":      "[1]",
+		"Questionnaire.item.item.children().first()": "[2]",
+	} {
+		result, err := fhirpath.MustCompile(expr).EvaluateWithOptions(questionnaire, fhirpath.WithModel(model))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := result.String(); got != want {
+			t.Errorf("%s = %s, want %s", expr, got, want)
+		}
+	}
 }

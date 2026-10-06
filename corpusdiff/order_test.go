@@ -22,10 +22,13 @@ func TestTheCorpusModelOrdersChildrenAsTheDefinitions(t *testing.T) {
 	}
 
 	observation := []byte(`{"resourceType":"Observation","status":"final","code":{"text":"x"},` +
-		`"subject":{"display":"Peter","type":"Patient","reference":"Patient/1"}}`)
+		`"subject":{"display":"Peter","type":"Patient","reference":"Patient/1"},` +
+		`"component":[{"valueString":"c","code":{"text":"t"}}]}`)
 	for expr, want := range map[string]string{
 		"Observation.subject.children().first()": "[Patient/1]",
 		"Observation.children().first()":         "[final]",
+		// A backbone element is ordered by its path, not by BackboneElement.
+		"Observation.component.children().first()": `[{"text":"t"}]`,
 	} {
 		result, err := fhirpath.MustCompile(expr).EvaluateWithOptions(observation, fhirpath.WithModel(model))
 		if err != nil {

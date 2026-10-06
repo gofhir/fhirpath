@@ -1156,21 +1156,34 @@ type ElementOrderResolver interface {
 var elementChildren = []string{"id", "extension", "modifierExtension"}
 
 // definitionOrder is the order the object's definition lists its children
-// in, when res knows it: by the object's own type, a complex type or a
-// resource, or by the path it was reached by, a backbone element, as
-// childElement resolves a child's type. nil when res does not order children.
+// in, when res knows it, or nil when res does not order children.
+//
+// The path it was reached by is asked first: a backbone element is defined
+// there, "Observation.component", and its type, BackboneElement, lists only
+// what every backbone element has. A path defined elsewhere, as R4's
+// Questionnaire.item.item is by Questionnaire.item, is asked as the model
+// resolves it. Then the object's own type: a complex type or a resource, whose
+// fields a path inside another definition does not list, Reference at
+// Observation.subject.
 func (o *ObjectValue) definitionOrder(basePath string, res ElementTypeResolver) []string {
 	order, ok := res.(ElementOrderResolver)
 	if !ok {
 		return nil
 	}
-	if t := o.Type(); t != "" && t != typeObject {
-		if names := order.ChildElements(t); names != nil {
-			return names
-		}
-	}
 	if basePath != "" {
 		if names := order.ChildElements(basePath); names != nil {
+			return names
+		}
+		if resolver, ok := res.(interface{ ResolvePath(string) string }); ok {
+			if resolved := resolver.ResolvePath(basePath); resolved != basePath {
+				if names := order.ChildElements(resolved); names != nil {
+					return names
+				}
+			}
+		}
+	}
+	if t := o.Type(); t != "" && t != typeObject {
+		if names := order.ChildElements(t); names != nil {
 			return names
 		}
 	}
