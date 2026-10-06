@@ -177,8 +177,10 @@ func fnDescendants(ctx *eval.Context, input types.Collection, _ []interface{}) (
 
 	queue := make([]node, 0, len(input))
 	for _, item := range input {
+		// A primitive is descended into through its element, from the
+		// primitive's path.
 		path := ""
-		if obj, ok := item.(*types.ObjectValue); ok {
+		if obj, ok := types.ElementOf(item); ok {
 			path = pathOf(ctx, obj)
 		}
 		queue = append(queue, node{value: item, path: path})

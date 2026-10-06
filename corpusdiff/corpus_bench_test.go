@@ -61,7 +61,12 @@ func loadSample() (*corpusSample, error) {
 		}
 		sort.Strings(files)
 
-		s := &corpusSample{model: version.model()}
+		model, err := withDefinitionOrder(version.model(), coreDir)
+		if err != nil {
+			sampleErr = err
+			return
+		}
+		s := &corpusSample{model: model}
 		compiled := map[string]*fhirpath.Expression{}
 		for i, file := range files {
 			if i%10 != 0 {

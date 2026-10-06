@@ -2504,6 +2504,25 @@ func (e *Evaluator) resolveElement(obj *types.ObjectValue, name string) (element
 				return nested, t
 			}
 		}
+		// The element FHIR writes beside a primitive with no value has no type
+		// of its own, and nothing is defined beneath a primitive's path; its
+		// fields are its type's: _birthDate's extension is date.extension, an
+		// Extension. One beside a value has its value's type, tried above, so
+		// only a primitive type not yet tried is, which keeps the path it
+		// builds off every other navigation.
+		if declared := m.TypeOf(base); isFHIRPrimitiveName(declared) && declared != obj.Type() {
+			if nested := e.buildElementPath(declared, name); nested != "" {
+				if t := m.TypeOf(nested); t != "" {
+					return nested, t
+				}
+			}
+		}
+	}
+
+	// Every element's extension and modifierExtension are Extensions, which
+	// a model that does not list a primitive type's elements cannot say.
+	if name == "extension" || name == "modifierExtension" {
+		return elementPath, "Extension"
 	}
 
 	return elementPath, ""
@@ -2583,9 +2602,13 @@ func (e *Evaluator) navigateMember(input types.Collection, name string) types.Co
 // placeAt records on each object in children the element the model placed it
 // at, which the next step resolves its fields beneath. Only a path the model
 // knows is recorded: one it does not resolves nothing further down.
+//
+// A primitive's element, _birthDate, is placed at the primitive's path: it has
+// no type of its own, and its children are read beneath the type that path
+// declares, date.
 func placeAt(children types.Collection, elementPath string) {
 	for _, child := range children {
-		if obj, ok := child.(*types.ObjectValue); ok {
+		if obj, ok := types.ElementOf(child); ok {
 			obj.SetElementPath(elementPath)
 		}
 	}

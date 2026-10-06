@@ -88,6 +88,33 @@ type TypeRegistry interface {
 	HasType(typeName string) bool
 }
 
+// ElementOrder is an optional interface a [Model] may also implement to give
+// the order an element's definition lists its children in, which children()
+// and descendants() then return them in.
+//
+// The specification leaves that order undefined — "the ordering of the
+// children is undefined and using functions like first() on the result may
+// return different results on different platforms" — and allows "the logical
+// order implied by the object model", which is the order the HL7 validator
+// returns them in. Without it they come in the order the JSON writes them, so
+// the same instance written with its keys in another order answers an
+// expression that depends on the order differently.
+//
+// The path is a type name, "Reference", or an element's path, as TypeOf
+// takes it, "Observation.component" for a backbone element. The names are
+// the definition's, a choice element with [x]: "value[x]". It is asked once
+// per object children() or descendants() reads, so a model should return a
+// slice it keeps rather than build one.
+//
+// A model that does not implement it leaves children in the order the JSON
+// writes them, which is the behavior every existing caller has today.
+type ElementOrder interface {
+	// ChildElements returns the names of the children of the element at
+	// path, in the order its definition lists them, or nil for a path the
+	// model does not know.
+	ChildElements(path string) []string
+}
+
 // WithModel sets the FHIR version-specific model for the evaluation.
 // When provided, the engine uses precise choice type lists, full type hierarchy,
 // and path-based type resolution instead of built-in heuristics.

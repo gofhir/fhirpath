@@ -1,0 +1,46 @@
+package main
+
+import (
+	"path/filepath"
+	"testing"
+
+	"github.com/gofhir/fhirpath"
+)
+
+// The model the corpus runs with orders children as R4's definitions do, so a
+// run measures what a validator building its model from them gets: the
+// Reference written type before reference still has reference first.
+func TestTheCorpusModelOrdersChildrenAsTheDefinitions(t *testing.T) {
+	version := versions["r4"]
+	coreDir, err := fetch(filepath.Join("..", "build", "corpusdiff", "cache"), version.core)
+	if err != nil {
+		t.Skip("the R4 core package is not available:", err)
+	}
+	model, err := withDefinitionOrder(version.model(), coreDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	observation := []byte(`{"resourceType":"Observation","status":"final","code":{"text":"x"},` +
+		`"subject":{"display":"Peter","type":"Patient","reference":"Patient/1"},` +
+		`"component":[{"valueString":"c","code":{"text":"t"}}],` +
+		`"effectiveDateTime":"2020","_effectiveDateTime":{"extension":[{"valueCode":"c","url":"u"}],"id":"e1"}}`)
+	for expr, want := range map[string]string{
+		"Observation.subject.children().first()": "[Patient/1]",
+		"Observation.children().first()":         "[final]",
+		// A primitive's element by its type, date, and an extension in it as
+		// an Extension.
+		"Observation.effective.children().first()":           "[e1]",
+		"Observation.effective.extension.children().first()": "[u]",
+		// A backbone element is ordered by its path, not by BackboneElement.
+		"Observation.component.children().first()": `[{"text":"t"}]`,
+	} {
+		result, err := fhirpath.MustCompile(expr).EvaluateWithOptions(observation, fhirpath.WithModel(model))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := result.String(); got != want {
+			t.Errorf("%s = %s, want %s", expr, got, want)
+		}
+	}
+}

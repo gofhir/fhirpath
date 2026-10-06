@@ -987,6 +987,18 @@ func pairValueWithElement(
 		return Collection{}
 	}
 	if element != nil {
+		// The element has no type of its own; it is the primitive's, which
+		// its fields are read beneath and ordered by: _effectiveDateTime is
+		// a dateTime's, whose definition lists id, extension, value. One read
+		// as a System type, as R4 types Resource.id System.String, is FHIR's
+		// primitive of that kind, string, whose definition lists the same.
+		if _, primitive := SystemValue(parsed); primitive {
+			t := parsed.Type()
+			if IsSystemTypeName(t) {
+				t = lowerFirst(t)
+			}
+			element.typeName = t
+		}
 		parsed = withElement(parsed, element)
 	}
 	return Collection{parsed}
@@ -1118,8 +1130,13 @@ func (o *ObjectValue) TypedChildren(basePath string, res ElementTypeResolver) []
 	//
 	// Most objects have no such element, and are read field by field as they
 	// stand; only one that does is read again to pair its fields.
+	//
+	// With a model that knows the order a definition lists its children in,
+	// they are returned in that order, which the JSON does not keep.
+	definition := o.definitionOrder(basePath, res)
+
 	if children, unpaired := o.unpairedChildren(basePath, res); unpaired {
-		return children
+		return inDefinitionOrder(children, definition)
 	}
 
 	fields := o.pairedFields()
@@ -1127,7 +1144,155 @@ func (o *ObjectValue) TypedChildren(basePath string, res ElementTypeResolver) []
 	for i := range fields {
 		result = o.appendPairedChild(result, &fields[i], basePath, res)
 	}
-	return result
+	return inDefinitionOrder(result, definition)
+}
+
+// ElementOrderResolver is implemented by a model that knows the order an
+// element's definition lists its children in: for "Reference", "id",
+// "extension", "reference", "type", "identifier", "display"; a choice element
+// by its name with [x], "value[x]". The path is a type name or an element's
+// path, as TypeOf takes it. It returns nil for a path it does not know.
+//
+// The specification leaves the order of children() and descendants()
+// undefined, and allows "the logical order implied by the object model",
+// which is the order the HL7 validator returns them in. A model that does not
+// implement it leaves them in the order the JSON writes them.
+type ElementOrderResolver interface {
+	ChildElements(path string) []string
+}
+
+// definitionOrder is the order the object's definition lists its children
+// in, or nil when res does not order children or does not know the object,
+// which leaves them as the JSON writes them.
+//
+// The path it was reached by is asked first: a backbone element is defined
+// there, "Observation.component", and its type, BackboneElement, lists only
+// what every backbone element has. A path defined elsewhere, as R4's
+// Questionnaire.item.item is by Questionnaire.item, is asked as the model
+// resolves it. Then the type the path declares, which is how the element FHIR
+// writes beside a primitive, _birthDate, is known: "date" lists id,
+// extension, value. Last the object's own type, a resource's or one a model
+// gave it.
+func (o *ObjectValue) definitionOrder(basePath string, res ElementTypeResolver) []string {
+	order, ok := res.(ElementOrderResolver)
+	if !ok {
+		return nil
+	}
+	if basePath != "" {
+		if names := order.ChildElements(basePath); names != nil {
+			return names
+		}
+		if resolver, ok := res.(interface{ ResolvePath(string) string }); ok {
+			if resolved := resolver.ResolvePath(basePath); resolved != basePath {
+				if names := order.ChildElements(resolved); names != nil {
+					return names
+				}
+			}
+		}
+		// A path typed Resource, Bundle.entry.resource or contained, holds a
+		// resource of its own type, which Resource's definition does not
+		// list the fields of.
+		if declared := res.TypeOf(basePath); declared != "" && !IsAbstractResourceType(declared) {
+			if names := order.ChildElements(declared); names != nil {
+				return names
+			}
+		}
+	}
+	if t := o.Type(); o.knownType(t, res) {
+		return order.ChildElements(t)
+	}
+	return nil
+}
+
+// knownType reports whether the object's type is one it was given rather
+// than one guessed from the shape of its fields, which a Quantity's shape at
+// a path no definition lists cannot confirm: one a model placed it at, a
+// resource's, named by resourceType, or a primitive's, which an element FHIR
+// writes beside one takes from it and no guess ever names.
+func (o *ObjectValue) knownType(t string, res ElementTypeResolver) bool {
+	switch {
+	case t == "" || t == typeObject:
+		return false
+	case o.elementPath != "", t[0] >= 'a' && t[0] <= 'z':
+		return true
+	}
+	resources, ok := res.(interface{ IsResource(string) bool })
+	return ok && resources.IsResource(t)
+}
+
+// inDefinitionOrder returns children in the order definition lists the
+// fields they were read from, which the last step of each child's path names.
+// Children of one field keep their order, an array's, and so do fields the
+// definition does not list, after the rest. Children already in that order,
+// as a producer that writes the definition's order leaves them, are returned
+// as they are.
+func inDefinitionOrder(children []TypedChild, definition []string) []TypedChild {
+	if definition == nil || len(children) < 2 {
+		return children
+	}
+
+	// Most producers write the definition's order, so that is checked first,
+	// and costs no allocation.
+	sorted, previous := true, -1
+	for i := range children {
+		position := definitionPosition(fieldName(children[i].Path), definition)
+		if position < previous {
+			sorted = false
+			break
+		}
+		previous = position
+	}
+	if sorted {
+		return children
+	}
+
+	// One allocation: each child with its position, sorted stably, written
+	// back over the slice, which the read made and nothing else holds.
+	positioned := make([]positionedChild, len(children))
+	for i := range children {
+		positioned[i] = positionedChild{definitionPosition(fieldName(children[i].Path), definition), children[i]}
+	}
+	slices.SortStableFunc(positioned, func(a, b positionedChild) int { return a.position - b.position })
+	for i := range positioned {
+		children[i] = positioned[i].child
+	}
+	return children
+}
+
+// positionedChild is a child with where its field sits in the definition.
+type positionedChild struct {
+	position int
+	child    TypedChild
+}
+
+// fieldName is the field a child was read from: the last step of its path.
+func fieldName(path string) string {
+	if i := strings.LastIndexByte(path, '.'); i >= 0 {
+		return path[i+1:]
+	}
+	return path
+}
+
+// definitionPosition is where a field sits in the definition: the element of
+// its name, or the choice element its name is a variant of, valueQuantity of
+// value[x]; after every element the definition lists when it lists none.
+func definitionPosition(name string, definition []string) int {
+	for i, element := range definition {
+		if element == name {
+			return i
+		}
+	}
+	for i, element := range definition {
+		base, choice := strings.CutSuffix(element, "[x]")
+		if !choice || len(name) <= len(base) || !strings.HasPrefix(name, base) {
+			continue
+		}
+		// The variant spells its type capitalized after the name: valueQuantity
+		if c := name[len(base)]; c >= 'A' && c <= 'Z' {
+			return i
+		}
+	}
+	return len(definition)
 }
 
 // pairedField is a field of an object read with the element beside it.
@@ -1216,8 +1381,9 @@ func (o *ObjectValue) appendPairedChild(result []TypedChild, f *pairedField, bas
 
 	for _, v := range pairedCollection(f.name, f.value, f.element, parse) {
 		// A resource resolves its fields beneath its own type, so it is not
-		// placed at the element that holds it.
-		if obj, ok := v.(*ObjectValue); ok && fhirType != "" && !IsAbstractResourceType(fhirType) {
+		// placed at the element that holds it. A primitive's element is placed
+		// at the primitive's path, which its type is read from.
+		if obj, ok := ElementOf(v); ok && fhirType != "" && !IsAbstractResourceType(fhirType) {
 			obj.elementPath = childPath
 		}
 		o.adopt(v)
@@ -1255,7 +1421,7 @@ func (o *ObjectValue) unpairedChildren(basePath string, res ElementTypeResolver)
 			if v != nil {
 				// A resource resolves its fields beneath its own type, so it
 				// is not placed at the element that holds it.
-				if obj, ok := v.(*ObjectValue); ok && fhirType != "" && !IsAbstractResourceType(fhirType) {
+				if obj, ok := ElementOf(v); ok && fhirType != "" && !IsAbstractResourceType(fhirType) {
 					obj.elementPath = childPath
 				}
 				o.adoptAt(v, name, index)
@@ -1309,12 +1475,55 @@ func (o *ObjectValue) childElement(basePath, name string, res ElementTypeResolve
 				return candidate, t
 			}
 		}
+		// The element FHIR writes beside a primitive has no type of its own
+		// to read, and nothing is defined beneath a primitive's path; its
+		// fields are its type's: _birthDate's extension is date.extension,
+		// an Extension.
+		if candidate, t := o.primitiveChildElement(basePath, name, res); t != "" {
+			return candidate, t
+		}
+		// Every element's extension and modifierExtension are Extensions:
+		// Element and BackboneElement define them so. A model that does not
+		// list a primitive type's elements, date.extension, still types it.
+		if t := extensionFieldType(name); t != "" {
+			path := name
+			if len(candidates) > 0 {
+				path = candidates[0]
+			}
+			return path, t
+		}
 	}
 
 	if len(candidates) > 0 {
 		return candidates[0], ""
 	}
 	return name, ""
+}
+
+// primitiveChildElement resolves a field of the element FHIR writes beside a
+// primitive with no value, which has no type of its own and nothing defined
+// beneath its path: its fields are its primitive type's, _birthDate's
+// extension date.extension. Only a primitive type not yet tried is, so that
+// the path it builds is off every other read.
+func (o *ObjectValue) primitiveChildElement(basePath, name string, res ElementTypeResolver) (childPath, fhirType string) {
+	if basePath == "" {
+		return "", ""
+	}
+	declared := res.TypeOf(basePath)
+	if declared == "" || declared[0] < 'a' || declared[0] > 'z' || declared == o.Type() {
+		return "", ""
+	}
+	candidate := declared + "." + name
+	return candidate, res.TypeOf(candidate)
+}
+
+// extensionFieldType is Extension for a field every FHIR element defines
+// with that type, extension and modifierExtension, and "" for any other.
+func extensionFieldType(name string) string {
+	if name == "extension" || name == "modifierExtension" {
+		return "Extension"
+	}
+	return ""
 }
 
 // decodeJSONString reads the contents of a JSON string, which jsonparser hands
