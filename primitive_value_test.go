@@ -74,6 +74,14 @@ func TestAFHIRPrimitiveHasAValueProperty(t *testing.T) {
 		{"'abc'.hasValue()", "[false]", "[false]"},
 		{"'abc'.getValue()", "[]", "[]"},
 		{"Patient.extension.url.hasValue()", "[false]", "[true]"},
+		// A function's result is a System value, even one that returns a
+		// value of the type its input already had.
+		{"Patient.active.toBoolean().hasValue()", "[false]", "[false]"},
+		{"Patient.active.toBoolean().value", "[]", "[]"},
+		{"Patient.active.toBoolean().type().namespace", "[System]", "[System]"},
+		{"Patient.birthDate.toDate().hasValue()", "[false]", "[false]"},
+		{"Patient.birthDate.toDateTime().hasValue()", "[false]", "[false]"},
+		{"Patient.birthDate.toString().hasValue()", "[false]", "[false]"},
 	}
 
 	for _, tt := range tests {
