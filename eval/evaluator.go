@@ -1915,10 +1915,25 @@ func decidedByLeft(left types.Collection, op string) (types.Collection, bool) {
 	return nil, false
 }
 
-// applyAnd applies 'and'. The operator is taken for symmetry with the other
-// binary operators, so that one compiled shape serves them all.
-func applyAnd(leftCol, rightCol types.Collection, _ string) interface{} {
+// applyAnd applies 'and'.
+func applyAnd(leftCol, rightCol types.Collection, op string) interface{} {
+	if err := booleanOperandsSingleton(leftCol, rightCol, op); err != nil {
+		return err
+	}
 	return And(leftCol, rightCol)
+}
+
+// booleanOperandsSingleton refuses an operand of and, or, xor or implies that
+// has more than one item. Three-valued logic answers an empty one, but the
+// singleton rule leaves nothing to answer for several: "the evaluation will end
+// and signal an error to the calling environment". The HL7 validator does the
+// same (FHIRPathEngine.asBool). A left operand that decides the result is never
+// seen here, since decidedByLeft returns before the right one is evaluated.
+func booleanOperandsSingleton(leftCol, rightCol types.Collection, op string) error {
+	if len(leftCol) > 1 || len(rightCol) > 1 {
+		return OperandSingletonError(op, len(leftCol), len(rightCol))
+	}
+	return nil
 }
 
 // VisitOrExpression visits expr or expr, expr xor expr.
@@ -1945,6 +1960,9 @@ func (e *Evaluator) VisitOrExpression(ctx *grammar.OrExpressionContext) interfac
 
 // applyOr applies 'or' and 'xor'.
 func applyOr(leftCol, rightCol types.Collection, op string) interface{} {
+	if err := booleanOperandsSingleton(leftCol, rightCol, op); err != nil {
+		return err
+	}
 	switch op {
 	case "or":
 		return Or(leftCol, rightCol)
@@ -1976,7 +1994,10 @@ func (e *Evaluator) VisitImpliesExpression(ctx *grammar.ImpliesExpressionContext
 }
 
 // applyImplies applies 'implies'.
-func applyImplies(leftCol, rightCol types.Collection, _ string) interface{} {
+func applyImplies(leftCol, rightCol types.Collection, op string) interface{} {
+	if err := booleanOperandsSingleton(leftCol, rightCol, op); err != nil {
+		return err
+	}
 	return Implies(leftCol, rightCol)
 }
 
