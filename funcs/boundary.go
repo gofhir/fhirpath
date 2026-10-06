@@ -69,6 +69,13 @@ func boundaryOf(value types.Value, precision int, provided, low bool) (types.Col
 		return decimalBoundary(decimal.NewFromInt(v.Value()), 0, decimalPrecisionOr(precision, provided), low)
 	case types.Quantity:
 		return quantityBoundary(v, precision, provided, low)
+	case *types.ObjectValue:
+		// A FHIR Quantity, mapped as comparable() and the comparison operators
+		// map it.
+		if q, ok := v.ToQuantity(); ok {
+			return quantityBoundary(q, precision, provided, low)
+		}
+		return types.Collection{}, nil
 	case types.Date:
 		return dateBoundary(v, precision, provided, low)
 	case types.DateTime:
