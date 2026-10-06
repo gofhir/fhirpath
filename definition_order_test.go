@@ -247,3 +247,29 @@ func TestAnObjectOfAGuessedTypeStaysAsWritten(t *testing.T) {
 		t.Errorf("Observation.foo.children() = %s, want [mg, 1], as written", got)
 	}
 }
+
+// An element a model types a System type, as R4 types Resource.id
+// System.String, is still a primitive FHIR writes with an element beside it,
+// _id, which is ordered as FHIR's primitive of that kind: id, extension, then
+// the value.
+func TestTheElementOfASystemTypedPrimitiveIsInOrder(t *testing.T) {
+	patient := []byte(`{"resourceType":"Patient","_id":{"extension":[{"url":"u","valueCode":"c"}],"id":"i1"},"id":"p1"}`)
+	model := &orderedModel{
+		testModel: &testModel{
+			resources: map[string]bool{"Patient": true},
+			typeOf:    map[string]string{"Patient.id": "http://hl7.org/fhirpath/System.String"},
+		},
+		children: map[string][]string{
+			"Patient": {"id", "meta"},
+			"string":  {"id", "extension", "value"},
+		},
+	}
+
+	result, err := fhirpath.MustCompile("Patient.id.children()").EvaluateWithOptions(patient, fhirpath.WithModel(model))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := result.String(); got != `[i1, {"url":"u","valueCode":"c"}, p1]` {
+		t.Errorf("Patient.id.children() = %s, want its id, its extension, its value", got)
+	}
+}

@@ -989,8 +989,14 @@ func pairValueWithElement(
 	if element != nil {
 		// The element has no type of its own; it is the primitive's, which
 		// its fields are read beneath and ordered by: _effectiveDateTime is
-		// a dateTime's, whose definition lists id, extension, value.
-		if t := parsed.Type(); !IsSystemTypeName(t) {
+		// a dateTime's, whose definition lists id, extension, value. One read
+		// as a System type, as R4 types Resource.id System.String, is FHIR's
+		// primitive of that kind, string, whose definition lists the same.
+		if _, primitive := SystemValue(parsed); primitive {
+			t := parsed.Type()
+			if IsSystemTypeName(t) {
+				t = lowerFirst(t)
+			}
 			element.typeName = t
 		}
 		parsed = withElement(parsed, element)
