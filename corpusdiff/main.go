@@ -148,11 +148,7 @@ func evalCommand(args []string) error {
 
 	// A file cut short would read as evaluations one side does not have, so
 	// every write is checked, the last ones included.
-	model, err := withDefinitionOrder(version.model(), coreDir)
-	if err != nil {
-		return err
-	}
-	n, err := evaluate(corpus, examplesDir, model, w)
+	n, err := evaluate(corpus, examplesDir, version.model(), w)
 	if err == nil {
 		err = w.Flush()
 	}
