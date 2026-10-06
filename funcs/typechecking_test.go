@@ -58,6 +58,13 @@ func TestIsFunction(t *testing.T) {
 			expected: false,
 		},
 		{
+			// A value built with a FHIR type is FHIR's, read or not
+			name:     "a value built with a FHIR type is that type",
+			input:    types.Collection{types.NewStringWithFHIRType("x", "code")},
+			args:     []interface{}{"code"},
+			expected: true,
+		},
+		{
 			// System.string is how FHIR's own example writes it
 			name:     "case insensitive match in the System namespace",
 			input:    types.Collection{types.NewString("hello")},
