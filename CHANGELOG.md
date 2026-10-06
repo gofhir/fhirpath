@@ -1,5 +1,43 @@
 # Changelog
 
+## [1.11.0](https://github.com/gofhir/fhirpath/compare/v1.10.5...v1.11.0) (2026-10-06)
+
+
+### Features
+
+* with a model that knows it, children come in the definition's order ([#105](https://github.com/gofhir/fhirpath/issues/105)) ([13bd7cc](https://github.com/gofhir/fhirpath/commit/13bd7cc35cdc3e6d05ba7492b5dfdc04da4f5388))
+
+  The specification leaves the order of `children()` and `descendants()`
+  undefined and allows "the logical order implied by the object model", the
+  order the HL7 validator builds. They came in the order the JSON writes them,
+  so one instance written two ways answered `children().first()` two ways. A
+  model may now implement `fhirpath.ElementOrder`:
+
+  ```go
+  ChildElements(path string) []string // "Reference" → id, extension, reference, type, identifier, display
+  ```
+
+  and children then come in that order: a backbone element by its path, a
+  resource by its own type (also in an entry or `contained`), a choice by its
+  name with `[x]`, an array in its own order, a field the definition does not
+  list last. A primitive's element, `_birthDate`, takes its primitive's type,
+  so it is ordered `id`, `extension`, then the value, and an extension in it is
+  typed `Extension`. An object the model does not know, or whose type is only
+  guessed, stays as written; so does everything with a model that does not
+  implement it. An instance already in the definition's order costs no
+  allocation.
+
+
+### Bug Fixes
+
+* resourceType is not a child ([#104](https://github.com/gofhir/fhirpath/issues/104)) ([70d51ff](https://github.com/gofhir/fhirpath/commit/70d51ff3e764f50c54127b723ad04980bc0165a2))
+
+  `resourceType` is how JSON names a resource, not an element of it, and HL7
+  skips it. `children()` returned it, so `children().first()` on a resource
+  was its type name. A resource's own `resourceType` is no longer a child; an
+  element's field of that name, R4's `ExampleScenario.instance.resourceType`,
+  still is.
+
 ## [1.10.5](https://github.com/gofhir/fhirpath/compare/v1.10.4...v1.10.5) (2026-10-06)
 
 
