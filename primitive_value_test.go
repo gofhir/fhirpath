@@ -69,7 +69,7 @@ func TestAFHIRPrimitiveHasAValueProperty(t *testing.T) {
 		{"Patient.name.family.getValue()", "[Abc]", "[Abc]"},
 		{"Patient.name.given.getValue().is(System.String)", "[]", "[]"},
 		{"Patient.name.given.first().getValue().is(System.String)", "[true]", "[true]"},
-		{"Patient.name.given.first().getValue().is(FHIR.string)", "[false]", "[true]"},
+		{"Patient.name.given.first().getValue().is(FHIR.string)", "[false]", "[false]"},
 		{"Patient.name.given.last().hasValue()", "[false]", "[false]"},
 		{"Patient.name.given.hasValue()", "[false]", "[false]"},
 		{"'abc'.hasValue()", "[false]", "[false]"},
@@ -144,5 +144,73 @@ func TestAPrimitiveReadWithoutATypeIsStillAFHIRPrimitive(t *testing.T) {
 		if got := result.String(); got != want {
 			t.Errorf("%s with a model that does not know HumanName.given = %s, want %s", expr, got, want)
 		}
+	}
+}
+
+// "FHIR primitives have a value child, but, as described above, they are
+// automatically cast to FHIRPath primitives when comparisons are made, and
+// that the primitive value will be included in the set returned by children()
+// or descendants()." The value comes after id and extension, as a primitive
+// type's StructureDefinition lists them, and has no children of its own. A
+// System value, a literal or a primitive's value, is only ever a System type,
+// so a filter by FHIR type finds each primitive once, with or without a model.
+func TestAPrimitivesValueIsAChild(t *testing.T) {
+	patient := []byte(`{"resourceType":"Patient","birthDate":"2000-01-01",` +
+		`"_birthDate":{"id":"b","extension":[{"url":"u","valueCode":"x"}]},` +
+		`"name":[{"family":"F","given":["A","B"]}]}`)
+	model := &testModel{typeOf: map[string]string{
+		"Patient.birthDate": "date",
+		"Patient.name":      "HumanName",
+		"HumanName.family":  "string",
+		"HumanName.given":   "string",
+	}}
+
+	tests := []struct {
+		expr                  string
+		withModel, withoutOne string
+	}{
+		{"Patient.birthDate.children().count()", "[3]", "[3]"},
+		{"Patient.birthDate.children().last()", "[2000-01-01]", "[2000-01-01]"},
+		{"Patient.birthDate.children().last() is System.Date", "[true]", "[true]"},
+		{"Patient.name.family.children()", "[F]", "[F]"},
+		{"Patient.name.family.children().children().count()", "[0]", "[0]"},
+		{"Patient.name.descendants().count()", "[6]", "[6]"},
+		{"Patient.name.descendants().ofType(string).count()", "[3]", "[3]"},
+		// "ofType() does not have such restrictions - both of the following
+		// are valid: Patient.name.given.ofType(FHIR.string);
+		// Patient.name.given.ofType(System.string)": the primitives and their
+		// values.
+		{"Patient.name.descendants().ofType(System.String).count()", "[6]", "[6]"},
+		{"Patient.name.descendants().where(hasValue()).count()", "[3]", "[3]"},
+		{"Patient.birthDate.descendants().where($this is System.Date).count()", "[1]", "[1]"},
+		// A System value is only ever a System type.
+		{"'abc'.is(string)", "[false]", "[false]"},
+		{"'abc'.is(FHIR.string)", "[false]", "[false]"},
+		{"'abc'.is(String)", "[true]", "[true]"},
+		{"'abc'.is(System.string)", "[true]", "[true]"},
+		{"'abc'.as(string)", "[]", "[]"},
+		{"Patient.name.family.is(string)", "[true]", "[true]"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.expr, func(t *testing.T) {
+			compiled := fhirpath.MustCompile(tt.expr)
+			for _, run := range []struct {
+				how  string
+				opts []fhirpath.EvalOption
+				want string
+			}{
+				{"with a model", []fhirpath.EvalOption{fhirpath.WithModel(model)}, tt.withModel},
+				{"without one", nil, tt.withoutOne},
+			} {
+				result, err := compiled.EvaluateWithOptions(patient, run.opts...)
+				if err != nil {
+					t.Fatalf("%s: %v", run.how, err)
+				}
+				if got := result.String(); got != run.want {
+					t.Errorf("%s = %s %s, want %s", tt.expr, got, run.how, run.want)
+				}
+			}
+		})
 	}
 }

@@ -66,26 +66,37 @@ func ElementOf(value Value) (*ObjectValue, bool) {
 // even where the model types it a System one, as R4 types Resource.id and
 // Extension.url, whose FHIR type structuredefinition-fhir-type names; one an
 // expression wrote, a literal, or a function computed is a System value. A
-// value built with the constructors of this package, NewString and the rest,
-// is a System value.
+// value built with the constructors of this package is a System value, NewString
+// and the rest, unless it is built with a FHIR type or an element.
 func IsFHIRPrimitive(value Value) bool {
+	var read bool
 	switch v := value.(type) {
 	case String:
-		return v.read
+		read = v.read
 	case Boolean:
-		return v.read
+		read = v.read
 	case Integer:
-		return v.read
+		read = v.read
 	case Decimal:
-		return v.read
+		read = v.read
 	case Date:
-		return v.read
+		read = v.read
 	case DateTime:
-		return v.read
+		read = v.read
 	case Time:
-		return v.read
+		read = v.read
+	default:
+		return false
 	}
-	return false
+	if read {
+		return true
+	}
+	// One built with a FHIR type, NewStringWithFHIRType("x", "code"), or with
+	// the element beside it, says it is FHIR's.
+	if carrier, ok := value.(ElementCarrier); ok && carrier.HasElement() {
+		return true
+	}
+	return !IsSystemTypeName(value.Type())
 }
 
 // SystemValue returns the System value a primitive holds: the same value,
