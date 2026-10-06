@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.11.0](https://github.com/gofhir/fhirpath/compare/v1.10.5...v1.11.0) (2026-10-06)
+
+
+### Features
+
+* with a model that knows it, children come in the definition's order ([#105](https://github.com/gofhir/fhirpath/issues/105)) ([13bd7cc](https://github.com/gofhir/fhirpath/commit/13bd7cc35cdc3e6d05ba7492b5dfdc04da4f5388))
+
+
+### Bug Fixes
+
+* resourceType is not a child ([#104](https://github.com/gofhir/fhirpath/issues/104)) ([70d51ff](https://github.com/gofhir/fhirpath/commit/70d51ff3e764f50c54127b723ad04980bc0165a2))
+
 ## [1.10.5](https://github.com/gofhir/fhirpath/compare/v1.10.4...v1.10.5) (2026-10-06)
 
 
