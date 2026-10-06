@@ -1192,10 +1192,26 @@ func (o *ObjectValue) definitionOrder(basePath string, res ElementTypeResolver) 
 			}
 		}
 	}
-	if t := o.Type(); t != "" && t != typeObject {
+	if t := o.Type(); o.knownType(t, res) {
 		return order.ChildElements(t)
 	}
 	return nil
+}
+
+// knownType reports whether the object's type is one it was given rather
+// than one guessed from the shape of its fields, which a Quantity's shape at
+// a path no definition lists cannot confirm: one a model placed it at, a
+// resource's, named by resourceType, or a primitive's, which an element FHIR
+// writes beside one takes from it and no guess ever names.
+func (o *ObjectValue) knownType(t string, res ElementTypeResolver) bool {
+	switch {
+	case t == "" || t == typeObject:
+		return false
+	case o.elementPath != "", t[0] >= 'a' && t[0] <= 'z':
+		return true
+	}
+	resources, ok := res.(interface{ IsResource(string) bool })
+	return ok && resources.IsResource(t)
 }
 
 // inDefinitionOrder returns children in the order definition lists the

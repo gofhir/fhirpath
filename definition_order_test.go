@@ -21,15 +21,17 @@ func newOrderedModel() *orderedModel {
 	return &orderedModel{
 		testModel: &testModel{
 			typeOf: map[string]string{
-				"Observation.subject":   "Reference",
-				"Observation.code":      "CodeableConcept",
-				"Observation.component": "BackboneElement",
-				"Observation.status":    "code",
+				"Observation.subject":        "Reference",
+				"Observation.code":           "CodeableConcept",
+				"Observation.component":      "BackboneElement",
+				"Observation.component.code": "CodeableConcept",
+				"Observation.status":         "code",
 			},
 			choiceTypes: map[string][]string{
 				"Observation.value":           {"Quantity", "string"},
 				"Observation.component.value": {"Quantity", "string"},
 			},
+			resources: map[string]bool{"Observation": true, "Patient": true, "Bundle": true, "Questionnaire": true},
 		},
 		children: map[string][]string{
 			"Observation":           {"id", "meta", "extension", "status", "code", "subject", "value[x]", "component"},
@@ -128,7 +130,7 @@ func TestAPrimitivesElementIsInItsTypesOrder(t *testing.T) {
 		`"birthDate":"2000","_birthDate":{"extension":[{"valueCode":"c","url":"u"}],"id":"b1"},` +
 		`"extension":[{"valueCode":"c","url":"u"}]}`)
 	model := &orderedModel{
-		testModel: &testModel{typeOf: map[string]string{
+		testModel: &testModel{resources: map[string]bool{"Patient": true}, typeOf: map[string]string{
 			"Patient.birthDate":   "date",
 			"Patient.extension":   "Extension",
 			"date.extension":      "Extension",
@@ -201,7 +203,7 @@ func TestAResourceInAResourceElementIsInItsOwnOrder(t *testing.T) {
 	bundle := []byte(`{"resourceType":"Bundle","entry":[{"resource":` +
 		`{"resourceType":"Patient","birthDate":"2000-01-01","gender":"male","id":"p"}}]}`)
 	model := &orderedModel{
-		testModel: &testModel{typeOf: map[string]string{
+		testModel: &testModel{resources: map[string]bool{"Bundle": true, "Patient": true}, typeOf: map[string]string{
 			"Bundle.entry":          "BackboneElement",
 			"Bundle.entry.resource": "Resource",
 			"Patient.gender":        "code",
@@ -226,5 +228,22 @@ func TestAResourceInAResourceElementIsInItsOwnOrder(t *testing.T) {
 		if got := result.String(); got != want {
 			t.Errorf("%s = %s, want %s", expr, got, want)
 		}
+	}
+}
+
+// An object whose type is only guessed from its fields is not ordered by the
+// guess: a Quantity's shape at a path the model does not know may be anything,
+// and an Identifier's guess may be a ContactPoint. It stays as written.
+func TestAnObjectOfAGuessedTypeStaysAsWritten(t *testing.T) {
+	observation := []byte(`{"resourceType":"Observation","foo":{"unit":"mg","value":1}}`)
+	model := newOrderedModel()
+	model.children["Quantity"] = []string{"id", "extension", "value", "comparator", "unit", "system", "code"}
+
+	result, err := fhirpath.MustCompile("Observation.foo.children()").EvaluateWithOptions(observation, fhirpath.WithModel(model))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := result.String(); got != "[mg, 1]" {
+		t.Errorf("Observation.foo.children() = %s, want [mg, 1], as written", got)
 	}
 }
