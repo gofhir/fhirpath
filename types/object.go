@@ -1044,11 +1044,36 @@ func (o *ObjectValue) Keys() []string {
 	return keys
 }
 
+// isOwnResourceType reports whether a field is the object's own
+// resourceType, which is how JSON says which resource the object is rather
+// than an element of it: no StructureDefinition lists it, and the HL7
+// validator skips it when it reads a resource's children. It is not a child,
+// though navigation can still read it by name.
+//
+// Only a resource's is: an element may have a field of that name, as R4's
+// ExampleScenario.instance.resourceType, a code naming the type of the
+// instance it describes. A resource is the type its resourceType names; that
+// element is a BackboneElement, as a model types it. Only an object holding
+// such a key is asked, which is a resource or that element.
+func (o *ObjectValue) isOwnResourceType(key, value []byte, dataType jsonparser.ValueType) bool {
+	if string(key) != "resourceType" || dataType != jsonparser.String {
+		return false
+	}
+	// Compared as written, which allocates nothing, unless it is escaped.
+	if bytes.IndexByte(value, '\\') < 0 {
+		return o.Type() == string(value)
+	}
+	return o.Type() == decodeJSONString(value)
+}
+
 // Children returns a collection of all child values.
 func (o *ObjectValue) Children() Collection {
 	var result Collection
 	//nolint:errcheck // ObjectEach only returns errors for non-objects; o.data is always a valid object
-	jsonparser.ObjectEach(o.data, func(_ []byte, value []byte, dataType jsonparser.ValueType, _ int) error {
+	jsonparser.ObjectEach(o.data, func(key []byte, value []byte, dataType jsonparser.ValueType, _ int) error {
+		if o.isOwnResourceType(key, value, dataType) {
+			return nil
+		}
 		if dataType == jsonparser.Array {
 			result = append(result, jsonArrayToCollection(value)...)
 		} else {
@@ -1120,6 +1145,9 @@ func (o *ObjectValue) pairedFields() []pairedField {
 
 	//nolint:errcheck // ObjectEach only returns errors for non-objects; o.data is always a valid object
 	jsonparser.ObjectEach(o.data, func(key []byte, value []byte, dataType jsonparser.ValueType, _ int) error {
+		if o.isOwnResourceType(key, value, dataType) {
+			return nil
+		}
 		entry := jsonField{data: value, dataType: dataType, found: true}
 
 		// Only what FHIR writes beside a primitive is its element; any other
@@ -1210,6 +1238,9 @@ func (o *ObjectValue) unpairedChildren(basePath string, res ElementTypeResolver)
 		if len(key) > 1 && key[0] == '_' {
 			unpaired = false
 			return errFieldsFound
+		}
+		if o.isOwnResourceType(key, value, dataType) {
+			return nil
 		}
 		name := string(key)
 		childPath, fhirType := o.childElement(basePath, name, res)

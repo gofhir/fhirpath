@@ -32,8 +32,9 @@ func TestAPrimitivesElementIsReachedByNavigation(t *testing.T) {
 		{"birthDate.children().count()", "[3]"},
 		{"birthDate.descendants().count() > birthDate.children().count()", "[true]"},
 		// A primitive and its element are one child of their parent, not two,
-		// and a value with only an element is still a child.
-		{"children().count()", "[3]"},
+		// and a value with only an element is still a child; resourceType is
+		// not one.
+		{"children().count()", "[2]"},
 		{"name.children().count()", "[3]"},
 		{"name.descendants().extension.count()", "[2]"},
 		// ch-core-hm-3's shape.
@@ -73,12 +74,12 @@ func TestAFieldThatIsNotAPrimitivesElementIsAChildAsItStands(t *testing.T) {
 	tests := []struct {
 		resource, expr, want string
 	}{
-		{`{"resourceType":"Patient","_tags":["a","b"],"_meta":"x"}`, "children().count()", "[4]"},
+		{`{"resourceType":"Patient","_tags":["a","b"],"_meta":"x"}`, "children().count()", "[3]"},
 		{`{"resourceType":"Patient","_tags":["a","b"],"_meta":"x"}`, "_tags", "[a, b]"},
-		{`{"resourceType":"Patient","_tags":["a","b"],"_active":{"id":"z"},"active":true}`, "children().count()", "[4]"},
-		{`{"resourceType":"Patient","birthDate":"2020","birthDate":"2021"}`, "children().count()", "[3]"},
-		{`{"resourceType":"Patient","birthDate":"2020","birthDate":"2021","_active":{"id":"z"}}`, "children().count()", "[4]"},
-		{`{"resourceType":"Patient","active":true,"_active":{"id":"a"},"active":false,"_active":{"id":"b"}}`, "children().count()", "[4]"},
+		{`{"resourceType":"Patient","_tags":["a","b"],"_active":{"id":"z"},"active":true}`, "children().count()", "[3]"},
+		{`{"resourceType":"Patient","birthDate":"2020","birthDate":"2021"}`, "children().count()", "[2]"},
+		{`{"resourceType":"Patient","birthDate":"2020","birthDate":"2021","_active":{"id":"z"}}`, "children().count()", "[3]"},
+		{`{"resourceType":"Patient","active":true,"_active":{"id":"a"},"active":false,"_active":{"id":"b"}}`, "children().count()", "[3]"},
 		// The id b is found once; its value, a System string equal to it, is a
 		// descendant too, and hasValue() tells the element from the value.
 		{`{"resourceType":"Patient","active":true,"_active":{"id":"a"},"active":false,"_active":{"id":"b"}}`, "descendants().where(hasValue() and $this = 'b').count()", "[1]"},
