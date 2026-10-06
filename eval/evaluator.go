@@ -1159,9 +1159,7 @@ func (e *Evaluator) evaluateIsFunction(input types.Collection, typeName string) 
 	}
 
 	// Get actual type - Type() already returns resourceType for ObjectValue
-	actualType := input[0].Type()
-
-	matches := TypeMatchesWithModel(actualType, typeName, e.ctx.model)
+	matches := ValueTypeMatches(input[0], typeName, e.ctx.model)
 	return types.Collection{types.NewBoolean(matches)}
 }
 
@@ -2006,8 +2004,7 @@ func (e *Evaluator) applyTypeOperator(leftCol types.Collection, op, typeName str
 		if len(leftCol) != 1 {
 			return SingletonError(len(leftCol))
 		}
-		actualType := leftCol[0].Type()
-		return types.Collection{types.NewBoolean(TypeMatchesWithModel(actualType, typeName, e.ctx.model))}
+		return types.Collection{types.NewBoolean(ValueTypeMatches(leftCol[0], typeName, e.ctx.model))}
 	case "as":
 		if err := e.checkAsSingleton(leftCol); err != nil {
 			return err
@@ -2208,6 +2205,9 @@ func (e *Evaluator) checkTypeSpecifier(function, typeName string) error {
 // Structured values keep hierarchy matching, so ofType(Quantity) still selects
 // an Age, and ofType(HumanName) a name.
 func castMatches(item types.Value, actualType, typeName string, model Model) bool {
+	if isSystemPrimitive(item) {
+		return systemTypeMatches(actualType, typeName)
+	}
 	if _, isObject := item.(*types.ObjectValue); isObject {
 		return TypeMatchesWithModel(actualType, typeName, model)
 	}
@@ -2219,6 +2219,40 @@ func castMatches(item types.Value, actualType, typeName string, model Model) boo
 		return TypeMatchesWithModel(actualType, typeName, model)
 	}
 	return primitiveTypeMatches(actualType, typeName)
+}
+
+// ValueTypeMatches reports whether a value is of the named type, as is()
+// asks. A System value — a literal, a function's result, a FHIR primitive's
+// value — is only ever a System type: 'abc' is a System.String and not a
+// FHIR.string, with a model or without one. A value read from the resource is
+// matched by its type name as TypeMatchesWithModel matches it.
+func ValueTypeMatches(item types.Value, typeName string, model Model) bool {
+	if isSystemPrimitive(item) {
+		return systemTypeMatches(item.Type(), typeName)
+	}
+	return TypeMatchesWithModel(item.Type(), typeName, model)
+}
+
+// isSystemPrimitive reports whether a value is a primitive that was not read
+// from the resource, and so a System value. See types.IsFHIRPrimitive.
+func isSystemPrimitive(item types.Value) bool {
+	_, primitive := types.SystemValue(item)
+	return primitive && !types.IsFHIRPrimitive(item)
+}
+
+// systemTypeMatches reports whether a System value's type is the named one. It
+// is named in the System namespace, in any case — System.string is how FHIR's
+// own example writes it — or unqualified as FHIRPath capitalizes its types;
+// an unqualified lower camel case name is a FHIR primitive, which a System
+// value is not.
+func systemTypeMatches(actualType, typeName string) bool {
+	if name, ok := strings.CutPrefix(typeName, "System."); ok {
+		return strings.EqualFold(actualType, name)
+	}
+	if strings.Contains(typeName, ".") || isFHIRPrimitiveName(typeName) {
+		return false
+	}
+	return actualType == typeName
 }
 
 // primitiveTypeMatches compares a primitive's declared type against a requested

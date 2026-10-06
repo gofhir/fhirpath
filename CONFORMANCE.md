@@ -86,11 +86,6 @@ model run passing it is the explanation.
 | `%terminologies` | 3 (R5) | Needs a terminology server answering, not a stub — see below |
 | `lowBoundary` / `highBoundary` | 5 | Three are a suite disagreement (see below); two assume `@2014-01-01T08` carries an implicit minute |
 
-One rule outside both suites is not met yet: FHIR says a primitive's value "will
-be included in the set returned by children() or descendants()", and neither
-includes it. Including it changes what `descendants()` returns everywhere, so it
-is its own change.
-
 `repeat()` was registered but never implemented — it returned its input
 unchanged, so every expression that relied on it answered without erroring. That
 is worth the three `testRepeat` cases, and it is normative 2.0.0 rather than a
@@ -808,6 +803,8 @@ was reasoned or accidental.
 | Type of a polymorphic element without a model | Taken from the field name, corrected to FHIR's casing | `valueOid` states the element is an `oid`; that is information in the document, not a guess. The value itself says whether the type is primitive or complex |
 | A FHIR primitive's `value`, and `hasValue()`/`getValue()` | The System value the primitive holds, without its FHIR type or element | FHIR: "FHIR.string … has the properties id, extension, and also the implicit value property that is actually of type of System.String", so `birthDate.value is System.Date`. The HL7 validator answers `value` with a FHIR `string` of the text whatever the primitive's type; that is not what the text says |
 | What is a FHIR primitive, as opposed to a System value | By where the value came from: one read from the resource is a FHIR primitive, with or without a model, and even where the model types it a System one; a literal or a function's result is a System value | `'abc'.value` is empty and `'abc'.hasValue()` false with or without a model, as the text says, and so for `active.toBoolean()`. A primitive at a path the model does not know is still a FHIR primitive, so ele-1 holds on it. R4 gives `Resource.id`, `Element.id` and `Extension.url` the type code `System.String` and names their FHIR type, `id`, `string` and `uri`, in `structuredefinition-fhir-type`; the two parts of the definition disagree, and we follow the one that names the FHIR type, as the HL7 validator does, so `Patient.id.hasValue()` is true. Their `type()` stays what the model gives |
+| A primitive's value in `children()` and `descendants()` | Included, after `id` and `extension`, as a System value with no children of its own | FHIR: "FHIR primitives have a value child … and the primitive value will be included in the set returned by children() or descendants()". The HL7 validator leaves it out — its `children()` lists the element's child nodes, and the value is not one — so `birthDate.children().count()` is 3 here and 2 there, and a filter by value over `descendants()` finds a primitive and its value both: `descendants().where($this = 'b')` counts two where HL7 counts one; `where(hasValue() and $this = 'b')` counts the primitive alone. No answer over the R4, R4B and R5 example corpora changes, and over them it costs +0.65% bytes and +0.53% allocations; `descendants()` alone allocates about 15% more |
+| `is()`, `as()` and `ofType()` on a System value | Only System types match, with a model or without one | A literal, a function's result or a primitive's value is a System value: `'abc'.is(String)` and `'abc'.is(System.string)` are true, `'abc'.is(string)` and `'abc'.is(FHIR.string)` false. Without a model only a value read from the resource is taken for what its type name might be in FHIR, so `descendants().ofType(string)` finds each string once. `ofType(System.string)` still finds FHIR strings too: "ofType() does not have such restrictions" |
 
 ## Upstream issues
 

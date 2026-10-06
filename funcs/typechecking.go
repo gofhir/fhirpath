@@ -56,11 +56,7 @@ func fnIsType(ctx *eval.Context, input types.Collection, args []interface{}) (ty
 		return types.Collection{}, nil
 	}
 
-	// Get actual type
-	actualType := input[0].Type()
-
-	// Use model-aware type matching when available
-	matches := eval.TypeMatchesWithModel(actualType, typeName, ctx.GetModel())
+	matches := eval.ValueTypeMatches(input[0], typeName, ctx.GetModel())
 	return types.Collection{types.NewBoolean(matches)}, nil
 }
 

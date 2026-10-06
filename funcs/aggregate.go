@@ -135,9 +135,24 @@ func fnChildren(ctx *eval.Context, input types.Collection, _ []interface{}) (typ
 				result = append(result, child.Value)
 			}
 		}
+		// And its value: "FHIR primitives have a value child ... and the
+		// primitive value will be included in the set returned by children()
+		// or descendants()", after id and extension, as a primitive type's
+		// StructureDefinition lists them.
+		if value, ok := primitiveChild(item); ok {
+			result = append(result, value)
+		}
 	}
 
 	return result, nil
+}
+
+// primitiveChild is the value child of a FHIR primitive: its System value.
+func primitiveChild(item types.Value) (types.Value, bool) {
+	if !types.IsFHIRPrimitive(item) {
+		return nil, false
+	}
+	return types.SystemValue(item)
 }
 
 // fnDescendants returns all descendants of the input (recursive children).
@@ -173,16 +188,20 @@ func fnDescendants(ctx *eval.Context, input types.Collection, _ []interface{}) (
 		current := queue[0]
 		queue = queue[1:]
 
-		// A primitive is descended into through its element, as children()
-		// does.
-		obj, ok := types.ElementOf(current.value)
-		if !ok || current.depth >= maxDepth {
+		if current.depth >= maxDepth {
 			continue
 		}
 
-		for _, child := range obj.TypedChildren(current.path, res) {
-			result = append(result, child.Value)
-			queue = append(queue, node{value: child.Value, path: child.Path, depth: current.depth + 1})
+		// A primitive is descended into through its element, as children()
+		// does, and its value is a child as well, one with none of its own.
+		if obj, ok := types.ElementOf(current.value); ok {
+			for _, child := range obj.TypedChildren(current.path, res) {
+				result = append(result, child.Value)
+				queue = append(queue, node{value: child.Value, path: child.Path, depth: current.depth + 1})
+			}
+		}
+		if value, ok := primitiveChild(current.value); ok {
+			result = append(result, value)
 		}
 	}
 

@@ -27,7 +27,9 @@ func TestAPrimitivesElementIsReachedByNavigation(t *testing.T) {
 		{"birthDate.id", "[b1]"},
 		{"name.family.extension.count()", "[1]"},
 		{"name.given.extension.value", "[absent]"},
-		{"birthDate.children().count()", "[2]"},
+		// Its id and extension, and its value: "FHIR primitives have a value
+		// child".
+		{"birthDate.children().count()", "[3]"},
 		{"birthDate.descendants().count() > birthDate.children().count()", "[true]"},
 		// A primitive and its element are one child of their parent, not two,
 		// and a value with only an element is still a child.
@@ -77,7 +79,9 @@ func TestAFieldThatIsNotAPrimitivesElementIsAChildAsItStands(t *testing.T) {
 		{`{"resourceType":"Patient","birthDate":"2020","birthDate":"2021"}`, "children().count()", "[3]"},
 		{`{"resourceType":"Patient","birthDate":"2020","birthDate":"2021","_active":{"id":"z"}}`, "children().count()", "[4]"},
 		{`{"resourceType":"Patient","active":true,"_active":{"id":"a"},"active":false,"_active":{"id":"b"}}`, "children().count()", "[4]"},
-		{`{"resourceType":"Patient","active":true,"_active":{"id":"a"},"active":false,"_active":{"id":"b"}}`, "descendants().where($this = 'b').count()", "[1]"},
+		// The id b is found once; its value, a System string equal to it, is a
+		// descendant too, and hasValue() tells the element from the value.
+		{`{"resourceType":"Patient","active":true,"_active":{"id":"a"},"active":false,"_active":{"id":"b"}}`, "descendants().where(hasValue() and $this = 'b').count()", "[1]"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.resource+" "+tt.expr, func(t *testing.T) {
