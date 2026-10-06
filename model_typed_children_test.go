@@ -205,7 +205,7 @@ func TestDescendantsDepthLimit(t *testing.T) {
 	if fullCount == shallowCount {
 		t.Errorf("MaxDepth had no effect: both returned %s", fullCount)
 	}
-	// depth 1 reaches only the resource's direct children: status is absent here,
-	// so "a" plus nothing deeper
-	assertIntegerResult(t, shallow, 2)
+	// depth 1 reaches only the resource's direct children: status is absent
+	// here, and resourceType is not a child, so "a" alone
+	assertIntegerResult(t, shallow, 1)
 }
