@@ -1,6 +1,7 @@
 package fhirpath_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/gofhir/fhirpath"
@@ -70,5 +71,18 @@ func TestAnElementsResourceTypeFieldIsAChild(t *testing.T) {
 		if got := result.String(); got != want {
 			t.Errorf("%s with a model = %s, want %s", expr, got, want)
 		}
+	}
+}
+
+// A resourceType written with escapes is the same resource's: "Pati\u0065nt"
+// is Patient, and still not a child.
+func TestAnEscapedResourceTypeIsNotAChild(t *testing.T) {
+	patient := []byte(strings.ReplaceAll(`{"resourceType":"PatiBSu0065nt","id":"p"}`, "BS", string(rune(92))))
+	result, err := fhirpath.MustCompile("children().count()").Evaluate(patient)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := result.String(); got != "[1]" {
+		t.Errorf("children().count() = %s, want [1]", got)
 	}
 }

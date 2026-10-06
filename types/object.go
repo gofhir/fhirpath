@@ -1056,7 +1056,14 @@ func (o *ObjectValue) Keys() []string {
 // element is a BackboneElement, as a model types it. Only an object holding
 // such a key is asked, which is a resource or that element.
 func (o *ObjectValue) isOwnResourceType(key, value []byte, dataType jsonparser.ValueType) bool {
-	return string(key) == "resourceType" && dataType == jsonparser.String && o.Type() == decodeJSONString(value)
+	if string(key) != "resourceType" || dataType != jsonparser.String {
+		return false
+	}
+	// Compared as written, which allocates nothing, unless it is escaped.
+	if bytes.IndexByte(value, '\\') < 0 {
+		return o.Type() == string(value)
+	}
+	return o.Type() == decodeJSONString(value)
 }
 
 // Children returns a collection of all child values.
