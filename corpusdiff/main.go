@@ -43,9 +43,9 @@ import (
 
 	"github.com/gofhir/fhirpath"
 	"github.com/gofhir/fhirpath/eval"
-	"github.com/gofhir/models/r4"
-	"github.com/gofhir/models/r4b"
-	"github.com/gofhir/models/r5"
+	"github.com/gofhir/models/r4/v2"
+	"github.com/gofhir/models/r4b/v2"
+	"github.com/gofhir/models/r5/v2"
 )
 
 // versions lists the FHIR versions the corpus can be built for.
@@ -148,11 +148,7 @@ func evalCommand(args []string) error {
 
 	// A file cut short would read as evaluations one side does not have, so
 	// every write is checked, the last ones included.
-	model, err := withDefinitionOrder(version.model(), coreDir)
-	if err != nil {
-		return err
-	}
-	n, err := evaluate(corpus, examplesDir, model, w)
+	n, err := evaluate(corpus, examplesDir, version.model(), w)
 	if err == nil {
 		err = w.Flush()
 	}

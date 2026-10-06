@@ -1,24 +1,19 @@
 package main
 
 import (
-	"path/filepath"
 	"testing"
 
 	"github.com/gofhir/fhirpath"
 )
 
-// The model the corpus runs with orders children as R4's definitions do, so a
-// run measures what a validator building its model from them gets: the
+// The model the corpus runs with, gofhir/models', orders children as R4's
+// definitions do, so a run measures what a validator building its model from
+// them gets: the
 // Reference written type before reference still has reference first.
 func TestTheCorpusModelOrdersChildrenAsTheDefinitions(t *testing.T) {
-	version := versions["r4"]
-	coreDir, err := fetch(filepath.Join("..", "build", "corpusdiff", "cache"), version.core)
-	if err != nil {
-		t.Skip("the R4 core package is not available:", err)
-	}
-	model, err := withDefinitionOrder(version.model(), coreDir)
-	if err != nil {
-		t.Fatal(err)
+	model := versions["r4"].model()
+	if _, ordered := model.(fhirpath.ElementOrder); !ordered {
+		t.Fatal("the R4 model does not implement fhirpath.ElementOrder")
 	}
 
 	observation := []byte(`{"resourceType":"Observation","status":"final","code":{"text":"x"},` +

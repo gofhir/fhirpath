@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/gofhir/fhirpath"
-	"github.com/gofhir/models/r4"
+	"github.com/gofhir/models/r4/v2"
 )
 
 // These benchmarks live here because they need a FHIR model, and the model

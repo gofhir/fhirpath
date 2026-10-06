@@ -9,7 +9,7 @@ on:
   pull_request:
 
 env:
-  GO_VERSION: "1.24"
+  GO_VERSION: "1.26"
   # Pinned rather than "latest": a linter that updates itself turns an unrelated
   # commit red, and the config format is version-specific — v2 rejects a v1 file
   # outright. Keep in sync with GOLANGCI_VERSION in the Makefile.
@@ -69,6 +69,29 @@ jobs:
       # changed without regenerating. The generated parser has no other source.
       - name: Verify the parser matches the grammar
         run: make generate-check
+
+  # The engine's go.mod declares the oldest Go a caller may build it with, and
+  # the rest of CI runs on GO_VERSION, newer: nothing else would notice the
+  # engine using a library function that minimum does not have. The version is
+  # read from go.mod, so the two cannot drift, and GOTOOLCHAIN=local keeps go
+  # from switching itself to a newer one. Only the engine's module is tested:
+  # the harnesses need GO_VERSION for gofhir/models.
+  test-minimum:
+    name: Test (minimum Go)
+    runs-on: ubuntu-latest
+    env:
+      GOTOOLCHAIN: local
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up the Go the engine's go.mod declares
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+
+      - name: Run the engine's tests
+        run: go test -race ./...
 
   test:
     name: Test
