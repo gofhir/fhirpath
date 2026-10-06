@@ -86,6 +86,11 @@ model run passing it is the explanation.
 | `%terminologies` | 3 (R5) | Needs a terminology server answering, not a stub — see below |
 | `lowBoundary` / `highBoundary` | 5 | Three are a suite disagreement (see below); two assume `@2014-01-01T08` carries an implicit minute |
 
+One rule outside both suites is not met yet: FHIR says a primitive's value "will
+be included in the set returned by children() or descendants()", and neither
+includes it. Including it changes what `descendants()` returns everywhere, so it
+is its own change.
+
 `repeat()` was registered but never implemented — it returned its input
 unchanged, so every expression that relied on it answered without erroring. That
 is worth the three `testRepeat` cases, and it is normative 2.0.0 rather than a
@@ -801,6 +806,8 @@ was reasoned or accidental.
 | `as()`/`ofType()` on a primitive | Requires the declared type; `is()` keeps hierarchy matching | FHIR: "all primitives are considered to be independent types (so markdown is not a subclass of string)" |
 | Telling `FHIR.boolean` from `System.Boolean` | By case: FHIR names primitives in lower camel case, FHIRPath capitalizes its own | The suite requires `active.is(boolean)` true and `active.is(Boolean)` false. Complex types such as `Quantity` are spelled alike in both namespaces, so the rule applies to primitives only |
 | Type of a polymorphic element without a model | Taken from the field name, corrected to FHIR's casing | `valueOid` states the element is an `oid`; that is information in the document, not a guess. The value itself says whether the type is primitive or complex |
+| A FHIR primitive's `value`, and `hasValue()`/`getValue()` | The System value the primitive holds, without its FHIR type or element | FHIR: "FHIR.string … has the properties id, extension, and also the implicit value property that is actually of type of System.String", so `birthDate.value is System.Date`. The HL7 validator answers `value` with a FHIR `string` of the text whatever the primitive's type; that is not what the text says |
+| What is a FHIR primitive, as opposed to a System value | By where the value came from: one read from the resource is a FHIR primitive, with or without a model, and even where the model types it a System one; a literal or a function's result is a System value | `'abc'.value` is empty and `'abc'.hasValue()` false with or without a model, as the text says, and so for `active.toBoolean()`. A primitive at a path the model does not know is still a FHIR primitive, so ele-1 holds on it. R4 gives `Resource.id`, `Element.id` and `Extension.url` the type code `System.String` and names their FHIR type, `id`, `string` and `uri`, in `structuredefinition-fhir-type`; the two parts of the definition disagree, and we follow the one that names the FHIR type, as the HL7 validator does, so `Patient.id.hasValue()` is true. Their `type()` stays what the model gives |
 
 ## Upstream issues
 

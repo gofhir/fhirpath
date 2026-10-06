@@ -117,8 +117,8 @@ func TestLooksTemporalAgreesWithTheParsers(t *testing.T) {
 			if !looksTemporal(s) {
 				t.Errorf("looksTemporal(%q) = false, but it parses as a temporal value", s)
 			}
-			if v := tryParseTemporalString(s); v == nil {
-				t.Errorf("tryParseTemporalString(%q) = nil, want a value", s)
+			if v := tryParseTemporalString(s, false); v == nil {
+				t.Errorf("tryParseTemporalString(%q, false) = nil, want a value", s)
 			}
 		})
 	}
@@ -130,8 +130,8 @@ func TestLooksTemporalAgreesWithTheParsers(t *testing.T) {
 	}
 	for _, s := range ordinary {
 		t.Run("ordinary/"+s, func(t *testing.T) {
-			if v := tryParseTemporalString(s); v != nil {
-				t.Errorf("tryParseTemporalString(%q) = %v, want nil", s, v)
+			if v := tryParseTemporalString(s, false); v != nil {
+				t.Errorf("tryParseTemporalString(%q, false) = %v, want nil", s, v)
 			}
 		})
 	}

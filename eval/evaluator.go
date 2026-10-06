@@ -2482,9 +2482,22 @@ func (e *Evaluator) navigateMember(input types.Collection, name string) types.Co
 	result := types.Collection{}
 
 	for _, item := range input {
-		// A primitive's fields — its id and extensions — are those of the
-		// element FHIR writes beside it, so a primitive is navigated through
-		// that element.
+		// A FHIR primitive has a value property, "the implicit value property
+		// that is actually of type System.String" for a string: its value as a
+		// System value, without the id and extensions of the element. A
+		// System value has no properties at all.
+		if name == "value" {
+			if value, primitive := types.SystemValue(item); primitive {
+				if types.IsFHIRPrimitive(item) {
+					result = append(result, value)
+				}
+				continue
+			}
+		}
+
+		// A primitive's other fields — its id and extensions — are those of
+		// the element FHIR writes beside it, so a primitive is navigated
+		// through that element.
 		obj, ok := types.ElementOf(item)
 		if !ok {
 			continue

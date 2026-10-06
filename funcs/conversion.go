@@ -193,7 +193,7 @@ func fnToBoolean(_ *eval.Context, input types.Collection, _ []interface{}) (type
 
 	switch v := item.(type) {
 	case types.Boolean:
-		return types.Collection{v}, nil
+		return systemResult(v), nil
 	case types.String:
 		str := strings.ToLower(v.Value())
 		switch str {
@@ -267,7 +267,7 @@ func fnToInteger(_ *eval.Context, input types.Collection, _ []interface{}) (type
 
 	switch v := item.(type) {
 	case types.Integer:
-		return types.Collection{v}, nil
+		return systemResult(v), nil
 	case types.Boolean:
 		if v.Bool() {
 			return types.Collection{types.NewInteger(1)}, nil
@@ -319,7 +319,7 @@ func fnToDecimal(_ *eval.Context, input types.Collection, _ []interface{}) (type
 
 	switch v := item.(type) {
 	case types.Decimal:
-		return types.Collection{v}, nil
+		return systemResult(v), nil
 	case types.Integer:
 		return types.Collection{types.NewDecimalFromInt(v.Value())}, nil
 	case types.Boolean:
@@ -401,7 +401,7 @@ func fnToDate(_ *eval.Context, input types.Collection, _ []interface{}) (types.C
 
 	switch v := input[0].(type) {
 	case types.Date:
-		return types.Collection{v}, nil
+		return systemResult(v), nil
 	case types.DateTime:
 		// Extract date portion (DateTime.String() always has at least date portion)
 		d, err := types.NewDate(v.String()[:10])
@@ -442,7 +442,7 @@ func fnToDateTime(_ *eval.Context, input types.Collection, _ []interface{}) (typ
 
 	switch v := input[0].(type) {
 	case types.DateTime:
-		return types.Collection{v}, nil
+		return systemResult(v), nil
 
 	case types.Date:
 		// "the item is a Date, in which case the result is a DateTime with the
@@ -485,7 +485,7 @@ func fnToTime(_ *eval.Context, input types.Collection, _ []interface{}) (types.C
 
 	switch v := input[0].(type) {
 	case types.Time:
-		return types.Collection{v}, nil
+		return systemResult(v), nil
 
 	case types.String:
 		converted, err := types.NewTime(v.Value())
@@ -609,4 +609,16 @@ func fnConvertsToQuantity(ctx *eval.Context, input types.Collection, args []inte
 		return nil, err
 	}
 	return types.Collection{types.NewBoolean(!converted.Empty())}, nil
+}
+
+// systemResult is a conversion's result when the input already has the type
+// asked for: the same value as a System value, as a function's result is,
+// without the FHIR type it was read as or the element beside it. Returned as
+// it stood, active.toBoolean() was still a FHIR boolean, and hasValue() and
+// value answered for it.
+func systemResult(value types.Value) types.Collection {
+	if system, ok := types.SystemValue(value); ok {
+		return types.Collection{system}
+	}
+	return types.Collection{value}
 }

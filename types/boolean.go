@@ -5,6 +5,7 @@ import "fmt"
 // Boolean represents a FHIRPath boolean value.
 type Boolean struct {
 	value    bool
+	read     bool   // read from the input, so a FHIR primitive. See IsFHIRPrimitive.
 	fhirType string // FHIR type when the value was read through a model
 
 	// The FHIR element this value was read with, when it carried one

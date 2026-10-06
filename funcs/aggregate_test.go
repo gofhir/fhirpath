@@ -55,13 +55,26 @@ func TestAggregateFunctions(t *testing.T) {
 	t.Run("hasValue", func(t *testing.T) {
 		fn, _ := Get("hasValue")
 
-		// Primitive type has value
-		result, err := fn.Fn(ctx, types.Collection{types.NewInteger(1)}, nil)
+		// A primitive read from the input is a FHIR primitive, and has a value
+		read, err := types.JSONToCollection([]byte(`1`))
+		if err != nil {
+			t.Fatal(err)
+		}
+		result, err := fn.Fn(ctx, read, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
 		if !result[0].(types.Boolean).Bool() {
 			t.Error("expected integer to have value")
+		}
+
+		// A System value is not a FHIR primitive, and has no value property
+		result, err = fn.Fn(ctx, types.Collection{types.NewInteger(1)}, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result[0].(types.Boolean).Bool() {
+			t.Error("expected a System integer not to have a value")
 		}
 
 		// Empty collection
@@ -77,12 +90,16 @@ func TestAggregateFunctions(t *testing.T) {
 	t.Run("getValue", func(t *testing.T) {
 		fn, _ := Get("getValue")
 
-		result, err := fn.Fn(ctx, types.Collection{types.NewInteger(42)}, nil)
+		read, err := types.JSONToCollection([]byte(`42`))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if result[0].(types.Integer).Value() != 42 {
-			t.Errorf("expected 42, got %d", result[0].(types.Integer).Value())
+		result, err := fn.Fn(ctx, read, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result[0].(types.Integer).Value() != 42 || types.IsFHIRPrimitive(result[0]) {
+			t.Errorf("expected the System value 42, got %v", result[0])
 		}
 	})
 
@@ -336,16 +353,18 @@ func TestAdditionalAggregateFunctions(t *testing.T) {
 	t.Run("hasValue with multiple values", func(t *testing.T) {
 		fn, _ := Get("hasValue")
 
-		// Multiple primitive values - should return true (has at least one primitive)
-		result, err := fn.Fn(ctx, types.Collection{
-			types.NewInteger(1),
-			types.NewInteger(2),
-		}, nil)
+		// "Returns true if the input collection contains a single value which
+		// is a FHIR primitive": several values are not one.
+		read, err := types.JSONToCollection([]byte(`[1, 2]`))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if !result[0].(types.Boolean).Bool() {
-			t.Error("expected true for multiple primitive values")
+		result, err := fn.Fn(ctx, read, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if result[0].(types.Boolean).Bool() {
+			t.Error("expected false for multiple primitive values")
 		}
 	})
 
@@ -364,16 +383,18 @@ func TestAdditionalAggregateFunctions(t *testing.T) {
 	t.Run("getValue with multiple values", func(t *testing.T) {
 		fn, _ := Get("getValue")
 
-		// getValue returns all primitive values
-		result, err := fn.Fn(ctx, types.Collection{
-			types.NewInteger(1),
-			types.NewInteger(2),
-		}, nil)
+		// "if the input collection contains a single value which is a FHIR
+		// primitive ... Otherwise the return value is empty."
+		read, err := types.JSONToCollection([]byte(`[1, 2]`))
 		if err != nil {
 			t.Fatal(err)
 		}
-		if result.Count() != 2 {
-			t.Errorf("expected 2 values, got %d", result.Count())
+		result, err := fn.Fn(ctx, read, nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if !result.Empty() {
+			t.Errorf("expected empty for multiple values, got %d", result.Count())
 		}
 	})
 }
