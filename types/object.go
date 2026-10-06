@@ -1183,7 +1183,10 @@ func (o *ObjectValue) definitionOrder(basePath string, res ElementTypeResolver) 
 				}
 			}
 		}
-		if declared := res.TypeOf(basePath); declared != "" {
+		// A path typed Resource, Bundle.entry.resource or contained, holds a
+		// resource of its own type, which Resource's definition does not
+		// list the fields of.
+		if declared := res.TypeOf(basePath); declared != "" && !IsAbstractResourceType(declared) {
 			if names := order.ChildElements(declared); names != nil {
 				return names
 			}

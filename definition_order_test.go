@@ -192,3 +192,39 @@ func TestAPathDefinedElsewhereIsInItsDefinitionsOrder(t *testing.T) {
 		}
 	}
 }
+
+// A resource held by an element typed Resource, an entry's or a contained
+// one, is ordered by the resource it is, not by Resource, whose definition
+// lists only what every resource has; descendants() reads it so as well as
+// children().
+func TestAResourceInAResourceElementIsInItsOwnOrder(t *testing.T) {
+	bundle := []byte(`{"resourceType":"Bundle","entry":[{"resource":` +
+		`{"resourceType":"Patient","birthDate":"2000-01-01","gender":"male","id":"p"}}]}`)
+	model := &orderedModel{
+		testModel: &testModel{typeOf: map[string]string{
+			"Bundle.entry":          "BackboneElement",
+			"Bundle.entry.resource": "Resource",
+			"Patient.gender":        "code",
+			"Patient.birthDate":     "date",
+		}},
+		children: map[string][]string{
+			"Bundle":       {"id", "entry"},
+			"Bundle.entry": {"id", "extension", "modifierExtension", "resource"},
+			"Resource":     {"id", "meta", "implicitRules", "language"},
+			"Patient":      {"id", "meta", "gender", "birthDate"},
+		},
+	}
+
+	for expr, want := range map[string]string{
+		"Bundle.entry.resource.children()":           "[p, male, 2000-01-01]",
+		"Bundle.entry.descendants().skip(1).take(3)": "[p, male, 2000-01-01]",
+	} {
+		result, err := fhirpath.MustCompile(expr).EvaluateWithOptions(bundle, fhirpath.WithModel(model))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := result.String(); got != want {
+			t.Errorf("%s = %s, want %s", expr, got, want)
+		}
+	}
+}
