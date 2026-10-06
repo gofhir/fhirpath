@@ -62,11 +62,12 @@ func ElementOf(value Value) (*ObjectValue, bool) {
 // it; a System value has no properties.
 //
 // What tells them apart is where the value came from. One read from the
-// resource is a FHIR primitive, whether or not a model gave it a type; one an
-// expression wrote, a literal, or a function computed is a System value, and
-// so is an element a model declares as one, such as Extension.url, which R4
-// types http://hl7.org/fhirpath/System.String. A value built with the
-// constructors of this package, NewString and the rest, is a System value.
+// resource is a FHIR primitive, whether or not a model gave it a type, and
+// even where the model types it a System one, as R4 types Resource.id and
+// Extension.url, whose FHIR type structuredefinition-fhir-type names; one an
+// expression wrote, a literal, or a function computed is a System value. A
+// value built with the constructors of this package, NewString and the rest,
+// is a System value.
 func IsFHIRPrimitive(value Value) bool {
 	switch v := value.(type) {
 	case String:

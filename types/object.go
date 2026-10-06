@@ -1495,7 +1495,7 @@ func jsonValueToFHIRValueWithType(data []byte, dataType jsonparser.ValueType, fh
 	// A string may hold a date, a time or an instant, which the untyped path
 	// guesses at; the declared type decides.
 	if dataType == jsonparser.String {
-		if typed, ok := parseTypedString(data, fhirType); ok {
+		if typed, ok := parseTypedString(data, fhirType, true); ok {
 			value = typed
 		}
 	}
@@ -1508,17 +1508,21 @@ func jsonValueToFHIRValueWithType(data []byte, dataType jsonparser.ValueType, fh
 // http://hl7.org/fhirpath/System.String in R4.
 const systemTypePrefix = "http://hl7.org/fhirpath/System."
 
-// systemValue reads a value the model declares as a System type, which is a
-// System value and not a FHIR primitive, though it was read from the input. It is that
+// systemValue reads a value the model declares as a System type. It is that
 // System type — String in namespace System, not a FHIR type named by a URL —
 // and a string is read as it, so an id of "2020" is not taken for a Date.
+//
+// It is still a FHIR primitive, read from the resource: R4 types Resource.id,
+// Element.id and Extension.url http://hl7.org/fhirpath/System.String, and also
+// names their FHIR type, id, string and uri, in structuredefinition-fhir-type,
+// which is what the HL7 validator reads. So Patient.id.hasValue() is true.
 func systemValue(data []byte, dataType jsonparser.ValueType, system string) Value {
 	if dataType == jsonparser.String {
-		if typed, ok := parseTypedString(data, system); ok {
+		if typed, ok := parseTypedString(data, system, true); ok {
 			return typed
 		}
 	}
-	return jsonValue(data, dataType, false)
+	return jsonValue(data, dataType, true)
 }
 
 // IsAbstractResourceType reports whether a declared type is one of the abstract
@@ -1549,26 +1553,31 @@ func asResource(data []byte) *ObjectValue {
 
 // parseTypedString reads a JSON string as the temporal type the model declares,
 // rather than leaving it to pattern matching.
-func parseTypedString(data []byte, fhirType string) (Value, bool) {
+func parseTypedString(data []byte, fhirType string, read bool) (Value, bool) {
 	text := decodeJSONString(data)
 
 	switch strings.ToLower(fhirType) {
 	case "date":
 		if d, err := NewDate(text); err == nil {
+			d.read = read
 			return d, true
 		}
 	case "datetime", "instant":
 		if dt, err := NewDateTime(text); err == nil {
+			dt.read = read
 			return dt, true
 		}
 	case "time":
 		if t, err := NewTime(text); err == nil {
+			t.read = read
 			return t, true
 		}
 	default:
 		// Anything else is a string in FHIR terms, even where the untyped path
 		// would have read it as a date
-		return NewString(text), true
+		v := NewString(text)
+		v.read = read
+		return v, true
 	}
 	return nil, false
 }

@@ -14,17 +14,18 @@ import (
 // read the same property, of "a single value which is a FHIR primitive".
 //
 // A FHIR primitive is told from a System value by where it came from: one read
-// from the resource is a FHIR primitive, with or without a model; a literal is
-// a System value either way, and so is an element a model declares one, as R4
-// declares Extension.url a System.String. Where a model makes a difference,
-// both answers are given.
+// from the resource is a FHIR primitive, with or without a model, and even
+// where a model types it a System one, as R4 types Resource.id and
+// Extension.url; a literal or a function's result is a System value. Where a
+// model makes a difference, both answers are given.
 func TestAFHIRPrimitiveHasAValueProperty(t *testing.T) {
-	patient := []byte(`{"resourceType":"Patient","birthDate":"2000-01-01","_birthDate":{"id":"b"},` +
+	patient := []byte(`{"resourceType":"Patient","id":"p1","birthDate":"2000-01-01","_birthDate":{"id":"b"},` +
 		`"active":true,"name":[{"family":"Abc","given":["X",null],` +
 		`"_given":[null,{"extension":[{"url":"u","valueCode":"absent"}]}]}],` +
 		`"extension":[{"url":"x","valueString":"MeasureReport.group.where(id=1)"}]}`)
 	model := &testModel{
 		typeOf: map[string]string{
+			"Patient.id":          "http://hl7.org/fhirpath/System.String",
 			"Patient.birthDate":   "date",
 			"Patient.active":      "boolean",
 			"Patient.name":        "HumanName",
@@ -60,7 +61,7 @@ func TestAFHIRPrimitiveHasAValueProperty(t *testing.T) {
 		// A System value has no properties.
 		{"'abc'.value", "[]", "[]"},
 		{"Patient.birthDate.value.value", "[]", "[]"},
-		{"Patient.extension.url.value", "[]", "[x]"},
+		{"Patient.extension.url.value", "[x]", "[x]"},
 
 		// hasValue() and getValue(): "a single value which is a FHIR primitive,
 		// and it has a primitive value".
@@ -73,7 +74,12 @@ func TestAFHIRPrimitiveHasAValueProperty(t *testing.T) {
 		{"Patient.name.given.hasValue()", "[false]", "[false]"},
 		{"'abc'.hasValue()", "[false]", "[false]"},
 		{"'abc'.getValue()", "[]", "[]"},
-		{"Patient.extension.url.hasValue()", "[false]", "[true]"},
+		// An element a model types a System type is still read from the
+		// resource; R4 names its FHIR type in structuredefinition-fhir-type.
+		{"Patient.extension.url.hasValue()", "[true]", "[true]"},
+		{"Patient.id.hasValue()", "[true]", "[true]"},
+		{"Patient.id.value", "[p1]", "[p1]"},
+		{"Patient.id.type().namespace", "[System]", "[System]"},
 		// A function's result is a System value, even one that returns a
 		// value of the type its input already had.
 		{"Patient.active.toBoolean().hasValue()", "[false]", "[false]"},
