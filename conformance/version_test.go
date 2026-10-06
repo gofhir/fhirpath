@@ -9,9 +9,9 @@ import (
 	"testing"
 
 	"github.com/gofhir/fhirpath"
-	"github.com/gofhir/models/r4"
-	"github.com/gofhir/models/r4b"
-	"github.com/gofhir/models/r5"
+	"github.com/gofhir/models/r4/v2"
+	"github.com/gofhir/models/r4b/v2"
+	"github.com/gofhir/models/r5/v2"
 )
 
 // dom-3 as each version publishes it. One invariant, three wordings: R4B added

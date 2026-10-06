@@ -43,9 +43,9 @@ import (
 
 	"github.com/gofhir/fhirpath"
 	"github.com/gofhir/fhirpath/eval"
-	"github.com/gofhir/models/r4"
-	"github.com/gofhir/models/r4b"
-	"github.com/gofhir/models/r5"
+	"github.com/gofhir/models/r4/v2"
+	"github.com/gofhir/models/r4b/v2"
+	"github.com/gofhir/models/r5/v2"
 )
 
 // versions lists the FHIR versions the corpus can be built for.

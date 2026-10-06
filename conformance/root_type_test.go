@@ -5,9 +5,9 @@ import (
 
 	"github.com/gofhir/fhirpath"
 	"github.com/gofhir/fhirpath/eval"
-	"github.com/gofhir/models/r4"
-	"github.com/gofhir/models/r4b"
-	"github.com/gofhir/models/r5"
+	"github.com/gofhir/models/r4/v2"
+	"github.com/gofhir/models/r4b/v2"
+	"github.com/gofhir/models/r5/v2"
 )
 
 // With the generated models, a root that is an element takes the type the model

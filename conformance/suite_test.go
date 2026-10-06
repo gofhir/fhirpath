@@ -39,8 +39,8 @@ import (
 
 	"github.com/gofhir/fhirpath"
 	"github.com/gofhir/fhirpath/types"
-	"github.com/gofhir/models/r4"
-	"github.com/gofhir/models/r5"
+	"github.com/gofhir/models/r4/v2"
+	"github.com/gofhir/models/r5/v2"
 )
 
 var updateKnownFailures = flag.Bool("update-known-failures", false,

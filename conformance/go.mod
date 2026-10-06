@@ -5,7 +5,7 @@
 // of the engine should not carry them in its dependency graph.
 module github.com/gofhir/fhirpath/conformance
 
-go 1.24.1
+go 1.26
 
 // The harness always measures the engine in this working tree, never a
 // published version.
@@ -13,9 +13,9 @@ replace github.com/gofhir/fhirpath => ../
 
 require (
 	github.com/gofhir/fhirpath v1.4.0
-	github.com/gofhir/models/r4 v1.4.0
-	github.com/gofhir/models/r4b v1.4.0
-	github.com/gofhir/models/r5 v1.4.0
+	github.com/gofhir/models/r4/v2 v2.9.0
+	github.com/gofhir/models/r4b/v2 v2.9.0
+	github.com/gofhir/models/r5/v2 v2.9.0
 )
 
 require (
