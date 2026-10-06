@@ -23,10 +23,15 @@ func TestTheCorpusModelOrdersChildrenAsTheDefinitions(t *testing.T) {
 
 	observation := []byte(`{"resourceType":"Observation","status":"final","code":{"text":"x"},` +
 		`"subject":{"display":"Peter","type":"Patient","reference":"Patient/1"},` +
-		`"component":[{"valueString":"c","code":{"text":"t"}}]}`)
+		`"component":[{"valueString":"c","code":{"text":"t"}}],` +
+		`"effectiveDateTime":"2020","_effectiveDateTime":{"extension":[{"valueCode":"c","url":"u"}],"id":"e1"}}`)
 	for expr, want := range map[string]string{
 		"Observation.subject.children().first()": "[Patient/1]",
 		"Observation.children().first()":         "[final]",
+		// A primitive's element by its type, date, and an extension in it as
+		// an Extension.
+		"Observation.effective.children().first()":           "[e1]",
+		"Observation.effective.extension.children().first()": "[u]",
 		// A backbone element is ordered by its path, not by BackboneElement.
 		"Observation.component.children().first()": `[{"text":"t"}]`,
 	} {

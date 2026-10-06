@@ -118,74 +118,55 @@ func TestChildrenComeInTheDefinitionsOrder(t *testing.T) {
 	}
 }
 
-// The element FHIR writes beside a primitive under _name is an Element: id,
-// then extension, whatever the JSON says; and the primitive's value, a child
-// since 1.10.5, comes after them.
-func TestAPrimitivesElementIsInElementsOrder(t *testing.T) {
+// The element FHIR writes beside a primitive under _name has no type of its
+// own; it is ordered, and its children typed, by the type the primitive's path
+// declares: _birthDate as date, id, then extension, and its value after them;
+// an extension in it as an Extension, as one on the resource is. An object the
+// model knows nothing of stays as the JSON writes it.
+func TestAPrimitivesElementIsInItsTypesOrder(t *testing.T) {
 	patient := []byte(`{"resourceType":"Patient",` +
-		`"birthDate":"2000","_birthDate":{"extension":[{"url":"u","valueCode":"c"}],"id":"b1"}}`)
+		`"birthDate":"2000","_birthDate":{"extension":[{"valueCode":"c","url":"u"}],"id":"b1"},` +
+		`"extension":[{"valueCode":"c","url":"u"}]}`)
 	model := &orderedModel{
-		testModel: &testModel{typeOf: map[string]string{"Patient.birthDate": "date"}},
-		children:  map[string][]string{"Patient": {"id", "birthDate"}},
+		testModel: &testModel{typeOf: map[string]string{
+			"Patient.birthDate":   "date",
+			"Patient.extension":   "Extension",
+			"date.extension":      "Extension",
+			"Extension.valueCode": "code",
+		}},
+		children: map[string][]string{
+			"Patient":   {"id", "extension", "birthDate"},
+			"date":      {"id", "extension", "value"},
+			"Extension": {"id", "extension", "url", "value[x]"},
+		},
 	}
 
-	result, err := fhirpath.MustCompile("Patient.birthDate.children()").EvaluateWithOptions(patient, fhirpath.WithModel(model))
+	for expr, want := range map[string]string{
+		"Patient.birthDate.children()":                    `[b1, {"valueCode":"c","url":"u"}, 2000]`,
+		"Patient.birthDate.extension.children().first()":  "[u]",
+		"Patient.extension.children().first()":            "[u]",
+		"Patient.birthDate.descendants().first()":         "[b1]",
+		"Patient.birthDate.extension.value.is(FHIR.code)": "[true]",
+	} {
+		result, err := fhirpath.MustCompile(expr).EvaluateWithOptions(patient, fhirpath.WithModel(model))
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got := result.String(); got != want {
+			t.Errorf("%s = %s, want %s", expr, got, want)
+		}
+	}
+
+	// A resource the model does not know: as written.
+	unknown := []byte(`{"resourceType":"ActorDefinition","meta":{"versionId":"1"},"text":{"status":"generated"},` +
+		`"extension":[{"url":"u","valueCode":"c"}]}`)
+	result, err := fhirpath.MustCompile("children().first()").EvaluateWithOptions(unknown, fhirpath.WithModel(model))
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := result.String(); got != `[b1, {"url":"u","valueCode":"c"}, 2000]` {
-		t.Errorf("birthDate.children() = %s, want its id, its extension, its value", got)
+	if got := result.String(); got != `[{"versionId":"1"}]` {
+		t.Errorf("children().first() of a resource the model does not know = %s, want its meta, as written", got)
 	}
-}
-
-// descendants() over a Bundle of Observations, with a model that orders
-// children: written in the definition's order, as HL7 and HAPI write, the
-// order costs only checking it; written in another order, each object is
-// reordered.
-func BenchmarkDescendantsInDefinitionOrder(b *testing.B) {
-	entry := func(inOrder bool) string {
-		if inOrder {
-			return `{"resourceType":"Observation","id":"o","status":"final","code":{"text":"x"},` +
-				`"subject":{"reference":"Patient/1","type":"Patient","display":"P"},"valueString":"v"}`
-		}
-		return `{"resourceType":"Observation","valueString":"v",` +
-			`"subject":{"display":"P","type":"Patient","reference":"Patient/1"},"code":{"text":"x"},"status":"final","id":"o"}`
-	}
-	model := newOrderedModel()
-	model.children["Observation"] = []string{"id", "status", "code", "subject", "value[x]"}
-
-	for _, inOrder := range []bool{true, false} {
-		name := "written in order"
-		if !inOrder {
-			name = "written out of order"
-		}
-		b.Run(name, func(b *testing.B) {
-			doc := []byte(`[` + entry(inOrder) + `]`)
-			for range 99 {
-				doc = append(doc[:len(doc)-1], []byte(`,`+entry(inOrder)+`]`)...)
-			}
-			compiled := fhirpath.MustCompile("descendants().count()")
-			b.ReportAllocs()
-			for b.Loop() {
-				if _, err := compiled.EvaluateWithOptions(doc, fhirpath.WithModel(model)); err != nil {
-					b.Fatal(err)
-				}
-			}
-		})
-	}
-	b.Run("without a model that orders", func(b *testing.B) {
-		doc := []byte(`[` + entry(false) + `]`)
-		for range 99 {
-			doc = append(doc[:len(doc)-1], []byte(`,`+entry(false)+`]`)...)
-		}
-		compiled := fhirpath.MustCompile("descendants().count()")
-		b.ReportAllocs()
-		for b.Loop() {
-			if _, err := compiled.EvaluateWithOptions(doc, fhirpath.WithModel(model.testModel)); err != nil {
-				b.Fatal(err)
-			}
-		}
-	})
 }
 
 // A path defined elsewhere is ordered as the definition it borrows: R4's

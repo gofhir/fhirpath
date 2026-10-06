@@ -987,6 +987,12 @@ func pairValueWithElement(
 		return Collection{}
 	}
 	if element != nil {
+		// The element has no type of its own; it is the primitive's, which
+		// its fields are read beneath and ordered by: _effectiveDateTime is
+		// a dateTime's, whose definition lists id, extension, value.
+		if t := parsed.Type(); !IsSystemTypeName(t) {
+			element.typeName = t
+		}
 		parsed = withElement(parsed, element)
 	}
 	return Collection{parsed}
@@ -1149,22 +1155,18 @@ type ElementOrderResolver interface {
 	ChildElements(path string) []string
 }
 
-// elementChildren is the start of every FHIR element's definition, which an
-// element the model does not know is read in: Element's id and extension,
-// and BackboneElement's modifierExtension. It is what a primitive's element,
-// _birthDate, holds.
-var elementChildren = []string{"id", "extension", "modifierExtension"}
-
 // definitionOrder is the order the object's definition lists its children
-// in, when res knows it, or nil when res does not order children.
+// in, or nil when res does not order children or does not know the object,
+// which leaves them as the JSON writes them.
 //
 // The path it was reached by is asked first: a backbone element is defined
 // there, "Observation.component", and its type, BackboneElement, lists only
 // what every backbone element has. A path defined elsewhere, as R4's
 // Questionnaire.item.item is by Questionnaire.item, is asked as the model
-// resolves it. Then the object's own type: a complex type or a resource, whose
-// fields a path inside another definition does not list, Reference at
-// Observation.subject.
+// resolves it. Then the type the path declares, which is how the element FHIR
+// writes beside a primitive, _birthDate, is known: "date" lists id,
+// extension, value. Last the object's own type, a resource's or one a model
+// gave it.
 func (o *ObjectValue) definitionOrder(basePath string, res ElementTypeResolver) []string {
 	order, ok := res.(ElementOrderResolver)
 	if !ok {
@@ -1181,13 +1183,16 @@ func (o *ObjectValue) definitionOrder(basePath string, res ElementTypeResolver) 
 				}
 			}
 		}
-	}
-	if t := o.Type(); t != "" && t != typeObject {
-		if names := order.ChildElements(t); names != nil {
-			return names
+		if declared := res.TypeOf(basePath); declared != "" {
+			if names := order.ChildElements(declared); names != nil {
+				return names
+			}
 		}
 	}
-	return elementChildren
+	if t := o.Type(); t != "" && t != typeObject {
+		return order.ChildElements(t)
+	}
+	return nil
 }
 
 // inDefinitionOrder returns children in the order definition lists the
@@ -1351,8 +1356,9 @@ func (o *ObjectValue) appendPairedChild(result []TypedChild, f *pairedField, bas
 
 	for _, v := range pairedCollection(f.name, f.value, f.element, parse) {
 		// A resource resolves its fields beneath its own type, so it is not
-		// placed at the element that holds it.
-		if obj, ok := v.(*ObjectValue); ok && fhirType != "" && !IsAbstractResourceType(fhirType) {
+		// placed at the element that holds it. A primitive's element is placed
+		// at the primitive's path, which its type is read from.
+		if obj, ok := ElementOf(v); ok && fhirType != "" && !IsAbstractResourceType(fhirType) {
 			obj.elementPath = childPath
 		}
 		o.adopt(v)
@@ -1390,7 +1396,7 @@ func (o *ObjectValue) unpairedChildren(basePath string, res ElementTypeResolver)
 			if v != nil {
 				// A resource resolves its fields beneath its own type, so it
 				// is not placed at the element that holds it.
-				if obj, ok := v.(*ObjectValue); ok && fhirType != "" && !IsAbstractResourceType(fhirType) {
+				if obj, ok := ElementOf(v); ok && fhirType != "" && !IsAbstractResourceType(fhirType) {
 					obj.elementPath = childPath
 				}
 				o.adoptAt(v, name, index)
@@ -1444,12 +1450,55 @@ func (o *ObjectValue) childElement(basePath, name string, res ElementTypeResolve
 				return candidate, t
 			}
 		}
+		// The element FHIR writes beside a primitive has no type of its own
+		// to read, and nothing is defined beneath a primitive's path; its
+		// fields are its type's: _birthDate's extension is date.extension,
+		// an Extension.
+		if candidate, t := o.primitiveChildElement(basePath, name, res); t != "" {
+			return candidate, t
+		}
+		// Every element's extension and modifierExtension are Extensions:
+		// Element and BackboneElement define them so. A model that does not
+		// list a primitive type's elements, date.extension, still types it.
+		if t := extensionFieldType(name); t != "" {
+			path := name
+			if len(candidates) > 0 {
+				path = candidates[0]
+			}
+			return path, t
+		}
 	}
 
 	if len(candidates) > 0 {
 		return candidates[0], ""
 	}
 	return name, ""
+}
+
+// primitiveChildElement resolves a field of the element FHIR writes beside a
+// primitive with no value, which has no type of its own and nothing defined
+// beneath its path: its fields are its primitive type's, _birthDate's
+// extension date.extension. Only a primitive type not yet tried is, so that
+// the path it builds is off every other read.
+func (o *ObjectValue) primitiveChildElement(basePath, name string, res ElementTypeResolver) (childPath, fhirType string) {
+	if basePath == "" {
+		return "", ""
+	}
+	declared := res.TypeOf(basePath)
+	if declared == "" || declared[0] < 'a' || declared[0] > 'z' || declared == o.Type() {
+		return "", ""
+	}
+	candidate := declared + "." + name
+	return candidate, res.TypeOf(candidate)
+}
+
+// extensionFieldType is Extension for a field every FHIR element defines
+// with that type, extension and modifierExtension, and "" for any other.
+func extensionFieldType(name string) string {
+	if name == "extension" || name == "modifierExtension" {
+		return "Extension"
+	}
+	return ""
 }
 
 // decodeJSONString reads the contents of a JSON string, which jsonparser hands
