@@ -2222,8 +2222,8 @@ func (o *ObjectValue) QuantityBound() error {
 
 // MoneyEqual compares two Money values by their amount and currency, and
 // reports false for anything that is not a Money on both sides. A Money is no
-// quantity, so it would otherwise compare as an object, field for field as
-// written; 30 USD is 30.0 USD however each was written.
+// quantity, so it would otherwise compare as an object, by its JSON as
+// written; 30 USD is 30.0 USD however each was written, and is not 30 EUR.
 func MoneyEqual(left, right *ObjectValue) (equal, ok bool) {
 	lv, lc, lok := left.money()
 	rv, rc, rok := right.money()
@@ -2235,6 +2235,11 @@ func MoneyEqual(left, right *ObjectValue) (equal, ok bool) {
 
 // money reads the amount and currency of a Money.
 func (o *ObjectValue) money() (decimal.Decimal, string, bool) {
+	// Most objects compared are not Money: a byte search rules them out
+	// before a parse does
+	if !bytes.Contains(o.data, []byte(`"currency"`)) {
+		return decimal.Decimal{}, "", false
+	}
 	currency, isMoney := o.stringField("currency")
 	if !isMoney {
 		return decimal.Decimal{}, "", false

@@ -455,15 +455,16 @@ func Negate(value types.Value) (types.Value, error) {
 func Compare(left, right types.Value) (int, error) {
 	// FHIR quantity objects on either side (or both, as in Range.low <=
 	// Range.high) compare as quantities.
-	// A bound has no place in an order, whatever it is ordered against
-	if err := quantityBoundIn(left, right); err != nil {
-		return 0, err
-	}
 	if lq, rq, ok, err := quantityOperands(left, right); err != nil || ok {
 		if err != nil {
 			return 0, err
 		}
 		return lq.Compare(rq)
+	}
+	// A bound has no place in an order, whatever it is ordered against: one
+	// that met no quantity, and so was not refused above, is refused here
+	if err := quantityBoundIn(left, right); err != nil {
+		return 0, err
 	}
 
 	if comp, ok := left.(types.Comparable); ok {
@@ -604,17 +605,27 @@ func equal(left, right types.Collection) (types.Collection, error) {
 }
 
 // itemsEqual compares two items that are neither temporals nor quantities. Two
-// Money values compare by amount and currency, as they did while a Money was
-// read as a quantity.
+// Money values compare by amount and currency, which the comparison of their
+// written JSON would not do.
 func itemsEqual(left, right types.Value) bool {
-	if lo, ok := left.(*types.ObjectValue); ok {
-		if ro, ok := right.(*types.ObjectValue); ok {
-			if same, ok := types.MoneyEqual(lo, ro); ok {
-				return same
-			}
-		}
+	if left.Equal(right) {
+		return true
 	}
-	return left.Equal(right)
+	return moneyEqual(left, right)
+}
+
+// moneyEqual reports two Money values with the same amount and currency.
+func moneyEqual(left, right types.Value) bool {
+	lo, ok := left.(*types.ObjectValue)
+	if !ok {
+		return false
+	}
+	ro, ok := right.(*types.ObjectValue)
+	if !ok {
+		return false
+	}
+	same, _ := types.MoneyEqual(lo, ro)
+	return same
 }
 
 // NotEqual returns true if left != right.
@@ -662,12 +673,13 @@ func equivalent(left, right types.Collection) (types.Collection, error) {
 	}
 
 	// Order-independent: pair each left item with an unused equivalent right
-	// one. A refused comparison fails the whole only when the item finds no
-	// partner among the rest.
+	// one. A refused comparison does not decide a pairing found without it;
+	// where none is found, it is the answer rather than false, whichever side
+	// the refused item is on.
 	used := make([]bool, len(right))
+	var refused error
 	for _, item := range left {
 		matched := false
-		var refused error
 		for j, candidate := range right {
 			if used[j] {
 				continue
@@ -697,15 +709,12 @@ func equivalent(left, right types.Collection) (types.Collection, error) {
 }
 
 // valuesEquivalent compares two single values for equivalence. A FHIR quantity
-// object compared with a literal compares as a quantity; two objects compare
-// as complex types, but a bound against a quantity is refused, as under =.
+// object compared with a literal compares as a quantity, and a bound there is
+// refused, as under =; two objects compare as complex types.
 func valuesEquivalent(left, right types.Value) (bool, error) {
 	lq, rq, ok, err := literalQuantityOperands(left, right)
 	if err != nil || ok {
 		return err == nil && lq.Equivalent(rq), err
-	}
-	if _, _, _, err := QuantityPair(left, right); err != nil {
-		return false, err
 	}
 	return left.Equivalent(right), nil
 }

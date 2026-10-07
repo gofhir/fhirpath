@@ -163,7 +163,7 @@ func TestFHIRMoneyIsNotAQuantity(t *testing.T) {
 	}
 
 	// Two Money values are equal by amount and currency, however each is
-	// written, as they were while read as quantities
+	// written. ~ compares them as objects, as every complex type (#118)
 	claim := []byte(`{
   "resourceType": "Claim",
   "total": {
@@ -218,6 +218,9 @@ func TestFHIRQuantityComparatorIsRefused(t *testing.T) {
 		"Observation.value.highBoundary()",
 		"(Observation.value | 1 'mg' | 10 'mg').sort()",
 		"('x' | Observation.value).sort()",
+		// Where ~ finds no pairing, a refused pair is the answer, from either side
+		"(5 'mg' | 'x') ~ (Observation.value | 5 'mg')",
+		"(Observation.value | 5 'mg') ~ (5 'mg' | 'x')",
 	} {
 		t.Run(expr, func(t *testing.T) { refused(t, bound, expr) })
 	}
@@ -243,7 +246,7 @@ func TestFHIRQuantityComparatorIsRefused(t *testing.T) {
 		{"'x' in Observation.descendants()", "false"},
 		{"Observation.value.comparable(1 'mg' | 2 'mg')", "EMPTY"},
 		{"Observation.value = Observation.value", "true"},
-		{"(5 'mg' | 'x') ~ (Observation.value | 5 'mg')", "false"},
+		{"(5 'mg' | Observation.value) ~ (Observation.value | 5 'mg')", "true"},
 	} {
 		t.Run(tc.expr, func(t *testing.T) {
 			if got := evaluateScalar(t, tc.expr, bound); got != tc.want {

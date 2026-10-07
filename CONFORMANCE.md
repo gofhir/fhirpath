@@ -630,8 +630,10 @@ What the condition does decide is kept. A **Money** is not a quantity: it has a
 value, but a currency is no unit, and mapping it with none made a sum of money
 comparable to a mass (`Claim.total.comparable(10 'mg')` was true) and equal to a
 unitless quantity. fhirpath.js refuses both; the HL7 validator maps only types
-named Quantity. Two Money values still compare under `=` by amount and currency,
-as they did while read as quantities, so 30 USD equals 30.0 USD and not 30 EUR.
+named Quantity. Two Money values compare under `=` by amount and currency, so
+30 USD equals 30.0 USD however each is written, and — new, since a Money read
+as a quantity had no unit — no longer equals 30 EUR. Under `~` they compare as
+the objects they are, as every complex type does.
 
 ## A default timezone offset is the caller's policy, not the engine's
 
@@ -840,8 +842,8 @@ was reasoned or accidental.
 | Comparing a temporal that carries a timezone offset with one that does not | No answer — empty, reported as `ErrOffsetMismatch` | The default offset is a policy the specification leaves to the caller, and FHIR requires the offset where it matters, so a bare value is a literal or invalid data. See below |
 | Temporal comparison across precisions | Component by component, stopping at the first difference; empty only when everything shared matches | Not a judgement call — the spec states it, and it is why `now() > today()` is empty while `now() > @1974-12-25` is true |
 | `ofType()` on profiled subtypes without a Model | Keep structural inference | Nothing in the JSON distinguishes an `Age` from a `Quantity`; the information is in the model, not the document |
-| `=` and `~` between two quantity objects | Complex-type semantics, not quantity semantics | Comparing complex types compares children; only the object-vs-literal case converts |
-| A FHIR Quantity with a `comparator` (`<`, `<=`, `>=`, `>`, `ad`) | Not a value. Against another quantity in `=`, `~`, arithmetic and `comparable()`, in the boundaries, and in any ordering whatever it is ordered against (`<`, `<=`, `>`, `>=`, the first item of a `sort()` key), the evaluation ends with an error. Elsewhere it is any object: an empty operand still gives empty, `= 'x'` is false, and two bounds compare as objects. `toQuantity()` is empty and `convertsToQuantity()` false | `< 5 'mg'` says the value is below 5 mg, not that it is 5 mg. FHIR states no rule. fhirpath.js raises the same error. The HL7 validator does not read the comparator, so there `< 5 'mg' = 5 'mg'` is true and `lowBoundary()` gives `4.5 'mg'`; reading a bound as the value it bounds answers for a measurement nobody made |
+| `=` and `~` between two quantity objects | `=` compares them as quantities; `~` as complex types | `=` reaches two objects so that `Range.low = Range.high` and FHIR's calendar units compare as quantities; `~` converts only an object against a literal, and otherwise compares children |
+| A FHIR Quantity with a `comparator` (`<`, `<=`, `>=`, `>`, `ad`) | Not a value. Against another quantity in `=`, arithmetic and `comparable()`, against a quantity literal in `~` (which compares two objects as complex types), in the boundaries, and in any ordering whatever it is ordered against (`<`, `<=`, `>`, `>=`, the first item of a `sort()` key), the evaluation ends with an error. Elsewhere it is any object: an empty operand still gives empty, `= 'x'` is false, and two bounds compare as objects. `toQuantity()` is empty and `convertsToQuantity()` false | `< 5 'mg'` says the value is below 5 mg, not that it is 5 mg. FHIR states no rule. fhirpath.js raises the same error. The HL7 validator does not read the comparator, so there `< 5 'mg' = 5 'mg'` is true and `lowBoundary()` gives `4.5 'mg'`; reading a bound as the value it bounds answers for a measurement nobody made |
 | `as()`/`ofType()` on a primitive | Requires the declared type; `is()` keeps hierarchy matching | FHIR: "all primitives are considered to be independent types (so markdown is not a subclass of string)" |
 | Telling `FHIR.boolean` from `System.Boolean` | By case: FHIR names primitives in lower camel case, FHIRPath capitalizes its own | The suite requires `active.is(boolean)` true and `active.is(Boolean)` false. Complex types such as `Quantity` are spelled alike in both namespaces, so the rule applies to primitives only |
 | Type of a polymorphic element without a model | Taken from the field name, corrected to FHIR's casing | `valueOid` states the element is an `oid`; that is information in the document, not a guess. The value itself says whether the type is primitive or complex |
