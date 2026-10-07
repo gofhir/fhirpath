@@ -305,6 +305,16 @@ func TestConversionFunctions(t *testing.T) {
 		if err == nil {
 			t.Error("expected an error for a multi-item condition")
 		}
+
+		// So is an input of more than one item
+		_, err = fn.Fn(ctx, types.Collection{types.NewString("a"), types.NewString("b")},
+			[]interface{}{
+				types.Collection{types.NewBoolean(true)},
+				types.Collection{types.NewString("yes")},
+			})
+		if err == nil {
+			t.Error("expected an error for a multi-item input")
+		}
 	})
 }
 
