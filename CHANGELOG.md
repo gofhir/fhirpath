@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.12.0](https://github.com/gofhir/fhirpath/compare/v1.11.0...v1.12.0) (2026-10-07)
+
+
+### Features
+
+* a boolean operator refuses an operand of more than one item ([#111](https://github.com/gofhir/fhirpath/issues/111)) ([fd86515](https://github.com/gofhir/fhirpath/commit/fd865154fb895bfada9c72c0e600455ed9c5c8a4)), closes [#109](https://github.com/gofhir/fhirpath/issues/109)
+
+
+### Bug Fixes
+
+* lowBoundary and highBoundary read a FHIR Quantity ([#110](https://github.com/gofhir/fhirpath/issues/110)) ([ca39065](https://github.com/gofhir/fhirpath/commit/ca390659fb5c9f2b111c85b5cafb4b00a526818e)), closes [#108](https://github.com/gofhir/fhirpath/issues/108)
+
 ## [1.11.0](https://github.com/gofhir/fhirpath/compare/v1.10.5...v1.11.0) (2026-10-06)
 
 
