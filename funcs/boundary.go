@@ -71,11 +71,12 @@ func boundaryOf(value types.Value, precision int, provided, low bool) (types.Col
 		return quantityBoundary(v, precision, provided, low)
 	case *types.ObjectValue:
 		// A FHIR Quantity, mapped as comparable() and the comparison operators
-		// map it.
-		if q, ok := v.ToQuantity(); ok {
-			return quantityBoundary(q, precision, provided, low)
+		// map it, and a bound refused as they refuse it
+		q, ok, err := eval.AsQuantity(v)
+		if err != nil || !ok {
+			return types.Collection{}, err
 		}
-		return types.Collection{}, nil
+		return quantityBoundary(q, precision, provided, low)
 	case types.Date:
 		return dateBoundary(v, precision, provided, low)
 	case types.DateTime:

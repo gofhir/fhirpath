@@ -26,35 +26,17 @@ func fnComparable(_ *eval.Context, input types.Collection, args []interface{}) (
 		return nil, eval.InvalidArgumentsError("comparable", 1, 0)
 	}
 
-	left, ok := singleQuantity(input)
-	if !ok {
+	argCol, ok := args[0].(types.Collection)
+	if !ok || len(input) != 1 || len(argCol) != 1 {
 		return types.Collection{}, nil
 	}
 
-	argCol, ok := args[0].(types.Collection)
-	if !ok {
-		return types.Collection{}, nil
-	}
-	right, ok := singleQuantity(argCol)
-	if !ok {
-		return types.Collection{}, nil
+	// A FHIR Quantity object converts as the comparison operators convert it,
+	// and a bound compared with a quantity is refused as they refuse it
+	left, right, ok, err := eval.QuantityPair(input[0], argCol[0])
+	if err != nil || !ok {
+		return types.Collection{}, err
 	}
 
 	return types.Collection{types.NewBoolean(left.Comparable(right))}, nil
-}
-
-// singleQuantity extracts a lone quantity from a collection, converting a FHIR
-// Quantity object when that is what it holds.
-func singleQuantity(col types.Collection) (types.Quantity, bool) {
-	if len(col) != 1 {
-		return types.Quantity{}, false
-	}
-
-	switch v := col[0].(type) {
-	case types.Quantity:
-		return v, true
-	case *types.ObjectValue:
-		return v.ToQuantity()
-	}
-	return types.Quantity{}, false
 }
