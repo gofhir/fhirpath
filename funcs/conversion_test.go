@@ -294,6 +294,17 @@ func TestConversionFunctions(t *testing.T) {
 		if result[0].(types.String).Value() != "no" {
 			t.Errorf("expected 'no' for empty condition, got %s", result[0].(types.String).Value())
 		}
+
+		// A condition of more than one item is an error, not false
+		_, err = fn.Fn(ctx, types.Collection{},
+			[]interface{}{
+				types.Collection{types.NewBoolean(true), types.NewBoolean(false)},
+				types.Collection{types.NewString("yes")},
+				types.Collection{types.NewString("no")},
+			})
+		if err == nil {
+			t.Error("expected an error for a multi-item condition")
+		}
 	})
 }
 

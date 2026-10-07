@@ -18,7 +18,6 @@ period/testPeriodInvariantNew
 polymorphics/testPolymorphicsB
 testBasics/testSimpleFail
 testBasics/testSimpleWithWrongContext
-testCollectionBoolean/testCollectionBoolean1
 testConformsTo/testConformsTo1
 testConformsTo/testConformsTo2
 testDollar/testDollarOrderNotAllowed

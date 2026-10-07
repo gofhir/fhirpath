@@ -159,10 +159,12 @@ func fnIif(_ *eval.Context, input types.Collection, args []interface{}) (types.C
 		return nil, eval.InvalidArgumentsError("iif", 2, len(args))
 	}
 
-	// Evaluate the condition
 	condition := false
 	if cond, ok := args[0].(types.Collection); ok {
-		condition, _ = cond.SingletonBoolean()
+		var err error
+		if condition, err = eval.CriterionBoolean("iif()", cond); err != nil {
+			return nil, err
+		}
 	}
 
 	if condition {
