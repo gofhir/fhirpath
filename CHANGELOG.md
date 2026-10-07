@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.12.1](https://github.com/gofhir/fhirpath/compare/v1.12.0...v1.12.1) (2026-10-07)
+
+
+### Bug Fixes
+
+* a Money is not a quantity, and a comparator is refused ([#116](https://github.com/gofhir/fhirpath/issues/116)) ([8b20eb5](https://github.com/gofhir/fhirpath/commit/8b20eb57123dc1ecd218f16f851ba6da9144e4e6)), closes [#112](https://github.com/gofhir/fhirpath/issues/112)
+* iif refuses a criterion of more than one item ([#115](https://github.com/gofhir/fhirpath/issues/115)) ([05dada2](https://github.com/gofhir/fhirpath/commit/05dada2b5f31e873c117310588b42c4fcedcca9f)), closes [#113](https://github.com/gofhir/fhirpath/issues/113)
+
 ## [1.12.0](https://github.com/gofhir/fhirpath/compare/v1.11.0...v1.12.0) (2026-10-07)
 
 
