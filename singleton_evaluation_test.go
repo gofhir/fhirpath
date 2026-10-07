@@ -35,6 +35,12 @@ func TestSingletonRuleRejectsMultipleItems(t *testing.T) {
 		"(1 | 2 | 3) & 'b'",
 		"('a' | 'b').startsWith('a')",
 		"('a' | 'b').length()",
+		"(1 | 2) or false",
+		"{} or (1 | 2)",
+		"true and (1 | 2)",
+		"(1 | 2) and true",
+		"(1 | 2) xor true",
+		"true implies (1 | 2)",
 	} {
 		t.Run(expr, func(t *testing.T) {
 			if _, err := MustCompile(expr).Evaluate(patient); err == nil {

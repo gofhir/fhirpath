@@ -146,6 +146,13 @@ func OperandSingletonError(op string, left, right int) *EvalError {
 		"%s expects a single item on each side, got %d on the left and %d on the right", op, left, right)
 }
 
+// LeftOperandSingletonError reports a binary operator whose left operand has
+// more than one item, refused before its right operand is evaluated.
+func LeftOperandSingletonError(op string, left int) *EvalError {
+	return NewEvalError(ErrSingletonExpected,
+		"%s expects a single item on each side, got %d on the left", op, left)
+}
+
 // FunctionNotFoundError creates a function not found error.
 func FunctionNotFoundError(name string) *EvalError {
 	return NewEvalError(ErrFunctionNotFound, "unknown function '%s'", name)

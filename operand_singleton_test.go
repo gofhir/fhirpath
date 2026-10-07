@@ -30,3 +30,56 @@ func TestOperandSingletonErrorNamesTheSide(t *testing.T) {
 		})
 	}
 }
+
+// A boolean operator is held to the same rule. Its three-valued logic answers
+// an empty operand, but more than one item is an error like any other: US Core's
+// pd-1, telecom or endpoint, was empty on a PractitionerRole with two telecoms,
+// which a validator reads as the invariant failing rather than as an error.
+func TestBooleanOperandSingleton(t *testing.T) {
+	role := []byte(`{"resourceType":"PractitionerRole","telecom":[{"value":"1"},{"value":"2"}]}`)
+
+	for _, tt := range []struct{ expr, want string }{
+		{"telecom or endpoint", "or expects a single item on each side, got 2 on the left"},
+		{"telecom and true", "and expects a single item on each side, got 2 on the left"},
+		{"false xor telecom", "xor expects a single item on each side, got 1 on the left and 2 on the right"},
+		{"telecom implies true", "implies expects a single item on each side, got 2 on the left"},
+	} {
+		t.Run(tt.expr, func(t *testing.T) {
+			_, err := fhirpath.Evaluate(role, tt.expr)
+			if err == nil || !strings.Contains(err.Error(), tt.want) {
+				t.Errorf("%s: error %v, want it to say %q", tt.expr, err, tt.want)
+			}
+		})
+	}
+
+	// A left operand of several items is refused before the right one is
+	// evaluated, so an error the right one would raise does not replace it.
+	for _, expr := range []string{
+		"telecom and ('a' | 'b').length()",
+		"telecom or ('a' | 'b').length()",
+		"telecom xor ('a' | 'b').length()",
+		"telecom implies ('a' | 'b').length()",
+	} {
+		t.Run(expr, func(t *testing.T) {
+			_, err := fhirpath.Evaluate(role, expr)
+			if err == nil || !strings.Contains(err.Error(), "expects a single item on each side, got 2 on the left") {
+				t.Errorf("%s: error %v, want the operator's own", expr, err)
+			}
+		})
+	}
+
+	// A left operand that decides the result still leaves the right one
+	// unevaluated, so its count is never seen.
+	for _, tt := range []struct{ expr, want string }{
+		{"true or telecom", "true"},
+		{"false and telecom", "false"},
+		{"false implies telecom", "true"},
+	} {
+		t.Run(tt.expr, func(t *testing.T) {
+			got, err := fhirpath.Evaluate(role, tt.expr)
+			if err != nil || len(got) != 1 || got[0].String() != tt.want {
+				t.Errorf("%s = %v, %v; want %s", tt.expr, got, err, tt.want)
+			}
+		})
+	}
+}

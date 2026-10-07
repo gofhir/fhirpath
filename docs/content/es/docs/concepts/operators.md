@@ -210,7 +210,9 @@ false implies false  --> true
 true.not()           --> false
 ```
 
-Cuando el operando izquierdo decide el resultado por sí solo, el derecho no se evalúa: `true or X` es `true`, `false and X` es `false` y `false implies X` es `true`, aunque `X` produjera un error. Así, `false and (true | false).not()` es `false`. Solo un Boolean único decide: un operando izquierdo vacío, o que no es Boolean, deja que se evalúe el derecho, y `xor` evalúa siempre los dos.
+Cuando el operando izquierdo decide el resultado por sí solo, el derecho no se evalúa: `true or X` es `true`, `false and X` es `false` y `false implies X` es `true`, aunque `X` produjera un error. Así, `false and (true | false).not()` es `false`. Solo un Boolean único decide un resultado: un operando izquierdo vacío, o que no es Boolean, deja que se evalúe el derecho, y `xor` necesita los dos.
+
+Un operando de más de un elemento es un error, como en `not()`: con dos telecoms, `telecom or endpoint` genera `ErrSingletonExpected` en vez de responder. Un operando izquierdo de varios elementos se rechaza antes de evaluar el derecho, en los cuatro operadores, `xor` incluido.
 
 Es lo que hace el validador de HL7, y los invariantes publicados de FHIR dependen de ello (`tim-9` en R4, `eld-11` en R5). La especificación lo permite pero advierte que no hay que depender de él, y fhirpath.js evalúa los dos operandos, así que una expresión pensada para correr en otros motores debería proteger igual el lado derecho con `iif()`. Ver CONFORMANCE.md.
 

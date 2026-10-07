@@ -1892,10 +1892,20 @@ func (e *Evaluator) VisitAndExpression(ctx *grammar.AndExpressionContext) interf
 // already decided. fhirpath.js evaluates both; that divergence is taken on
 // purpose and recorded in CONFORMANCE.md.
 //
-// As in the HL7 validator, only a single Boolean decides. An empty left operand
-// leaves the right one to three-valued logic, which needs it for {} or true,
-// and so does one that is not a Boolean. xor always needs both.
-func decidedByLeft(left types.Collection, op string) (types.Collection, bool) {
+// As in the HL7 validator, only a single Boolean decides a result. An empty left
+// operand leaves the right one to three-valued logic, which needs it for
+// {} or true, and so does one that is not a Boolean; xor needs both.
+//
+// A left operand of more than one item decides for every operator, xor
+// included, as an error: the singleton rule refuses it whatever the right one
+// holds, so evaluating the right one could only replace that error with one of
+// its own, or spend time first. The HL7 validator does this for implies only,
+// and reports the right operand's error first for and and or; CONFORMANCE.md
+// records the difference.
+func decidedByLeft(left types.Collection, op string) (interface{}, bool) {
+	if len(left) > 1 {
+		return LeftOperandSingletonError(op, len(left)), true
+	}
 	if len(left) != 1 {
 		return nil, false
 	}
@@ -1915,10 +1925,25 @@ func decidedByLeft(left types.Collection, op string) (types.Collection, bool) {
 	return nil, false
 }
 
-// applyAnd applies 'and'. The operator is taken for symmetry with the other
-// binary operators, so that one compiled shape serves them all.
-func applyAnd(leftCol, rightCol types.Collection, _ string) interface{} {
+// applyAnd applies 'and'.
+func applyAnd(leftCol, rightCol types.Collection, op string) interface{} {
+	if err := booleanOperandsSingleton(leftCol, rightCol, op); err != nil {
+		return err
+	}
 	return And(leftCol, rightCol)
+}
+
+// booleanOperandsSingleton refuses a right operand of and, or, xor or implies
+// that has more than one item. Three-valued logic answers an empty one, but the
+// singleton rule leaves nothing to answer for several: "the evaluation will end
+// and signal an error to the calling environment". The HL7 validator does the
+// same (FHIRPathEngine.asBool). The left operand is not checked here:
+// decidedByLeft has already refused one of several items.
+func booleanOperandsSingleton(leftCol, rightCol types.Collection, op string) error {
+	if len(rightCol) > 1 {
+		return OperandSingletonError(op, len(leftCol), len(rightCol))
+	}
+	return nil
 }
 
 // VisitOrExpression visits expr or expr, expr xor expr.
@@ -1945,6 +1970,9 @@ func (e *Evaluator) VisitOrExpression(ctx *grammar.OrExpressionContext) interfac
 
 // applyOr applies 'or' and 'xor'.
 func applyOr(leftCol, rightCol types.Collection, op string) interface{} {
+	if err := booleanOperandsSingleton(leftCol, rightCol, op); err != nil {
+		return err
+	}
 	switch op {
 	case "or":
 		return Or(leftCol, rightCol)
@@ -1976,7 +2004,10 @@ func (e *Evaluator) VisitImpliesExpression(ctx *grammar.ImpliesExpressionContext
 }
 
 // applyImplies applies 'implies'.
-func applyImplies(leftCol, rightCol types.Collection, _ string) interface{} {
+func applyImplies(leftCol, rightCol types.Collection, op string) interface{} {
+	if err := booleanOperandsSingleton(leftCol, rightCol, op); err != nil {
+		return err
+	}
 	return Implies(leftCol, rightCol)
 }
 
