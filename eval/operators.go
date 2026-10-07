@@ -596,11 +596,25 @@ func equal(left, right types.Collection) (types.Collection, error) {
 			continue
 		}
 
-		if !left[i].Equal(right[i]) {
+		if !itemsEqual(left[i], right[i]) {
 			return types.FalseCollection, nil
 		}
 	}
 	return types.TrueCollection, nil
+}
+
+// itemsEqual compares two items that are neither temporals nor quantities. Two
+// Money values compare by amount and currency, as they did while a Money was
+// read as a quantity.
+func itemsEqual(left, right types.Value) bool {
+	if lo, ok := left.(*types.ObjectValue); ok {
+		if ro, ok := right.(*types.ObjectValue); ok {
+			if same, ok := types.MoneyEqual(lo, ro); ok {
+				return same
+			}
+		}
+	}
+	return left.Equal(right)
 }
 
 // NotEqual returns true if left != right.

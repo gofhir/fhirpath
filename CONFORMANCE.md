@@ -630,7 +630,8 @@ What the condition does decide is kept. A **Money** is not a quantity: it has a
 value, but a currency is no unit, and mapping it with none made a sum of money
 comparable to a mass (`Claim.total.comparable(10 'mg')` was true) and equal to a
 unitless quantity. fhirpath.js refuses both; the HL7 validator maps only types
-named Quantity.
+named Quantity. Two Money values still compare under `=` by amount and currency,
+as they did while read as quantities, so 30 USD equals 30.0 USD and not 30 EUR.
 
 ## A default timezone offset is the caller's policy, not the engine's
 

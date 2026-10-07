@@ -797,6 +797,7 @@ Crea un `ObjectValue` desde bytes JSON crudos que representan un objeto.
 | `ToQuantity` | `func (o *ObjectValue) ToQuantity() (Quantity, bool)` | Convertir una FHIR Quantity a System.Quantity, por su code o unit; un Money, o una cantidad con `comparator`, no se convierte |
 | `AsQuantity` | `func (o *ObjectValue) AsQuantity() (Quantity, bool, error)` | Como `ToQuantity`, pero informa como `ErrQuantityBound` una cantidad que se convertiría si no tuviera `comparator` |
 | `QuantityBound` | `func (o *ObjectValue) QuantityBound() error` | `ErrQuantityBound` para una FHIR Quantity con `comparator`; nil en otro caso |
+| `MoneyEqual` | `func MoneyEqual(left, right *ObjectValue) (equal, ok bool)` | Compara dos Money por monto y moneda; `ok` es false salvo que ambos sean Money |
 
 **Inferencia de tipo:** El método `Type()` reconoce tipos de recurso FHIR® (vía el campo `resourceType`) y tipos complejos comunes incluyendo `Quantity`, `Coding`, `CodeableConcept`, `Reference`, `Period`, `Identifier`, `Range`, `Ratio`, `Attachment`, `HumanName`, `Address`, `ContactPoint` y `Annotation`.
 

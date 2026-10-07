@@ -161,6 +161,28 @@ func TestFHIRMoneyIsNotAQuantity(t *testing.T) {
 	if _, err := MustCompile("Claim.total + 1 'USD'").Evaluate(money); err == nil {
 		t.Error("Claim.total + 1 'USD': no error, want a Money refused as a quantity")
 	}
+
+	// Two Money values are equal by amount and currency, however each is
+	// written, as they were while read as quantities
+	claim := []byte(`{
+  "resourceType": "Claim",
+  "total": {
+    "value": 30,
+    "currency": "USD"
+  },
+  "item": [
+    {"net": {"currency": "USD", "value": 30.0}},
+    {"net": {"value": 30, "currency": "EUR"}}
+  ]
+}`)
+	for expr, want := range map[string]string{
+		"Claim.total = Claim.item[0].net": "true",
+		"Claim.total = Claim.item[1].net": "false",
+	} {
+		if got := evaluateScalar(t, expr, claim); got != want {
+			t.Errorf("%s = %s, want %s", expr, got, want)
+		}
+	}
 }
 
 // TestFHIRQuantityComparatorIsRefused covers a quantity whose comparator makes

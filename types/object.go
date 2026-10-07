@@ -2220,6 +2220,36 @@ func (o *ObjectValue) QuantityBound() error {
 	return o.quantityBound()
 }
 
+// MoneyEqual compares two Money values by their amount and currency, and
+// reports false for anything that is not a Money on both sides. A Money is no
+// quantity, so it would otherwise compare as an object, field for field as
+// written; 30 USD is 30.0 USD however each was written.
+func MoneyEqual(left, right *ObjectValue) (equal, ok bool) {
+	lv, lc, lok := left.money()
+	rv, rc, rok := right.money()
+	if !lok || !rok {
+		return false, false
+	}
+	return lv.Equal(rv) && lc == rc, true
+}
+
+// money reads the amount and currency of a Money.
+func (o *ObjectValue) money() (decimal.Decimal, string, bool) {
+	currency, isMoney := o.stringField("currency")
+	if !isMoney {
+		return decimal.Decimal{}, "", false
+	}
+	valueBytes, dataType, _, err := jsonparser.Get(o.data, "value")
+	if err != nil || dataType != jsonparser.Number {
+		return decimal.Decimal{}, "", false
+	}
+	value, err := decimal.NewFromString(string(valueBytes))
+	if err != nil {
+		return decimal.Decimal{}, "", false
+	}
+	return value, currency, true
+}
+
 // quantityValue reads the value of a FHIR Quantity: a number, on an object that
 // is not a Money. A Money has a value too, but its currency is no unit, and
 // mapping it with none made a sum of money comparable to a mass.
