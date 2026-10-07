@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"slices"
 	"strconv"
@@ -2161,23 +2162,26 @@ func (o *ObjectValue) stringField(field string) (string, bool) {
 // This is used when the object represents a FHIR Quantity type
 // (with fields like "value", "unit", "code", "system").
 // Returns the Quantity and true if successful, or zero Quantity and false if not.
+//
+// A Money is not a quantity, and a quantity with a comparator is a bound rather
+// than a value: neither converts. [ObjectValue.AsQuantity] tells the second
+// apart as an error.
 func (o *ObjectValue) ToQuantity() (Quantity, bool) {
-	// Try to get the "value" field (required for Quantity)
-	valueBytes, dataType, _, err := jsonparser.Get(o.data, "value")
-	if err != nil || dataType == jsonparser.NotExist {
-		return Quantity{}, false
-	}
+	q, ok, err := o.AsQuantity()
+	return q, ok && err == nil
+}
 
-	// Parse the numeric value
-	var val decimal.Decimal
-	if dataType == jsonparser.Number {
-		s := string(valueBytes)
-		val, err = decimal.NewFromString(s)
-		if err != nil {
-			return Quantity{}, false
-		}
-	} else {
-		return Quantity{}, false
+// ErrQuantityBound reports a FHIR Quantity whose comparator makes it a bound:
+// < 5 'mg' says the value is below 5 mg, not that it is 5 mg, so it has no
+// System.Quantity to compare, add or bound.
+var ErrQuantityBound = errors.New("a FHIR Quantity with a comparator is a bound, not a value")
+
+// AsQuantity converts a FHIR Quantity as [ObjectValue.ToQuantity] does, and
+// reports one that would convert but for its comparator as [ErrQuantityBound].
+func (o *ObjectValue) AsQuantity() (Quantity, bool, error) {
+	val, ok := o.quantityValue()
+	if !ok {
+		return Quantity{}, false, nil
 	}
 
 	// Prefer "code" over "unit": code carries the computable UCUM symbol ("mg"),
@@ -2201,5 +2205,43 @@ func (o *ObjectValue) ToQuantity() (Quantity, bool) {
 		}
 	}
 
-	return NewQuantityFromDecimal(val, unit), true
+	if err := o.quantityBound(); err != nil {
+		return Quantity{}, false, err
+	}
+	return NewQuantityFromDecimal(val, unit), true, nil
+}
+
+// QuantityBound reports [ErrQuantityBound] for a FHIR Quantity with a
+// comparator, and nil for anything else.
+func (o *ObjectValue) QuantityBound() error {
+	if _, ok := o.quantityValue(); !ok {
+		return nil
+	}
+	return o.quantityBound()
+}
+
+// quantityValue reads the value of a FHIR Quantity: a number, on an object that
+// is not a Money. A Money has a value too, but its currency is no unit, and
+// mapping it with none made a sum of money comparable to a mass.
+func (o *ObjectValue) quantityValue() (decimal.Decimal, bool) {
+	valueBytes, dataType, _, err := jsonparser.Get(o.data, "value")
+	if err != nil || dataType != jsonparser.Number {
+		return decimal.Decimal{}, false
+	}
+	val, err := decimal.NewFromString(string(valueBytes))
+	if err != nil {
+		return decimal.Decimal{}, false
+	}
+	if _, isMoney := o.stringField("currency"); isMoney {
+		return decimal.Decimal{}, false
+	}
+	return val, true
+}
+
+// quantityBound reports the comparator of a quantity, if it has one.
+func (o *ObjectValue) quantityBound() error {
+	if comparator, _ := o.stringField("comparator"); comparator != "" {
+		return fmt.Errorf("%w: the comparator is '%s'", ErrQuantityBound, comparator)
+	}
+	return nil
 }

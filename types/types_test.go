@@ -1,6 +1,8 @@
 package types
 
 import (
+	"errors"
+	"strings"
 	"testing"
 )
 
@@ -893,4 +895,54 @@ func TestCollectionEdgeCases(t *testing.T) {
 			t.Error("expected error for non-boolean")
 		}
 	})
+}
+
+func TestQuantityConversionRefusals(t *testing.T) {
+	const ucum = `"system": "http://unitsofmeasure.org", "code": "mg"`
+
+	// Nothing converts without a numeric value, even with a UCUM code
+	for _, json := range []string{
+		`{` + ucum + `}`,
+		`{"value": "5", ` + ucum + `}`,
+		`{"value": null, ` + ucum + `}`,
+	} {
+		if q, ok := NewObjectValue([]byte(json)).ToQuantity(); ok {
+			t.Errorf("%s: ToQuantity() = %s, want no conversion", json, q)
+		}
+	}
+
+	// A Money is not a quantity, with or without a comparator
+	for _, json := range []string{
+		`{"value": 10.5, "currency": "USD"}`,
+		`{"value": 10.5, "currency": "USD", "comparator": "<"}`,
+	} {
+		o := NewObjectValue([]byte(json))
+		if _, ok, err := o.AsQuantity(); ok || err != nil {
+			t.Errorf("%s: AsQuantity() = %v, %v; want false, nil", json, ok, err)
+		}
+		if err := o.QuantityBound(); err != nil {
+			t.Errorf("%s: QuantityBound() = %v, want nil", json, err)
+		}
+	}
+
+	// A comparator is a bound, whatever the unit, and an empty one is none
+	for json, bound := range map[string]bool{
+		`{"value": 5, "comparator": "<", ` + ucum + `}`:     true,
+		`{"value": 5, "comparator": "<", "unit": "tablet"}`: true,
+		`{"value": 5, "comparator": "<"}`:                   true,
+		`{"value": 5, "comparator": "", ` + ucum + `}`:      false,
+		`{"value": 5, ` + ucum + `}`:                        false,
+	} {
+		o := NewObjectValue([]byte(json))
+		_, ok, err := o.AsQuantity()
+		if errors.Is(err, ErrQuantityBound) != bound || ok == bound {
+			t.Errorf("%s: AsQuantity() = %v, %v; want bound %v", json, ok, err, bound)
+		}
+		if errors.Is(o.QuantityBound(), ErrQuantityBound) != bound {
+			t.Errorf("%s: QuantityBound() disagrees with AsQuantity()", json)
+		}
+		if bound && !strings.Contains(err.Error(), "'<'") {
+			t.Errorf("%s: error %v does not name the comparator", json, err)
+		}
+	}
 }

@@ -1,6 +1,9 @@
 package fhirpath
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // The mapping these tests cover is FHIR's, not FHIRPath's, so no case in the
 // official FHIRPath suite exercises it. FHIR R5, "Using FHIRPath with FHIR",
@@ -132,5 +135,162 @@ func TestFHIRQuantityBoundaries(t *testing.T) {
 				t.Errorf("%s = %s, want %s", tc.expr, got, tc.want)
 			}
 		})
+	}
+}
+
+// TestFHIRMoneyIsNotAQuantity checks that a Money does not convert. It has a
+// value, but its currency is no unit, and converting it with none made a sum
+// of money comparable to a mass and equal to a unitless quantity.
+func TestFHIRMoneyIsNotAQuantity(t *testing.T) {
+	money := []byte(`{"resourceType":"Claim","total":{"value":10.5,"currency":"USD"}}`)
+
+	for _, tc := range []struct{ expr, want string }{
+		{"Claim.total.comparable(10 'mg')", "EMPTY"},
+		{"Claim.total = 10.5 '1'", "false"},
+		{"Claim.total.lowBoundary()", "EMPTY"},
+		{"Claim.total.toQuantity()", "EMPTY"},
+		{"Claim.total.value < 11", "true"},
+	} {
+		t.Run(tc.expr, func(t *testing.T) {
+			if got := evaluateScalar(t, tc.expr, money); got != tc.want {
+				t.Errorf("%s = %s, want %s", tc.expr, got, tc.want)
+			}
+		})
+	}
+
+	if _, err := MustCompile("Claim.total + 1 'USD'").Evaluate(money); err == nil {
+		t.Error("Claim.total + 1 'USD': no error, want a Money refused as a quantity")
+	}
+}
+
+// TestFHIRQuantityComparatorIsRefused covers a quantity whose comparator makes
+// it a bound: < 5 'mg' is below 5 mg, not 5 mg. Reading it as 5 mg answered
+// for a value nobody measured. Where it would be read as a quantity, against
+// another quantity or in any order, the evaluation ends with an error, as it
+// does in fhirpath.js; elsewhere it is any object.
+func TestFHIRQuantityComparatorIsRefused(t *testing.T) {
+	bound := observationWith(`{"value":5,"comparator":"<","system":"http://unitsofmeasure.org","code":"mg"}`)
+
+	refused := func(t *testing.T, data []byte, expr string) {
+		t.Helper()
+		_, err := MustCompile(expr).Evaluate(data)
+		if err == nil || !strings.Contains(err.Error(), "is a bound, not a value") || !strings.Contains(err.Error(), "'<'") {
+			t.Errorf("%s: error %v, want the comparator refused", expr, err)
+		}
+	}
+
+	for _, expr := range []string{
+		"Observation.value = 5 'mg'",
+		"Observation.value != 5 'mg'",
+		"Observation.value ~ 5 'mg'",
+		"Observation.value < 6 'mg'",
+		"6 'mg' > Observation.value",
+		"Observation.value < 'x'",
+		"Observation.value + 1 'mg'",
+		"Observation.value * 2",
+		"Observation.value / 2",
+		"@2014-01-01 + Observation.value",
+		"Observation.value.comparable(1 'mg')",
+		"(1 'mg').comparable(Observation.value)",
+		"Observation.value.lowBoundary()",
+		"Observation.value.highBoundary()",
+		"(Observation.value | 1 'mg' | 10 'mg').sort()",
+		"('x' | Observation.value).sort()",
+	} {
+		t.Run(expr, func(t *testing.T) { refused(t, bound, expr) })
+	}
+
+	// Whatever its unit, in an order
+	for _, quantity := range []string{
+		`{"value":5,"comparator":"<","unit":"tablet"}`,
+		`{"value":5,"comparator":"<"}`,
+	} {
+		refused(t, observationWith(quantity), "Observation.value < 6 'mg'")
+	}
+
+	// Elsewhere it is any object: empty still propagates, it is no match for a
+	// string, two bounds are equal as objects, and it converts to nothing
+	for _, tc := range []struct{ expr, want string }{
+		{"Observation.value.toQuantity()", "EMPTY"},
+		{"Observation.value.convertsToQuantity()", "false"},
+		{"Observation.value.value < 6", "true"},
+		{"Observation.value.comparator", "<"},
+		{"{} = Observation.value", "EMPTY"},
+		{"Observation.value + {}", "EMPTY"},
+		{"Observation.value = 'x'", "false"},
+		{"'x' in Observation.descendants()", "false"},
+		{"Observation.value.comparable(1 'mg' | 2 'mg')", "EMPTY"},
+		{"Observation.value = Observation.value", "true"},
+		{"(5 'mg' | 'x') ~ (Observation.value | 5 'mg')", "false"},
+	} {
+		t.Run(tc.expr, func(t *testing.T) {
+			if got := evaluateScalar(t, tc.expr, bound); got != tc.want {
+				t.Errorf("%s = %s, want %s", tc.expr, got, tc.want)
+			}
+		})
+	}
+
+	// An empty comparator is no comparator
+	unbounded := observationWith(`{"value":5,"comparator":"","system":"http://unitsofmeasure.org","code":"mg"}`)
+	if got := evaluateScalar(t, "Observation.value = 5 'mg'", unbounded); got != "true" {
+		t.Errorf("with an empty comparator: %s, want true", got)
+	}
+
+	// Two bounds in arithmetic name the comparator
+	pair := []byte(`{"resourceType":"Observation","component":[{"valueQuantity":` + `{"value":4,"comparator":"<","system":"http://unitsofmeasure.org","code":"mg"}` +
+		`},{"valueQuantity":{"value":4,"comparator":"<","system":"http://unitsofmeasure.org","code":"mg"}}]}`)
+	refused(t, pair, "Observation.component[0].value + Observation.component[1].value")
+}
+
+// TestFHIRQuantityBoundSortKey checks that a sort refuses a bound where it
+// orders by it, the first item of a key, even beside an empty key that no
+// comparison reaches, and not where it is further along a key.
+func TestFHIRQuantityBoundSortKey(t *testing.T) {
+	withEmpty := []byte(`{"resourceType":"Observation","component":[
+		{"valueQuantity":{"value":5,"comparator":"<","system":"http://unitsofmeasure.org","code":"mg"}},
+		{"code":{"text":"no value"}}]}`)
+	if _, err := MustCompile("Observation.component.sort(value)").Evaluate(withEmpty); err == nil ||
+		!strings.Contains(err.Error(), "is a bound, not a value") {
+		t.Errorf("beside an empty key: error %v, want the comparator refused", err)
+	}
+
+	further := []byte(`{"resourceType":"Observation","component":[
+		{"referenceRange":[{"low":{"value":5,"system":"http://unitsofmeasure.org","code":"mg"}},
+			{"low":{"value":1,"comparator":"<","system":"http://unitsofmeasure.org","code":"mg"}}]},
+		{"referenceRange":[{"low":{"value":3,"system":"http://unitsofmeasure.org","code":"mg"}}]}]}`)
+	if got := evaluateScalar(t, "Observation.component.sort(referenceRange.low).first().referenceRange.count()", further); got != "1" {
+		t.Errorf("sorted first a component with %s ranges, want the one whose first low is 3 mg", got)
+	}
+}
+
+// TestRangeInvariantsWithoutUCUMCode guards rng-2 on Ranges whose quantities
+// have no UCUM code, a local unit such as tablets, which dosage data is full
+// of. R5 writes it with lowBoundary() and comparable(), and an empty answer
+// fails the invariant on a valid Range; the HL7 validator reports nothing
+// there. Reading FHIR's condition on the mapping strictly, as UCUM only, did
+// exactly that, which is why the mapping keeps its code or unit.
+func TestRangeInvariantsWithoutUCUMCode(t *testing.T) {
+	r5rng2 := "Observation.value.select(low.value.empty() or high.value.empty() or " +
+		"low.lowBoundary().comparable(high.highBoundary()).not() or (low.lowBoundary() <= high.highBoundary()))"
+	r4rng2 := "Observation.value.select(low.empty() or high.empty() or (low <= high))"
+
+	for _, tc := range []struct{ name, low, high, want string }{
+		{"tablets", `{"value":1,"unit":"tablet"}`, `{"value":5,"unit":"tablet"}`, "true"},
+		{"a local code", `{"value":1,"unit":"TAB","system":"http://terminology.hl7.org/CodeSystem/v3-orderableDrugForm","code":"TAB"}`,
+			`{"value":2,"unit":"TAB","system":"http://terminology.hl7.org/CodeSystem/v3-orderableDrugForm","code":"TAB"}`, "true"},
+		{"an inverted range", `{"value":5,"unit":"tablet"}`, `{"value":1,"unit":"tablet"}`, "false"},
+	} {
+		data := []byte(`{"resourceType":"Observation","valueRange":{"low":` + tc.low + `,"high":` + tc.high + `}}`)
+		for _, expr := range []string{r5rng2, r4rng2} {
+			if got := evaluateScalar(t, expr, data); got != tc.want {
+				t.Errorf("%s: %s = %s, want %s", tc.name, expr, got, tc.want)
+			}
+		}
+	}
+
+	// Equal by value, as on main: 1 tablet is 1.0 tablet
+	tablets := []byte(`{"resourceType":"Observation","valueRange":{"low":{"value":1,"unit":"tablet"},"high":{"value":1.0,"unit":"tablet"}}}`)
+	if got := evaluateScalar(t, "Observation.value.low = Observation.value.high", tablets); got != "true" {
+		t.Errorf("1 tablet = 1.0 tablet: %s, want true", got)
 	}
 }

@@ -946,6 +946,22 @@ func (e *Evaluator) evaluateSort(input types.Collection, criteria []sortCriterio
 		keys[i] = itemKeys
 	}
 
+	// A FHIR Quantity bound has no place in an order, so a key that is one
+	// fails the sort, as Compare refuses it. Checked here rather than left to
+	// the comparisons, which count a refused pair as equal and which an empty
+	// key skips; only a key's first item is ordered by, as compareKeyValues
+	// reads it. A single item is not ordered at all, above.
+	for _, itemKeys := range keys {
+		for _, key := range itemKeys {
+			if key.Empty() {
+				continue
+			}
+			if err := quantityBoundIn(key[0]); err != nil {
+				return err
+			}
+		}
+	}
+
 	order := make([]int, len(input))
 	for i := range order {
 		order[i] = i
@@ -1807,18 +1823,25 @@ func (e *Evaluator) VisitEqualityExpression(ctx *grammar.EqualityExpressionConte
 
 // applyEquality applies =, !=, ~ and !~.
 func applyEquality(leftCol, rightCol types.Collection, op string) interface{} {
+	var (
+		result types.Collection
+		err    error
+	)
 	switch op {
-	case "=":
-		return Equal(leftCol, rightCol)
-	case "!=":
-		return NotEqual(leftCol, rightCol)
-	case "~":
-		return Equivalent(leftCol, rightCol)
-	case "!~":
-		return NotEquivalent(leftCol, rightCol)
+	case "=", "!=":
+		result, err = equal(leftCol, rightCol)
+	case "~", "!~":
+		result, err = equivalent(leftCol, rightCol)
+	default:
+		return types.Collection{}
 	}
-
-	return types.Collection{}
+	if err != nil {
+		return err
+	}
+	if op == "!=" || op == "!~" {
+		return negated(result)
+	}
+	return result
 }
 
 // VisitMembershipExpression visits 'in' and 'contains' expressions.
