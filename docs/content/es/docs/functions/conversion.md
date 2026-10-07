@@ -47,7 +47,7 @@ result, _ := fhirpath.Evaluate(patient, "iif(Patient.gender = 'male', 'M', 'F')"
 
 **Casos Limite / Notas:**
 
-- La condicion sigue la evaluacion singleton: vacia es `false`, un unico elemento que no es Boolean es `true`, y mas de un elemento es un error (`ErrSingletonExpected`); asi, `iif(Patient.name.given = 'x', ...)` funciona, pero `iif(Patient.name.given, ...)` falla en un paciente con varios nombres de pila. La evaluacion es tolerante con el tipo de un unico elemento; `Expression.Analyze`, con un modelo, reporta un criterio que no puede ser Boolean, como `iif('texto', ...)` o una union de varios valores, como espera la suite oficial.
+- La condicion sigue la evaluacion singleton: vacia es `false`, un unico elemento que no es Boolean es `true`, y mas de un elemento es un error (`ErrSingletonExpected`); asi, `iif(Patient.name.given = 'x', ...)` funciona, pero `iif(Patient.name.given, ...)` falla en un paciente con varios nombres de pila. La evaluacion es tolerante con el tipo de un unico elemento; `Expression.Analyze`, con un modelo, reporta un criterio que no puede ser Boolean, como `iif('texto', ...)` o una union de mas de un operando, como espera la suite oficial. Cuenta los operandos tal como estan escritos, asi que tambien reporta `iif(true | true, ...)`, aunque esa union se evalua a un solo `true`.
 - Una entrada de mas de un elemento tambien es un error: `iif` se llama sin contexto o con un solo elemento.
 - Si el `falseResult` no se proporciona y la condicion es `false`, devuelve una coleccion vacia.
 - Solo se evalua la rama que elige la condicion, asi que un error en la otra nunca se produce.
