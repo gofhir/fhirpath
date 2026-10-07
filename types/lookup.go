@@ -5,25 +5,55 @@ package types
 // they are given.
 //
 // Each search compares the item with every one held, and nearly every pair of
-// objects differs. Once it holds enough items to repay it, a Lookup
-// fingerprints each object once, by its content apart from layout, and
-// compares two objects only when their fingerprints match: two objects that are
-// equal always share one. See jsonFingerprint.
+// objects differs. Comparing bytes rejected objects of different lengths at
+// once; layout makes length say nothing, so once a Lookup has been searched
+// often enough to repay it, it measures each object's content once — its
+// length and a sum, apart from whitespace — and compares two objects only when
+// those agree. See measureContent.
 type Lookup struct {
-	items  Collection
-	prints []uint64 // each object's fingerprint once fingerprinted, nil until then
+	items    Collection
+	prints   []contentPrint // each item's, once measured; nil until then
+	objects  bool           // whether any item held is an object
+	searches int
+	// The last value searched for and its print, which Add reuses when it
+	// holds what was just found absent
+	last      Value
+	lastPrint contentPrint
 }
 
-// lookupFingerprintFrom is the number of items from which a Lookup
-// fingerprints its objects. Below it the pairs are too few to repay a pass
-// over every object; most collections an expression compares hold a handful.
-const lookupFingerprintFrom = 8
+// contentPrint is what a Lookup knows of an object's content: its length and
+// sum apart from whitespace. A value that is not an object has none.
+type contentPrint struct {
+	sum    uint64
+	length int32
+	object bool
+}
 
-// NewLookup returns a Lookup holding the items of a collection.
+// printOf measures v's content, if v is an object.
+func printOf(v Value) contentPrint {
+	if object, ok := v.(*ObjectValue); ok {
+		length, sum := measureContent(object.data)
+		//nolint:gosec // a length; no object read into memory nears 2^31 bytes
+		return contentPrint{sum: sum, length: int32(length), object: true}
+	}
+	return contentPrint{}
+}
+
+// lookupMeasureFrom is the number of items held, and of searches made, from
+// which a Lookup measures its objects. Below either the pairs are too few to
+// repay a pass over every object: most collections an expression compares
+// hold a handful, and exclude() of one item searches once.
+const lookupMeasureFrom = 8
+
+// NewLookup returns a Lookup holding the items of a collection. It reads the
+// collection in place; Add copies it first.
 func NewLookup(items Collection) *Lookup {
-	l := newLookup(len(items))
+	l := &Lookup{items: items[:len(items):len(items)]}
 	for _, item := range items {
-		l.Add(item)
+		if _, ok := item.(*ObjectValue); ok {
+			l.objects = true
+			break
+		}
 	}
 	return l
 }
@@ -40,104 +70,54 @@ func (l *Lookup) Items() Collection {
 
 // Add holds one more item.
 func (l *Lookup) Add(item Value) {
+	_, isObject := item.(*ObjectValue)
+	l.objects = l.objects || isObject
 	l.items = append(l.items, item)
-	switch {
-	case l.prints != nil:
-		l.prints = append(l.prints, fingerprintOf(item))
-	case len(l.items) >= lookupFingerprintFrom:
-		l.prints = make([]uint64, len(l.items), cap(l.items))
-		for i, held := range l.items {
-			l.prints[i] = fingerprintOf(held)
-		}
+	if l.prints == nil {
+		return
+	}
+	if item == l.last {
+		l.prints = append(l.prints, l.lastPrint)
+	} else {
+		l.prints = append(l.prints, printOf(item))
 	}
 }
 
-// Contains reports whether an item equal to v is held.
+// Contains reports whether an item equal to v is held. Objects whose content
+// differs in length or sum are not compared.
 func (l *Lookup) Contains(v Value) bool {
-	object, isObject := v.(*ObjectValue)
-	if l.prints == nil || !isObject {
+	l.searches++
+	_, isObject := v.(*ObjectValue)
+	if !isObject || !l.objects || !l.measured() {
 		return l.items.Contains(v)
 	}
-	mark := jsonFingerprint(object.data)
+	probe := printOf(v)
+	found := false
 	for i, held := range l.items {
-		if _, heldObject := held.(*ObjectValue); heldObject && l.prints[i] != mark {
+		if p := l.prints[i]; p.object && (p.length != probe.length || p.sum != probe.sum) {
 			continue
 		}
 		if held.Equal(v) {
-			return true
+			found = true
+			break
 		}
 	}
-	return false
+	l.last, l.lastPrint = v, probe
+	return found
 }
 
-// fingerprintOf is an object's fingerprint, and zero for any other value,
-// which Contains never reads.
-func fingerprintOf(v Value) uint64 {
-	if object, ok := v.(*ObjectValue); ok {
-		return jsonFingerprint(object.data)
+// measured reports whether the objects held are measured, measuring them once
+// the Lookup holds enough items and has been searched often enough.
+func (l *Lookup) measured() bool {
+	if l.prints != nil {
+		return true
 	}
-	return 0
-}
-
-// fingerprintTable gives each byte a fixed 64-bit value, spread by splitmix64,
-// so that a sum of them tells apart texts that hold different bytes.
-var fingerprintTable = func() (table [256]uint64) {
-	x := uint64(0x9e3779b97f4a7c15)
-	for i := range table {
-		x += 0x9e3779b97f4a7c15
-		z := x
-		z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9
-		z = (z ^ (z >> 27)) * 0x94d049bb133111eb
-		table[i] = z ^ (z >> 31)
+	if len(l.items) < lookupMeasureFrom || l.searches < lookupMeasureFrom {
+		return false
 	}
-	return table
-}()
-
-// jsonFingerprint sums the values of a JSON text's bytes, leaving out the
-// whitespace between tokens. Texts that sameJSON finds the same hold the same
-// bytes once that whitespace is gone, so they always share a fingerprint, and
-// texts that do not share one differ. Two that share one may still differ,
-// which only means comparing them.
-func jsonFingerprint(data []byte) uint64 {
-	// Compact text has no layout to leave out: one tight pass, and the
-	// careful one only from the first byte that could be layout
-	var sum uint64
-	for i, c := range data {
-		if c <= ' ' {
-			return sum + layoutFingerprint(data[i:], data[:i])
-		}
-		sum += fingerprintTable[c]
+	l.prints = make([]contentPrint, len(l.items), cap(l.items))
+	for i, held := range l.items {
+		l.prints[i] = printOf(held)
 	}
-	return sum
-}
-
-// layoutFingerprint sums the rest of a text from a byte that could be layout,
-// knowing from what came before whether it stands inside a string.
-func layoutFingerprint(rest, before []byte) uint64 {
-	inString, escaped := false, false
-	for _, c := range before {
-		switch {
-		case escaped:
-			escaped = false
-		case inString && c == '\\':
-			escaped = true
-		case c == '"':
-			inString = !inString
-		}
-	}
-	var sum uint64
-	for _, c := range rest {
-		switch {
-		case escaped:
-			escaped = false
-		case inString && c == '\\':
-			escaped = true
-		case c == '"':
-			inString = !inString
-		case !inString && isJSONSpace(c):
-			continue
-		}
-		sum += fingerprintTable[c]
-	}
-	return sum
+	return true
 }
