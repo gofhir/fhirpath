@@ -103,3 +103,34 @@ func TestFHIRQuantityArithmeticRejectsNonDurations(t *testing.T) {
 		t.Error("expected an error: a mass is not a duration")
 	}
 }
+
+// TestFHIRQuantityBoundaries checks that lowBoundary() and highBoundary() read a
+// FHIR Quantity through the same mapping comparable() and the comparison
+// operators apply. Without it they returned empty, and so did R5's rng-2 on
+// every Range with both ends, which an invariant cannot be.
+func TestFHIRQuantityBoundaries(t *testing.T) {
+	rangeOf := []byte(`{"resourceType":"Observation","valueRange":{
+		"low":{"value":1,"unit":"mg","system":"http://unitsofmeasure.org","code":"mg"},
+		"high":{"value":2,"unit":"mg","system":"http://unitsofmeasure.org","code":"mg"}}}`)
+
+	cases := []struct{ expr, want string }{
+		{"Observation.value.low.lowBoundary()", "0.50000000 'mg'"},
+		{"Observation.value.high.highBoundary()", "2.50000000 'mg'"},
+		{"Observation.value.low.lowBoundary(2)", "0.50 'mg'"},
+		{"Observation.value.low.value.lowBoundary()", "0.50000000"},
+		{
+			"Observation.value.select(low.value.empty() or high.value.empty() or " +
+				"low.lowBoundary().comparable(high.highBoundary()).not() or " +
+				"(low.lowBoundary() <= high.highBoundary()))",
+			"true",
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.expr, func(t *testing.T) {
+			if got := evaluateScalar(t, tc.expr, rangeOf); got != tc.want {
+				t.Errorf("%s = %s, want %s", tc.expr, got, tc.want)
+			}
+		})
+	}
+}
