@@ -158,11 +158,18 @@ func fnIif(_ *eval.Context, input types.Collection, args []interface{}) (types.C
 	if len(args) < 2 {
 		return nil, eval.InvalidArgumentsError("iif", 2, len(args))
 	}
+	// As evaluateIif: no context, or a single item
+	if len(input) > 1 {
+		return nil, eval.NewEvalError(eval.ErrSingletonExpected,
+			"iif() takes a single item as its context, got %d", len(input))
+	}
 
-	// Evaluate the condition
 	condition := false
 	if cond, ok := args[0].(types.Collection); ok {
-		condition, _ = cond.SingletonBoolean()
+		var err error
+		if condition, err = eval.CriterionBoolean("iif()", cond); err != nil {
+			return nil, err
+		}
 	}
 
 	if condition {

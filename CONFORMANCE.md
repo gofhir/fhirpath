@@ -35,9 +35,9 @@ Measured against the official suite, in both configurations a caller can use:
 
 | Configuration | Passing |
 |---|---|
-| R4 suite, no FHIR model supplied | **900 of 935 (96.3%)** |
+| R4 suite, no FHIR model supplied | **901 of 935 (96.4%)** |
 | R4 suite, with the R4 model | **927 of 935 (99.1%)** |
-| R5 suite, no FHIR model supplied | **1007 of 1048 (96.1%)** |
+| R5 suite, no FHIR model supplied | **1008 of 1048 (96.2%)** |
 | R5 suite, with the R5 model | **1034 of 1048 (98.7%)** |
 
 ```sh
@@ -58,7 +58,7 @@ suite's XML inputs uses those same packages, which is why it belongs here and no
 in the engine: converting FHIR XML correctly needs the cardinality and primitive
 type of every element, and the engine deliberately carries no model of its own.
 
-A model is worth less here than expected — 27 cases across the R4 corpus — and
+A model is worth less here than expected — 26 cases across the R4 corpus — and
 the reason is instructive: most remaining `is()`/`as()` failures are not about
 hierarchy but about FHIR primitives being distinct types from their System
 counterparts (`Patient.gender.as(string)` must yield empty because gender is a

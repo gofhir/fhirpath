@@ -1,6 +1,9 @@
 package fhirpath
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // The specification states the rule these tests cover as an algorithm, under
 // "Singleton Evaluation of Collections":
@@ -41,6 +44,8 @@ func TestSingletonRuleRejectsMultipleItems(t *testing.T) {
 		"(1 | 2) and true",
 		"(1 | 2) xor true",
 		"true implies (1 | 2)",
+		"iif((true | false), 1, 2)",
+		"iif(1 | 2 | 3, true, false)",
 	} {
 		t.Run(expr, func(t *testing.T) {
 			if _, err := MustCompile(expr).Evaluate(patient); err == nil {
@@ -131,5 +136,31 @@ func TestDelimitedTypeNames(t *testing.T) {
 				t.Errorf("%s = %s, want %s", tc.expr, got, tc.want)
 			}
 		})
+	}
+}
+
+// TestIifCriterionSingleton covers iif's criterion, which FHIRPath 3.0.0 says
+// "SHALL evaluate to a Boolean, consistent with singleton evaluation of
+// collections". Several items were read as false and the otherwise branch
+// returned, so iif((true | false), 1, 2) answered 2.
+func TestIifCriterionSingleton(t *testing.T) {
+	patient := []byte(`{"resourceType":"Patient"}`)
+
+	for _, tt := range []struct{ expr, want string }{
+		{"iif(true, 1, 2)", "1"},
+		{"iif(false, 1, 2)", "2"},
+		{"iif({}, 1, 2)", "2"},
+		{"iif('x', 1, 2)", "1"},
+	} {
+		t.Run(tt.expr, func(t *testing.T) {
+			if got := evaluateScalar(t, tt.expr, patient); got != tt.want {
+				t.Errorf("%s = %s, want %s", tt.expr, got, tt.want)
+			}
+		})
+	}
+
+	_, err := MustCompile("iif((true | false), 1, 2)").Evaluate(patient)
+	if err == nil || !strings.Contains(err.Error(), "iif() expects a single item as its criterion, got 2") {
+		t.Errorf("error %v, want it to name iif's criterion", err)
 	}
 }

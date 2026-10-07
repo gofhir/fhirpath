@@ -1437,10 +1437,12 @@ func (e *Evaluator) evaluateIif(input types.Collection, args []Node) interface{}
 		return err
 	}
 
-	// Convert criterion to boolean
 	criterion := false
 	if coll, ok := criterionResult.(types.Collection); ok {
-		criterion, _ = coll.SingletonBoolean()
+		var err error
+		if criterion, err = CriterionBoolean("iif()", coll); err != nil {
+			return err
+		}
 	}
 
 	// Lazily evaluate only the matching branch

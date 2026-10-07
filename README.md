@@ -414,8 +414,8 @@ input resources they were written against:
 
 | Suite | No model | With the FHIR model |
 |---|---|---|
-| R4 | 900 of 935 (96.3%) | **927 of 935 (99.1%)** |
-| R5 | 1007 of 1048 (96.1%) | **1034 of 1048 (98.7%)** |
+| R4 | 901 of 935 (96.4%) | **927 of 935 (99.1%)** |
+| R5 | 1008 of 1048 (96.2%) | **1034 of 1048 (98.7%)** |
 
 Run `make conformance` for the current number, and see
 [CONFORMANCE.md](CONFORMANCE.md) for what is covered, what is missing, which

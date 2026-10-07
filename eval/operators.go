@@ -687,6 +687,21 @@ func Implies(left, right types.Collection) types.Collection {
 	return types.FalseCollection
 }
 
+// CriterionBoolean reads the criterion of fn, which must be a Boolean by
+// singleton evaluation: empty is false, a single item that is not a Boolean is
+// true, and more than one item is an error rather than false. FHIRPath 3.0.0
+// says of iif that its criterion "SHALL evaluate to a Boolean, consistent with
+// singleton evaluation of collections", and the HL7 validator reads it with
+// asBool, which raises the error.
+func CriterionBoolean(fn string, criterion types.Collection) (bool, error) {
+	if len(criterion) > 1 {
+		return false, NewEvalError(ErrSingletonExpected,
+			"%s expects a single item as its criterion, got %d", fn, len(criterion))
+	}
+	value, _ := criterion.SingletonBoolean()
+	return value, nil
+}
+
 // Not performs logical NOT.
 func Not(value types.Collection) types.Collection {
 	val, ok := value.SingletonBoolean()
