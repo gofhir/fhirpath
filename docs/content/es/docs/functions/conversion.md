@@ -47,9 +47,10 @@ result, _ := fhirpath.Evaluate(patient, "iif(Patient.gender = 'male', 'M', 'F')"
 
 **Casos Limite / Notas:**
 
-- Si la condicion esta vacia o no es booleana, se trata como `false`.
+- La condicion sigue la evaluacion singleton: vacia es `false`, un unico elemento que no es Boolean es `true`, y mas de un elemento es un error (`ErrSingletonExpected`); asi, `iif(Patient.name.given = 'x', ...)` funciona, pero `iif(Patient.name.given, ...)` falla en un paciente con varios nombres de pila.
+- Una entrada de mas de un elemento tambien es un error: `iif` se llama sin contexto o con un solo elemento.
 - Si el `falseResult` no se proporciona y la condicion es `false`, devuelve una coleccion vacia.
-- Ambas ramas se evaluan como expresiones y se pasan como colecciones.
+- Solo se evalua la rama que elige la condicion, asi que un error en la otra nunca se produce.
 
 ---
 

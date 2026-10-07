@@ -47,9 +47,10 @@ result, _ := fhirpath.Evaluate(patient, "iif(Patient.gender = 'male', 'M', 'F')"
 
 **Edge Cases / Notes:**
 
-- If the condition is empty or not a boolean, it is treated as `false`.
+- The condition follows singleton evaluation: empty is `false`, a single item that is not a Boolean is `true`, and more than one item is an error (`ErrSingletonExpected`), so `iif(Patient.name.given = 'x', ...)` is fine but `iif(Patient.name.given, ...)` fails on a patient with several given names.
+- An input of more than one item is an error too: `iif` takes no context or a single item.
 - If the `falseResult` is not provided and the condition is `false`, returns an empty collection.
-- Both branches are evaluated as expressions and passed as collections.
+- Only the branch the condition selects is evaluated, so an error in the other one is never raised.
 
 ---
 
