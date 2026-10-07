@@ -1305,6 +1305,7 @@ func (e *Evaluator) evaluateOfType(input types.Collection, typeName string) inte
 // the configured collection limit bounds the damage when the data cycles.
 func (e *Evaluator) evaluateRepeat(input types.Collection, projection Node, dedupe bool) interface{} {
 	result := types.Collection{}
+	seen := types.NewLookup(nil)
 	current := input
 
 	for round := 0; len(current) > 0; round++ {
@@ -1338,10 +1339,16 @@ func (e *Evaluator) evaluateRepeat(input types.Collection, projection Node, dedu
 			}
 
 			for _, candidate := range produced {
-				if dedupe && containsEqual(result, candidate) {
-					continue
+				if dedupe {
+					if seen.Contains(candidate) {
+						continue
+					}
+					// The output is what has been seen, held once
+					seen.Add(candidate)
+					result = seen.Items()
+				} else {
+					result = append(result, candidate)
 				}
-				result = append(result, candidate)
 				next = append(next, candidate)
 			}
 		}
@@ -1354,17 +1361,6 @@ func (e *Evaluator) evaluateRepeat(input types.Collection, projection Node, dedu
 	}
 
 	return result
-}
-
-// containsEqual reports whether the collection already holds an item equal to
-// the candidate, under the equality the repeat() definition names.
-func containsEqual(collection types.Collection, candidate types.Value) bool {
-	for _, existing := range collection {
-		if existing.Equal(candidate) {
-			return true
-		}
-	}
-	return false
 }
 
 // evaluateDefineVariable binds a name for the remainder of the expression and

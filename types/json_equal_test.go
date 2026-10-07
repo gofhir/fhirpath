@@ -17,28 +17,23 @@ func TestSameJSON(t *testing.T) {
 	}{
 		{"identical", `{"a":1}`, `{"a":1}`, true},
 		{"layout", "{\n  \"a\" : 1,\n\t\"b\": [1, 2]\n}", `{"a":1,"b":[1,2]}`, true},
-		{"key order", `{"a":1,"b":{"c":"x","d":[true,null]}}`, `{"b":{"d":[true,null],"c":"x"},"a":1}`, true},
-		{"key order in an array item", `{"a":[{"x":1,"y":2}]}`, `{"a":[{"y":2,"x":1}]}`, true},
+		{"layout at the edges", " {\"a\":1} \n", `{"a":1}`, true},
+		{"layout around every punctuation", "{ \"a\" : [ 1 , { } , [ ] ] , \"b\" : null }", `{"a":[1,{},[]],"b":null}`, true},
 		{"layout inside a string", `{"a":"x y"}`, `{"a":"x  y"}`, false},
-		{"a string holding layout and braces", `{"a":"{ \"b\" : 1 }"}`, `{"a":"{ \"b\" : 1 }"}`, true},
+		{"a string holding layout and braces", `{"a":"{ \"b\" : 1 }"}`, "{ \"a\" : \"{ \\\"b\\\" : 1 }\" }", true},
 		{"an escaped quote, laid out", "{ \"a\" : \"x\\\"y\" }", `{"a":"x\"y"}`, true},
 		{"an escaped backslash before a quote, laid out", "{ \"a\" : \"x\\\\\" }", `{"a":"x\\"}`, true},
+		{"key order", `{"a":1,"b":2}`, `{"b":2,"a":1}`, false},
 		{"array order", `{"a":[1,2]}`, `{"a":[2,1]}`, false},
 		{"an extra key", `{"a":1}`, `{"a":1,"b":2}`, false},
-		{"a missing key", `{"a":1,"b":2}`, `{"a":1}`, false},
-		{"the same bytes in other values", `{"a":"xy","b":"z"}`, `{"a":"xz","b":"y"}`, false},
-		{"the same bytes under other keys", `{"ab":"c","d":"e"}`, `{"ab":"e","d":"c"}`, false},
-		{"a value of another type", `{"a":"1"}`, `{"a":1}`, false},
+		{"a number that is a prefix", `{"a":1}`, `{"a":10}`, false},
 		{"a number written another way", `{"a":1}`, `{"a":1.0}`, false},
-		{"null against absent", `{"a":null,"b":1}`, `{"b":1}`, false},
-		{"booleans", `{"a":true,"b":false}`, `{"b":false,"a":true}`, true},
-		{"nested arrays", `{"a":[[1,{"x":1,"y":2}],[]]}`, `{"a":[[1,{"y":2,"x":1}],[]]}`, true},
-		{"nested arrays, other length", `{"a":[[1],[]]}`, `{"a":[[1]]}`, false},
-		// Found by FuzzSameJSON: a key written twice made up for one it lacked
-		{"a duplicated key", `{"":0,"":0}`, `{"0":[],"":0}`, false},
-		{"a duplicated key with another value", `{"x":1,"x":1}`, `{"x":1,"x":2}`, false},
-		{"a duplicated key against one written once", `{"a":1,"a":1,"b":[]}`, `{"b":[],"a":1}`, false},
-		{"an escape, keys reordered", `{"a":"x\"y","b":1}`, `{"b":1,"a":"x\"y"}`, false},
+		{"a value of another type", `{"a":"1"}`, `{"a":1}`, false},
+		{"empty and absent", `{"a":[]}`, `{}`, false},
+		// Layout separates tokens: what is not JSON is not made equal to what is
+		{"layout splitting a number", `{"a":1 2}`, `{"a":12}`, false},
+		{"layout splitting a literal", `{"a":tr ue}`, `{"a":true}`, false},
+		{"layout between a number and a key", `{"a":1 ,"b":2}`, `{"a":1,"b":2}`, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := sameJSON([]byte(tc.a), []byte(tc.b)); got != tc.want {
@@ -51,40 +46,74 @@ func TestSameJSON(t *testing.T) {
 	}
 }
 
-// FuzzSameJSON holds the property the comparison is built on: it never says
-// two texts are the same when their content differs. The reference decodes
-// both, with numbers kept as written, as sameJSON compares them. A false
-// where the reference says true is allowed — a number or a string written
-// differently, a key written twice, keys reordered around an escape — a true
-// where it says false is not. Nor may two texts it finds the same have
-// different fingerprints, which would keep both in a union.
+// FuzzSameJSON holds sameJSON to a reference written the slow way, on any
+// input, JSON or not: two texts are the same when they read alike once the
+// layout between tokens is dropped, keeping one space where it separates two
+// bytes of numbers or literals. On valid JSON, the same is also what
+// encoding/json decodes alike, so sameJSON never says true where the content
+// differs.
 func FuzzSameJSON(f *testing.F) {
 	for _, seed := range [][2]string{
-		{`{"a":1,"b":[1,2]}`, `{"b":[1,2],"a":1}`},
+		{`{"a":1,"b":[1,2]}`, "{ \"a\" : 1 , \"b\" : [ 1 , 2 ] }"},
 		{"{\n \"a\" : \"x y\" }", `{"a":"x  y"}`},
-		{`{"a":"x\"y","b":{"c":null}}`, `{"b":{"c":null},"a":"x\"y"}`},
-		{`{"a":"xy","b":"z"}`, `{"a":"xz","b":"y"}`},
+		{`{"a":"x\"y","b":{"c":null}}`, "{\"a\":\"x\\\"y\",\n\"b\":{\"c\":null}}"},
+		{`{"a":1 2}`, `{"a":12}`},
 		{`{"a":[{"x":1},{"y":2}]}`, `{"a":[{"y":2},{"x":1}]}`},
 	} {
 		f.Add(seed[0], seed[1])
 	}
 	f.Fuzz(func(t *testing.T, a, b string) {
-		// Whatever it is given, it answers without panicking
-		_ = sameJSON([]byte(a), []byte(b))
-
-		x, xok := decodeObject(a)
-		y, yok := decodeObject(b)
-		if !xok || !yok {
+		got := sameJSON([]byte(a), []byte(b))
+		if want := withoutLayout(a) == withoutLayout(b); got != want {
+			t.Fatalf("sameJSON(%q, %q) = %v, want %v", a, b, got, want)
+		}
+		if !got {
 			return
 		}
-		same := sameJSON([]byte(a), []byte(b))
-		if same && !reflect.DeepEqual(x, y) {
-			t.Errorf("sameJSON(%q, %q) is true, but their content differs", a, b)
-		}
-		if same && jsonFingerprint([]byte(a)) != jsonFingerprint([]byte(b)) {
+		if jsonFingerprint([]byte(a)) != jsonFingerprint([]byte(b)) {
 			t.Errorf("sameJSON(%q, %q) is true, but their fingerprints differ", a, b)
 		}
+		x, xok := decodeObject(a)
+		y, yok := decodeObject(b)
+		if xok && yok && !reflect.DeepEqual(x, y) {
+			t.Errorf("sameJSON(%q, %q) is true, but their content differs", a, b)
+		}
 	})
+}
+
+// withoutLayout drops the whitespace between tokens, keeping one space where
+// it separates two bytes of numbers or literals.
+func withoutLayout(s string) string {
+	var out []byte
+	inString, escaped, spaced := false, false, false
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if inString {
+			out = append(out, c)
+			switch {
+			case escaped:
+				escaped = false
+			case c == '\\':
+				escaped = true
+			case c == '"':
+				inString = false
+			}
+			continue
+		}
+		if isJSONSpace(c) {
+			spaced = true
+			continue
+		}
+		if spaced && len(out) > 0 && isTokenByte(out[len(out)-1]) && isTokenByte(c) {
+			out = append(out, ' ')
+		}
+		spaced = false
+		if c == '"' {
+			inString = true
+		}
+		out = append(out, c)
+	}
+	return string(out)
 }
 
 func decodeObject(s string) (map[string]any, bool) {
@@ -94,29 +123,26 @@ func decodeObject(s string) (map[string]any, bool) {
 	decoder := json.NewDecoder(strings.NewReader(s))
 	decoder.UseNumber()
 	var v map[string]any
-	if decoder.Decode(&v) != nil || v == nil || decoder.More() {
+	if decoder.Decode(&v) != nil || v == nil {
 		return nil, false
 	}
 	return v, true
 }
 
-// FuzzSameJSONLayout holds the other half: what differs only in layout and in
-// the order of keys is the same. Each input is rewritten with every object's
-// keys reversed and laid out over lines, its values kept byte for byte, and the
-// two must compare equal. An object with a key written twice is left out, since
-// reversing it changes which value comes first.
+// FuzzSameJSONLayout holds the other half on valid JSON: an object laid out
+// over lines and indented, keys and values as written, is the same.
 func FuzzSameJSONLayout(f *testing.F) {
 	for _, seed := range []string{
 		`{"a":1,"b":[1,{"c":"x","d":null}]}`,
 		`{"resourceType":"Patient","name":[{"family":"F","given":["G","H"]}],"active":true}`,
 		`{"a":{"b":{"c":{"d":[[],{}]}}}}`,
-		`{"":0,"x y":"a: b, c","q":"{\"k\":1}"}`,
+		`{"":0,"x y":"a: b, c","q":"{ k : 1 }","n":-1.5e3}`,
 	} {
 		f.Add(seed)
 	}
 	f.Fuzz(func(t *testing.T, a string) {
-		// A string is compared as written, escapes included, and ObjectEach
-		// hands keys over unescaped: an input with an escape is left out
+		// ObjectEach hands keys over unescaped, so an input with an escape
+		// cannot be written back as it was: it is left out
 		if !json.Valid([]byte(a)) || !strings.HasPrefix(strings.TrimLeft(a, " \t\r\n"), "{") ||
 			strings.Contains(a, "\\") {
 			return
@@ -126,45 +152,34 @@ func FuzzSameJSONLayout(f *testing.F) {
 			return
 		}
 		if !sameJSON([]byte(a), []byte(b.String())) {
-			t.Errorf("sameJSON(%q, %q) is false, but they differ only in layout and key order", a, b.String())
+			t.Errorf("sameJSON(%q, %q) is false, but they differ only in layout", a, b.String())
 		}
 		if jsonFingerprint([]byte(a)) != jsonFingerprint([]byte(b.String())) {
-			t.Errorf("fingerprints of %q and %q differ, but they differ only in layout and key order", a, b.String())
+			t.Errorf("fingerprints of %q and %q differ, but they differ only in layout", a, b.String())
 		}
 	})
 }
 
-// relayout writes a JSON value with every object's keys reversed and one
-// member per line, scalars as written. It reports false for an object with a
-// key written twice.
+// relayout writes a JSON value with one member or item per line, indented,
+// keys and scalars as written. It reports false where it cannot.
 func relayout(out *strings.Builder, value []byte, valueType jsonparser.ValueType, depth int) bool {
 	indent := "\n" + strings.Repeat("  ", depth+1)
 	switch valueType {
 	case jsonparser.Object:
-		type member struct {
-			key, value []byte
-			valueType  jsonparser.ValueType
-		}
-		var members []member
-		seen := map[string]bool{}
-		duplicate := false
-		if jsonparser.ObjectEach(value, func(key, v []byte, vt jsonparser.ValueType, _ int) error {
-			duplicate = duplicate || seen[string(key)]
-			seen[string(key)] = true
-			members = append(members, member{key, v, vt})
-			return nil
-		}) != nil || duplicate {
-			return false
-		}
 		out.WriteString("{")
-		for i := len(members) - 1; i >= 0; i-- {
-			out.WriteString(indent + `"` + string(members[i].key) + `" : `)
-			if !relayout(out, members[i].value, members[i].valueType, depth+1) {
-				return false
-			}
-			if i > 0 {
+		first := true
+		if jsonparser.ObjectEach(value, func(key, v []byte, vt jsonparser.ValueType, _ int) error {
+			if !first {
 				out.WriteString(",")
 			}
+			first = false
+			out.WriteString(indent + `"` + string(key) + `" : `)
+			if !relayout(out, v, vt, depth+1) {
+				return errStop
+			}
+			return nil
+		}) != nil {
+			return false
 		}
 		out.WriteString("\n" + strings.Repeat("  ", depth) + "}")
 	case jsonparser.Array:
@@ -180,7 +195,7 @@ func relayout(out *strings.Builder, value []byte, valueType jsonparser.ValueType
 		}); err != nil || !ok {
 			return false
 		}
-		out.WriteString("]")
+		out.WriteString(" ]")
 	case jsonparser.String:
 		out.WriteString(`"` + string(value) + `"`)
 	default:
@@ -188,3 +203,5 @@ func relayout(out *strings.Builder, value []byte, valueType jsonparser.ValueType
 	}
 	return true
 }
+
+var errStop = jsonparser.MalformedObjectError

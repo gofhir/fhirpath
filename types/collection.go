@@ -97,56 +97,15 @@ func (c Collection) Distinct() Collection {
 	return withoutDuplicates(c)
 }
 
-// fingerprintFrom is the number of items from which withoutDuplicates
-// fingerprints objects. Below it the pairs are too few to repay a pass over
-// every object; most unions in an expression hold a handful of items.
-const fingerprintFrom = 8
-
 // withoutDuplicates keeps the first of each set of equal items, in order.
-//
-// Every item is compared with each one kept, and nearly every pair of objects
-// differs, so in a collection of any size each object is fingerprinted once,
-// by its content, and two objects with different fingerprints are not compared
-// at all: content that is the same always shares a fingerprint. See
-// jsonFingerprint.
-func withoutDuplicates(items []Value) Collection {
-	if len(items) < fingerprintFrom {
-		result := make(Collection, 0, len(items))
-		for _, item := range items {
-			if !result.Contains(item) {
-				result = append(result, item)
-			}
-		}
-		return result
-	}
-
-	type kept struct {
-		fingerprint uint64
-		object      bool
-	}
-	result := make(Collection, 0, len(items))
-	prints := make([]kept, 0, len(items))
+func withoutDuplicates(items Collection) Collection {
+	kept := newLookup(len(items))
 	for _, item := range items {
-		var mark kept
-		if object, ok := item.(*ObjectValue); ok {
-			mark = kept{jsonFingerprint(object.data), true}
-		}
-		duplicate := false
-		for i, other := range result {
-			if mark.object && prints[i].object && mark.fingerprint != prints[i].fingerprint {
-				continue
-			}
-			if other.Equal(item) {
-				duplicate = true
-				break
-			}
-		}
-		if !duplicate {
-			result = append(result, item)
-			prints = append(prints, mark)
+		if !kept.Contains(item) {
+			kept.Add(item)
 		}
 	}
-	return result
+	return kept.Items()
 }
 
 // IsDistinct returns true if all elements in the collection are unique.
@@ -161,8 +120,7 @@ func (c Collection) Union(other Collection) Collection {
 	// duplicate values" — of the merged collection, so a duplicate already
 	// present in the input goes too: 1.combine(1).union(2) holds two items.
 	merged := make(Collection, 0, len(c)+len(other))
-	merged = append(append(merged, c...), other...)
-	return withoutDuplicates(merged)
+	return withoutDuplicates(append(append(merged, c...), other...))
 }
 
 // Combine returns a new collection that combines c and other.
@@ -176,20 +134,22 @@ func (c Collection) Combine(other Collection) Collection {
 
 // Intersect returns elements that are in both collections.
 func (c Collection) Intersect(other Collection) Collection {
-	result := make(Collection, 0)
+	in := NewLookup(other)
+	result := newLookup(len(c))
 	for _, item := range c {
-		if other.Contains(item) && !result.Contains(item) {
-			result = append(result, item)
+		if in.Contains(item) && !result.Contains(item) {
+			result.Add(item)
 		}
 	}
-	return result
+	return result.Items()
 }
 
 // Exclude returns elements in c that are not in other.
 func (c Collection) Exclude(other Collection) Collection {
+	out := NewLookup(other)
 	result := make(Collection, 0)
 	for _, item := range c {
-		if !other.Contains(item) {
+		if !out.Contains(item) {
 			result = append(result, item)
 		}
 	}

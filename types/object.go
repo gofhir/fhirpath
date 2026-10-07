@@ -571,8 +571,8 @@ func (f fields) namedPartyType() string {
 	return ""
 }
 
-// Equal reports two objects with the same content, however each was written:
-// keys in any order, whitespace between tokens ignored. See sameJSON.
+// Equal reports two objects with the same content, apart from the whitespace
+// between tokens. See sameJSON.
 func (o *ObjectValue) Equal(other Value) bool {
 	if ov, ok := other.(*ObjectValue); ok {
 		return sameJSON(o.data, ov.data)
@@ -580,8 +580,8 @@ func (o *ObjectValue) Equal(other Value) bool {
 	return false
 }
 
-// Equivalent is the same as Equal for objects: their content, however each was
-// written. Applying string equivalence to each child is not done here.
+// Equivalent is the same as Equal for objects. Applying string equivalence to
+// each child is not done here.
 func (o *ObjectValue) Equivalent(other Value) bool {
 	return o.Equal(other)
 }

@@ -55,3 +55,38 @@ func BenchmarkObjectEquivalent(b *testing.B) {
 func BenchmarkObjectInIndented(b *testing.B) {
 	benchmarkObjectEquality(b, "Patient.contact.name in Patient.name", true)
 }
+
+// questionnaireItems writes n items as a serializer does, half of them with an
+// extension, which comes first: pairs differ from their first key on, and
+// every comparison over the collection meets them.
+func questionnaireItems(n int) []byte {
+	items := make([]string, n)
+	for i := range items {
+		item := fmt.Sprintf(`"linkId":"%d","text":"Question %d","type":"string"`, i, i)
+		if i%2 == 0 {
+			item = `"extension":[{"url":"http://example.org/hidden","valueBoolean":true}],` + item
+		}
+		items[i] = "{" + item + "}"
+	}
+	return []byte(`{"resourceType":"Questionnaire","status":"active","item":[` + strings.Join(items, ",") + `]}`)
+}
+
+func benchmarkQuestionnaire(b *testing.B, expr string) {
+	data := questionnaireItems(300)
+	compiled := MustCompile(expr)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := compiled.Evaluate(data); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkObjectRepeatMixedKeys(b *testing.B) {
+	benchmarkQuestionnaire(b, "Questionnaire.repeat(item).count()")
+}
+
+func BenchmarkObjectIntersectMixedKeys(b *testing.B) {
+	benchmarkQuestionnaire(b, "Questionnaire.item.intersect(Questionnaire.item.tail()).count()")
+}
