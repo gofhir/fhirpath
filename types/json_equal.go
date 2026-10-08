@@ -18,18 +18,37 @@ import (
 // numbers and strings alike throughout a document. And layout separates
 // tokens: 1 2 is not 12.
 //
-// The texts are compared up to the first byte that differs, a word and then a
-// block at a time. Unless layout stands there, they differ; only a pair laid
-// out differently is read a byte at a time. What comparing bytes had for free,
-// that texts of different lengths differ unread, layout takes away: a pair that
-// differs costs the bytes read up to its first difference.
+// The texts are read a word at a time over their first headBytes bytes, where
+// most pairs that differ do, as resources differ at their id. Texts of
+// different lengths that agree that far, which comparing bytes told apart
+// unread, are read from the end: a difference outside layout among their last
+// endBytes bytes, as where two objects differ in a trailing field, tells them
+// apart at once. Otherwise they are read on, a block at a time. Only a pair
+// laid out differently is read a byte at a time. A pair of different lengths
+// that agrees at both ends costs the bytes read up to its first difference.
 func sameJSON(a, b []byte) bool {
-	// The same bytes in memory, as one object reached twice is: equal at once,
-	// as bytes.Equal would answer
-	if len(a) == len(b) && (len(a) == 0 || &a[0] == &b[0]) {
-		return true
+	if len(a) == len(b) {
+		// The same bytes in memory, as one object reached twice is: equal at
+		// once, as bytes.Equal answers
+		if len(a) == 0 || &a[0] == &b[0] {
+			return true
+		}
 	}
-	k := commonPrefix(a, b)
+	n := min(len(a), len(b))
+	// Most pairs differ within their first words, as resources differ at their
+	// id: read those first
+	k := commonWords(a, b, 0, min(n, headBytes))
+	if k < min(n, headBytes) {
+		k = commonBytes(a, b, k, min(n, headBytes))
+	}
+	if k == min(n, headBytes) {
+		// They agree that far. Texts of different lengths may differ in a
+		// trailing field, which their ends tell at once; else read on
+		if len(a) != len(b) && differAtEnd(a, b) {
+			return false
+		}
+		k = commonPrefix(a, b, k)
+	}
 	if k == len(a) && k == len(b) {
 		return true
 	}
@@ -40,29 +59,70 @@ func sameJSON(a, b []byte) bool {
 	return equalIgnoringLayout(a, b)
 }
 
-// commonPrefix returns the length of the longest prefix two texts share,
-// comparing blocks with bytes.Equal, which is vectorized, before bytes.
-func commonPrefix(a, b []byte) int {
+// endBytes is how far from their ends differAtEnd reads two texts.
+const endBytes = 64
+
+// differAtEnd reports two texts whose last bytes, their trailing layout left
+// out, differ outside layout within endBytes of the end. As with a first
+// difference, the texts agree from there to the end, so the difference stands
+// at the same place in both, and a difference outside layout is one in content.
+func differAtEnd(a, b []byte) bool {
+	i, j := len(a), len(b) // one past the last byte still to compare
+	for i > 0 && isJSONSpace(a[i-1]) {
+		i--
+	}
+	for j > 0 && isJSONSpace(b[j-1]) {
+		j--
+	}
+	// Whole words first, eight bytes at a time, while they agree
+	for n := 0; n < endBytes && i >= 8 && j >= 8; n += 8 {
+		if binary.LittleEndian.Uint64(a[i-8:]) != binary.LittleEndian.Uint64(b[j-8:]) {
+			break
+		}
+		i -= 8
+		j -= 8
+	}
+	// Then the bytes of the word that does not, or of what is left
+	for n := 0; n < 8 && i > 0 && j > 0; n++ {
+		if c, d := a[i-1], b[j-1]; c != d {
+			return !isJSONSpace(c) && !isJSONSpace(d)
+		}
+		i--
+		j--
+	}
+	return false
+}
+
+// headBytes is how much of two texts sameJSON reads a word at a time before
+// anything else: most pairs that differ do so within it.
+const headBytes = 64
+
+// commonPrefix returns the length of the longest prefix two texts share, from
+// k on, comparing blocks with bytes.Equal, which is vectorized, before words
+// and bytes.
+func commonPrefix(a, b []byte, k int) int {
 	n := min(len(a), len(b))
-	k := 0
-	// Most pairs differ within their first words: read those a word at a time
-	// before reaching for blocks
-	for k+8 <= n && k < 64 && binary.LittleEndian.Uint64(a[k:]) == binary.LittleEndian.Uint64(b[k:]) {
-		k += 8
+	for k+512 <= n && bytes.Equal(a[k:k+512], b[k:k+512]) {
+		k += 512
 	}
-	if k >= 64 {
-		for k+512 <= n && bytes.Equal(a[k:k+512], b[k:k+512]) {
-			k += 512
-		}
-		for k+64 <= n && bytes.Equal(a[k:k+64], b[k:k+64]) {
-			k += 64
-		}
-		for k+8 <= n && binary.LittleEndian.Uint64(a[k:]) == binary.LittleEndian.Uint64(b[k:]) {
-			k += 8
-		}
+	for k+64 <= n && bytes.Equal(a[k:k+64], b[k:k+64]) {
+		k += 64
 	}
-	for k < n && a[k] == b[k] {
+	return commonBytes(a, b, commonWords(a, b, k, n), n)
+}
+
+// commonBytes advances k past the bytes a and b share, up to limit.
+func commonBytes(a, b []byte, k, limit int) int {
+	for k < limit && a[k] == b[k] {
 		k++
+	}
+	return k
+}
+
+// commonWords advances k past the eight-byte words a and b share, up to limit.
+func commonWords(a, b []byte, k, limit int) int {
+	for k+8 <= limit && binary.LittleEndian.Uint64(a[k:]) == binary.LittleEndian.Uint64(b[k:]) {
+		k += 8
 	}
 	return k
 }

@@ -95,7 +95,7 @@ func BenchmarkDistinctResourcesDifferingEarly(b *testing.B) {
 
 func BenchmarkExcludeEightResourcesDifferingEarly(b *testing.B) {
 	items := largeResources(500, 2_000)
-	some := append(Collection{}, items[490:]...)
+	some := append(Collection{}, items[492:]...)
 	for i := range some {
 		some[i] = NewObjectValue(append([]byte{}, some[i].(*ObjectValue).data...))
 	}
@@ -105,3 +105,28 @@ func BenchmarkExcludeEightResourcesDifferingEarly(b *testing.B) {
 		_ = some.Exclude(items[:480])
 	}
 }
+
+// sharedPrefixObjects writes n objects that share a prefix of about size
+// bytes and differ only in a trailing note of a different length each, as
+// entries of a transaction with no ids do.
+func sharedPrefixObjects(n, size int) Collection {
+	body := strings.Repeat(`{"system":"http://loinc.org","code":"1234-5","display":"A coded value"},`, size/72)
+	items := make(Collection, n)
+	for i := range items {
+		items[i] = NewObjectValue(fmt.Appendf(nil, `{"resourceType":"Observation","code":{"coding":[%s]},"note":[{"text":"%s"}]}`,
+			strings.TrimSuffix(body, ","), strings.Repeat("n", i+1)))
+	}
+	return items
+}
+
+func benchmarkDistinctSharedPrefix(b *testing.B, size int) {
+	items := sharedPrefixObjects(100, size)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = items.Distinct()
+	}
+}
+
+func BenchmarkDistinctSharedPrefix1K(b *testing.B)  { benchmarkDistinctSharedPrefix(b, 1_000) }
+func BenchmarkDistinctSharedPrefix10K(b *testing.B) { benchmarkDistinctSharedPrefix(b, 10_000) }

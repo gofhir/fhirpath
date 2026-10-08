@@ -34,6 +34,12 @@ func TestSameJSON(t *testing.T) {
 		{"layout splitting a number", `{"a":1 2}`, `{"a":12}`, false},
 		{"layout splitting a literal", `{"a":tr ue}`, `{"a":true}`, false},
 		{"layout between a number and a key", `{"a":1 ,"b":2}`, `{"a":1,"b":2}`, true},
+		// Read from the end, where texts of different lengths often differ
+		{"a trailing field of another length", `{"a":[1,2,3],"note":"short"}`, `{"a":[1,2,3],"note":"rather longer"}`, false},
+		{"trailing layout", "{\"a\":1}\n\n", `{"a":1}`, true},
+		{"layout near the end", `{"a":[1,2,3],"b":{"c":1}}`, "{\"a\":[1,2,3],\"b\":{\"c\":1} }", true},
+		{"a string ending in layout", `{"a":"x "}`, `{"a":"x"}`, false},
+		{"an escaped quote near the end", `{"a":"x\"","b":1}`, `{"a":"x\"" , "b":1}`, true},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			if got := sameJSON([]byte(tc.a), []byte(tc.b)); got != tc.want {
