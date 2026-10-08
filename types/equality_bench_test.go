@@ -67,3 +67,41 @@ func BenchmarkDistinctLargeObjects(b *testing.B) {
 		_ = items.Distinct()
 	}
 }
+
+// largeResources writes n resources of about size bytes that differ early, at
+// their id, as resources in a Bundle do, half of them a little longer.
+func largeResources(n, size int) Collection {
+	body := strings.Repeat(`{"system":"http://loinc.org","code":"1234-5","display":"A coded value"},`, size/72)
+	items := make(Collection, n)
+	for i := range items {
+		status := ""
+		if i%2 == 0 {
+			status = `"status":"final",`
+		}
+		items[i] = NewObjectValue(fmt.Appendf(nil, `{"resourceType":"Observation","id":"%04d",%s"code":{"coding":[%s]}}`,
+			i, status, strings.TrimSuffix(body, ",")))
+	}
+	return items
+}
+
+func BenchmarkDistinctResourcesDifferingEarly(b *testing.B) {
+	items := largeResources(100, 50_000)
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = items.Distinct()
+	}
+}
+
+func BenchmarkExcludeEightResourcesDifferingEarly(b *testing.B) {
+	items := largeResources(500, 2_000)
+	some := append(Collection{}, items[490:]...)
+	for i := range some {
+		some[i] = NewObjectValue(append([]byte{}, some[i].(*ObjectValue).data...))
+	}
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = some.Exclude(items[:480])
+	}
+}

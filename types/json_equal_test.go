@@ -70,11 +70,6 @@ func FuzzSameJSON(f *testing.F) {
 		if !got {
 			return
 		}
-		if la, sa := measureContent([]byte(a)); true {
-			if lb, sb := measureContent([]byte(b)); la != lb || sa != sb {
-				t.Errorf("sameJSON(%q, %q) is true, but their content measures differ", a, b)
-			}
-		}
 		x, xok := decodeObject(a)
 		y, yok := decodeObject(b)
 		if xok && yok && !reflect.DeepEqual(x, y) {
@@ -155,10 +150,6 @@ func FuzzSameJSONLayout(f *testing.F) {
 		}
 		if !sameJSON([]byte(a), []byte(b.String())) {
 			t.Errorf("sameJSON(%q, %q) is false, but they differ only in layout", a, b.String())
-		}
-		la, sa := measureContent([]byte(a))
-		if lb, sb := measureContent([]byte(b.String())); la != lb || sa != sb {
-			t.Errorf("content measures of %q and %q differ, but they differ only in layout", a, b.String())
 		}
 	})
 }

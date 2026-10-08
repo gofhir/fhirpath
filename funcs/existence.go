@@ -212,9 +212,8 @@ func fnSubsetOf(_ *eval.Context, input types.Collection, args []interface{}) (ty
 	}
 
 	// All items in input must be in other
-	in := types.NewLookup(other)
 	for _, item := range input {
-		if !in.Contains(item) {
+		if !other.Contains(item) {
 			return types.FalseCollection, nil
 		}
 	}
@@ -234,9 +233,8 @@ func fnSupersetOf(_ *eval.Context, input types.Collection, args []interface{}) (
 	}
 
 	// All items in other must be in input
-	in := types.NewLookup(input)
 	for _, item := range other {
-		if !in.Contains(item) {
+		if !input.Contains(item) {
 			return types.FalseCollection, nil
 		}
 	}

@@ -94,18 +94,13 @@ func (c Collection) Distinct() Collection {
 	if len(c) <= 1 {
 		return c
 	}
-	return withoutDuplicates(c)
-}
-
-// withoutDuplicates keeps the first of each set of equal items, in order.
-func withoutDuplicates(items Collection) Collection {
-	kept := newLookup(len(items))
-	for _, item := range items {
-		if !kept.Contains(item) {
-			kept.Add(item)
+	result := make(Collection, 0, len(c))
+	for _, item := range c {
+		if !result.Contains(item) {
+			result = append(result, item)
 		}
 	}
-	return kept.Items()
+	return result
 }
 
 // IsDistinct returns true if all elements in the collection are unique.
@@ -116,11 +111,17 @@ func (c Collection) IsDistinct() bool {
 // Union returns a new collection that is the union of c and other.
 // Duplicates are removed.
 func (c Collection) Union(other Collection) Collection {
+	result := make(Collection, 0, len(c)+len(other))
+
 	// "Merge the two collections into a single collection, eliminating any
 	// duplicate values" — of the merged collection, so a duplicate already
 	// present in the input goes too: 1.combine(1).union(2) holds two items.
-	merged := make(Collection, 0, len(c)+len(other))
-	return withoutDuplicates(append(append(merged, c...), other...))
+	for _, item := range append(append(Collection{}, c...), other...) {
+		if !result.Contains(item) {
+			result = append(result, item)
+		}
+	}
+	return result
 }
 
 // Combine returns a new collection that combines c and other.
@@ -134,22 +135,20 @@ func (c Collection) Combine(other Collection) Collection {
 
 // Intersect returns elements that are in both collections.
 func (c Collection) Intersect(other Collection) Collection {
-	in := NewLookup(other)
-	result := newLookup(len(c))
+	result := make(Collection, 0)
 	for _, item := range c {
-		if in.Contains(item) && !result.Contains(item) {
-			result.Add(item)
+		if other.Contains(item) && !result.Contains(item) {
+			result = append(result, item)
 		}
 	}
-	return result.Items()
+	return result
 }
 
 // Exclude returns elements in c that are not in other.
 func (c Collection) Exclude(other Collection) Collection {
-	out := NewLookup(other)
 	result := make(Collection, 0)
 	for _, item := range c {
-		if !out.Contains(item) {
+		if !other.Contains(item) {
 			result = append(result, item)
 		}
 	}

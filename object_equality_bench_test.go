@@ -7,10 +7,10 @@ import (
 )
 
 // The operators that compare items to find one — union, distinct(), =, in —
-// compare every pair, and almost every pair differs, so a differing pair must
-// stay about as cheap as comparing bytes made it. These measure that, on names
-// written alike, on the same names written at another depth, and on items
-// whose first keys differ. types/equality_bench_test.go measures large objects.
+// compare every pair, and almost every pair differs, so what a differing pair
+// costs decides theirs. These measure it, on names written alike, on the same
+// names written at another depth, and on items whose first keys differ.
+// types/equality_bench_test.go measures large objects.
 
 func namesPatient(n int, indented bool) []byte {
 	names := make([]string, n)

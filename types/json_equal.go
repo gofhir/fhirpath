@@ -18,11 +18,11 @@ import (
 // numbers and strings alike throughout a document. And layout separates
 // tokens: 1 2 is not 12.
 //
-// The texts are compared a block at a time up to the first byte that differs,
-// as comparing bytes did. Unless layout stands there, they differ; only a pair
-// laid out differently is read a byte at a time. What comparing bytes had for
-// free, that texts of different lengths differ, a Lookup recovers for the
-// collections that compare every pair: see measureContent.
+// The texts are compared up to the first byte that differs, a word and then a
+// block at a time. Unless layout stands there, they differ; only a pair laid
+// out differently is read a byte at a time. What comparing bytes had for free,
+// that texts of different lengths differ unread, layout takes away: a pair that
+// differs costs the bytes read up to its first difference.
 func sameJSON(a, b []byte) bool {
 	// The same bytes in memory, as one object reached twice is: equal at once,
 	// as bytes.Equal would answer
@@ -45,14 +45,21 @@ func sameJSON(a, b []byte) bool {
 func commonPrefix(a, b []byte) int {
 	n := min(len(a), len(b))
 	k := 0
-	for k+512 <= n && bytes.Equal(a[k:k+512], b[k:k+512]) {
-		k += 512
-	}
-	for k+64 <= n && bytes.Equal(a[k:k+64], b[k:k+64]) {
-		k += 64
-	}
-	for k+8 <= n && binary.LittleEndian.Uint64(a[k:]) == binary.LittleEndian.Uint64(b[k:]) {
+	// Most pairs differ within their first words: read those a word at a time
+	// before reaching for blocks
+	for k+8 <= n && k < 64 && binary.LittleEndian.Uint64(a[k:]) == binary.LittleEndian.Uint64(b[k:]) {
 		k += 8
+	}
+	if k >= 64 {
+		for k+512 <= n && bytes.Equal(a[k:k+512], b[k:k+512]) {
+			k += 512
+		}
+		for k+64 <= n && bytes.Equal(a[k:k+64], b[k:k+64]) {
+			k += 64
+		}
+		for k+8 <= n && binary.LittleEndian.Uint64(a[k:]) == binary.LittleEndian.Uint64(b[k:]) {
+			k += 8
+		}
 	}
 	for k < n && a[k] == b[k] {
 		k++
@@ -121,37 +128,4 @@ func skipLayout(data []byte, i int) int {
 		i++
 	}
 	return i
-}
-
-// contentTables give each byte a fixed 64-bit value, spread by splitmix64,
-// and whether it counts toward a text's content. Whitespace counts for nothing
-// in either, inside strings or out, so measureContent reads every byte the
-// same way, with no branch.
-var fingerprintTable, contentByte = func() (values [256]uint64, counts [256]int) {
-	x := uint64(0x9e3779b97f4a7c15)
-	for i := range values {
-		x += 0x9e3779b97f4a7c15
-		z := x
-		z = (z ^ (z >> 30)) * 0xbf58476d1ce4e5b9
-		z = (z ^ (z >> 27)) * 0x94d049bb133111eb
-		values[i], counts[i] = z^(z>>31), 1
-	}
-	for _, space := range [...]byte{' ', '\n', '\t', '\r'} {
-		values[space], counts[space] = 0, 0
-	}
-	return values, counts
-}()
-
-// measureContent measures a text's content apart from its whitespace, inside
-// strings or out: its length, and the sum of a fixed value per byte. Two texts
-// sameJSON finds the same differ only in the whitespace between tokens, so
-// they share both, and texts that do not share them differ — the length check
-// comparing bytes had, made to hold through layout, and a sum that tells apart
-// the many values of one shape, F12 and F13, that share a length.
-func measureContent(data []byte) (length int, sum uint64) {
-	for _, c := range data {
-		sum += fingerprintTable[c]
-		length += contentByte[c]
-	}
-	return length, sum
 }
