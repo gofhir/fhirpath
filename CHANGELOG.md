@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.12.2](https://github.com/gofhir/fhirpath/compare/v1.12.1...v1.12.2) (2026-10-08)
+
+
+### Bug Fixes
+
+* complex values compare by content, apart from layout ([#120](https://github.com/gofhir/fhirpath/issues/120)) ([1b7c081](https://github.com/gofhir/fhirpath/commit/1b7c081dce26f3e110ea58e46c15c21b0309dd29)), closes [#118](https://github.com/gofhir/fhirpath/issues/118)
+
 ## [1.12.1](https://github.com/gofhir/fhirpath/compare/v1.12.0...v1.12.1) (2026-10-07)
 
 
