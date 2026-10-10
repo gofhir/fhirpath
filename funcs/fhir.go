@@ -76,12 +76,9 @@ func fnResolve(ctx *eval.Context, input types.Collection, args []interface{}) (t
 		case types.String:
 			reference = v.Value()
 		case *types.ObjectValue:
-			// Try to get the 'reference' field from a Reference object
-			if ref, ok := v.Get("reference"); ok {
-				if refStr, ok := ref.(types.String); ok {
-					reference = refStr.Value()
-				}
-			}
+			// The 'reference' field of a Reference object, read without writing
+			// to it: the caller may share it
+			reference = readString(v, "reference")
 		}
 
 		if reference == "" {
@@ -91,7 +88,8 @@ func fnResolve(ctx *eval.Context, input types.Collection, args []interface{}) (t
 		// A reference into the document being evaluated needs no resolver: the
 		// target is already here. Tried first, so that a contained resource
 		// resolves the same way whether or not the caller wired one up.
-		if local, found := resolveWithinDocument(ctx, reference); found {
+		holder, _ := item.(*types.ObjectValue) // the Reference, when it is one
+		if local, found := resolveWithinDocument(ctx, holder, reference); found {
 			result = append(result, local)
 			continue
 		}
@@ -131,24 +129,120 @@ func fnResolve(ctx *eval.Context, input types.Collection, args []interface{}) (t
 // being evaluated.
 //
 // FHIR writes two kinds of reference that point inward. A fragment — "#obs1" —
-// names a resource in the containing resource's contained list. A relative
-// reference — "Observation/obs1" — names an entry of the Bundle when the
-// document is one, matched on its fullUrl or on the resource's own type and id.
+// names a resource contained in the resource that makes the reference
+// (references.html#contained); "#" alone names that resource from one of its
+// contained resources. A reference into a Bundle names one of its entries
+// (bundle.html#references), resolved from the entry that holds the reference.
+//
+// Both are resolved from where the reference is written, which the Reference
+// object knows by the objects it was read out of. A reference read as a bare
+// string has lost that, and is resolved from the root of the expression.
+//
+// The walk reads what Parent returns, fresh shared objects that keep nothing
+// they read, and reaching the root of the evaluation it takes the root itself,
+// which it holds, with what that has read.
 //
 // Neither needs a resolver, and returning empty for them would be wrong rather
 // than merely limited: the data is right there, and an invariant like dom-3
 // that walks contained resources would silently pass on documents it should
 // reject.
-func resolveWithinDocument(ctx *eval.Context, reference string) (types.Value, bool) {
+func resolveWithinDocument(ctx *eval.Context, holder *types.ObjectValue, reference string) (types.Value, bool) {
 	root := rootResourceOf(ctx)
-	if root == nil {
-		return nil, false
+	if fragment, ok := strings.CutPrefix(reference, "#"); ok {
+		resource, container := containingResource(holder, root)
+		if container == nil {
+			container = root
+		}
+		if container == nil {
+			return nil, false
+		}
+		if fragment == "" {
+			// "#" names the container from one of its contained resources only
+			return container, resource != nil && resource != container
+		}
+		return findContained(container, fragment)
 	}
 
-	if strings.HasPrefix(reference, "#") {
-		return findContained(root, strings.TrimPrefix(reference, "#"))
+	rootBundle := root
+	if rootBundle != nil && rootBundle.Type() != "Bundle" {
+		rootBundle = nil
 	}
-	return findBundleEntry(root, reference)
+	entry, bundle := referringEntry(holder, rootBundle)
+	if bundle != nil {
+		if found, ok := findBundleEntry(bundle, entry, reference); ok {
+			return found, true
+		}
+	}
+	// Not in the Bundle it is written in, or written nowhere a chain records:
+	// the Bundle being evaluated, as it always was, from the same entry
+	if rootBundle != nil && bundle != rootBundle {
+		return findBundleEntry(rootBundle, entry, reference)
+	}
+	return nil, false
+}
+
+// sameObject reports two objects over the same JSON, as a parent and the fresh
+// object Parent returns for it are.
+func sameObject(a, b *types.ObjectValue) bool {
+	if a == nil || b == nil {
+		return a == b
+	}
+	x, y := a.Data(), b.Data()
+	return len(x) == len(y) && (len(x) == 0 || &x[0] == &y[0])
+}
+
+// containingResource returns the resource a reference is written in, and the
+// resource whose contained list its fragments name: the same one, or, when the
+// reference is written in a contained resource, the resource that contains it.
+// Both are nil when the reference does not know where it was read from.
+//
+// Reaching the root of the evaluation, where that is a resource, the walk stops
+// there and takes the root itself as the container, as resolve() always has, without reading it again.
+func containingResource(o, root *types.ObjectValue) (resource, container *types.ObjectValue) {
+	for ; o != nil; o = o.Parent() {
+		if readString(o, "resourceType") == "" {
+			continue
+		}
+		if sameObject(o, root) {
+			if resource == nil {
+				resource = root
+			}
+			return resource, root
+		}
+		if resource == nil {
+			resource = o
+		}
+		container = o
+		if o.ParentField() != "contained" {
+			break
+		}
+	}
+	return resource, container
+}
+
+// referringEntry returns the Bundle entry that holds the resource a reference
+// is written in, and that Bundle: the nearest one, so that a reference inside
+// a Bundle held by another — a document or a message in a collection — is
+// resolved in the Bundle it is written in. The root Bundle, whose type is
+// known, is recognized without reading it.
+func referringEntry(o, root *types.ObjectValue) (entry, bundle *types.ObjectValue) {
+	for o != nil {
+		parent := o.Parent()
+		if parent == nil {
+			return nil, nil
+		}
+		if o.ParentField() == "resource" && parent.ParentField() == "entry" {
+			grand := parent.Parent()
+			if sameObject(grand, root) {
+				return parent, root
+			}
+			if grand != nil && readString(grand, "resourceType") == "Bundle" {
+				return parent, grand
+			}
+		}
+		o = parent
+	}
+	return nil, nil
 }
 
 // rootResourceOf returns the resource the expression is being evaluated
@@ -181,61 +275,138 @@ func findContained(root *types.ObjectValue, id string) (types.Value, bool) {
 		if !ok {
 			continue
 		}
-		if stringField(obj, "id") == id {
+		if readString(obj, "id") == id {
 			return obj, true
 		}
 	}
 	return nil, false
 }
 
-// findBundleEntry looks for a Bundle entry by its fullUrl, or by the type and
-// id its resource carries.
-func findBundleEntry(root *types.ObjectValue, reference string) (types.Value, bool) {
-	if root.Type() != "Bundle" {
-		return nil, false
+// findBundleEntry finds the entry of a Bundle a reference names, following
+// bundle.html#references, from the entry that holds the reference when it is
+// known:
+//
+//   - An entry whose fullUrl is the reference as written matches, as it always
+//     has: a relative fullUrl, a versioned one.
+//   - A relative reference, Type/id, is made absolute with the base of the
+//     referring entry's fullUrl when that is RESTful, and matched on fullUrl:
+//     Observation/x from http://b.org/fhir/ names http://b.org/fhir/Observation/x
+//     and no other server's. Failing that, it is matched on the type and id
+//     of the resources of entries whose fullUrl names no server — a urn:uuid,
+//     or none — as a transaction writes the resources it creates. Where the
+//     referring fullUrl is not RESTful, or the entry is not known, it is
+//     matched on the type and id of any entry's resource.
+//   - Any other reference is matched on fullUrl.
+//   - A versioned reference, .../_history/v, also matches with its version
+//     taken off, on meta.versionId.
+//
+// A fullUrl matches with or without a trailing slash. When several entries
+// match — which FHIR calls ambiguous, leaving what to do to the application —
+// the first is taken, as it always was.
+func findBundleEntry(bundle, from *types.ObjectValue, reference string) (types.Value, bool) {
+	target, version, versioned := strings.Cut(reference, "/_history/")
+	relative := isRelativeReference(target)
+	refType, refID, _ := strings.Cut(target, "/")
+	matchesID := func(resource *types.ObjectValue) bool {
+		return relative && readString(resource, "id") == refID && readString(resource, "resourceType") == refType
 	}
 
-	for _, entry := range root.GetCollection("entry") {
+	byFullURL := !relative
+	if relative && from != nil {
+		if base, ok := restfulBase(readString(from, "fullUrl")); ok {
+			target, byFullURL = base+target, true
+		}
+	}
+
+	asWritten := strings.TrimSuffix(reference, "/")
+	target = strings.TrimSuffix(target, "/")
+
+	var local types.Value // the first by type and id among entries that name no server
+	for _, entry := range bundle.GetCollection("entry") {
 		entryObj, isObject := entry.(*types.ObjectValue)
 		if !isObject {
 			continue
 		}
-
-		if stringField(entryObj, "fullUrl") == reference {
-			if resource, hasResource := entryObj.Get("resource"); hasResource {
+		resource := readObject(entryObj, "resource")
+		if resource == nil {
+			continue
+		}
+		fullURL := strings.TrimSuffix(readString(entryObj, "fullUrl"), "/")
+		if fullURL != "" && fullURL == asWritten {
+			return resource, true
+		}
+		if versioned && readString(readObject(resource, "meta"), "versionId") != version {
+			continue
+		}
+		switch {
+		case !byFullURL:
+			if matchesID(resource) {
 				return resource, true
 			}
-		}
-
-		resource, hasResource := entryObj.Get("resource")
-		if !hasResource {
-			continue
-		}
-		resourceObj, isResource := resource.(*types.ObjectValue)
-		if !isResource {
-			continue
-		}
-		if id := stringField(resourceObj, "id"); id != "" &&
-			reference == resourceObj.Type()+"/"+id {
-			return resourceObj, true
+		case fullURL == target:
+			return resource, true
+		case local == nil && relative && !namesServer(fullURL) && matchesID(resource):
+			local = resource
 		}
 	}
-
-	return nil, false
+	return local, local != nil
 }
 
-// stringField reads a field that holds a string, or "" when it is absent or
-// holds something else.
-func stringField(obj *types.ObjectValue, name string) string {
-	value, ok := obj.Get(name)
-	if !ok {
+// isRelativeReference reports a reference of the form Type/id.
+func isRelativeReference(reference string) bool {
+	resourceType, id, ok := strings.Cut(reference, "/")
+	return ok && resourceType != "" && id != "" && !strings.Contains(id, "/") &&
+		!strings.Contains(resourceType, ":") && resourceType[0] >= 'A' && resourceType[0] <= 'Z'
+}
+
+// namesServer reports a fullUrl that names a server, http or https, as a
+// urn:uuid or an absent one does not.
+func namesServer(fullURL string) bool {
+	return strings.HasPrefix(fullURL, "http://") || strings.HasPrefix(fullURL, "https://")
+}
+
+// restfulBase returns the base of a RESTful fullUrl — http://example.org/fhir/
+// for http://example.org/fhir/Observation/x — and false for any other, such as
+// a urn:uuid.
+func restfulBase(fullURL string) (string, bool) {
+	if !namesServer(fullURL) {
+		return "", false
+	}
+	fullURL, _, _ = strings.Cut(fullURL, "/_history/")
+	fullURL = strings.TrimSuffix(fullURL, "/")
+	idAt := strings.LastIndexByte(fullURL, '/')
+	if idAt < 0 {
+		return "", false
+	}
+	typeAt := strings.LastIndexByte(fullURL[:idAt], '/')
+	if typeAt < 0 || !isRelativeReference(fullURL[typeAt+1:]) {
+		return "", false
+	}
+	return fullURL[:typeAt+1], true
+}
+
+// readString reads a field that holds a string, as the JSON writes it, with
+// ReadString, and "" when it is absent, holds something else, or the object is
+// nil.
+func readString(obj *types.ObjectValue, name string) string {
+	if obj == nil {
 		return ""
 	}
-	text, isString := value.(types.String)
-	if !isString {
-		return ""
+	text, _ := obj.ReadString(name)
+	return text
+}
+
+// readObject reads a field that holds an object, or nil.
+func readObject(obj *types.ObjectValue, name string) *types.ObjectValue {
+	if obj == nil {
+		return nil
 	}
-	return text.Value()
+	if value, ok := obj.Get(name); ok {
+		if object, isObject := value.(*types.ObjectValue); isObject {
+			return object
+		}
+	}
+	return nil
 }
 
 // fnExtension returns extensions matching the given URL.
