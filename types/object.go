@@ -175,6 +175,10 @@ func (o *ObjectValue) Location() string {
 // object no read created, or one a Resolver handed back. It is what resolve()
 // walks to find where a reference is written: the resource that makes it, and
 // in a Bundle, the entry that holds that resource.
+//
+// The parent may be read by other goroutines, or still be held by the
+// evaluation that read it; read it with ReadCollection, which writes nothing
+// to it, rather than with Get or GetCollection.
 func (o *ObjectValue) Parent() *ObjectValue {
 	return o.parent
 }
@@ -193,6 +197,40 @@ func (o *ObjectValue) ParentField() string {
 		return ""
 	}
 	return string(key)
+}
+
+// ReadCollection reads a field as GetCollection does, but keeps nothing on the
+// object and builds no index on it, so that it may be called on an object that
+// other goroutines read. resolve() reads the resources and Bundles a reference
+// is written in, which the evaluation that read them may still hold, and
+// GetCollection, on an object one goroutine reads, writes to it. The values
+// read are new, and are adopted as GetCollection adopts them: they know they
+// were read out of the object. The element FHIR writes beside a primitive,
+// under _name, is not read.
+func (o *ObjectValue) ReadCollection(field string) Collection {
+	value, dataType, _, err := jsonparser.Get(o.data, field)
+	if err != nil {
+		return Collection{}
+	}
+	if dataType != jsonparser.Array {
+		v := jsonValueToFHIRValue(value, dataType)
+		if v == nil {
+			return Collection{}
+		}
+		o.adoptAt(v, field, -1)
+		return Collection{v}
+	}
+	var col Collection
+	index := 0
+	//nolint:errcheck // a malformed array reads as what was read of it
+	jsonparser.ArrayEach(value, func(item []byte, itemType jsonparser.ValueType, _ int, _ error) {
+		if v := jsonValueToFHIRValue(item, itemType); v != nil {
+			o.adoptAt(v, field, index)
+			col = append(col, v)
+		}
+		index++
+	})
+	return col
 }
 
 // locate finds the field of the object that holds child, which was read out

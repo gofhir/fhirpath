@@ -4,12 +4,16 @@ import (
 	"context"
 	"fmt"
 	"testing"
+
+	"github.com/gofhir/fhirpath/eval"
+	"github.com/gofhir/fhirpath/types"
 )
 
 // A reference is resolved from where it is written, not from the root of the
 // expression. bundle.html#references: a relative reference takes the base of
 // the RESTful fullUrl of the entry that holds it; a versioned one also matches
-// meta.versionId; several matches are ambiguous. references.html#contained: a
+// meta.versionId; several matches are ambiguous, and the first is taken, as
+// it always was. references.html#contained: a
 // fragment names a resource contained in the resource that makes the
 // reference, and one written inside a contained resource follows the rules of
 // the resource that contains it.
@@ -66,11 +70,23 @@ func TestResolveFromTheReferringEntry(t *testing.T) {
 			observationEntry("", "x", "amended", ""),
 			observationEntry("", "root", "final", fmt.Sprintf(member, "Observation/x")),
 		}, "amended"},
-		{"several matches by id are ambiguous", []string{
+		{"of several matches by id, the first", []string{
 			observationEntry("", "x", "amended", ""),
 			observationEntry("", "x", "final", ""),
 			observationEntry("", "root", "final", fmt.Sprintf(member, "Observation/x")),
-		}, "EMPTY"},
+		}, "amended"},
+		{"an entry whose fullUrl is the reference as written", []string{
+			`{"fullUrl":"Observation/x","resource":{"resourceType":"Observation","status":"amended","code":{"text":"c"}}}`,
+			observationEntry("", "root", "final", fmt.Sprintf(member, "Observation/x")),
+		}, "amended"},
+		{"a versioned fullUrl that is the reference as written", []string{
+			`{"fullUrl":"http://a.org/fhir/Observation/x/_history/2","resource":{"resourceType":"Observation","id":"x","status":"amended","code":{"text":"c"}}}`,
+			observationEntry("http://a.org/fhir/Observation/root", "root", "final", fmt.Sprintf(member, "http://a.org/fhir/Observation/x/_history/2")),
+		}, "amended"},
+		{"a fullUrl with a trailing slash", []string{
+			observationEntry("http://a.org/fhir/Observation/x/", "x", "amended", ""),
+			observationEntry("http://a.org/fhir/Observation/root", "root", "final", fmt.Sprintf(member, "Observation/x")),
+		}, "amended"},
 		{"a versioned reference matches meta.versionId", []string{
 			`{"fullUrl":"http://a.org/fhir/Observation/x","resource":{"resourceType":"Observation","id":"x","meta":{"versionId":"1"},"status":"preliminary","code":{"text":"c"}}}`,
 			`{"fullUrl":"http://a.org/fhir/Observation/x","resource":{"resourceType":"Observation","id":"x","meta":{"versionId":"2"},"status":"final","code":{"text":"c"}}}`,
@@ -133,6 +149,66 @@ func TestResolveFragmentInTheReferringResource(t *testing.T) {
 		}
 		if g := got.String(); g != "["+want+"]" {
 			t.Errorf("%s = %s, want [%s]", expr, g, want)
+		}
+	}
+}
+
+// TestResolveInTheNearestBundle checks that a reference inside a Bundle held
+// by another — a document in a collection — is resolved in the Bundle it is
+// written in, from its own entry.
+func TestResolveInTheNearestBundle(t *testing.T) {
+	outer := []byte(`{"resourceType":"Bundle","type":"collection","entry":[
+	  {"fullUrl":"http://outer.org/fhir/Bundle/inner","resource":{"resourceType":"Bundle","type":"document","entry":[
+	    {"fullUrl":"http://inner.org/fhir/Composition/c","resource":{"resourceType":"Composition","id":"c","subject":{"reference":"Patient/p"}}},
+	    {"fullUrl":"http://inner.org/fhir/Patient/p","resource":{"resourceType":"Patient","id":"p","gender":"female"}}]}},
+	  {"fullUrl":"http://outer.org/fhir/Patient/p","resource":{"resourceType":"Patient","id":"p","gender":"male"}}]}`)
+
+	expr := "Bundle.entry.resource.ofType(Bundle).entry.resource.ofType(Composition).subject.resolve().gender"
+	if got := evaluateScalar(t, expr, outer); got != "female" {
+		t.Errorf("%s = %s, want female", expr, got)
+	}
+}
+
+// TestResolveContainerOnlyFromContained checks that "#" names the container
+// only from one of its contained resources: from a resource that is not
+// contained it names nothing.
+func TestResolveContainerOnlyFromContained(t *testing.T) {
+	observation := []byte(`{"resourceType":"Observation","id":"o","status":"final","code":{"text":"c"},
+	  "subject":{"reference":"#"}}`)
+	for _, expr := range []string{"subject.resolve().exists()", "subject.reference.resolve().exists()"} {
+		if got := evaluateScalar(t, expr, observation); got != "false" {
+			t.Errorf("%s = %s, want false", expr, got)
+		}
+	}
+}
+
+// TestResolveFromSharedReferences resolves references read by one evaluation
+// from several goroutines at once: the walk up to the resource that makes them
+// reads it without writing to it. Run with -race.
+func TestResolveFromSharedReferences(t *testing.T) {
+	patient := []byte(`{"resourceType":"Patient","id":"p",
+	  "contained":[{"resourceType":"Practitioner","id":"pr","name":[{"family":"Right"}]}],
+	  "generalPractitioner":[{"reference":"#pr"},{"reference":"#pr"},{"reference":"#pr"},{"reference":"#pr"}]}`)
+	refs, err := MustCompile("Patient.generalPractitioner").Evaluate(patient)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expr := MustCompile("resolve().name.family")
+
+	done := make(chan string, len(refs))
+	for _, ref := range refs {
+		go func() {
+			got, err := expr.EvaluateWithContext(eval.NewContextForRoot(types.Collection{ref}))
+			if err != nil {
+				done <- err.Error()
+				return
+			}
+			done <- got.String()
+		}()
+	}
+	for range refs {
+		if got := <-done; got != "[Right]" {
+			t.Errorf("resolve().name.family = %s, want [Right]", got)
 		}
 	}
 }
