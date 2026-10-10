@@ -176,11 +176,30 @@ func (o *ObjectValue) Location() string {
 // walks to find where a reference is written: the resource that makes it, and
 // in a Bundle, the entry that holds that resource.
 //
-// The parent may be read by other goroutines, or still be held by the
-// evaluation that read it; read it with ReadCollection, which writes nothing
-// to it, rather than with Get or GetCollection.
+// The parent may still be held by the evaluation that read it, or read by
+// other goroutines, and reading an object writes to it where one goroutine
+// holds it. So Parent returns a fresh object over the parent's JSON, placed
+// where the parent is and with nothing read, marked shared: like a result of
+// an evaluation, it keeps nothing it reads, and any goroutine may read it. A
+// parent that caches, as the objects of a Document do, is read by one goroutine
+// at a time by contract, and is returned itself, with what it has read.
 func (o *ObjectValue) Parent() *ObjectValue {
-	return o.parent
+	parent := o.parent
+	if parent == nil || parent.caching {
+		return parent
+	}
+	return parent.reread()
+}
+
+// reread returns a new, shared object over the same JSON, where the object
+// sits, with nothing read. It reads only what does not change once the object
+// is read — its JSON, its parent, the field and index it was read from — and
+// leaves a root to name itself again, since a root records its name lazily.
+func (o *ObjectValue) reread() *ObjectValue {
+	if o.root {
+		return &ObjectValue{data: o.data, root: true}
+	}
+	return &ObjectValue{data: o.data, parent: o.parent, field: o.field, position: o.position}
 }
 
 // ParentField returns the field of Parent that holds the object, as the JSON
@@ -201,13 +220,18 @@ func (o *ObjectValue) ParentField() string {
 
 // ReadCollection reads a field as GetCollection does, but keeps nothing on the
 // object and builds no index on it, so that it may be called on an object that
-// other goroutines read. resolve() reads the resources and Bundles a reference
+// other goroutines read, unless the object caches. resolve() reads the resources and Bundles a reference
 // is written in, which the evaluation that read them may still hold, and
 // GetCollection, on an object one goroutine reads, writes to it. The values
 // read are new, and are adopted as GetCollection adopts them: they know they
 // were read out of the object. The element FHIR writes beside a primitive,
 // under _name, is not read.
 func (o *ObjectValue) ReadCollection(field string) Collection {
+	// An object that caches is read by one goroutine at a time by contract,
+	// and keeps what it reads for the next read
+	if o.caching {
+		return o.GetCollection(field)
+	}
 	value, dataType, _, err := jsonparser.Get(o.data, field)
 	if err != nil {
 		return Collection{}
@@ -231,6 +255,31 @@ func (o *ObjectValue) ReadCollection(field string) Collection {
 		index++
 	})
 	return col
+}
+
+// ReadString reads a field that holds a string as the JSON writes it — an id
+// or a version that looks like a date is still the string it is — writing
+// nothing to the object unless it caches, as ReadCollection does. It reports
+// false when the field is absent or holds something else.
+func (o *ObjectValue) ReadString(field string) (string, bool) {
+	if o.caching {
+		v, ok := o.Get(field)
+		if !ok {
+			return "", false
+		}
+		if text, isString := v.(String); isString {
+			return text.Value(), true
+		}
+		if !IsTemporal(v) {
+			return "", false
+		}
+		// A string read as a date: its text, from the JSON
+	}
+	text, err := jsonparser.GetString(o.data, field)
+	if err != nil {
+		return "", false
+	}
+	return text, true
 }
 
 // locate finds the field of the object that holds child, which was read out

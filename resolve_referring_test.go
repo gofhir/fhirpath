@@ -212,3 +212,113 @@ func TestResolveFromSharedReferences(t *testing.T) {
 		}
 	}
 }
+
+// TestResolveIdsThatLookLikeDates checks that an id or a version is the string
+// the JSON writes, even where it looks like a date: 2024 is an id, not a year.
+func TestResolveIdsThatLookLikeDates(t *testing.T) {
+	member := `,"hasMember":[{"reference":"%s"}]`
+	resolved := "Bundle.entry.resource.where(id = 'root').hasMember.resolve().status"
+	for _, tc := range []struct{ name, entries string }{
+		{"an id of four digits", observationEntry("", "2024", "amended", "") + "," +
+			observationEntry("", "root", "final", fmt.Sprintf(member, "Observation/2024"))},
+		{"a versionId of four digits", `{"fullUrl":"http://a.org/fhir/Observation/x","resource":{"resourceType":"Observation","id":"x","meta":{"versionId":"1234"},"status":"amended","code":{"text":"c"}}},` +
+			observationEntry("http://a.org/fhir/Observation/root", "root", "final", fmt.Sprintf(member, "Observation/x/_history/1234"))},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			if got := evaluateScalar(t, resolved, entriesBundle(tc.entries)); got != "amended" {
+				t.Errorf("%s = %s, want amended", resolved, got)
+			}
+		})
+	}
+
+	patient := []byte(`{"resourceType":"Patient","id":"p","contained":[{"resourceType":"Practitioner","id":"2024"}],
+	  "generalPractitioner":[{"reference":"#2024"}]}`)
+	if got := evaluateScalar(t, "Patient.generalPractitioner.resolve().id", patient); got != "2024" {
+		t.Errorf("#2024 resolved to %s, want 2024", got)
+	}
+}
+
+// TestResolveTransactionByTypeAndID checks that a relative reference from an
+// entry with a RESTful fullUrl still finds, by type and id, a resource whose
+// entry names no server — a urn:uuid fullUrl, or none — as a transaction
+// writes the resources it creates. An entry of another server is not one.
+func TestResolveTransactionByTypeAndID(t *testing.T) {
+	bundle := []byte(`{"resourceType":"Bundle","type":"transaction","entry":[
+	  {"fullUrl":"urn:uuid:aaa","resource":{"resourceType":"Patient","id":"p1","gender":"male"}},
+	  {"resource":{"resourceType":"Organization","id":"o1","name":"org"}},
+	  {"fullUrl":"http://other.org/fhir/Patient/p2","resource":{"resourceType":"Patient","id":"p2","gender":"other"}},
+	  {"fullUrl":"http://a.org/fhir/Observation/r","resource":{"resourceType":"Observation","id":"r","status":"final","code":{"text":"c"},
+	    "subject":{"reference":"Patient/p1"},"performer":[{"reference":"Organization/o1"},{"reference":"Patient/p2"}]}}]}`)
+
+	for expr, want := range map[string]string{
+		"Bundle.entry.resource.ofType(Observation).subject.resolve().gender":            "male",
+		"Bundle.entry.resource.ofType(Observation).performer.first().resolve().name":    "org",
+		"Bundle.entry.resource.ofType(Observation).performer.last().resolve().exists()": "false",
+	} {
+		if got := evaluateScalar(t, expr, bundle); got != want {
+			t.Errorf("%s = %s, want %s", expr, got, want)
+		}
+	}
+}
+
+// TestResolveFallsBackToTheRootBundle checks that a reference in a nested
+// Bundle that names nothing there is looked for in the Bundle being evaluated,
+// as it always was.
+func TestResolveFallsBackToTheRootBundle(t *testing.T) {
+	outer := []byte(`{"resourceType":"Bundle","type":"collection","entry":[
+	  {"fullUrl":"http://outer.org/fhir/Patient/p","resource":{"resourceType":"Patient","id":"p","gender":"male"}},
+	  {"resource":{"resourceType":"Bundle","type":"document","entry":[
+	    {"resource":{"resourceType":"Composition","id":"c","subject":{"reference":"http://outer.org/fhir/Patient/p"}}}]}}]}`)
+
+	expr := "Bundle.entry.resource.ofType(Bundle).entry.resource.ofType(Composition).subject.resolve().gender"
+	if got := evaluateScalar(t, expr, outer); got != "male" {
+		t.Errorf("%s = %s, want male", expr, got)
+	}
+}
+
+// TestResolveFromSharedObjects resolves, from several goroutines, references
+// whose walk returns the container itself ("#") or starts from an object
+// Parent returned. Run with -race.
+func TestResolveFromSharedObjects(t *testing.T) {
+	patient := []byte(`{"resourceType":"Patient","id":"p","name":[{"family":"Self"}],
+	  "contained":[{"resourceType":"Organization","id":"org","partOf":{"reference":"#"}}]}`)
+	refs, err := MustCompile("Patient.contained.partOf").Evaluate(patient)
+	if err != nil || len(refs) != 1 {
+		t.Fatal(refs, err)
+	}
+
+	bundle := chainBundle(4, true)
+	resources, err := MustCompile("Bundle.entry.resource").Evaluate(bundle)
+	if err != nil || len(resources) != 4 {
+		t.Fatal(resources, err)
+	}
+	entry := resources[0].(*types.ObjectValue).Parent()
+
+	cases := []struct {
+		root types.Value
+		expr string
+		want string
+	}{
+		{refs[0], "resolve().name.family", "[Self]"},
+		{entry, "resource.hasMember.resolve().id", "[o1]"},
+	}
+	for _, tc := range cases {
+		expr := MustCompile(tc.expr)
+		done := make(chan string, 8)
+		for range 8 {
+			go func() {
+				got, err := expr.EvaluateWithContext(eval.NewContextForRoot(types.Collection{tc.root}))
+				if err != nil {
+					done <- err.Error()
+					return
+				}
+				done <- got.String()
+			}()
+		}
+		for range 8 {
+			if got := <-done; got != tc.want {
+				t.Errorf("%s = %s, want %s", tc.expr, got, tc.want)
+			}
+		}
+	}
+}

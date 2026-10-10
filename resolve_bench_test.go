@@ -36,3 +36,15 @@ func benchmarkResolveChain(b *testing.B, restful bool) {
 
 func BenchmarkResolveBundleRESTful(b *testing.B) { benchmarkResolveChain(b, true) }
 func BenchmarkResolveBundleURN(b *testing.B)     { benchmarkResolveChain(b, false) }
+
+func BenchmarkResolveBundleDocument(b *testing.B) {
+	doc := MustNewDocument(chainBundle(500, true))
+	expr := MustCompile("Bundle.entry.resource.hasMember.resolve().count()")
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := doc.EvaluateCompiled(expr); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
