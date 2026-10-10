@@ -70,6 +70,14 @@ func TestResolveFromTheReferringEntry(t *testing.T) {
 			observationEntry("", "x", "amended", ""),
 			observationEntry("", "root", "final", fmt.Sprintf(member, "Observation/x")),
 		}, "amended"},
+		{"a relative reference with a trailing slash", []string{
+			observationEntry("http://a.org/fhir/Observation/x", "x", "amended", ""),
+			observationEntry("http://a.org/fhir/Observation/root", "root", "final", fmt.Sprintf(member, "Observation/x/")),
+		}, "amended"},
+		{"a versioned reference with no version matches no version", []string{
+			observationEntry("", "x", "amended", ""),
+			observationEntry("", "root", "final", fmt.Sprintf(member, "Observation/x/_history/")),
+		}, "EMPTY"},
 		{"of several matches by id, the first", []string{
 			observationEntry("", "x", "amended", ""),
 			observationEntry("", "x", "final", ""),
@@ -149,6 +157,31 @@ func TestResolveFragmentInTheReferringResource(t *testing.T) {
 		}
 		if g := got.String(); g != "["+want+"]" {
 			t.Errorf("%s = %s, want [%s]", expr, g, want)
+		}
+	}
+}
+
+// TestResolveFromAContainedRoot evaluates against a contained resource, as an
+// invariant over contained resources does: "#" and its siblings' fragments are
+// still read in the resource that contains it.
+func TestResolveFromAContainedRoot(t *testing.T) {
+	patient := []byte(`{"resourceType":"Patient","id":"p","contained":[
+	  {"resourceType":"Organization","id":"org","partOf":{"reference":"#"},"endpoint":[{"reference":"#ep"}]},
+	  {"resourceType":"Endpoint","id":"ep"}]}`)
+	contained, err := MustCompile("Patient.contained.where(id = 'org')").Evaluate(patient)
+	if err != nil || len(contained) != 1 {
+		t.Fatal(contained, err)
+	}
+	for expr, want := range map[string]string{
+		"partOf.resolve().id":   "[p]",
+		"endpoint.resolve().id": "[ep]",
+	} {
+		got, err := MustCompile(expr).EvaluateWithContext(eval.NewContextForRoot(contained))
+		if err != nil {
+			t.Fatalf("%s: %v", expr, err)
+		}
+		if got.String() != want {
+			t.Errorf("%s = %s, want %s", expr, got, want)
 		}
 	}
 }

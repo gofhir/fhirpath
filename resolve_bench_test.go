@@ -71,3 +71,22 @@ func BenchmarkResolveContained(b *testing.B) {
 		}
 	}
 }
+
+// BenchmarkResolveContainedDeep resolves fragments written deep in a resource,
+// below elements that hold no resource, as a Questionnaire's answer options do.
+func BenchmarkResolveContainedDeep(b *testing.B) {
+	items := make([]string, 200)
+	for i := range items {
+		items[i] = fmt.Sprintf(`{"linkId":"%d","text":"Question %d with some text","type":"group","item":[{"linkId":"%d.1","type":"group","item":[{"linkId":"%d.1.1","type":"choice","answerOption":[{"valueReference":{"reference":"#vs"}}]}]}]}`, i, i, i, i)
+	}
+	data := []byte(`{"resourceType":"Questionnaire","id":"q","status":"active","contained":[{"resourceType":"ValueSet","id":"vs","status":"active"}],"item":[` +
+		strings.Join(items, ",") + `]}`)
+	expr := MustCompile("Questionnaire.repeat(item).answerOption.value.resolve().id")
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := expr.Evaluate(data); err != nil {
+			b.Fatal(err)
+		}
+	}
+}

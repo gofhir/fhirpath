@@ -138,9 +138,10 @@ func fnResolve(ctx *eval.Context, input types.Collection, args []interface{}) (t
 // object knows by the objects it was read out of. A reference read as a bare
 // string has lost that, and is resolved from the root of the expression.
 //
-// The walk reads what Parent returns, fresh shared objects that keep nothing
-// they read, and reaching the root of the evaluation it takes the root itself,
-// which it holds, with what that has read.
+// The walk reads what Parent returns: fresh shared objects that keep nothing
+// they read, or, in a Document, the parent itself, which one goroutine reads.
+// Reaching the root of the evaluation, it takes the root itself, which it
+// holds, with what that has read.
 //
 // Neither needs a resolver, and returning empty for them would be wrong rather
 // than merely limited: the data is right there, and an invariant like dom-3
@@ -196,28 +197,42 @@ func sameObject(a, b *types.ObjectValue) bool {
 // reference is written in a contained resource, the resource that contains it.
 // Both are nil when the reference does not know where it was read from.
 //
-// Reaching the root of the evaluation, where that is a resource, the walk stops
-// there and takes the root itself as the container, as resolve() always has, without reading it again.
+// Reaching the root of the evaluation, the walk takes the root itself, with
+// what it has read, rather than reading it again, and goes on above it only
+// when the root is itself a contained resource.
+//
+// Only an object that stands where FHIR places a resource is read for its
+// resourceType: the elements between a reference and its resource, which hold
+// none, would each be scanned to their end.
 func containingResource(o, root *types.ObjectValue) (resource, container *types.ObjectValue) {
 	for ; o != nil; o = o.Parent() {
-		if readString(o, "resourceType") == "" {
-			continue
-		}
 		if sameObject(o, root) {
-			if resource == nil {
-				resource = root
-			}
-			return resource, root
+			o = root
+		}
+		field := o.ParentField()
+		if !holdsResource(field) || readString(o, "resourceType") == "" {
+			continue
 		}
 		if resource == nil {
 			resource = o
 		}
 		container = o
-		if o.ParentField() != "contained" {
+		if field != "contained" {
 			break
 		}
 	}
 	return resource, container
+}
+
+// holdsResource reports an object that stands where FHIR places a resource:
+// the root of what was read, a contained resource, the resource of a Bundle
+// entry or a Parameters parameter, or an OperationOutcome a Bundle carries.
+func holdsResource(field string) bool {
+	switch field {
+	case "", "contained", "resource", "outcome", "issues":
+		return true
+	}
+	return false
 }
 
 // referringEntry returns the Bundle entry that holds the resource a reference
@@ -305,6 +320,7 @@ func findContained(root *types.ObjectValue, id string) (types.Value, bool) {
 // the first is taken, as it always was.
 func findBundleEntry(bundle, from *types.ObjectValue, reference string) (types.Value, bool) {
 	target, version, versioned := strings.Cut(reference, "/_history/")
+	target = strings.TrimSuffix(target, "/")
 	relative := isRelativeReference(target)
 	refType, refID, _ := strings.Cut(target, "/")
 	matchesID := func(resource *types.ObjectValue) bool {
@@ -319,7 +335,6 @@ func findBundleEntry(bundle, from *types.ObjectValue, reference string) (types.V
 	}
 
 	asWritten := strings.TrimSuffix(reference, "/")
-	target = strings.TrimSuffix(target, "/")
 
 	var local types.Value // the first by type and id among entries that name no server
 	for _, entry := range bundle.GetCollection("entry") {
@@ -335,7 +350,7 @@ func findBundleEntry(bundle, from *types.ObjectValue, reference string) (types.V
 		if fullURL != "" && fullURL == asWritten {
 			return resource, true
 		}
-		if versioned && readString(readObject(resource, "meta"), "versionId") != version {
+		if versioned && (version == "" || readString(readObject(resource, "meta"), "versionId") != version) {
 			continue
 		}
 		switch {
