@@ -796,7 +796,6 @@ Creates an `ObjectValue` from raw JSON bytes representing an object.
 | `Children` | `func (o *ObjectValue) Children() Collection` | All child values |
 | `Parent` | `func (o *ObjectValue) Parent() *ObjectValue` | A fresh, shared object over the parent's JSON, placed where the parent is, which any goroutine may read; the parent itself when it caches (a `Document`); nil for a root, an object no read created, or one a resolver returned |
 | `ParentField` | `func (o *ObjectValue) ParentField() string` | The field of `Parent()` that holds the object, as the JSON spells it; `""` without a parent |
-| `ReadCollection` | `func (o *ObjectValue) ReadCollection(field string) Collection` | Reads a field as `GetCollection` does, writing nothing to the object unless it caches, so that it may be called on an object other goroutines read |
 | `ReadString` | `func (o *ObjectValue) ReadString(field string) (string, bool)` | Reads a string field as the JSON writes it (an id like `2024` stays a string), writing nothing to the object unless it caches |
 | `ToQuantity` | `func (o *ObjectValue) ToQuantity() (Quantity, bool)` | Convert a FHIR Quantity to a System.Quantity, by its code or unit; a Money, or a quantity with a `comparator`, does not convert |
 | `AsQuantity` | `func (o *ObjectValue) AsQuantity() (Quantity, bool, error)` | As `ToQuantity`, reporting a quantity that converts but for its `comparator` with an error that wraps `ErrQuantityBound` (match it with `errors.Is`) |

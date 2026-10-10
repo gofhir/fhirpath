@@ -48,3 +48,26 @@ func BenchmarkResolveBundleDocument(b *testing.B) {
 		}
 	}
 }
+
+// BenchmarkResolveContained resolves references to contained resources, each
+// from a resource that holds many.
+func BenchmarkResolveContained(b *testing.B) {
+	contained := make([]string, 50)
+	for i := range contained {
+		contained[i] = fmt.Sprintf(`{"resourceType":"Practitioner","id":"pr%d","name":[{"family":"F%d"}]}`, i, i)
+	}
+	refs := make([]string, 50)
+	for i := range refs {
+		refs[i] = fmt.Sprintf(`{"individual":{"reference":"#pr%d"}}`, i)
+	}
+	data := []byte(`{"resourceType":"Encounter","id":"e","status":"finished","contained":[` +
+		strings.Join(contained, ",") + `],"participant":[` + strings.Join(refs, ",") + `]}`)
+	expr := MustCompile("Encounter.participant.individual.resolve().name.family")
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := expr.Evaluate(data); err != nil {
+			b.Fatal(err)
+		}
+	}
+}

@@ -138,19 +138,20 @@ func fnResolve(ctx *eval.Context, input types.Collection, args []interface{}) (t
 // object knows by the objects it was read out of. A reference read as a bare
 // string has lost that, and is resolved from the root of the expression.
 //
-// What the walk reads above the reference it reads with ReadCollection, which
-// writes nothing: those objects may be held by the evaluation that read them,
-// or by other goroutines.
+// The walk reads what Parent returns, fresh shared objects that keep nothing
+// they read, and reaching the root of the evaluation it takes the root itself,
+// which it holds, with what that has read.
 //
 // Neither needs a resolver, and returning empty for them would be wrong rather
 // than merely limited: the data is right there, and an invariant like dom-3
 // that walks contained resources would silently pass on documents it should
 // reject.
 func resolveWithinDocument(ctx *eval.Context, holder *types.ObjectValue, reference string) (types.Value, bool) {
+	root := rootResourceOf(ctx)
 	if fragment, ok := strings.CutPrefix(reference, "#"); ok {
-		resource, container := containingResource(holder)
+		resource, container := containingResource(holder, root)
 		if container == nil {
-			container = rootResourceOf(ctx)
+			container = root
 		}
 		if container == nil {
 			return nil, false
@@ -162,20 +163,20 @@ func resolveWithinDocument(ctx *eval.Context, holder *types.ObjectValue, referen
 		return findContained(container, fragment)
 	}
 
-	root := rootResourceOf(ctx)
-	if root != nil && root.Type() != "Bundle" {
-		root = nil
+	rootBundle := root
+	if rootBundle != nil && rootBundle.Type() != "Bundle" {
+		rootBundle = nil
 	}
-	entry, bundle := referringEntry(holder, root)
+	entry, bundle := referringEntry(holder, rootBundle)
 	if bundle != nil {
 		if found, ok := findBundleEntry(bundle, entry, reference); ok {
 			return found, true
 		}
 	}
 	// Not in the Bundle it is written in, or written nowhere a chain records:
-	// the Bundle being evaluated, as it always was
-	if root != nil && !sameObject(root, bundle) {
-		return findBundleEntry(root, nil, reference)
+	// the Bundle being evaluated, as it always was, from the same entry
+	if rootBundle != nil && bundle != rootBundle {
+		return findBundleEntry(rootBundle, entry, reference)
 	}
 	return nil, false
 }
@@ -194,10 +195,19 @@ func sameObject(a, b *types.ObjectValue) bool {
 // resource whose contained list its fragments name: the same one, or, when the
 // reference is written in a contained resource, the resource that contains it.
 // Both are nil when the reference does not know where it was read from.
-func containingResource(o *types.ObjectValue) (resource, container *types.ObjectValue) {
+//
+// Reaching the root of the evaluation, where that is a resource, the walk stops
+// there and takes the root itself as the container, as resolve() always has, without reading it again.
+func containingResource(o, root *types.ObjectValue) (resource, container *types.ObjectValue) {
 	for ; o != nil; o = o.Parent() {
 		if readString(o, "resourceType") == "" {
 			continue
+		}
+		if sameObject(o, root) {
+			if resource == nil {
+				resource = root
+			}
+			return resource, root
 		}
 		if resource == nil {
 			resource = o
@@ -216,18 +226,21 @@ func containingResource(o *types.ObjectValue) (resource, container *types.Object
 // resolved in the Bundle it is written in. The root Bundle, whose type is
 // known, is recognized without reading it.
 func referringEntry(o, root *types.ObjectValue) (entry, bundle *types.ObjectValue) {
-	for ; o != nil; o = o.Parent() {
+	for o != nil {
 		parent := o.Parent()
 		if parent == nil {
 			return nil, nil
 		}
-		if o.ParentField() != "resource" || parent.ParentField() != "entry" {
-			continue
+		if o.ParentField() == "resource" && parent.ParentField() == "entry" {
+			grand := parent.Parent()
+			if sameObject(grand, root) {
+				return parent, root
+			}
+			if grand != nil && readString(grand, "resourceType") == "Bundle" {
+				return parent, grand
+			}
 		}
-		grand := parent.Parent()
-		if grand != nil && (sameObject(grand, root) || readString(grand, "resourceType") == "Bundle") {
-			return parent, grand
-		}
+		o = parent
 	}
 	return nil, nil
 }
@@ -257,7 +270,7 @@ func findContained(root *types.ObjectValue, id string) (types.Value, bool) {
 		return nil, false
 	}
 
-	for _, candidate := range root.ReadCollection("contained") {
+	for _, candidate := range root.GetCollection("contained") {
 		obj, ok := candidate.(*types.ObjectValue)
 		if !ok {
 			continue
@@ -309,7 +322,7 @@ func findBundleEntry(bundle, from *types.ObjectValue, reference string) (types.V
 	target = strings.TrimSuffix(target, "/")
 
 	var local types.Value // the first by type and id among entries that name no server
-	for _, entry := range bundle.ReadCollection("entry") {
+	for _, entry := range bundle.GetCollection("entry") {
 		entryObj, isObject := entry.(*types.ObjectValue)
 		if !isObject {
 			continue
@@ -383,13 +396,13 @@ func readString(obj *types.ObjectValue, name string) string {
 	return text
 }
 
-// readObject reads a field that holds an object with ReadCollection, or nil.
+// readObject reads a field that holds an object, or nil.
 func readObject(obj *types.ObjectValue, name string) *types.ObjectValue {
 	if obj == nil {
 		return nil
 	}
-	if values := obj.ReadCollection(name); len(values) == 1 {
-		if object, isObject := values[0].(*types.ObjectValue); isObject {
+	if value, ok := obj.Get(name); ok {
+		if object, isObject := value.(*types.ObjectValue); isObject {
 			return object
 		}
 	}

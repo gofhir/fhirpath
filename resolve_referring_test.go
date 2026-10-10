@@ -274,6 +274,18 @@ func TestResolveFallsBackToTheRootBundle(t *testing.T) {
 	if got := evaluateScalar(t, expr, outer); got != "male" {
 		t.Errorf("%s = %s, want male", expr, got)
 	}
+
+	// The root Bundle is read from the same referring entry: a relative
+	// reference written under one server's base is not another server's
+	// resource with that type and id
+	restful := []byte(`{"resourceType":"Bundle","type":"collection","entry":[
+	  {"fullUrl":"http://other.org/fhir/Patient/p","resource":{"resourceType":"Patient","id":"p","gender":"male"}},
+	  {"resource":{"resourceType":"Bundle","type":"transaction","entry":[
+	    {"fullUrl":"http://inner.org/fhir/Observation/o","resource":{"resourceType":"Observation","id":"o","subject":{"reference":"Patient/p"}}}]}}]}`)
+	expr = "Bundle.entry.resource.ofType(Bundle).entry.resource.ofType(Observation).subject.resolve().gender"
+	if got := evaluateScalar(t, expr, restful); got != "EMPTY" {
+		t.Errorf("%s = %s, want empty", expr, got)
+	}
 }
 
 // TestResolveFromSharedObjects resolves, from several goroutines, references

@@ -180,9 +180,10 @@ func (o *ObjectValue) Location() string {
 // other goroutines, and reading an object writes to it where one goroutine
 // holds it. So Parent returns a fresh object over the parent's JSON, placed
 // where the parent is and with nothing read, marked shared: like a result of
-// an evaluation, it keeps nothing it reads, and any goroutine may read it. A
-// parent that caches, as the objects of a Document do, is read by one goroutine
-// at a time by contract, and is returned itself, with what it has read.
+// an evaluation, it keeps nothing it reads — Get and GetCollection write
+// nothing to it — and any goroutine may read it. A parent that caches, as the
+// objects of a Document do, is read by one goroutine at a time by contract,
+// and is returned itself, with what it has read.
 func (o *ObjectValue) Parent() *ObjectValue {
 	parent := o.parent
 	if parent == nil || parent.caching {
@@ -218,49 +219,11 @@ func (o *ObjectValue) ParentField() string {
 	return string(key)
 }
 
-// ReadCollection reads a field as GetCollection does, but keeps nothing on the
-// object and builds no index on it, so that it may be called on an object that
-// other goroutines read, unless the object caches. resolve() reads the resources and Bundles a reference
-// is written in, which the evaluation that read them may still hold, and
-// GetCollection, on an object one goroutine reads, writes to it. The values
-// read are new, and are adopted as GetCollection adopts them: they know they
-// were read out of the object. The element FHIR writes beside a primitive,
-// under _name, is not read.
-func (o *ObjectValue) ReadCollection(field string) Collection {
-	// An object that caches is read by one goroutine at a time by contract,
-	// and keeps what it reads for the next read
-	if o.caching {
-		return o.GetCollection(field)
-	}
-	value, dataType, _, err := jsonparser.Get(o.data, field)
-	if err != nil {
-		return Collection{}
-	}
-	if dataType != jsonparser.Array {
-		v := jsonValueToFHIRValue(value, dataType)
-		if v == nil {
-			return Collection{}
-		}
-		o.adoptAt(v, field, -1)
-		return Collection{v}
-	}
-	var col Collection
-	index := 0
-	//nolint:errcheck // a malformed array reads as what was read of it
-	jsonparser.ArrayEach(value, func(item []byte, itemType jsonparser.ValueType, _ int, _ error) {
-		if v := jsonValueToFHIRValue(item, itemType); v != nil {
-			o.adoptAt(v, field, index)
-			col = append(col, v)
-		}
-		index++
-	})
-	return col
-}
-
 // ReadString reads a field that holds a string as the JSON writes it — an id
-// or a version that looks like a date is still the string it is — writing
-// nothing to the object unless it caches, as ReadCollection does. It reports
-// false when the field is absent or holds something else.
+// or a version that looks like a date is still the string it is. An object
+// that caches reads it through its cache, which keeps the string it reads; any
+// other reads the JSON and writes nothing to itself. It reports false when the
+// field is absent or holds something else.
 func (o *ObjectValue) ReadString(field string) (string, bool) {
 	if o.caching {
 		v, ok := o.Get(field)
