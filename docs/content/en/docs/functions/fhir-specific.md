@@ -133,7 +133,7 @@ result, _ := fhirpath.Evaluate(patient,
 
 ## resolve
 
-Resolves a FHIR® reference to the referenced resource. This function requires a `ReferenceResolver` to be configured in the evaluation context.
+Resolves a FHIR® reference to the referenced resource. A reference into the document being evaluated — a contained resource, or an entry of a Bundle — resolves without help; anything else needs a `ReferenceResolver` configured in the evaluation context.
 
 **Signature:**
 ```
@@ -160,7 +160,11 @@ result, _ = compiled.EvaluateWithOptions(resource, fhirpath.WithResolver(myResol
 ```
 
 **Edge Cases / Notes:**
-- Requires a `ReferenceResolver` to be set in the evaluation context. Without one, returns an empty collection.
+- A reference is resolved from where it is written, as FHIR defines it, before the `ReferenceResolver` is asked:
+  - A fragment, `#id`, names a resource contained in the resource that makes the reference; `#` alone names that resource from one of its contained resources. In a resource a `ReferenceResolver` returned, its own contained resources are searched.
+  - In a Bundle, a relative reference, `Type/id`, takes the base of the RESTful `fullUrl` of the entry that holds it (bundle.html#references): `Observation/x` from the entry at `http://b.org/fhir/` names `http://b.org/fhir/Observation/x`, not another server's `Observation/x`. Where that `fullUrl` is not RESTful (`urn:uuid:`) or absent, the reference is matched on the type and id of the entries' resources. Any other reference is matched on `fullUrl`, and a versioned one, `.../_history/2`, also on `meta.versionId`. Several matches are ambiguous and resolve to nothing.
+  - This takes a Reference object, which knows where it was read from. A reference read as a bare string, `reference.resolve()`, is resolved from the root of the expression.
+- Without a `ReferenceResolver`, a reference outside the document resolves to nothing.
 - Handles both string references (`"Patient/123"`) and Reference objects (with a `reference` field).
 - References that cannot be resolved are silently skipped (no error raised).
 - The resolved resource is parsed from JSON into the FHIRPath type system.

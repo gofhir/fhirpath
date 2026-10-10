@@ -133,7 +133,7 @@ result, _ := fhirpath.Evaluate(patient,
 
 ## resolve
 
-Resuelve una referencia FHIR® al recurso referenciado. Esta funcion requiere que se configure un `ReferenceResolver` en el contexto de evaluacion.
+Resuelve una referencia FHIR® al recurso referenciado. Una referencia dentro del documento evaluado — un recurso contenido, o una entrada de un Bundle — se resuelve sin ayuda; cualquier otra necesita un `ReferenceResolver` configurado en el contexto de evaluacion.
 
 **Firma:**
 ```
@@ -160,7 +160,11 @@ result, _ = compiled.EvaluateWithOptions(resource, fhirpath.WithResolver(myResol
 ```
 
 **Casos Limite / Notas:**
-- Requiere que se establezca un `ReferenceResolver` en el contexto de evaluacion. Sin uno, devuelve una coleccion vacia.
+- Una referencia se resuelve desde donde esta escrita, como la define FHIR, antes de consultar al `ReferenceResolver`:
+  - Un fragmento, `#id`, nombra un recurso contenido en el recurso que hace la referencia; `#` solo nombra a ese recurso desde uno de sus recursos contenidos. En un recurso devuelto por un `ReferenceResolver`, se buscan sus propios recursos contenidos.
+  - En un Bundle, una referencia relativa, `Type/id`, toma la base del `fullUrl` RESTful de la entrada que la contiene (bundle.html#references): `Observation/x` desde la entrada en `http://b.org/fhir/` nombra `http://b.org/fhir/Observation/x`, no el `Observation/x` de otro servidor. Si ese `fullUrl` no es RESTful (`urn:uuid:`) o falta, la referencia se compara con el tipo e id de los recursos de las entradas. Cualquier otra referencia se compara con el `fullUrl`, y una versionada, `.../_history/2`, tambien con `meta.versionId`. Varias coincidencias son ambiguas y no resuelven a nada.
+  - Esto aplica a un objeto Reference, que sabe desde donde se leyo. Una referencia leida como cadena, `reference.resolve()`, se resuelve desde la raiz de la expresion.
+- Sin un `ReferenceResolver`, una referencia fuera del documento no resuelve a nada.
 - Maneja tanto referencias de cadena (`"Patient/123"`) como objetos Reference (con un campo `reference`).
 - Las referencias que no pueden resolverse se omiten silenciosamente (no se genera error).
 - El recurso resuelto se analiza desde JSON al sistema de tipos FHIRPath.

@@ -171,6 +171,30 @@ func (o *ObjectValue) Location() string {
 	return string(path)
 }
 
+// Parent returns the object this one was read out of, or nil for a root, an
+// object no read created, or one a Resolver handed back. It is what resolve()
+// walks to find where a reference is written: the resource that makes it, and
+// in a Bundle, the entry that holds that resource.
+func (o *ObjectValue) Parent() *ObjectValue {
+	return o.parent
+}
+
+// ParentField returns the field of Parent that holds the object, as the JSON
+// spells it, or "" when there is no parent.
+func (o *ObjectValue) ParentField() string {
+	if o.parent == nil {
+		return ""
+	}
+	if o.field != "" {
+		return o.field
+	}
+	key, _, found := o.parent.locate(o.data)
+	if !found {
+		return ""
+	}
+	return string(key)
+}
+
 // locate finds the field of the object that holds child, which was read out
 // of it: the key, without the underscore of a primitive's element, and the
 // index in the field's array, or -1 when the field is not an array.

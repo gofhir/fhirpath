@@ -794,6 +794,8 @@ Creates an `ObjectValue` from raw JSON bytes representing an object.
 | `GetCollection` | `func (o *ObjectValue) GetCollection(field string) Collection` | Get a field as a Collection |
 | `Keys` | `func (o *ObjectValue) Keys() []string` | All field names |
 | `Children` | `func (o *ObjectValue) Children() Collection` | All child values |
+| `Parent` | `func (o *ObjectValue) Parent() *ObjectValue` | The object this one was read out of; nil for a root, an object no read created, or one a resolver returned |
+| `ParentField` | `func (o *ObjectValue) ParentField() string` | The field of `Parent()` that holds the object, as the JSON spells it; `""` without a parent |
 | `ToQuantity` | `func (o *ObjectValue) ToQuantity() (Quantity, bool)` | Convert a FHIR Quantity to a System.Quantity, by its code or unit; a Money, or a quantity with a `comparator`, does not convert |
 | `AsQuantity` | `func (o *ObjectValue) AsQuantity() (Quantity, bool, error)` | As `ToQuantity`, reporting a quantity that converts but for its `comparator` with an error that wraps `ErrQuantityBound` (match it with `errors.Is`) |
 | `QuantityBound` | `func (o *ObjectValue) QuantityBound() error` | An error wrapping `ErrQuantityBound` for a FHIR Quantity with a `comparator`; nil otherwise |

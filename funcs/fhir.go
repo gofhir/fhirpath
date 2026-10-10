@@ -91,7 +91,8 @@ func fnResolve(ctx *eval.Context, input types.Collection, args []interface{}) (t
 		// A reference into the document being evaluated needs no resolver: the
 		// target is already here. Tried first, so that a contained resource
 		// resolves the same way whether or not the caller wired one up.
-		if local, found := resolveWithinDocument(ctx, reference); found {
+		holder, _ := item.(*types.ObjectValue) // the Reference, when it is one
+		if local, found := resolveWithinDocument(ctx, holder, reference); found {
 			result = append(result, local)
 			continue
 		}
@@ -131,24 +132,74 @@ func fnResolve(ctx *eval.Context, input types.Collection, args []interface{}) (t
 // being evaluated.
 //
 // FHIR writes two kinds of reference that point inward. A fragment — "#obs1" —
-// names a resource in the containing resource's contained list. A relative
-// reference — "Observation/obs1" — names an entry of the Bundle when the
-// document is one, matched on its fullUrl or on the resource's own type and id.
+// names a resource contained in the resource that makes the reference
+// (references.html#contained); "#" alone names that resource itself, from one
+// of its contained resources. A reference into a Bundle names one of its
+// entries (bundle.html#references), resolved from the entry that holds the
+// reference.
+//
+// Both are resolved from where the reference is written, which the Reference
+// object knows by the objects it was read out of. A reference read as a bare
+// string has lost that, and is resolved from the root of the expression.
 //
 // Neither needs a resolver, and returning empty for them would be wrong rather
 // than merely limited: the data is right there, and an invariant like dom-3
 // that walks contained resources would silently pass on documents it should
 // reject.
-func resolveWithinDocument(ctx *eval.Context, reference string) (types.Value, bool) {
+func resolveWithinDocument(ctx *eval.Context, holder *types.ObjectValue, reference string) (types.Value, bool) {
 	root := rootResourceOf(ctx)
+
+	if fragment, ok := strings.CutPrefix(reference, "#"); ok {
+		container := containingResource(holder)
+		if container == nil {
+			container = root
+		}
+		if container == nil {
+			return nil, false
+		}
+		if fragment == "" {
+			return container, true
+		}
+		return findContained(container, fragment)
+	}
+
 	if root == nil {
 		return nil, false
 	}
+	return findBundleEntry(root, referringEntry(holder, root), reference)
+}
 
-	if strings.HasPrefix(reference, "#") {
-		return findContained(root, strings.TrimPrefix(reference, "#"))
+// containingResource returns the resource a reference is written in: the
+// nearest resource above it, or, when that is a contained resource, the
+// resource that contains it, whose rules its references follow. It is nil when
+// the reference does not know where it was read from.
+func containingResource(o *types.ObjectValue) *types.ObjectValue {
+	var resource *types.ObjectValue
+	for ; o != nil; o = o.Parent() {
+		if stringField(o, "resourceType") == "" {
+			continue
+		}
+		resource = o
+		if o.ParentField() != "contained" {
+			break
+		}
 	}
-	return findBundleEntry(root, reference)
+	return resource
+}
+
+// referringEntry returns the entry of the Bundle that holds the resource a
+// reference is written in, or nil.
+func referringEntry(o, bundle *types.ObjectValue) *types.ObjectValue {
+	for ; o != nil; o = o.Parent() {
+		parent := o.Parent()
+		if parent == nil {
+			return nil
+		}
+		if o.ParentField() == "resource" && parent.Parent() == bundle && parent.ParentField() == "entry" {
+			return parent
+		}
+	}
+	return nil
 }
 
 // rootResourceOf returns the resource the expression is being evaluated
@@ -188,40 +239,97 @@ func findContained(root *types.ObjectValue, id string) (types.Value, bool) {
 	return nil, false
 }
 
-// findBundleEntry looks for a Bundle entry by its fullUrl, or by the type and
-// id its resource carries.
-func findBundleEntry(root *types.ObjectValue, reference string) (types.Value, bool) {
-	if root.Type() != "Bundle" {
+// findBundleEntry finds the entry of a Bundle a reference names, following
+// bundle.html#references:
+//
+//   - A relative reference, Type/id, is made absolute with the base of the
+//     referring entry's fullUrl when that is RESTful, and matched on fullUrl;
+//     if nothing matches, it names nothing in the Bundle. Where the fullUrl is
+//     not RESTful, or the reference does not know its entry, it is matched on
+//     the type and id the entries' resources carry.
+//   - Any other reference is matched on fullUrl.
+//   - A versioned reference, .../_history/v, matches with its version taken
+//     off, and on meta.versionId.
+//
+// Several matches are ambiguous, and resolve to nothing.
+func findBundleEntry(bundle, from *types.ObjectValue, reference string) (types.Value, bool) {
+	if bundle.Type() != "Bundle" {
 		return nil, false
 	}
+	target, version, _ := strings.Cut(reference, "/_history/")
 
-	for _, entry := range root.GetCollection("entry") {
+	byFullURL := !isRelativeReference(target)
+	if !byFullURL && from != nil {
+		if base, ok := restfulBase(stringField(from, "fullUrl")); ok {
+			target, byFullURL = base+target, true
+		}
+	}
+
+	var found types.Value
+	matches := 0
+	for _, entry := range bundle.GetCollection("entry") {
 		entryObj, isObject := entry.(*types.ObjectValue)
 		if !isObject {
 			continue
 		}
-
-		if stringField(entryObj, "fullUrl") == reference {
-			if resource, hasResource := entryObj.Get("resource"); hasResource {
-				return resource, true
+		resource, isResource := entryObj.Get("resource")
+		resourceObj, _ := resource.(*types.ObjectValue)
+		if !isResource || resourceObj == nil {
+			continue
+		}
+		if version != "" && versionOf(resourceObj) != version {
+			continue
+		}
+		if byFullURL {
+			if stringField(entryObj, "fullUrl") != target {
+				continue
 			}
-		}
-
-		resource, hasResource := entryObj.Get("resource")
-		if !hasResource {
+		} else if id := stringField(resourceObj, "id"); id == "" || target != resourceObj.Type()+"/"+id {
 			continue
 		}
-		resourceObj, isResource := resource.(*types.ObjectValue)
-		if !isResource {
-			continue
-		}
-		if id := stringField(resourceObj, "id"); id != "" &&
-			reference == resourceObj.Type()+"/"+id {
-			return resourceObj, true
-		}
+		found = resourceObj
+		matches++
 	}
+	return found, matches == 1
+}
 
-	return nil, false
+// isRelativeReference reports a reference of the form Type/id.
+func isRelativeReference(reference string) bool {
+	resourceType, id, ok := strings.Cut(reference, "/")
+	return ok && resourceType != "" && id != "" && !strings.Contains(id, "/") &&
+		!strings.Contains(resourceType, ":") && resourceType[0] >= 'A' && resourceType[0] <= 'Z'
+}
+
+// restfulBase returns the base of a RESTful fullUrl — http://example.org/fhir/
+// for http://example.org/fhir/Observation/x — and false for any other, such as
+// a urn:uuid.
+func restfulBase(fullURL string) (string, bool) {
+	if !strings.HasPrefix(fullURL, "http://") && !strings.HasPrefix(fullURL, "https://") {
+		return "", false
+	}
+	fullURL, _, _ = strings.Cut(fullURL, "/_history/")
+	idAt := strings.LastIndexByte(fullURL, '/')
+	if idAt < 0 {
+		return "", false
+	}
+	typeAt := strings.LastIndexByte(fullURL[:idAt], '/')
+	if typeAt < 0 || !isRelativeReference(fullURL[typeAt+1:]) {
+		return "", false
+	}
+	return fullURL[:typeAt+1], true
+}
+
+// versionOf returns a resource's meta.versionId, or "".
+func versionOf(resource *types.ObjectValue) string {
+	meta, ok := resource.Get("meta")
+	if !ok {
+		return ""
+	}
+	metaObj, isObject := meta.(*types.ObjectValue)
+	if !isObject {
+		return ""
+	}
+	return stringField(metaObj, "versionId")
 }
 
 // stringField reads a field that holds a string, or "" when it is absent or
