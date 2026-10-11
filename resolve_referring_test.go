@@ -100,6 +100,14 @@ func TestResolveFromTheReferringEntry(t *testing.T) {
 			`{"fullUrl":"http://a.org/fhir/Observation/x","resource":{"resourceType":"Observation","id":"x","meta":{"versionId":"2"},"status":"final","code":{"text":"c"}}}`,
 			observationEntry("http://a.org/fhir/Observation/root", "root", "final", fmt.Sprintf(member, "Observation/x/_history/2")),
 		}, "final"},
+		{"a reference of a slash alone names no entry", []string{
+			observationEntry("", "x", "amended", ""),
+			observationEntry("", "root", "final", fmt.Sprintf(member, "/")),
+		}, "EMPTY"},
+		{"a relative reference to a versioned fullUrl", []string{
+			observationEntry("http://a.org/fhir/Observation/x/_history/2/", "x", "amended", ""),
+			observationEntry("http://a.org/fhir/Observation/root", "root", "final", fmt.Sprintf(member, "Observation/x")),
+		}, "amended"},
 		{"a versioned reference with a trailing slash", []string{
 			`{"fullUrl":"http://a.org/fhir/Observation/x","resource":{"resourceType":"Observation","id":"x","meta":{"versionId":"1"},"status":"preliminary","code":{"text":"c"}}}`,
 			`{"fullUrl":"http://a.org/fhir/Observation/x","resource":{"resourceType":"Observation","id":"x","meta":{"versionId":"2"},"status":"final","code":{"text":"c"}}}`,
@@ -214,8 +222,8 @@ func TestResolveFromANestedContainedRoot(t *testing.T) {
 }
 
 // TestResolveInABundleAboveAResourceRoot evaluates against a resource held by
-// a Bundle entry: the Bundle above it is searched, from the entry that holds
-// it, as it is when evaluated against the Bundle.
+// a Bundle entry: the nearest Bundle above it is searched, from the entry that
+// holds it, as it is when evaluated against that Bundle, and none above that.
 func TestResolveInABundleAboveAResourceRoot(t *testing.T) {
 	bundle := []byte(`{"resourceType":"Bundle","type":"collection","entry":[
 	  {"fullUrl":"http://a.org/fhir/Patient/p","resource":{"resourceType":"Patient","id":"p",

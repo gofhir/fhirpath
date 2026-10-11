@@ -356,13 +356,25 @@ func findBundleEntry(bundle, from *types.ObjectValue, reference string) (types.V
 			if matchesID(resource) {
 				return resource, true
 			}
-		case fullURL == target:
+		case fullURL != "" && namesResource(fullURL, target):
 			return resource, true
 		case local == nil && relative && !namesServer(fullURL) && matchesID(resource):
 			local = resource
 		}
 	}
 	return local, local != nil
+}
+
+// namesResource reports a fullUrl, its trailing slash taken off, that is the
+// target, or the target with a version, .../_history/v, which a fullUrl should
+// not carry (bdl-8) but may: the version is matched on meta.versionId.
+func namesResource(fullURL, target string) bool {
+	if len(fullURL) == len(target) {
+		return fullURL == target
+	}
+	// Lengths first, as == compares them, so most entries are told apart unread
+	return len(fullURL) > len(target) && fullURL[len(target)] == '/' &&
+		strings.HasPrefix(fullURL[len(target):], "/_history/") && fullURL[:len(target)] == target
 }
 
 // isRelativeReference reports a reference of the form Type/id.
