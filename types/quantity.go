@@ -178,6 +178,9 @@ func (q Quantity) Equivalent(other Value) bool {
 	if !ok {
 		return false
 	}
+	if crossesCalendarYear(q.unit, o.unit) {
+		return calendarEquivalent(q, o)
+	}
 
 	rhs, err := o.valueIn(q)
 	if err != nil {
@@ -192,6 +195,42 @@ func (q Quantity) Equivalent(other Value) bool {
 		places = other
 	}
 	return q.value.Round(places).Equal(rhs.Round(places))
+}
+
+// calendarEquivalent compares a calendar duration and a UCUM one across a year
+// or a month, which have no common unit but are equivalent: "1 year is not
+// equal to 1 'a' (i.e. results in empty), but it is equivalent to 1 'a'". As
+// 3.0.0 has it, "convert the UCUM value to the UCUM unit that matches the
+// calendar unit" — 'a' for a year, 'mo' for a month, 'd' for a day — and
+// compare the two values, rounded to the precision of the less precise, as
+// equivalence does: 1 year ~ 12 'mo', 1 'a' ~ 365 days.
+func calendarEquivalent(q, o Quantity) bool {
+	calendar, definite := q, o
+	if !isCalendarUnit(calendar.unit) {
+		calendar, definite = o, q
+	}
+	converted, err := ucum.Convert(definite.value, convertibleUnit(definite.unit), matchingUCUMUnit(calendar.unit))
+	if err != nil {
+		return false
+	}
+	places := scaleOf(calendar.value)
+	if theirs := scaleOf(converted); theirs < places {
+		places = theirs
+	}
+	return calendar.value.Round(places).Equal(converted.Round(places))
+}
+
+// matchingUCUMUnit returns the UCUM unit a calendar duration matches: its
+// exact equivalent from a week down, and the mean Julian year or month above,
+// "1 year ~ 1 'a'", "1 month ~ 1 'mo'".
+func matchingUCUMUnit(calendar string) string {
+	switch yearsAndMonths[calendar] {
+	case 12:
+		return "a"
+	case 1:
+		return "mo"
+	}
+	return convertibleUnit(calendar)
 }
 
 // scaleOf returns how many fractional digits a value carries.

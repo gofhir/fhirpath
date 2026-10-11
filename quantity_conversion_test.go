@@ -187,6 +187,36 @@ func TestCalendarDurationOrdering(t *testing.T) {
 	}
 }
 
+// TestCalendarDurationEquivalence covers ~ across the two duration systems at a
+// year or a month, where = has no answer: "1 year is not equal to 1 'a' (i.e.
+// results in empty), but it is equivalent to 1 'a'". The UCUM value is taken
+// in the UCUM unit that matches the calendar unit, and the two compare as
+// equivalence does, rounded to the less precise. fhirpath.js answers alike.
+func TestCalendarDurationEquivalence(t *testing.T) {
+	patient := []byte(`{"resourceType":"Patient"}`)
+
+	for expr, want := range map[string]string{
+		"1 year ~ 1 'a'":      "true",
+		"1 'a' ~ 1 year":      "true",
+		"1 month ~ 1 'mo'":    "true",
+		"1 year ~ 12 'mo'":    "true",
+		"1.5 years ~ 18 'mo'": "true",
+		"1 'a' ~ 365 days":    "true",
+		"365 days ~ 1 'a'":    "true",
+		"1 'mo' ~ 30 days":    "true",
+		"1 year ~ 365 'd'":    "true",
+		"2 years ~ 1 'a'":     "false",
+		"1 year !~ 1 'a'":     "false",
+		"1 year ~ 1 'cm'":     "false",
+		// Equality still has no answer
+		"1 year = 1 'a'": "EMPTY",
+	} {
+		if got := evaluateScalar(t, expr, patient); got != want {
+			t.Errorf("%s = %s, want %s", expr, got, want)
+		}
+	}
+}
+
 // TestExplicitDurationConversionUsesSourceSystem covers the rule that decides
 // which set of factors an explicit conversion uses.
 //
