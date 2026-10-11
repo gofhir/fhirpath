@@ -247,6 +247,13 @@ func TestQuantityEquivalenceSpecExamples(t *testing.T) {
 		"1.0 'g' ~ 1.6 'g'": "false",
 		"4 'g' ~ 4600 'mg'": "false",
 		"1 'cm' ~ 1 's'":    "false",
+		// On a scale with an offset a step, not a point, measures granularity:
+		// a degree Fahrenheit is 5/9 of a kelvin
+		"1 'K' ~ -457 '[degF]'": "true",
+		// Units of one step tie, and the more precise value is converted
+		"0.5 'K' ~ -272.15 'Cel'": "true",
+		"1 'L' ~ 1.04 'dm3'":      "true",
+		"1 'L' ~ 1.6 'dm3'":       "false",
 	} {
 		left, right, _ := strings.Cut(expr, " ~ ")
 		for _, e := range []string{expr, right + " ~ " + left} {

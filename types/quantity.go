@@ -3,7 +3,6 @@ package types
 import (
 	"errors"
 	"fmt"
-	"math/big"
 	"regexp"
 	"strings"
 
@@ -194,16 +193,18 @@ func (q Quantity) Equivalent(other Value) bool {
 		}
 	}
 
-	// The less granular unit is the one of which one unit is more than one of
-	// the other
+	// The less granular unit is the one a step of which is more than a step
+	// of the other. Units of one step, a kelvin and a degree Celsius, tie, and
+	// the more precise value is converted into the unit of the less precise,
+	// whichever side each stands on
 	coarse, converted := q, o.value
-	if q.unit != o.unit && q.unit != "" && o.unit != "" {
-		one, err := (Quantity{value: decimal.NewFromInt(1), unit: o.unit}).valueIn(q)
+	if q.unit != o.unit {
+		step, err := o.stepIn(q)
 		if err != nil {
 			return false
 		}
 		fine := q
-		if one.GreaterThan(decimal.NewFromInt(1)) {
+		if oCoarse(step, q, o) {
 			coarse = o
 		} else {
 			fine = o
@@ -218,6 +219,46 @@ func (q Quantity) Equivalent(other Value) bool {
 		places = theirs
 	}
 	return coarse.value.Round(places).Equal(converted.Round(places))
+}
+
+// oCoarse reports whether o's unit is the less granular, given how much of q's
+// unit a step of o's unit is, breaking a tie by precision, then by unit.
+func oCoarse(step decimal.Decimal, q, o Quantity) bool {
+	switch step.Cmp(decimal.NewFromInt(1)) {
+	case 1:
+		return true
+	case -1:
+		return false
+	}
+	if qp, op := significantPlaces(q.value), significantPlaces(o.value); qp != op {
+		return op < qp
+	}
+	return o.unit < q.unit
+}
+
+// stepIn returns how much of target's unit one step of q's unit is. For a unit
+// on a scale with an offset, a temperature, a point is not a step: 1 '[degF]'
+// is 255.9 'K', but a degree Fahrenheit is 5/9 of a kelvin. So the step is
+// the difference two points convert to.
+func (q Quantity) stepIn(target Quantity) (decimal.Decimal, error) {
+	one, err := Quantity{value: decimal.NewFromInt(1), unit: q.unit}.valueIn(target)
+	if err != nil || !offsetUnit(q.unit) && !offsetUnit(target.unit) {
+		return one, err
+	}
+	zero, err := Quantity{value: decimal.Zero, unit: q.unit}.valueIn(target)
+	if err != nil {
+		return decimal.Decimal{}, err
+	}
+	return one.Sub(zero), nil
+}
+
+// offsetUnit reports a UCUM unit whose scale does not start at zero.
+func offsetUnit(unit string) bool {
+	switch unit {
+	case "Cel", "[degF]", "[degRe]":
+		return true
+	}
+	return false
 }
 
 // matchingUCUMUnit returns the UCUM unit a calendar duration matches: its
@@ -240,14 +281,11 @@ func significantPlaces(d decimal.Decimal) int32 {
 	if exponent >= 0 {
 		return 0
 	}
-	coefficient := d.Coefficient()
-	ten := big.NewInt(10)
-	var digit big.Int
-	for exponent < 0 {
-		coefficient.QuoRem(coefficient, ten, &digit)
-		if digit.Sign() != 0 {
-			break
-		}
+	// Each trailing zero of the coefficient lifts the exponent by one, up to
+	// zero, so the count stays within the exponent's range
+	digits := d.Coefficient().Text(10)
+	trailing := len(digits) - len(strings.TrimRight(digits, "0"))
+	for ; trailing > 0 && exponent < 0; trailing-- {
 		exponent++
 	}
 	return -exponent
