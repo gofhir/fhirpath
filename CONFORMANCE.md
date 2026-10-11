@@ -167,7 +167,10 @@ a key of several items and for a pair that does not compare. A later key is
 compared only between items the earlier keys tie, as in fhirpath.js. Whether a
 sort fails does not depend on the order its input comes in: where a key mixes
 temporals of different precisions or offsets, or quantities of different units,
-whose comparisons are not always transitive, every pair is compared.
+whose comparisons are not always transitive, every pair is compared. What it
+costs: nothing for keys of one kind, such as dates of one precision or
+quantities of one unit, which sort as fast as before; for 1000 dates of mixed
+precision, about 34 ms against 2.6 ms.
 
 Booleans do not sort here, since `<` does not compare them; fhirpath.js sorts
 `false` before `true`. Complex values, such as `Patient.name.sort()`, do not

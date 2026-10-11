@@ -292,6 +292,10 @@ func TestSort(t *testing.T) {
 			{"@2020-01-01T10:00Z", "@2020-01-02", "@2020-01-03T10:00"},
 			{"@2020-01-01", "@2020-01-02T01:00+05:00", "@2020-01-01T22:00-05:00"},
 			{"1 year", "400 days", "500 'd'"},
+			// DateTimes alone: hour against minute precision across offsets,
+			// and an offset against none across precisions
+			{"@2020-01-01T10+05:30", "@2020-01-01T05:00Z", "@2020-01-01T10:45+05:30"},
+			{"@2020-01-01T10:00Z", "@2020-01-02T", "@2020-01-03T10:00"},
 		} {
 			for _, p := range [][3]int{{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}} {
 				items := trio[p[0]] + ").combine(" + trio[p[1]] + ").combine(" + trio[p[2]]
@@ -302,6 +306,21 @@ func TestSort(t *testing.T) {
 					}
 				}
 			}
+		}
+	})
+
+	t.Run("FHIR Quantities sort by their values", func(t *testing.T) {
+		obs := []byte(`{"resourceType":"Observation","component":[
+		  {"valueQuantity":{"value":3,"unit":"g","system":"http://unitsofmeasure.org","code":"g"}},
+		  {"valueQuantity":{"value":500,"unit":"mg","system":"http://unitsofmeasure.org","code":"mg"}},
+		  {"valueQuantity":{"value":2,"unit":"g","system":"http://unitsofmeasure.org","code":"g"}}]}`)
+		assertBooleanResult(t, evalOrFatal(t, obs,
+			"Observation.component.sort(value).value.value = (500 | 2 | 3)"), true)
+		mixed := []byte(`{"resourceType":"Observation","component":[
+		  {"valueQuantity":{"value":3,"unit":"g","system":"http://unitsofmeasure.org","code":"g"}},
+		  {"valueQuantity":{"value":2,"unit":"cm","system":"http://unitsofmeasure.org","code":"cm"}}]}`)
+		if _, err := Evaluate(mixed, "Observation.component.sort(value)"); err == nil {
+			t.Error("quantities whose units do not convert: expected an error")
 		}
 	})
 

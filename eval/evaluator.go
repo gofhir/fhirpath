@@ -963,6 +963,7 @@ func (e *Evaluator) evaluateSort(input types.Collection, criteria []sortCriterio
 	if err := checkSortKeys(keys); err != nil {
 		return err
 	}
+	quantityKeys(keys)
 
 	order := make([]int, len(input))
 	for i := range order {
@@ -1051,6 +1052,25 @@ func checkSortKeys(keys [][]types.Collection) error {
 	return nil
 }
 
+// quantityKeys reads each key that is a FHIR Quantity as the System.Quantity it
+// compares as, once, rather than on every comparison it meets. A key that is
+// no quantity, and a bound, which checkSortKeys refused, stay as they are.
+func quantityKeys(keys [][]types.Collection) {
+	for _, itemKeys := range keys {
+		for i, key := range itemKeys {
+			if len(key) != 1 {
+				continue
+			}
+			if _, isObject := key[0].(*types.ObjectValue); !isObject {
+				continue
+			}
+			if q, ok, err := AsQuantity(key[0]); err == nil && ok {
+				itemKeys[i] = types.Collection{q}
+			}
+		}
+	}
+}
+
 // orderedTransitively reports keys whose comparisons are transitive within
 // each criterion: strings and numbers, which compare by class, or values of one
 // order — temporals of one type, precision and kind of offset, or quantities
@@ -1078,7 +1098,8 @@ func orderedTransitively(keys [][]types.Collection) bool {
 }
 
 // sortOrder names the order a key value is compared in: values that share one
-// compare transitively.
+// compare transitively where they compare at all. Seconds and milliseconds are
+// one precision, as comparisons treat them.
 type sortOrder struct {
 	kind      string
 	precision int
@@ -1095,10 +1116,18 @@ func sortOrderOf(v types.Value) (sortOrder, bool) {
 	case types.Date:
 		return sortOrder{kind: "Date", precision: int(value.Precision())}, true
 	case types.Time:
-		return sortOrder{kind: "Time", precision: int(value.Precision())}, true
+		precision := value.Precision()
+		if precision == types.MillisPrecision {
+			precision = types.SecondPrecision
+		}
+		return sortOrder{kind: "Time", precision: int(precision)}, true
 	case types.DateTime:
+		precision := value.Precision()
+		if precision == types.DTMillisPrecision {
+			precision = types.DTSecondPrecision
+		}
 		_, offset := value.EffectiveOffset()
-		return sortOrder{kind: "DateTime", precision: int(value.Precision()), offset: offset}, true
+		return sortOrder{kind: "DateTime", precision: int(precision), offset: offset}, true
 	case types.Quantity:
 		return sortOrder{kind: "Quantity", unit: value.Unit()}, true
 	}
