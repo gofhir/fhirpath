@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.12.3](https://github.com/gofhir/fhirpath/compare/v1.12.2...v1.12.3) (2026-10-11)
+
+
+### Bug Fixes
+
+* ordering a calendar duration against a UCUM year or month answers empty, as = does ([#128](https://github.com/gofhir/fhirpath/issues/128)) ([4402c67](https://github.com/gofhir/fhirpath/commit/4402c67105195cb5628aca28087eed5a33427bef))
+* resolve() reads a reference from where it is written ([#124](https://github.com/gofhir/fhirpath/issues/124)) ([33b4546](https://github.com/gofhir/fhirpath/commit/33b45463cbd63afb465d2d72a22bcc915eb5c747))
+* sort() follows FHIRPath 3.0.0 on empty, several-item and incomparable keys ([#127](https://github.com/gofhir/fhirpath/issues/127)) ([3b2bb8d](https://github.com/gofhir/fhirpath/commit/3b2bb8d711649229acde8106818d9c5737ed134f))
+
 ## [1.12.2](https://github.com/gofhir/fhirpath/compare/v1.12.1...v1.12.2) (2026-10-08)
 
 
