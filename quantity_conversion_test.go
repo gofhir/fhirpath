@@ -1,6 +1,9 @@
 package fhirpath
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 // TestToQuantityFromString covers the format toQuantity() accepts on a String,
 // which the specification gives as a regex:
@@ -210,9 +213,46 @@ func TestCalendarDurationEquivalence(t *testing.T) {
 		"1 year ~ 1 'cm'":     "false",
 		// Equality still has no answer
 		"1 year = 1 'a'": "EMPTY",
+		// In the less granular unit, at the precision of the less precise
+		"1.04 years ~ 1 'a'": "true",
+		"1.6 years ~ 1 'a'":  "false",
+		"1 'a' ~ 365.0 days": "true",
 	} {
 		if got := evaluateScalar(t, expr, patient); got != want {
 			t.Errorf("%s = %s, want %s", expr, got, want)
+		}
+	}
+}
+
+// TestQuantityEquivalenceSpecExamples runs the examples FHIRPath 3.0.0 works
+// through for quantity equivalence: "the quantity values must be converted to
+// the least granular unit", then compared "on values rounded to the precision
+// of the least precise operand", trailing zeroes carrying no precision. Each
+// also holds with its sides swapped.
+func TestQuantityEquivalenceSpecExamples(t *testing.T) {
+	patient := []byte(`{"resourceType":"Patient"}`)
+
+	for expr, want := range map[string]string{
+		"21 'mm' ~ 2 'cm'":         "true",
+		"4 'g' ~ 4000 'mg'":        "true",
+		"4 'g' ~ 4040 'mg'":        "true",
+		"1 '[in_i]' ~ 2.5 'cm'":    "true",
+		"23 'Cel' ~ 73.4 '[degF]'": "true",
+		"1 year ~ 1 'a'":           "true",
+		"1 year ~ 12 'mo'":         "true",
+		"1 year ~ 11 months":       "true",
+		"1 second ~ 1 's'":         "true",
+		// Trailing zeroes carry no precision, as for decimals: 1.0 ~ 1.4
+		"1.0 'g' ~ 1.4 'g'": "true",
+		"1.0 'g' ~ 1.6 'g'": "false",
+		"4 'g' ~ 4600 'mg'": "false",
+		"1 'cm' ~ 1 's'":    "false",
+	} {
+		left, right, _ := strings.Cut(expr, " ~ ")
+		for _, e := range []string{expr, right + " ~ " + left} {
+			if got := evaluateScalar(t, e, patient); got != want {
+				t.Errorf("%s = %s, want %s", e, got, want)
+			}
 		}
 	}
 }

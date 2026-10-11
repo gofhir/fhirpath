@@ -3,6 +3,7 @@ package types
 import (
 	"errors"
 	"fmt"
+	"math/big"
 	"regexp"
 	"strings"
 
@@ -170,54 +171,53 @@ func (q Quantity) Equal(other Value) bool {
 	return q.value.Equal(rhs)
 }
 
-// Equivalent checks equivalence with another value.
-// For quantities, this uses UCUM normalization to compare values with different units.
-// Per FHIRPath spec: quantities are equivalent if their canonical normalized forms are equal.
+// Equivalent checks equivalence with another value. As FHIRPath 3.0.0 has it,
+// the two are expressed in the less granular of their units, then compared
+// "on values rounded to the precision of the least precise operand", trailing
+// zeroes carrying no precision: 4 'g' ~ 4040 'mg' (4 ~ 4.040, compared at
+// whole grams) whichever side each stands on, and 1 year ~ 11 months.
+//
+// Across a year or a month, where the calendar and UCUM have no common unit,
+// the calendar side is read in the UCUM unit that matches it — "convert the
+// UCUM value to the UCUM unit that matches the calendar unit" — so 1 year ~
+// 1 'a' and 1 year ~ 12 'mo', where = has no answer.
 func (q Quantity) Equivalent(other Value) bool {
 	o, ok := other.(Quantity)
 	if !ok {
 		return false
 	}
 	if crossesCalendarYear(q.unit, o.unit) {
-		return calendarEquivalent(q, o)
+		if isCalendarUnit(q.unit) {
+			q.unit = matchingUCUMUnit(q.unit)
+		} else {
+			o.unit = matchingUCUMUnit(o.unit)
+		}
 	}
 
-	rhs, err := o.valueIn(q)
-	if err != nil {
-		return false
+	// The less granular unit is the one of which one unit is more than one of
+	// the other
+	coarse, converted := q, o.value
+	if q.unit != o.unit && q.unit != "" && o.unit != "" {
+		one, err := (Quantity{value: decimal.NewFromInt(1), unit: o.unit}).valueIn(q)
+		if err != nil {
+			return false
+		}
+		fine := q
+		if one.GreaterThan(decimal.NewFromInt(1)) {
+			coarse = o
+		} else {
+			fine = o
+		}
+		if converted, err = fine.valueIn(coarse); err != nil {
+			return false
+		}
 	}
 
-	// Equivalence compares "on values rounded to the precision of the least
-	// precise operand", so 4 'g' ~ 4040 'mg': 4.040 g rounded to the whole
-	// gram the left side was written with is 4.
-	places := scaleOf(q.value)
-	if other := scaleOf(rhs); other < places {
-		places = other
-	}
-	return q.value.Round(places).Equal(rhs.Round(places))
-}
-
-// calendarEquivalent compares a calendar duration and a UCUM one across a year
-// or a month, which have no common unit but are equivalent: "1 year is not
-// equal to 1 'a' (i.e. results in empty), but it is equivalent to 1 'a'". As
-// 3.0.0 has it, "convert the UCUM value to the UCUM unit that matches the
-// calendar unit" — 'a' for a year, 'mo' for a month, 'd' for a day — and
-// compare the two values, rounded to the precision of the less precise, as
-// equivalence does: 1 year ~ 12 'mo', 1 'a' ~ 365 days.
-func calendarEquivalent(q, o Quantity) bool {
-	calendar, definite := q, o
-	if !isCalendarUnit(calendar.unit) {
-		calendar, definite = o, q
-	}
-	converted, err := ucum.Convert(definite.value, convertibleUnit(definite.unit), matchingUCUMUnit(calendar.unit))
-	if err != nil {
-		return false
-	}
-	places := scaleOf(calendar.value)
-	if theirs := scaleOf(converted); theirs < places {
+	places := significantPlaces(coarse.value)
+	if theirs := significantPlaces(converted); theirs < places {
 		places = theirs
 	}
-	return calendar.value.Round(places).Equal(converted.Round(places))
+	return coarse.value.Round(places).Equal(converted.Round(places))
 }
 
 // matchingUCUMUnit returns the UCUM unit a calendar duration matches: its
@@ -233,12 +233,24 @@ func matchingUCUMUnit(calendar string) string {
 	return convertibleUnit(calendar)
 }
 
-// scaleOf returns how many fractional digits a value carries.
-func scaleOf(d decimal.Decimal) int32 {
-	if exponent := d.Exponent(); exponent < 0 {
-		return -exponent
+// significantPlaces counts the digits after the decimal point that carry
+// precision, which excludes trailing zeroes: 1.10 is given to one place.
+func significantPlaces(d decimal.Decimal) int32 {
+	exponent := d.Exponent()
+	if exponent >= 0 {
+		return 0
 	}
-	return 0
+	coefficient := d.Coefficient()
+	ten := big.NewInt(10)
+	var digit big.Int
+	for exponent < 0 {
+		coefficient.QuoRem(coefficient, ten, &digit)
+		if digit.Sign() != 0 {
+			break
+		}
+		exponent++
+	}
+	return -exponent
 }
 
 // String returns the string representation.

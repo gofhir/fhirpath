@@ -108,17 +108,7 @@ func (d Decimal) Equivalent(other Value) bool {
 // precision, which excludes trailing zeroes: 1.10 is given to one place, not
 // two.
 func (d Decimal) significantPlaces() int32 {
-	// The canonical rendering drops trailing zeroes, so its exponent is the
-	// count that remains
-	normalized, err := decimal.NewFromString(d.value.String())
-	if err != nil {
-		normalized = d.value
-	}
-
-	if exponent := normalized.Exponent(); exponent < 0 {
-		return -exponent
-	}
-	return 0
+	return significantPlaces(d.value)
 }
 
 // String returns the decimal string representation. For values created from
