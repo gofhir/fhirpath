@@ -145,6 +145,40 @@ func TestCalendarDurationEquality(t *testing.T) {
 	}
 }
 
+// TestCalendarDurationOrdering checks that an ordering across the two duration
+// systems answers where equality does: freely at a week and below, and not at
+// all at a year or a month, which have no common unit. < used to convert where
+// = refused, so 400 days < 2 'a' was true while 1 'a' = 365 days was empty.
+func TestCalendarDurationOrdering(t *testing.T) {
+	patient := []byte(`{"resourceType":"Patient"}`)
+
+	for expr, want := range map[string]string{
+		// Across the systems, at a year or a month, in either order
+		"400 days < 2 'a'":  "EMPTY",
+		"1 'a' < 365 days":  "EMPTY",
+		"1 year < 500 'd'":  "EMPTY",
+		"1 month >= 30 'd'": "EMPTY",
+		"12 'mo' <= 1 year": "EMPTY",
+		// Within one system, and across them at a week and below
+		"1 year < 13 months": "true",
+		"1 'a' < 13 'mo'":    "true",
+		"1 'a' > 1 'd'":      "true",
+		"2 weeks > 10 'd'":   "true",
+		"1 'wk' <= 7 days":   "true",
+		// A quantity without a unit takes the other's
+		"1 year.toQuantity('a') > 0.5 'a'": "true",
+	} {
+		if got := evaluateScalar(t, expr, patient); got != want {
+			t.Errorf("%s = %s, want %s", expr, got, want)
+		}
+	}
+
+	// A sort meets such a pair as one that does not compare
+	if _, err := Evaluate(patient, "(400 days | 2 'a').sort()"); err == nil {
+		t.Error("(400 days | 2 'a').sort(): expected an error")
+	}
+}
+
 // TestExplicitDurationConversionUsesSourceSystem covers the rule that decides
 // which set of factors an explicit conversion uses.
 //
