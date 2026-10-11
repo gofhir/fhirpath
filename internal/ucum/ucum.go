@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"math/big"
 	"sync"
+	"sync/atomic"
 
 	"github.com/shopspring/decimal"
 
@@ -86,6 +87,61 @@ func Convert(value decimal.Decimal, from, to string) (decimal.Decimal, error) {
 	}
 
 	return fromRat(converted)
+}
+
+// factors holds the factors Factor has found, by unit pair; factorCount counts
+// them, so that units read from hostile input cannot grow it without bound.
+var (
+	factors     sync.Map
+	factorCount atomic.Int64
+)
+
+// maxFactors bounds how many unit pairs Factor remembers.
+const maxFactors = 4096
+
+// Factor returns how much of one unit one of another is, exactly, when both
+// stand on ratio scales: 1000 for 'L' to 'mL'. A unit on a scale with an
+// offset, or worse, has no factor: Factor returns an error NotLinear reports,
+// and the caller converts points instead. The factor returned is shared and
+// must not be modified.
+func Factor(from, to string) (*big.Rat, error) {
+	key := from + "\x00" + to
+	if factor, ok := factors.Load(key); ok {
+		return factor.(*big.Rat), nil
+	}
+	svc, err := exact()
+	if err != nil {
+		return nil, err
+	}
+	factor, err := svc.ConversionFactor(from, to)
+	if err != nil {
+		return nil, err
+	}
+	if factorCount.Load() < maxFactors {
+		if _, loaded := factors.LoadOrStore(key, factor); !loaded {
+			factorCount.Add(1)
+		}
+	}
+	return factor, nil
+}
+
+// NotLinear reports the error Factor returns for a unit with no factor, on a
+// scale with an offset such as Cel, or a logarithmic one.
+func NotLinear(err error) bool {
+	return errors.Is(err, ucumlib.ErrNotLinear)
+}
+
+// Scale multiplies a value by a factor, exactly.
+func Scale(value decimal.Decimal, factor *big.Rat) (decimal.Decimal, error) {
+	return fromRat(new(big.Rat).Mul(toRat(value), factor))
+}
+
+// Unscale divides a value by a factor, exactly.
+func Unscale(value decimal.Decimal, factor *big.Rat) (decimal.Decimal, error) {
+	if factor.Sign() == 0 {
+		return decimal.Decimal{}, fmt.Errorf("division by a zero factor")
+	}
+	return fromRat(new(big.Rat).Quo(toRat(value), factor))
 }
 
 // Multiply combines two quantities, returning the value and the unit of the

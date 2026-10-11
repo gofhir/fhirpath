@@ -3,6 +3,7 @@ package types
 import (
 	"errors"
 	"fmt"
+	"math/big"
 	"regexp"
 	"strings"
 
@@ -193,27 +194,10 @@ func (q Quantity) Equivalent(other Value) bool {
 		}
 	}
 
-	// The less granular unit is the one a step of which is more than a step
-	// of the other. Units of one step, a kelvin and a degree Celsius, tie, and
-	// the more precise value is converted into the unit of the less precise,
-	// whichever side each stands on
-	coarse, converted := q, o.value
-	if q.unit != o.unit {
-		step, err := o.stepIn(q)
-		if err != nil {
-			return false
-		}
-		fine := q
-		if oCoarse(step, q, o) {
-			coarse = o
-		} else {
-			fine = o
-		}
-		if converted, err = fine.valueIn(coarse); err != nil {
-			return false
-		}
+	coarse, converted, ok := inLessGranular(q, o)
+	if !ok {
+		return false
 	}
-
 	places := significantPlaces(coarse.value)
 	if theirs := significantPlaces(converted); theirs < places {
 		places = theirs
@@ -221,44 +205,67 @@ func (q Quantity) Equivalent(other Value) bool {
 	return coarse.value.Round(places).Equal(converted.Round(places))
 }
 
-// oCoarse reports whether o's unit is the less granular, given how much of q's
-// unit a step of o's unit is, breaking a tie by precision, then by unit.
-func oCoarse(step decimal.Decimal, q, o Quantity) bool {
-	switch step.Cmp(decimal.NewFromInt(1)) {
-	case 1:
-		return true
-	case -1:
-		return false
+// inLessGranular returns the operand whose unit is the less granular, and the
+// other's value in that unit. "If the conversion factor is greater than 1,
+// then the other unit is more granular"; where it is 1, "choose the unit of
+// the operator's left argument". Units on ratio scales convert by a factor,
+// found once per pair of units; a scale with an offset, a temperature, has no
+// factor, and a step of it is measured as the difference two points convert
+// to, since a point is not a step: 1 '[degF]' is 255.9 'K', a degree of it 5/9
+// of a kelvin.
+func inLessGranular(q, o Quantity) (coarse Quantity, converted decimal.Decimal, ok bool) {
+	if q.unit == o.unit {
+		return q, o.value, true
 	}
-	if qp, op := significantPlaces(q.value), significantPlaces(o.value); qp != op {
-		return op < qp
+	if q.unit == "" || o.unit == "" ||
+		isCalendarUnit(q.unit) && isCalendarUnit(o.unit) {
+		// The calendar's own units, and a quantity without a unit, which takes
+		// the other's: no offset, so one of the one unit measures a step
+		step, err := Quantity{value: decimal.NewFromInt(1), unit: o.unit}.valueIn(q)
+		if err != nil {
+			return Quantity{}, decimal.Decimal{}, false
+		}
+		return inUnitOfStep(q, o, step)
 	}
-	return o.unit < q.unit
-}
-
-// stepIn returns how much of target's unit one step of q's unit is. For a unit
-// on a scale with an offset, a temperature, a point is not a step: 1 '[degF]'
-// is 255.9 'K', but a degree Fahrenheit is 5/9 of a kelvin. So the step is
-// the difference two points convert to.
-func (q Quantity) stepIn(target Quantity) (decimal.Decimal, error) {
-	one, err := Quantity{value: decimal.NewFromInt(1), unit: q.unit}.valueIn(target)
-	if err != nil || !offsetUnit(q.unit) && !offsetUnit(target.unit) {
-		return one, err
-	}
-	zero, err := Quantity{value: decimal.Zero, unit: q.unit}.valueIn(target)
+	factor, err := ucum.Factor(convertibleUnit(o.unit), convertibleUnit(q.unit))
 	if err != nil {
-		return decimal.Decimal{}, err
+		if ucum.NotLinear(err) {
+			return inLessGranularByPoints(q, o)
+		}
+		return Quantity{}, decimal.Decimal{}, false
 	}
-	return one.Sub(zero), nil
+	if factor.Cmp(big.NewRat(1, 1)) > 0 {
+		converted, err = ucum.Unscale(q.value, factor)
+		return o, converted, err == nil
+	}
+	converted, err = ucum.Scale(o.value, factor)
+	return q, converted, err == nil
 }
 
-// offsetUnit reports a UCUM unit whose scale does not start at zero.
-func offsetUnit(unit string) bool {
-	switch unit {
-	case "Cel", "[degF]", "[degRe]":
-		return true
+// inLessGranularByPoints is inLessGranular for units on a scale with an
+// offset, where a step is the difference two points convert to.
+func inLessGranularByPoints(q, o Quantity) (coarse Quantity, converted decimal.Decimal, ok bool) {
+	one, err := Quantity{value: decimal.NewFromInt(1), unit: o.unit}.valueIn(q)
+	if err != nil {
+		return Quantity{}, decimal.Decimal{}, false
 	}
-	return false
+	zero, err := Quantity{value: decimal.Zero, unit: o.unit}.valueIn(q)
+	if err != nil {
+		return Quantity{}, decimal.Decimal{}, false
+	}
+	return inUnitOfStep(q, o, one.Sub(zero))
+}
+
+// inUnitOfStep converts into the less granular unit, given how much of q's
+// unit a step of o's unit is; on a tie, q's, the left one.
+func inUnitOfStep(q, o Quantity, step decimal.Decimal) (coarse Quantity, converted decimal.Decimal, ok bool) {
+	var err error
+	if step.GreaterThan(decimal.NewFromInt(1)) {
+		converted, err = q.valueIn(o)
+		return o, converted, err == nil
+	}
+	converted, err = o.valueIn(q)
+	return q, converted, err == nil
 }
 
 // matchingUCUMUnit returns the UCUM unit a calendar duration matches: its
@@ -278,7 +285,7 @@ func matchingUCUMUnit(calendar string) string {
 // precision, which excludes trailing zeroes: 1.10 is given to one place.
 func significantPlaces(d decimal.Decimal) int32 {
 	exponent := d.Exponent()
-	if exponent >= 0 {
+	if exponent >= 0 || d.IsZero() {
 		return 0
 	}
 	// Each trailing zero of the coefficient lifts the exponent by one, up to

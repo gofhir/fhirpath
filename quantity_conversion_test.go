@@ -248,18 +248,43 @@ func TestQuantityEquivalenceSpecExamples(t *testing.T) {
 		"4 'g' ~ 4600 'mg'": "false",
 		"1 'cm' ~ 1 's'":    "false",
 		// On a scale with an offset a step, not a point, measures granularity:
-		// a degree Fahrenheit is 5/9 of a kelvin
-		"1 'K' ~ -457 '[degF]'": "true",
-		// Units of one step tie, and the more precise value is converted
-		"0.5 'K' ~ -272.15 'Cel'": "true",
-		"1 'L' ~ 1.04 'dm3'":      "true",
-		"1 'L' ~ 1.6 'dm3'":       "false",
+		// a degree Fahrenheit is 5/9 of a kelvin, and a millidegree Celsius a
+		// thousandth of one
+		"1 'K' ~ -457 '[degF]'":   "true",
+		"273.15 'K' ~ 1.5 'mCel'": "true",
+		// A zero carries no precision, however many zeroes it is written with
+		"0.000 'g' ~ 0.01 'g'": "true",
+		// 100.0 is given to whole grams, not to hundreds
+		"100.0 'g' ~ 101 'g'": "false",
+		"1 'L' ~ 1.6 'dm3'":   "false",
 	} {
 		left, right, _ := strings.Cut(expr, " ~ ")
 		for _, e := range []string{expr, right + " ~ " + left} {
 			if got := evaluateScalar(t, e, patient); got != want {
 				t.Errorf("%s = %s, want %s", e, got, want)
 			}
+		}
+	}
+}
+
+// TestQuantityEquivalenceTie covers units whose conversion factor is 1: "If the
+// conversion factors are 1 (the units are equal), then choose the unit of the
+// operator's left argument." So which side a value stands on can decide the
+// answer, as rounding then happens in the left unit.
+func TestQuantityEquivalenceTie(t *testing.T) {
+	patient := []byte(`{"resourceType":"Patient"}`)
+
+	for expr, want := range map[string]string{
+		// -272.15 Cel is 1.00 K, compared with 0.5 K at whole kelvin: 1 = 1
+		"0.5 'K' ~ -272.15 'Cel'": "true",
+		// 0.5 K is -272.65 Cel, compared with -272.15 at hundredths
+		"-272.15 'Cel' ~ 0.5 'K'": "false",
+		"274.6 'K' ~ 1.5 'Cel'":   "false",
+		"1 'L' ~ 1.04 'dm3'":      "true",
+		"1.04 'dm3' ~ 1 'L'":      "true",
+	} {
+		if got := evaluateScalar(t, expr, patient); got != want {
+			t.Errorf("%s = %s, want %s", expr, got, want)
 		}
 	}
 }
