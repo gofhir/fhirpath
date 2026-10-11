@@ -969,11 +969,15 @@ func (e *Evaluator) evaluateSort(input types.Collection, criteria []sortCriterio
 		order[i] = i
 	}
 
-	// The ordering compares some pairs only, yet it fails whatever order the
-	// input came in. Values that compare at all compare transitively — units
-	// of one dimension, temporals placed apart — so no two values that do not
-	// compare can be put in order through others. To order them the ordering
-	// must compare a pair that does not, and the first such pair fails it.
+	// The ordering compares some pairs only, and a pair that does not compare
+	// fails it. Where the keys of each criterion compare transitively — strings
+	// and numbers, or temporals of one precision and one kind of offset, or
+	// quantities of one unit — two that do not compare cannot be ordered
+	// through others, and the ordering meets such a pair whatever order the
+	// input came in. Mixed temporals and quantities do not always — an offset
+	// against none, a calendar duration against days — so there every pair is
+	// compared after, and the sort fails or not whatever order the input came
+	// in.
 	var refused error
 	sort.SliceStable(order, func(a, b int) bool {
 		cmp, err := compareSortKeys(keys[order[a]], keys[order[b]], criteria)
@@ -984,6 +988,15 @@ func (e *Evaluator) evaluateSort(input types.Collection, criteria []sortCriterio
 	})
 	if refused != nil {
 		return refused
+	}
+	if !orderedTransitively(keys) {
+		for i := range keys {
+			for j := i + 1; j < len(keys); j++ {
+				if _, err := compareSortKeys(keys[i], keys[j], criteria); err != nil {
+					return err
+				}
+			}
+		}
 	}
 
 	result := make(types.Collection, len(input))
@@ -1036,6 +1049,60 @@ func checkSortKeys(keys [][]types.Collection) error {
 		}
 	}
 	return nil
+}
+
+// orderedTransitively reports keys whose comparisons are transitive within
+// each criterion: strings and numbers, which compare by class, or values of one
+// order — temporals of one type, precision and kind of offset, or quantities
+// of one unit. Empty keys compare with nothing.
+func orderedTransitively(keys [][]types.Collection) bool {
+	for criterion := range keys[0] {
+		var first *sortOrder
+		for _, itemKeys := range keys {
+			key := itemKeys[criterion]
+			if key.Empty() {
+				continue
+			}
+			order, ok := sortOrderOf(key[0])
+			if !ok {
+				return false
+			}
+			if first == nil {
+				first = &order
+			} else if order != *first {
+				return false
+			}
+		}
+	}
+	return true
+}
+
+// sortOrder names the order a key value is compared in: values that share one
+// compare transitively.
+type sortOrder struct {
+	kind      string
+	precision int
+	offset    bool
+	unit      string
+}
+
+// sortOrderOf returns the order a key value is compared in, and false for a
+// value of no such order.
+func sortOrderOf(v types.Value) (sortOrder, bool) {
+	switch value := v.(type) {
+	case types.String, types.Integer, types.Decimal:
+		return sortOrder{kind: "string or number"}, true
+	case types.Date:
+		return sortOrder{kind: "Date", precision: int(value.Precision())}, true
+	case types.Time:
+		return sortOrder{kind: "Time", precision: int(value.Precision())}, true
+	case types.DateTime:
+		_, offset := value.EffectiveOffset()
+		return sortOrder{kind: "DateTime", precision: int(value.Precision()), offset: offset}, true
+	case types.Quantity:
+		return sortOrder{kind: "Quantity", unit: value.Unit()}, true
+	}
+	return sortOrder{}, false
 }
 
 // compareSortKeys orders two elements by their keys, applying each criterion in

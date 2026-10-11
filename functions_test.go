@@ -285,6 +285,26 @@ func TestSort(t *testing.T) {
 		}
 	})
 
+	t.Run("whatever order temporals and quantities come in", func(t *testing.T) {
+		// Each orders its middle value against the other two, which do not
+		// compare: an offset against none, a calendar year against days
+		for _, trio := range [][3]string{
+			{"@2020-01-01T10:00Z", "@2020-01-02", "@2020-01-03T10:00"},
+			{"@2020-01-01", "@2020-01-02T01:00+05:00", "@2020-01-01T22:00-05:00"},
+			{"1 year", "400 days", "500 'd'"},
+		} {
+			for _, p := range [][3]int{{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}} {
+				items := trio[p[0]] + ").combine(" + trio[p[1]] + ").combine(" + trio[p[2]]
+				for _, key := range []string{"", "$this", "-$this"} {
+					expr := "(" + items + ").sort(" + key + ")"
+					if _, err := Evaluate(simpleJSON, expr); err == nil {
+						t.Errorf("%s: expected an error", expr)
+					}
+				}
+			}
+		}
+	})
+
 	t.Run("a later key is compared only where the earlier keys tie", func(t *testing.T) {
 		// The second key is a string for 1 and an integer elsewhere, which
 		// only the two 1s, a string each, are ever compared on

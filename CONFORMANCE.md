@@ -162,13 +162,18 @@ that does not compare ends it too: one `<` refuses, such as `1` and `'a'`, and
 one whose order is unknown, such as quantities whose units do not convert or
 `@2020` against `@2020-01-15`, for which `<` answers empty. The sort used to
 leave such pairs where they stood without a word, which could return
-`(1 'mg' | 2 'cm' | 0.5 'mg').sort()` unsorted. A later key is compared only
-between items the earlier keys tie. fhirpath.js raises an error in each of
-these cases.
+`(1 'mg' | 2 'cm' | 0.5 'mg').sort()` unsorted. fhirpath.js raises an error for
+a key of several items and for a pair that does not compare. A later key is
+compared only between items the earlier keys tie, as in fhirpath.js. Whether a
+sort fails does not depend on the order its input comes in: where a key mixes
+temporals of different precisions or offsets, or quantities of different units,
+whose comparisons are not always transitive, every pair is compared.
 
 Booleans do not sort here, since `<` does not compare them; fhirpath.js sorts
-`false` before `true`. A collection of one item is returned as it is, its key
-never evaluated, as in fhirpath.js.
+`false` before `true`. Complex values, such as `Patient.name.sort()`, do not
+sort either, here or in fhirpath.js; earlier releases returned them in input
+order. A collection of one item is returned as it is, its key never evaluated,
+as in fhirpath.js.
 
 ### Seven R5 cases that need something outside the engine
 
