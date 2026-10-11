@@ -171,6 +171,80 @@ func (o *ObjectValue) Location() string {
 	return string(path)
 }
 
+// Parent returns the object this one was read out of, or nil for a root, an
+// object no read created, or one a Resolver handed back. It is what resolve()
+// walks to find where a reference is written: the resource that makes it, and
+// in a Bundle, the entry that holds that resource.
+//
+// The parent may still be held by the evaluation that read it, or read by
+// other goroutines, and reading an object writes to it where one goroutine
+// holds it. So Parent returns a fresh object over the parent's JSON, placed
+// where the parent is and with nothing read, marked shared: like a result of
+// an evaluation, it keeps nothing it reads — Get and GetCollection write
+// nothing to it — and any goroutine may read it. A parent that caches, as the
+// objects of a Document do, is read by one goroutine at a time by contract,
+// and is returned itself, with what it has read.
+func (o *ObjectValue) Parent() *ObjectValue {
+	parent := o.parent
+	if parent == nil || parent.caching {
+		return parent
+	}
+	return parent.reread()
+}
+
+// reread returns a new, shared object over the same JSON, where the object
+// sits, with nothing read. It reads only what does not change once the object
+// is read — its JSON, its parent, the field and index it was read from — and
+// leaves a root to name itself again, since a root records its name lazily.
+func (o *ObjectValue) reread() *ObjectValue {
+	if o.root {
+		return &ObjectValue{data: o.data, root: true}
+	}
+	return &ObjectValue{data: o.data, parent: o.parent, field: o.field, position: o.position}
+}
+
+// ParentField returns the field of Parent that holds the object, as the JSON
+// spells it, or "" when there is no parent.
+func (o *ObjectValue) ParentField() string {
+	if o.parent == nil {
+		return ""
+	}
+	if o.field != "" {
+		return o.field
+	}
+	key, _, found := o.parent.locate(o.data)
+	if !found {
+		return ""
+	}
+	return string(key)
+}
+
+// ReadString reads a field that holds a string as the JSON writes it — an id
+// or a version that looks like a date is still the string it is. An object
+// that caches reads it through its cache, which keeps the string it reads; any
+// other reads the JSON and writes nothing to itself. It reports false when the
+// field is absent or holds something else.
+func (o *ObjectValue) ReadString(field string) (string, bool) {
+	if o.caching {
+		v, ok := o.Get(field)
+		if !ok {
+			return "", false
+		}
+		if text, isString := v.(String); isString {
+			return text.Value(), true
+		}
+		if !IsTemporal(v) {
+			return "", false
+		}
+		// A string read as a date: its text, from the JSON
+	}
+	text, err := jsonparser.GetString(o.data, field)
+	if err != nil {
+		return "", false
+	}
+	return text, true
+}
+
 // locate finds the field of the object that holds child, which was read out
 // of it: the key, without the underscore of a primitive's element, and the
 // index in the field's array, or -1 when the field is not an array.
