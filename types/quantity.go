@@ -273,6 +273,12 @@ func (q Quantity) Compare(other Value) (int, error) {
 		return 0, fmt.Errorf("cannot compare Quantity with %s", other.Type())
 	}
 
+	// A calendar duration and a UCUM year or month have no common unit, as
+	// Comparable says and = answers: no order either
+	if q.unit != otherQ.unit && crossesCalendarYear(q.unit, otherQ.unit) {
+		return 0, fmt.Errorf("%w: %s and %s", ErrIncompatibleUnits, q.unit, otherQ.unit)
+	}
+
 	// Express the right operand in the left operand's unit, so that the
 	// comparison is exact decimal arithmetic rather than a float round-trip
 	// through both canonical forms.
@@ -292,22 +298,25 @@ func (q Quantity) Comparable(other Quantity) bool {
 	}
 
 	// Calendar durations compare with each other on the calendar's own scale
-	leftIsCalendar, rightIsCalendar := isCalendarUnit(q.unit), isCalendarUnit(other.unit)
-	if leftIsCalendar && rightIsCalendar {
+	if isCalendarUnit(q.unit) && isCalendarUnit(other.unit) {
 		return true
 	}
-
-	// One of each system meets only at a week and below, where the two agree by
-	// definition. A year or a month differs between them — a calendar year is
-	// 365 days, a UCUM year 365.25 — so no common unit exists and the comparison
-	// has no answer: 1 'a' = 365 days is empty, as is 1 month = 30 'd'.
-	if leftIsCalendar != rightIsCalendar {
-		if aboveWeek(q.unit) || aboveWeek(other.unit) {
-			return false
-		}
+	if crossesCalendarYear(q.unit, other.unit) {
+		return false
 	}
 
 	return ucum.Comparable(convertibleUnit(q.unit), convertibleUnit(other.unit))
+}
+
+// crossesCalendarYear reports a calendar duration against a UCUM unit where
+// either is above a week. One of each system meets only at a week and below,
+// where the two agree by definition. A year or a month differs between them —
+// a calendar year is 365 days, a UCUM year 365.25 — so no common unit exists
+// and the comparison has no answer: 1 'a' = 365 days is empty, as is
+// 1 month = 30 'd'. A quantity without a unit takes the other's, and crosses nothing.
+func crossesCalendarYear(left, right string) bool {
+	return left != "" && right != "" &&
+		isCalendarUnit(left) != isCalendarUnit(right) && (aboveWeek(left) || aboveWeek(right))
 }
 
 // calendarToUCUM maps the calendar duration keywords onto the UCUM codes they
