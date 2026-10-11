@@ -243,17 +243,16 @@ func inLessGranular(q, o Quantity) (coarse Quantity, converted decimal.Decimal, 
 }
 
 // inLessGranularByPoints is inLessGranular for units on a scale with an
-// offset, where a step is the difference two points convert to.
+// offset, whose step ucum.Step measures. A point that has no finite value on
+// the other scale — zero on a logarithmic one — leaves no step to measure, and
+// the left operand's unit is kept, as on a tie.
 func inLessGranularByPoints(q, o Quantity) (coarse Quantity, converted decimal.Decimal, ok bool) {
-	one, err := Quantity{value: decimal.NewFromInt(1), unit: o.unit}.valueIn(q)
+	step, err := ucum.Step(convertibleUnit(o.unit), convertibleUnit(q.unit))
 	if err != nil {
-		return Quantity{}, decimal.Decimal{}, false
+		converted, err := o.valueIn(q)
+		return q, converted, err == nil
 	}
-	zero, err := Quantity{value: decimal.Zero, unit: o.unit}.valueIn(q)
-	if err != nil {
-		return Quantity{}, decimal.Decimal{}, false
-	}
-	return inUnitOfStep(q, o, one.Sub(zero))
+	return inUnitOfStep(q, o, step)
 }
 
 // inUnitOfStep converts into the less granular unit, given how much of q's

@@ -16,6 +16,7 @@ package ucum
 import (
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"sync"
 	"sync/atomic"
@@ -81,6 +82,10 @@ func Convert(value decimal.Decimal, from, to string) (decimal.Decimal, error) {
 			if floatErr != nil {
 				return decimal.Decimal{}, floatErr
 			}
+			// Zero on a logarithmic scale is minus infinity, which no decimal holds
+			if math.IsInf(approximate, 0) || math.IsNaN(approximate) {
+				return decimal.Decimal{}, fmt.Errorf("ucum: %s in %s has no finite value", from, to)
+			}
 			return decimal.NewFromFloat(approximate), nil
 		}
 		return decimal.Decimal{}, err
@@ -89,8 +94,9 @@ func Convert(value decimal.Decimal, from, to string) (decimal.Decimal, error) {
 	return fromRat(converted)
 }
 
-// factors holds the factors Factor has found, by unit pair; factorCount counts
-// them, so that units read from hostile input cannot grow it without bound.
+// factors holds what Factor has found, by unit pair: a factor, or that the
+// pair has none. factorCount counts the pairs, so that units read from hostile
+// input cannot grow it without bound.
 var (
 	factors     sync.Map
 	factorCount atomic.Int64
@@ -99,30 +105,72 @@ var (
 // maxFactors bounds how many unit pairs Factor remembers.
 const maxFactors = 4096
 
+// foundFactor is what Factor found for a pair of units, and for a pair with no
+// factor, the step Step measured.
+type foundFactor struct {
+	factor *big.Rat
+	err    error
+	step   decimal.Decimal
+}
+
 // Factor returns how much of one unit one of another is, exactly, when both
 // stand on ratio scales: 1000 for 'L' to 'mL'. A unit on a scale with an
 // offset, or worse, has no factor: Factor returns an error NotLinear reports,
-// and the caller converts points instead. The factor returned is shared and
-// must not be modified.
+// and the caller converts points instead. Either answer is found once per
+// pair of units. The factor returned is shared and must not be modified.
 func Factor(from, to string) (*big.Rat, error) {
 	key := from + "\x00" + to
-	if factor, ok := factors.Load(key); ok {
-		return factor.(*big.Rat), nil
+	if found, ok := factors.Load(key); ok {
+		f := found.(foundFactor)
+		return f.factor, f.err
 	}
 	svc, err := exact()
 	if err != nil {
 		return nil, err
 	}
 	factor, err := svc.ConversionFactor(from, to)
-	if err != nil {
+	if err != nil && !NotLinear(err) {
 		return nil, err
 	}
-	if factorCount.Load() < maxFactors {
-		if _, loaded := factors.LoadOrStore(key, factor); !loaded {
-			factorCount.Add(1)
+	// A place is taken before the pair is stored, so that callers at once
+	// cannot overshoot the bound
+	if factorCount.Add(1) <= maxFactors {
+		if _, loaded := factors.LoadOrStore(key, foundFactor{factor: factor, err: err}); loaded {
+			factorCount.Add(-1)
 		}
+	} else {
+		factorCount.Add(-1)
 	}
-	return factor, nil
+	return factor, err
+}
+
+// Step returns how much of one unit a step of another is, for units with no
+// factor, on a scale with an offset: the difference two points convert to,
+// since a point is not a step — 1 '[degF]' is 255.9 'K', a degree of it 5/9
+// of a kelvin. It is measured once per pair of units.
+func Step(from, to string) (decimal.Decimal, error) {
+	key := "step\x00" + from + "\x00" + to
+	if found, ok := factors.Load(key); ok {
+		f := found.(foundFactor)
+		return f.step, f.err
+	}
+	one, err := Convert(decimal.NewFromInt(1), from, to)
+	if err != nil {
+		return decimal.Decimal{}, err
+	}
+	zero, err := Convert(decimal.Zero, from, to)
+	if err != nil {
+		return decimal.Decimal{}, err
+	}
+	step := one.Sub(zero)
+	if factorCount.Add(1) <= maxFactors {
+		if _, loaded := factors.LoadOrStore(key, foundFactor{step: step}); loaded {
+			factorCount.Add(-1)
+		}
+	} else {
+		factorCount.Add(-1)
+	}
+	return step, nil
 }
 
 // NotLinear reports the error Factor returns for a unit with no factor, on a
