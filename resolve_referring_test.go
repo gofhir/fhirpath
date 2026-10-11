@@ -108,6 +108,15 @@ func TestResolveFromTheReferringEntry(t *testing.T) {
 			observationEntry("http://a.org/fhir/Observation/x/_history/2/", "x", "amended", ""),
 			observationEntry("http://a.org/fhir/Observation/root", "root", "final", fmt.Sprintf(member, "Observation/x")),
 		}, "amended"},
+		{"a versioned fullUrl of another resource", []string{
+			observationEntry("http://a.org/fhir/Observation/y/_history/1", "x", "amended", ""),
+			observationEntry("http://a.org/fhir/Observation/x/abc", "x", "amended", ""),
+			observationEntry("http://a.org/fhir/Observation/root", "root", "final", fmt.Sprintf(member, "Observation/x")),
+		}, "EMPTY"},
+		{"a versioned fullUrl of another version", []string{
+			`{"fullUrl":"http://a.org/fhir/Observation/x/_history/1","resource":{"resourceType":"Observation","id":"x","meta":{"versionId":"2"},"status":"amended","code":{"text":"c"}}}`,
+			observationEntry("http://a.org/fhir/Observation/root", "root", "final", fmt.Sprintf(member, "Observation/x/_history/2")),
+		}, "EMPTY"},
 		{"a versioned reference with a trailing slash", []string{
 			`{"fullUrl":"http://a.org/fhir/Observation/x","resource":{"resourceType":"Observation","id":"x","meta":{"versionId":"1"},"status":"preliminary","code":{"text":"c"}}}`,
 			`{"fullUrl":"http://a.org/fhir/Observation/x","resource":{"resourceType":"Observation","id":"x","meta":{"versionId":"2"},"status":"final","code":{"text":"c"}}}`,
@@ -196,6 +205,28 @@ func TestResolveFromAContainedRoot(t *testing.T) {
 		if got.String() != want {
 			t.Errorf("%s = %s, want %s", expr, got, want)
 		}
+	}
+}
+
+// TestResolveInTheRootBundleItself evaluates against a document held by a
+// collection: a reference in the document's own elements, in none of its
+// entries, is resolved in the document, and no Bundle above it is searched.
+func TestResolveInTheRootBundleItself(t *testing.T) {
+	collection := []byte(`{"resourceType":"Bundle","type":"collection","entry":[
+	  {"fullUrl":"http://o.org/fhir/Practitioner/p","resource":{"resourceType":"Practitioner","id":"p","gender":"male"}},
+	  {"resource":{"resourceType":"Bundle","type":"document",
+	    "signature":{"who":{"reference":"Practitioner/p"}},
+	    "entry":[{"fullUrl":"http://d.org/fhir/Practitioner/p","resource":{"resourceType":"Practitioner","id":"p","gender":"female"}}]}}]}`)
+	documents, err := MustCompile("Bundle.entry.resource.ofType(Bundle)").Evaluate(collection)
+	if err != nil || len(documents) != 1 {
+		t.Fatal(documents, err)
+	}
+	got, err := MustCompile("signature.who.resolve().gender").EvaluateWithContext(eval.NewContextForRoot(documents))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.String() != "[female]" {
+		t.Errorf("signature.who.resolve().gender = %s, want [female]", got)
 	}
 }
 

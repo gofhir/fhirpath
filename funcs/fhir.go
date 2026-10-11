@@ -242,6 +242,11 @@ func holdsResource(field string) bool {
 // known, is recognized without reading it.
 func referringEntry(o, root *types.ObjectValue) (entry, bundle *types.ObjectValue) {
 	for o != nil {
+		if sameObject(o, root) {
+			// Written in the root Bundle but in none of its entries, as a
+			// document's signature is: no Bundle above the root is searched
+			return nil, nil
+		}
 		parent := o.Parent()
 		if parent == nil {
 			return nil, nil
@@ -356,7 +361,7 @@ func findBundleEntry(bundle, from *types.ObjectValue, reference string) (types.V
 			if matchesID(resource) {
 				return resource, true
 			}
-		case fullURL != "" && namesResource(fullURL, target):
+		case fullURL != "" && namesResource(fullURL, target, version):
 			return resource, true
 		case local == nil && relative && !namesServer(fullURL) && matchesID(resource):
 			local = resource
@@ -367,14 +372,18 @@ func findBundleEntry(bundle, from *types.ObjectValue, reference string) (types.V
 
 // namesResource reports a fullUrl, its trailing slash taken off, that is the
 // target, or the target with a version, .../_history/v, which a fullUrl should
-// not carry (bdl-8) but may: the version is matched on meta.versionId.
-func namesResource(fullURL, target string) bool {
+// not carry (bdl-8) but may. A versioned reference, whose version is given,
+// matches a versioned fullUrl only with that version.
+func namesResource(fullURL, target, version string) bool {
 	if len(fullURL) == len(target) {
 		return fullURL == target
 	}
 	// Lengths first, as == compares them, so most entries are told apart unread
-	return len(fullURL) > len(target) && fullURL[len(target)] == '/' &&
-		strings.HasPrefix(fullURL[len(target):], "/_history/") && fullURL[:len(target)] == target
+	if len(fullURL) <= len(target) || fullURL[:len(target)] != target {
+		return false
+	}
+	own, ok := strings.CutPrefix(fullURL[len(target):], "/_history/")
+	return ok && own != "" && !strings.Contains(own, "/") && (version == "" || own == version)
 }
 
 // isRelativeReference reports a reference of the form Type/id.
