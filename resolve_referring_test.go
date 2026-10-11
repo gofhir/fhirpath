@@ -100,6 +100,11 @@ func TestResolveFromTheReferringEntry(t *testing.T) {
 			`{"fullUrl":"http://a.org/fhir/Observation/x","resource":{"resourceType":"Observation","id":"x","meta":{"versionId":"2"},"status":"final","code":{"text":"c"}}}`,
 			observationEntry("http://a.org/fhir/Observation/root", "root", "final", fmt.Sprintf(member, "Observation/x/_history/2")),
 		}, "final"},
+		{"a versioned reference with a trailing slash", []string{
+			`{"fullUrl":"http://a.org/fhir/Observation/x","resource":{"resourceType":"Observation","id":"x","meta":{"versionId":"1"},"status":"preliminary","code":{"text":"c"}}}`,
+			`{"fullUrl":"http://a.org/fhir/Observation/x","resource":{"resourceType":"Observation","id":"x","meta":{"versionId":"2"},"status":"final","code":{"text":"c"}}}`,
+			observationEntry("http://a.org/fhir/Observation/root", "root", "final", fmt.Sprintf(member, "Observation/x/_history/2/")),
+		}, "final"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			entries := tc.entries[0]
@@ -183,6 +188,50 @@ func TestResolveFromAContainedRoot(t *testing.T) {
 		if got.String() != want {
 			t.Errorf("%s = %s, want %s", expr, got, want)
 		}
+	}
+}
+
+// TestResolveFromANestedContainedRoot pins what a contained resource that
+// itself contains resources — which dom-2 forbids — resolves when it is the
+// root: its fragments are read in the resource that contains it, as they are
+// when evaluated from that resource.
+func TestResolveFromANestedContainedRoot(t *testing.T) {
+	patient := []byte(`{"resourceType":"Patient","id":"p","contained":[
+	  {"resourceType":"Organization","id":"org","endpoint":[{"reference":"#ep2"},{"reference":"#ep1"}],
+	   "contained":[{"resourceType":"Endpoint","id":"ep2"}]},
+	  {"resourceType":"Endpoint","id":"ep1"}]}`)
+	contained, err := MustCompile("Patient.contained.where(id = 'org')").Evaluate(patient)
+	if err != nil || len(contained) != 1 {
+		t.Fatal(contained, err)
+	}
+	got, err := MustCompile("endpoint.resolve().id").EvaluateWithContext(eval.NewContextForRoot(contained))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.String() != "[ep1]" {
+		t.Errorf("endpoint.resolve().id = %s, want [ep1]", got)
+	}
+}
+
+// TestResolveInABundleAboveAResourceRoot evaluates against a resource held by
+// a Bundle entry: the Bundle above it is searched, from the entry that holds
+// it, as it is when evaluated against the Bundle.
+func TestResolveInABundleAboveAResourceRoot(t *testing.T) {
+	bundle := []byte(`{"resourceType":"Bundle","type":"collection","entry":[
+	  {"fullUrl":"http://a.org/fhir/Patient/p","resource":{"resourceType":"Patient","id":"p",
+	    "managingOrganization":{"reference":"Organization/o"}}},
+	  {"fullUrl":"http://b.org/fhir/Organization/o","resource":{"resourceType":"Organization","id":"o","name":"other server"}},
+	  {"fullUrl":"http://a.org/fhir/Organization/o","resource":{"resourceType":"Organization","id":"o","name":"same server"}}]}`)
+	patients, err := MustCompile("Bundle.entry.resource.ofType(Patient)").Evaluate(bundle)
+	if err != nil || len(patients) != 1 {
+		t.Fatal(patients, err)
+	}
+	got, err := MustCompile("managingOrganization.resolve().name").EvaluateWithContext(eval.NewContextForRoot(patients))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got.String() != "[same server]" {
+		t.Errorf("managingOrganization.resolve().name = %s, want [same server]", got)
 	}
 }
 

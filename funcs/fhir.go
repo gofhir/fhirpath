@@ -315,12 +315,12 @@ func findContained(root *types.ObjectValue, id string) (types.Value, bool) {
 //   - A versioned reference, .../_history/v, also matches with its version
 //     taken off, on meta.versionId.
 //
-// A fullUrl matches with or without a trailing slash. When several entries
+// A fullUrl or a reference matches with or without a trailing slash. When several entries
 // match — which FHIR calls ambiguous, leaving what to do to the application —
 // the first is taken, as it always was.
 func findBundleEntry(bundle, from *types.ObjectValue, reference string) (types.Value, bool) {
+	reference = strings.TrimSuffix(reference, "/")
 	target, version, versioned := strings.Cut(reference, "/_history/")
-	target = strings.TrimSuffix(target, "/")
 	relative := isRelativeReference(target)
 	refType, refID, _ := strings.Cut(target, "/")
 	matchesID := func(resource *types.ObjectValue) bool {
@@ -334,8 +334,6 @@ func findBundleEntry(bundle, from *types.ObjectValue, reference string) (types.V
 		}
 	}
 
-	asWritten := strings.TrimSuffix(reference, "/")
-
 	var local types.Value // the first by type and id among entries that name no server
 	for _, entry := range bundle.GetCollection("entry") {
 		entryObj, isObject := entry.(*types.ObjectValue)
@@ -347,7 +345,7 @@ func findBundleEntry(bundle, from *types.ObjectValue, reference string) (types.V
 			continue
 		}
 		fullURL := strings.TrimSuffix(readString(entryObj, "fullUrl"), "/")
-		if fullURL != "" && fullURL == asWritten {
+		if fullURL != "" && fullURL == reference {
 			return resource, true
 		}
 		if versioned && (version == "" || readString(readObject(resource, "meta"), "versionId") != version) {
