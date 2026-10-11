@@ -10,3 +10,4 @@ LowBoundary/LowBoundaryDecimal15
 testInheritance/testFHIRPathAsFunction21
 testPlus/testPlusDate19
 testReplaceMatches/testReplaceMatches2
+testSort/testSort10

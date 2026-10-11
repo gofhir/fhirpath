@@ -25,3 +25,4 @@ TerminologyTests/txTest02  needs-external  seven-r5-cases-that-need-something-ou
 TerminologyTests/txTest03  needs-external  seven-r5-cases-that-need-something-outside-the-engine  %terminologies needs a terminology server answering, not a stub
 testConformsTo/testConformsTo3  suite-defect  conformsto-where-r5-disagrees-with-itself  the R5 suite expects an error for an unresolvable profile, where R5's prose says the result is empty
 testReplaceMatches/testReplaceMatches2  suite-defect  an-empty-regex-in-replacematches  expects abc, which follows from neither reading of an empty regex
+testSort/testSort10  suite-defect  an-empty-sort-key-is-the-lowest-value  a prototype case that sorts an empty key last ascending; FHIRPath 3.0.0 puts it first, so descending it comes last, as in fhirpath.js 5.2.0

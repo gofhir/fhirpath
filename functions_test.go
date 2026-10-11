@@ -233,14 +233,36 @@ func TestSort(t *testing.T) {
 	})
 
 	t.Run("multiple descending keys", func(t *testing.T) {
+		// Descending, the name without a family, the lowest, comes last
 		assertBooleanResult(t, evalOrFatal(t, names,
-			"Patient.name.sort(-family, -given.first()).first().use = 'usual'"), true)
+			"Patient.name.sort(-family, -given.first()).use = ('maiden' | 'official' | 'usual')"), true)
 	})
 
-	t.Run("a key missing on some elements sorts them last", func(t *testing.T) {
-		// The name without a family has no key for it
-		result := evalOrFatal(t, names, "Patient.name.sort(family).last().use")
-		assertStringResult(t, result, "usual")
+	t.Run("an empty key is lower than any value", func(t *testing.T) {
+		// The name without a family has no key for it: first ascending
+		assertStringResult(t, evalOrFatal(t, names, "Patient.name.sort(family).first().use"), "usual")
+		assertStringResult(t, evalOrFatal(t, names, "Patient.name.sort(-family).last().use"), "usual")
+	})
+
+	t.Run("a key of several items is an error", func(t *testing.T) {
+		if _, err := Evaluate(simpleJSON, "(1 | 2).sort($this | 3)"); err == nil {
+			t.Error("expected an error for a key of two items")
+		}
+	})
+
+	t.Run("keys that do not compare are an error", func(t *testing.T) {
+		for _, expr := range []string{"(1 | 'a').sort()", "('a' | 2 | 1).sort($this)", "(1 | 2 'mg' | 3).sort()"} {
+			if _, err := Evaluate(simpleJSON, expr); err == nil {
+				t.Errorf("%s: expected an error", expr)
+			}
+		}
+	})
+
+	t.Run("keys whose order is unknown compare equal", func(t *testing.T) {
+		// Units that do not convert, and dates of different precision that
+		// overlap: < answers empty for both, and the input keeps its order
+		assertBooleanResult(t, evalOrFatal(t, simpleJSON, "(2 'mg' | 1 'cm').sort() = (2 'mg' | 1 'cm')"), true)
+		assertBooleanResult(t, evalOrFatal(t, simpleJSON, "(@2020-01-15 | @2020-01).sort() = (@2020-01-15 | @2020-01)"), true)
 	})
 
 	t.Run("collections of fewer than two elements are returned as is", func(t *testing.T) {
