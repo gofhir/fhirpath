@@ -924,10 +924,13 @@ type sortCriterion struct {
 // As FHIRPath 3.0.0 defines it, a key is evaluated with singleton semantics,
 // so a key of several items ends the evaluation with an error; an empty key is
 // lower than any value, first ascending and last descending; and keys compare
-// as < compares them, so a pair < refuses, such as 1 and 'a', ends the
-// evaluation too. A pair whose order is only unknown — quantities whose units
-// do not convert, temporals that cannot be placed — counts as equal, as <
-// answers empty for it rather than failing.
+// as < compares them. A pair that does not compare ends the evaluation too:
+// one < refuses, such as 1 and 'a', and one whose order is unknown, such as
+// quantities whose units do not convert or temporals that cannot be placed,
+// for which < answers empty. "Values that would result in comparison errors
+// must be filtered" before sorting. A later key is compared only between items
+// the earlier keys tie, as "subsequent selectors are only evaluated for items
+// where the previous keySelector comparison resulted in equality."
 func (e *Evaluator) evaluateSort(input types.Collection, criteria []sortCriterion) interface{} {
 	if len(input) < 2 {
 		return input
@@ -954,11 +957,9 @@ func (e *Evaluator) evaluateSort(input types.Collection, criteria []sortCriterio
 		keys[i] = itemKeys
 	}
 
-	// Every key is checked before any is ordered, so that the sort fails or
-	// not whatever pairs the ordering happens to compare: a key of several
-	// items; a FHIR Quantity bound, which has no place in an order; and a key
-	// < refuses against the first key of its criterion, as a value of another
-	// type is. A single item is not ordered at all, above.
+	// A key of several items, and a FHIR Quantity bound, which has no place in
+	// an order, fail the sort whatever pairs the ordering compares. A single
+	// item is not ordered at all, above.
 	if err := checkSortKeys(keys); err != nil {
 		return err
 	}
@@ -968,6 +969,11 @@ func (e *Evaluator) evaluateSort(input types.Collection, criteria []sortCriterio
 		order[i] = i
 	}
 
+	// The ordering compares some pairs only, yet it fails whatever order the
+	// input came in. Values that compare at all compare transitively — units
+	// of one dimension, temporals placed apart — so no two values that do not
+	// compare can be put in order through others. To order them the ordering
+	// must compare a pair that does not, and the first such pair fails it.
 	var refused error
 	sort.SliceStable(order, func(a, b int) bool {
 		cmp, err := compareSortKeys(keys[order[a]], keys[order[b]], criteria)
@@ -1012,14 +1018,11 @@ func (e *Evaluator) evaluateWithThis(item types.Value, index int, expr Node) int
 	return result
 }
 
-// checkSortKeys refuses keys no order can hold: a key of several items, a
-// FHIR Quantity bound, and a key that does not compare with the first key of
-// its criterion.
+// checkSortKeys refuses keys no order can hold, whichever pairs are compared:
+// a key of several items, and a FHIR Quantity bound.
 func checkSortKeys(keys [][]types.Collection) error {
-	for criterion := range keys[0] {
-		var first types.Value
-		for _, itemKeys := range keys {
-			key := itemKeys[criterion]
+	for _, itemKeys := range keys {
+		for _, key := range itemKeys {
 			if len(key) > 1 {
 				return NewEvalError(ErrSingletonExpected,
 					"sort() key evaluated to %d items, expected a single value", len(key))
@@ -1030,21 +1033,13 @@ func checkSortKeys(keys [][]types.Collection) error {
 			if err := quantityBoundIn(key[0]); err != nil {
 				return err
 			}
-			if first == nil {
-				first = key[0]
-				continue
-			}
-			if _, err := compareKeyValues(types.Collection{first}, key); err != nil {
-				return err
-			}
 		}
 	}
 	return nil
 }
 
 // compareSortKeys orders two elements by their keys, applying each criterion in
-// turn until one of them decides. A pair whose order is unknown counts as
-// equal and falls through to the next criterion; a pair < refuses fails.
+// turn until one of them decides. A pair that does not compare fails.
 func compareSortKeys(left, right []types.Collection, criteria []sortCriterion) (int, error) {
 	for i := range left {
 		cmp, err := compareKeyValues(left[i], right[i])
@@ -1065,7 +1060,8 @@ func compareSortKeys(left, right []types.Collection, criteria []sortCriterion) (
 // compareKeyValues compares two ordering keys of at most one item. An empty
 // key is lower than any value: "An empty value is considered lower than all
 // other values, meaning they will appear before others when sorted ascending."
-// A pair whose order is unknown compares equal; a pair < refuses is an error.
+// A pair that does not compare, whether < refuses it or answers empty, is an
+// error.
 func compareKeyValues(left, right types.Collection) (int, error) {
 	switch {
 	case left.Empty() && right.Empty():
@@ -1076,14 +1072,7 @@ func compareKeyValues(left, right types.Collection) (int, error) {
 		return 1, nil
 	}
 
-	cmp, err := Compare(left[0], right[0])
-	if err != nil {
-		if errors.Is(err, types.ErrIncompatibleUnits) || types.IsUnknownTemporalComparison(err) {
-			return 0, nil
-		}
-		return 0, err
-	}
-	return cmp, nil
+	return Compare(left[0], right[0])
 }
 
 // evaluateSelect evaluates select() - projects each element.

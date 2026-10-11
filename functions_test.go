@@ -251,18 +251,50 @@ func TestSort(t *testing.T) {
 	})
 
 	t.Run("keys that do not compare are an error", func(t *testing.T) {
-		for _, expr := range []string{"(1 | 'a').sort()", "('a' | 2 | 1).sort($this)", "(1 | 2 'mg' | 3).sort()"} {
+		for _, expr := range []string{
+			"(1 | 'a').sort()",
+			"('a' | 2 | 1).sort($this)",
+			"(1 | 2 'mg' | 3).sort()",
+			"(true | false).sort()",
+			// Units that do not convert, and dates whose order is unknown: <
+			// answers empty, and values that do not compare must be filtered
+			"(1 'mg' | 2 'cm' | 0.5 'mg').sort()",
+			"(2 'mg' | 1 'cm').sort()",
+			"(@2020-01-15 | @2020-01).sort()",
+		} {
 			if _, err := Evaluate(simpleJSON, expr); err == nil {
 				t.Errorf("%s: expected an error", expr)
 			}
 		}
 	})
 
-	t.Run("keys whose order is unknown compare equal", func(t *testing.T) {
-		// Units that do not convert, and dates of different precision that
-		// overlap: < answers empty for both, and the input keeps its order
-		assertBooleanResult(t, evalOrFatal(t, simpleJSON, "(2 'mg' | 1 'cm').sort() = (2 'mg' | 1 'cm')"), true)
-		assertBooleanResult(t, evalOrFatal(t, simpleJSON, "(@2020-01-15 | @2020-01).sort() = (@2020-01-15 | @2020-01)"), true)
+	t.Run("whatever order the input comes in", func(t *testing.T) {
+		// @2020 orders against @2021-03 and against @2020-01-15 alone, but
+		// not against @2020-01-15: every order of the three fails
+		for _, expr := range []string{
+			"(@2020 | @2021-03 | @2020-01-15).sort()",
+			"(@2020 | @2020-01-15 | @2021-03).sort()",
+			"(@2021-03 | @2020 | @2020-01-15).sort()",
+			"(@2021-03 | @2020-01-15 | @2020).sort()",
+			"(@2020-01-15 | @2020 | @2021-03).sort()",
+			"(@2020-01-15 | @2021-03 | @2020).sort()",
+		} {
+			if _, err := Evaluate(simpleJSON, expr); err == nil {
+				t.Errorf("%s: expected an error", expr)
+			}
+		}
+	})
+
+	t.Run("a later key is compared only where the earlier keys tie", func(t *testing.T) {
+		// The second key is a string for 1 and an integer elsewhere, which
+		// only the two 1s, a string each, are ever compared on
+		assertBooleanResult(t, evalOrFatal(t, simpleJSON,
+			"(1 | 2 | 3).combine(1).sort($this, iif($this = 1, 'a', 1)) = (1 | 2 | 3).combine(1).sort()"), true)
+		// Where the earlier keys tie, the later key must compare: 1 and 1.0
+		// tie on the first, and their second keys are 'a' and 1
+		if _, err := Evaluate(simpleJSON, "(1).combine(1.0).combine(2).sort($this, iif($this is Integer, 'a', 1))"); err == nil {
+			t.Error("tied keys that do not compare: expected an error")
+		}
 	})
 
 	t.Run("collections of fewer than two elements are returned as is", func(t *testing.T) {
