@@ -2,6 +2,7 @@ package fhirpath
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 )
 
@@ -192,6 +193,33 @@ func TestObjectEquivalenceByChild(t *testing.T) {
 		"Patient.name[0] !~ Patient.name[2]": "true",
 	} {
 		if got := evaluateScalar(t, expr, names); got != want {
+			t.Errorf("%s = %s, want %s", expr, got, want)
+		}
+	}
+}
+
+// TestObjectEquivalenceRepeats covers repeats of objects in another order, each
+// read once, and objects of many keys, found by key in another order.
+func TestObjectEquivalenceRepeats(t *testing.T) {
+	forward, backward := make([]string, 0, 20), make([]string, 0, 20)
+	for i := range 20 {
+		forward = append(forward, fmt.Sprintf(`"k%d":"Value %d"`, i, i))
+		backward = append([]string{fmt.Sprintf(`"k%d":"VALUE %d"`, i, i)}, backward...)
+	}
+	data := []byte(`{"resourceType":"Basic",
+	  "a":{` + strings.Join(forward, ",") + `},
+	  "b":{` + strings.Join(backward, ",") + `},
+	  "c":{"x":[{"c":"x"},{"c":"y"}]},
+	  "d":{"x":[{"c":"Y"},{"c":"X"}]},
+	  "e":{"x":[{"c":"X"},{"c":"X"}]}}`)
+	for expr, want := range map[string]string{
+		// Twenty keys, past the index, in reversed order and another case
+		"Basic.a ~ Basic.b": "true",
+		// Objects in another order and case pair each with its own
+		"Basic.c ~ Basic.d": "true",
+		"Basic.c ~ Basic.e": "false",
+	} {
+		if got := evaluateScalar(t, expr, data); got != want {
 			t.Errorf("%s = %s, want %s", expr, got, want)
 		}
 	}

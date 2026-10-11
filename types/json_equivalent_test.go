@@ -33,8 +33,8 @@ func FuzzEquivalentASCII(f *testing.F) {
 }
 
 // hugeExponent matches a number written with an exponent of four digits or
-// more.
-var hugeExponent = regexp.MustCompile(`\d[eE][+-]?\d{4,}`)
+// more, 0.E2000 among them.
+var hugeExponent = regexp.MustCompile(`[eE][+-]?\d{4,}`)
 
 // FuzzEquivalentJSON checks that equivalence of objects is reflexive and
 // symmetric, and holds wherever equality does.

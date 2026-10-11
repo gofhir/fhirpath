@@ -214,12 +214,12 @@ func objectAt(objects []*jsonObject, at int, data []byte) (*jsonObject, bool) {
 	return objects[at], true
 }
 
-// valuesEquivalent compares two values of a repeating child, a missing place
-// in a primitive array matching only another.
+// valuesEquivalent compares two values of a repeating child that are not
+// written alike. A missing place in a primitive array matches only another,
+// which pairing written alike has already done, so here it matches nothing.
 func valuesEquivalent(left, right childValue) bool {
-	leftMissing, rightMissing := left.dataType == jsonparser.Null, right.dataType == jsonparser.Null
-	if leftMissing || rightMissing {
-		return leftMissing && rightMissing
+	if left.dataType == jsonparser.Null || right.dataType == jsonparser.Null {
+		return false
 	}
 	return rawEquivalent(left.data, left.dataType, right.data, right.dataType)
 }
