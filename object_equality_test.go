@@ -64,6 +64,8 @@ func TestObjectEqualityByContent(t *testing.T) {
 		{"a null child is absent", `{"code":"a","display":null}`, `{"code":"a"}`, "false", "true"},
 		{"an empty array is absent", `{"code":"a","extension":[]}`, `{"code":"a"}`, "false", "true"},
 		{"an escape against a space", `{"display":"a\nb"}`, `{"display":"A B"}`, "false", "true"},
+		{"a string against a number", `{"code":"a","version":"1"}`, `{"code":"a","version":1}`, "false", "false"},
+		{"repeats alike and in another case", `{"code":"a","extension":[{"url":"a"},{"url":"A"}]}`, `{"code":"a","extension":[{"url":"a"},{"url":"a"}]}`, "false", "true"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			data := codingsAt(tc.first, tc.second)
@@ -162,9 +164,11 @@ func TestObjectEquivalenceByChild(t *testing.T) {
 		// precise side, trailing zeroes carrying none
 		"Observation.value ~ Observation.component[0].value": "true",
 		"Observation.value ~ Observation.component[1].value": "false",
-		// FHIR Quantities compare as quantities, their UCUM codes case-sensitive
-		"Observation.component[5].value ~ Observation.component[6].value": "true",
-		"Observation.component[7].value ~ Observation.component[8].value": "false",
+		// Two FHIR Quantities compare child by child too, as complex values: a
+		// value in another unit is not equivalent, and a code is a string, its
+		// case set aside even where UCUM tells 'ms' from 'mS'
+		"Observation.component[5].value ~ Observation.component[6].value": "false",
+		"Observation.component[7].value ~ Observation.component[8].value": "true",
 		// A date by its value, not its text; a date at another precision is not
 		"Observation.component[2].value ~ Observation.component[3].value": "true",
 		"Observation.component[2].value ~ Observation.component[4].value": "false",

@@ -26,16 +26,21 @@ func equivalentJSON(a, b []byte) bool {
 	if sameJSON(a, b) {
 		return true
 	}
-	left, ok := jsonChildren(a)
+	left, ok := parseJSONObject(a)
 	if !ok {
 		return false
 	}
-	right, ok := jsonChildren(b)
-	if !ok || len(left) != len(right) {
+	right, ok := parseJSONObject(b)
+	return ok && equivalentObjects(&left, &right)
+}
+
+// equivalentObjects compares two objects' children, read once.
+func equivalentObjects(left, right *jsonObject) bool {
+	if len(left.children) != len(right.children) {
 		return false
 	}
-	for i, l := range left {
-		r, found := childNamed(right, l.key, i)
+	for i, l := range left.children {
+		r, found := right.find(l.key, i)
 		if !found || !equivalentChildren(l, r) {
 			return false
 		}
@@ -50,14 +55,25 @@ type jsonChild struct {
 	dataType jsonparser.ValueType
 }
 
-// jsonChildren returns the children of a JSON object in the order written,
+// jsonObject is an object's children as written, with an index by key once it
+// has more than a few: the other side's keys may stand in another order.
+type jsonObject struct {
+	children []jsonChild
+	index    map[string]int
+}
+
+// indexedChildren is how many children an object has before its children are
+// found by an index rather than by reading them in turn.
+const indexedChildren = 16
+
+// parseJSONObject reads the children of a JSON object in the order written,
 // leaving out the ones navigation reads nothing from: a null and an empty
 // array. A key written twice, which no valid resource has, is read where it
 // first stands, as navigation reads it.
-func jsonChildren(data []byte) ([]jsonChild, bool) {
-	children := make([]jsonChild, 0, 8)
+func parseJSONObject(data []byte) (jsonObject, bool) {
+	object := jsonObject{children: make([]jsonChild, 0, 8)}
 	err := jsonparser.ObjectEach(data, func(key, value []byte, dataType jsonparser.ValueType, _ int) error {
-		if _, seen := childNamed(children, key, len(children)); seen {
+		if _, seen := object.find(key, len(object.children)); seen {
 			return nil
 		}
 		switch dataType {
@@ -68,19 +84,40 @@ func jsonChildren(data []byte) ([]jsonChild, bool) {
 				return nil
 			}
 		}
-		children = append(children, jsonChild{key: key, data: value, dataType: dataType})
+		object.add(jsonChild{key: key, data: value, dataType: dataType})
 		return nil
 	})
-	return children, err == nil
+	return object, err == nil
 }
 
-// childNamed finds the child with a key, looking first where the other side
-// has it, as one serializer writes keys in one order.
-func childNamed(children []jsonChild, key []byte, at int) (jsonChild, bool) {
-	if at < len(children) && bytes.Equal(children[at].key, key) {
-		return children[at], true
+// add appends a child, indexing the children once there are enough of them.
+func (o *jsonObject) add(child jsonChild) {
+	o.children = append(o.children, child)
+	switch {
+	case o.index != nil:
+		o.index[string(child.key)] = len(o.children) - 1
+	case len(o.children) > indexedChildren:
+		o.index = make(map[string]int, 2*len(o.children))
+		for i, c := range o.children {
+			o.index[string(c.key)] = i
+		}
 	}
-	for _, child := range children {
+}
+
+// find returns the child with a key, looking first where the other side has
+// it, as one serializer writes keys in one order.
+func (o *jsonObject) find(key []byte, at int) (jsonChild, bool) {
+	if at < len(o.children) && bytes.Equal(o.children[at].key, key) {
+		return o.children[at], true
+	}
+	if o.index != nil {
+		i, ok := o.index[string(key)]
+		if !ok {
+			return jsonChild{}, false
+		}
+		return o.children[i], true
+	}
+	for _, child := range o.children {
 		if bytes.Equal(child.key, key) {
 			return child, true
 		}
@@ -105,7 +142,7 @@ func equivalentChildren(left, right jsonChild) bool {
 		return true
 	}
 	if left.dataType != jsonparser.Array && right.dataType != jsonparser.Array {
-		return scalarsEquivalent(left.data, left.dataType, right.data, right.dataType)
+		return rawEquivalent(left.data, left.dataType, right.data, right.dataType)
 	}
 	l, ok := childValues(left)
 	if !ok {
@@ -116,9 +153,11 @@ func equivalentChildren(left, right jsonChild) bool {
 }
 
 // pairInAnyOrder reports whether each value on the left pairs with an unused
-// equivalent one on the right. Values written alike pair first, which costs no
-// reading and loses no pairing, since a value pairs with whatever its copy
-// would; repeats in another order then pair without reading any.
+// equivalent one on the right, taking the first that is, as ~ between
+// collections does. Values written alike pair first, which reads nothing, so
+// repeats in another order pair unread. Pairing is greedy: where equivalence
+// is not transitive, as between decimals, which round, an order that pairs
+// differently can answer differently.
 func pairInAnyOrder(l, r []childValue) bool {
 	used := make([]bool, len(r))
 	paired := make([]bool, len(l))
@@ -130,13 +169,27 @@ func pairInAnyOrder(l, r []childValue) bool {
 			}
 		}
 	}
+	// Objects met again and again are read once each
+	leftObjects := make([]*jsonObject, len(l))
+	rightObjects := make([]*jsonObject, len(r))
 	for i, item := range l {
 		if paired[i] {
 			continue
 		}
 		matched := false
 		for j, candidate := range r {
-			if !used[j] && valueEquivalent(item.value, candidate.value) {
+			if used[j] {
+				continue
+			}
+			var same bool
+			if item.dataType == jsonparser.Object && candidate.dataType == jsonparser.Object {
+				lo, lok := objectAt(leftObjects, i, item.data)
+				ro, rok := objectAt(rightObjects, j, candidate.data)
+				same = lok && rok && equivalentObjects(lo, ro)
+			} else {
+				same = valuesEquivalent(item, candidate)
+			}
+			if same {
 				used[j], matched = true, true
 				break
 			}
@@ -146,6 +199,29 @@ func pairInAnyOrder(l, r []childValue) bool {
 		}
 	}
 	return true
+}
+
+// objectAt returns the object at a place, read the first time it is asked
+// for.
+func objectAt(objects []*jsonObject, at int, data []byte) (*jsonObject, bool) {
+	if objects[at] == nil {
+		object, ok := parseJSONObject(data)
+		if !ok {
+			return nil, false
+		}
+		objects[at] = &object
+	}
+	return objects[at], true
+}
+
+// valuesEquivalent compares two values of a repeating child, a missing place
+// in a primitive array matching only another.
+func valuesEquivalent(left, right childValue) bool {
+	leftMissing, rightMissing := left.dataType == jsonparser.Null, right.dataType == jsonparser.Null
+	if leftMissing || rightMissing {
+		return leftMissing && rightMissing
+	}
+	return rawEquivalent(left.data, left.dataType, right.data, right.dataType)
 }
 
 // writtenAlike reports two values written alike: a string as the same text,
@@ -161,10 +237,11 @@ func writtenAlike(a []byte, aType jsonparser.ValueType, b []byte, bType jsonpars
 	return sameJSON(a, b)
 }
 
-// scalarsEquivalent compares two single values as written. Two strings that
+// rawEquivalent compares two single values from their JSON. Two strings that
 // are no dates, in ASCII and without escapes, compare as written, which is what
-// reading them would compare; anything else is read first.
-func scalarsEquivalent(a []byte, aType jsonparser.ValueType, b []byte, bType jsonparser.ValueType) bool {
+// reading them would compare; anything else is read first, an object compared
+// child by child in turn.
+func rawEquivalent(a []byte, aType jsonparser.ValueType, b []byte, bType jsonparser.ValueType) bool {
 	if aType == jsonparser.String && bType == jsonparser.String &&
 		!looksTemporalBytes(a) && !looksTemporalBytes(b) {
 		if equivalent, decided := equivalentASCII(a, b); decided {
@@ -250,43 +327,28 @@ func lowerASCII(c byte) byte {
 	return c
 }
 
-// childValue is one value of a child property: as written, and as read.
+// childValue is one value of a child property, as written.
 type childValue struct {
 	data     []byte
 	dataType jsonparser.ValueType
-	value    Value
 }
 
-// childValues reads a child property as the values navigation gives for it.
+// childValues returns the values of a child property, an array's elements or
+// the single value; reading them is left to the comparison, which reads only
+// what it must.
 func childValues(child jsonChild) ([]childValue, bool) {
 	if child.dataType != jsonparser.Array {
-		v := jsonValue(child.data, child.dataType, false)
-		return []childValue{{child.data, child.dataType, v}}, v != nil
+		return []childValue{{child.data, child.dataType}}, true
 	}
 	var values []childValue
-	ok := true
 	_, err := jsonparser.ArrayEach(child.data, func(value []byte, dataType jsonparser.ValueType, _ int, _ error) {
-		if dataType == jsonparser.Null {
-			// An element's place in a primitive array whose extension is in the
-			// parallel _ array: nothing to compare on this side
-			values = append(values, childValue{value, dataType, nil})
-			return
-		}
-		v := jsonValue(value, dataType, false)
-		if v == nil {
-			ok = false
-			return
-		}
-		values = append(values, childValue{value, dataType, v})
+		values = append(values, childValue{value, dataType})
 	})
-	return values, ok && err == nil
+	return values, err == nil
 }
 
-// valueEquivalent compares two values of child properties, a missing place in
-// a primitive array matching only another.
+// valueEquivalent compares two values read from JSON; a value that does not
+// read is equivalent to nothing.
 func valueEquivalent(left, right Value) bool {
-	if left == nil || right == nil {
-		return left == nil && right == nil
-	}
-	return left.Equivalent(right)
+	return left != nil && right != nil && left.Equivalent(right)
 }
