@@ -16,3 +16,4 @@ TerminologyTests/txTest02
 TerminologyTests/txTest03
 testConformsTo/testConformsTo3
 testReplaceMatches/testReplaceMatches2
+testSort/testSort10

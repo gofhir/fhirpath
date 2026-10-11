@@ -19,3 +19,4 @@ LowBoundary/LowBoundaryDecimal15  suite-defect  remaining-gaps  expects -0.0 whe
 testInheritance/testFHIRPathAsFunction21  deliberate  a-divergence-taken-on-purpose-as-over-a-collection  as() over a collection filters, so that R4's dom-3 can be evaluated at all
 testPlus/testPlusDate19  suite-defect  where-the-two-suites-disagree  the R4 suite drops the fractional second; both specifications keep it, and the R5 suite was corrected
 testReplaceMatches/testReplaceMatches2  suite-defect  an-empty-regex-in-replacematches  expects abc, which follows from neither reading of an empty regex
+testSort/testSort10  suite-defect  an-empty-sort-key-is-the-lowest-value  a prototype case that sorts an empty key last ascending; FHIRPath 3.0.0 puts it first, so descending it comes last, as in fhirpath.js 5.2.0

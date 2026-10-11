@@ -35,10 +35,10 @@ Measured against the official suite, in both configurations a caller can use:
 
 | Configuration | Passing |
 |---|---|
-| R4 suite, no FHIR model supplied | **901 of 935 (96.4%)** |
-| R4 suite, with the R4 model | **927 of 935 (99.1%)** |
-| R5 suite, no FHIR model supplied | **1008 of 1048 (96.2%)** |
-| R5 suite, with the R5 model | **1034 of 1048 (98.7%)** |
+| R4 suite, no FHIR model supplied | **900 of 935 (96.3%)** |
+| R4 suite, with the R4 model | **926 of 935 (99.0%)** |
+| R5 suite, no FHIR model supplied | **1007 of 1048 (96.1%)** |
+| R5 suite, with the R5 model | **1033 of 1048 (98.6%)** |
 
 ```sh
 make conformance          # prints both numbers
@@ -85,6 +85,7 @@ model run passing it is the explanation.
 | `htmlChecks()` | 4 (R5) | Needs an XHTML parser and FHIR's element list; one of the four also needs `div` read as an identifier — see below |
 | `%terminologies` | 3 (R5) | Needs a terminology server answering, not a stub — see below |
 | `lowBoundary` / `highBoundary` | 5 | Three are a suite disagreement (see below); two assume `@2014-01-01T08` carries an implicit minute |
+| `sort()` with an empty key, descending | 1 | A prototype case that contradicts FHIRPath 3.0.0 — see below |
 
 `repeat()` was registered but never implemented — it returned its input
 unchanged, so every expression that relied on it answered without erroring. That
@@ -140,6 +141,42 @@ suite is followed: it expects `@2014-01-01T08.lowBoundary(17)` to carry `+14:00`
 the offset that makes the instant earliest, while the specification's example
 shows no offset at all. The suite's reading is the stricter one — a boundary
 should bound — and fhirpath.js omits the offset, so it fails that case.
+
+### An empty sort key is the lowest value
+
+FHIRPath 3.0.0 defines where an empty key goes: "An empty value is considered
+lower than all other values, meaning they will appear before others when sorted
+ascending." Sorted descending, it comes last. `testSort10`, in both suites,
+expects the opposite: `Patient.name.sort(-family, -given.first()).first().use`
+to be `'usual'`, the name without a family. The R5 suite marks the case
+"Prototype definition - not part of spec yet", and it writes descending with a
+leading `-`, prototype syntax that 3.0.0 spells `desc`. fhirpath.js 5.2.0
+follows 3.0.0: `Patient.name.sort(family desc).use` gives `maiden, official,
+usual` there as here.
+
+The same release brought `sort()` to 3.0.0 on the points no suite case reaches.
+A key evaluates with singleton semantics, so a key of several items ends the
+evaluation with an error. Keys compare as `<` compares them, and "values that
+would result in comparison errors must be filtered" before sorting, so a pair
+that does not compare ends it too: one `<` refuses, such as `1` and `'a'`, and
+one whose order is unknown, such as quantities whose units do not convert or
+`@2020` against `@2020-01-15`, for which `<` answers empty. The sort used to
+leave such pairs where they stood without a word, which could return
+`(1 'mg' | 2 'cm' | 0.5 'mg').sort()` unsorted. fhirpath.js raises an error for
+a key of several items and for a pair that does not compare. A later key is
+compared only between items the earlier keys tie, as in fhirpath.js. Whether a
+sort fails does not depend on the order its input comes in: where a key mixes
+temporals of different precisions or offsets, or quantities of different units,
+whose comparisons are not always transitive, every pair is compared. What it
+costs: nothing for keys of one kind, such as dates of one precision or
+quantities of one unit, which sort as fast as before; for 1000 dates of mixed
+precision, about 34 ms against 2.6 ms.
+
+Booleans do not sort here, since `<` does not compare them; fhirpath.js sorts
+`false` before `true`. Complex values, such as `Patient.name.sort()`, do not
+sort either, here or in fhirpath.js; earlier releases returned them in input
+order. A collection of one item is returned as it is, its key never evaluated,
+as in fhirpath.js.
 
 ### Seven R5 cases that need something outside the engine
 
@@ -242,8 +279,8 @@ Against fhirpath.js 5.2.0, with each engine given its model:
 | Same answer | 881 (96.3%) | 980 (96.6%) |
 | **This engine wrong, fhirpath.js right** | **1** | **0** |
 | Both agree, suite disagrees | 6 | 13 |
-| fhirpath.js wrong, this engine right | 30 | 32 |
-| Neither matches, and they differ | 3 | 2 |
+| fhirpath.js wrong, this engine right | 29 | 31 |
+| Neither matches, and they differ | 4 | 3 |
 
 The one case where fhirpath.js is right and this engine is not is `as()` over a
 collection, a divergence taken on purpose and recorded below, as is short-circuiting
@@ -844,7 +881,7 @@ was reasoned or accidental.
 | `ofType()` on profiled subtypes without a Model | Keep structural inference | Nothing in the JSON distinguishes an `Age` from a `Quantity`; the information is in the model, not the document |
 | `=` and `~` between two quantity objects | `=` compares them as quantities; `~` as complex types | `=` reaches two objects so that `Range.low = Range.high` and FHIR's calendar units compare as quantities; `~` converts only an object against a literal, and otherwise compares children |
 | `=` and `~` between two complex values | Their content as written, apart from the whitespace between tokens: arrays in order, keys in the order written, a string or number as written, so keys in another order, `1` and `1.0`, or an escaped character and the character itself stay apart; `~` does not apply string equivalence to the children (#121) | "For complex types, equality requires all child properties to be equal, recursively." Comparing the bytes made two identical Codings unequal at two depths of an indented document, and in a union kept both. fhirpath.js and the HL7 validator compare content, and also read keys in another order, `1` and `1.0` alike. Within a document one serializer writes a value the same way wherever it stands, its keys in FHIR's order, so what differs between two equal values is their indentation. Reading the rest as written keeps the comparison one pass up to the first difference, with no walk and nothing kept per object; a walk that read keys in any order made `intersect()` and `repeat()` up to 40 times slower on items whose first keys differ. What it costs: comparing bytes told two objects of different lengths apart unread, and layout takes that away. A pair is read a word at a time over its first 64 bytes, where most pairs that differ do — resources at their id, codings at their code — and a pair of different lengths that agrees that far is read from its end, where two objects that differ in a trailing field show it. Unions, `distinct()`, `intersect()` and `repeat()` over many objects run two to four times slower than before; objects of different lengths that agree at both ends cost what reading their shared prefix does, up to 24 times slower for 100 objects of 10 KB that differ only in a long trailing note. Measuring each object once to win the rest back was tried and dropped: no threshold paid for itself on every collection, and the worst cases ran a thousand times slower. Layout separates tokens, so `1 2` is not `12`. `FuzzSameJSON` holds the comparison to a reference on any input, and to `encoding/json` on valid JSON |
-| A FHIR Quantity with a `comparator` (`<`, `<=`, `>=`, `>`, `ad`) | Not a value. Against another quantity in `=`, arithmetic and `comparable()`, against a quantity literal in `~` (which compares two objects as complex types), in the boundaries, and in any ordering whatever it is ordered against (`<`, `<=`, `>`, `>=`, the first item of a `sort()` key), the evaluation ends with an error. Elsewhere it is any object: an empty operand still gives empty, `= 'x'` is false, and two bounds compare as objects. `toQuantity()` is empty and `convertsToQuantity()` false | `< 5 'mg'` says the value is below 5 mg, not that it is 5 mg. FHIR states no rule. fhirpath.js raises the same error. The HL7 validator does not read the comparator, so there `< 5 'mg' = 5 'mg'` is true and `lowBoundary()` gives `4.5 'mg'`; reading a bound as the value it bounds answers for a measurement nobody made |
+| A FHIR Quantity with a `comparator` (`<`, `<=`, `>=`, `>`, `ad`) | Not a value. Against another quantity in `=`, arithmetic and `comparable()`, against a quantity literal in `~` (which compares two objects as complex types), in the boundaries, and in any ordering whatever it is ordered against (`<`, `<=`, `>`, `>=`, a `sort()` key of a collection of two or more items), the evaluation ends with an error. Elsewhere it is any object: an empty operand still gives empty, `= 'x'` is false, and two bounds compare as objects. `toQuantity()` is empty and `convertsToQuantity()` false | `< 5 'mg'` says the value is below 5 mg, not that it is 5 mg. FHIR states no rule. fhirpath.js raises the same error. The HL7 validator does not read the comparator, so there `< 5 'mg' = 5 'mg'` is true and `lowBoundary()` gives `4.5 'mg'`; reading a bound as the value it bounds answers for a measurement nobody made |
 | `as()`/`ofType()` on a primitive | Requires the declared type; `is()` keeps hierarchy matching | FHIR: "all primitives are considered to be independent types (so markdown is not a subclass of string)" |
 | Telling `FHIR.boolean` from `System.Boolean` | By case: FHIR names primitives in lower camel case, FHIRPath capitalizes its own | The suite requires `active.is(boolean)` true and `active.is(Boolean)` false. Complex types such as `Quantity` are spelled alike in both namespaces, so the rule applies to primitives only |
 | Type of a polymorphic element without a model | Taken from the field name, corrected to FHIR's casing | `valueOid` states the element is an `oid`; that is information in the document, not a guess. The value itself says whether the type is primitive or complex |

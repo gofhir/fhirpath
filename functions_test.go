@@ -233,14 +233,107 @@ func TestSort(t *testing.T) {
 	})
 
 	t.Run("multiple descending keys", func(t *testing.T) {
+		// Descending, the name without a family, the lowest, comes last
 		assertBooleanResult(t, evalOrFatal(t, names,
-			"Patient.name.sort(-family, -given.first()).first().use = 'usual'"), true)
+			"Patient.name.sort(-family, -given.first()).use = ('maiden' | 'official' | 'usual')"), true)
 	})
 
-	t.Run("a key missing on some elements sorts them last", func(t *testing.T) {
-		// The name without a family has no key for it
-		result := evalOrFatal(t, names, "Patient.name.sort(family).last().use")
-		assertStringResult(t, result, "usual")
+	t.Run("an empty key is lower than any value", func(t *testing.T) {
+		// The name without a family has no key for it: first ascending
+		assertStringResult(t, evalOrFatal(t, names, "Patient.name.sort(family).first().use"), "usual")
+		assertStringResult(t, evalOrFatal(t, names, "Patient.name.sort(-family).last().use"), "usual")
+	})
+
+	t.Run("a key of several items is an error", func(t *testing.T) {
+		if _, err := Evaluate(simpleJSON, "(1 | 2).sort($this | 3)"); err == nil {
+			t.Error("expected an error for a key of two items")
+		}
+	})
+
+	t.Run("keys that do not compare are an error", func(t *testing.T) {
+		for _, expr := range []string{
+			"(1 | 'a').sort()",
+			"('a' | 2 | 1).sort($this)",
+			"(1 | 2 'mg' | 3).sort()",
+			"(true | false).sort()",
+			// Units that do not convert, and dates whose order is unknown: <
+			// answers empty, and values that do not compare must be filtered
+			"(1 'mg' | 2 'cm' | 0.5 'mg').sort()",
+			"(2 'mg' | 1 'cm').sort()",
+			"(@2020-01-15 | @2020-01).sort()",
+		} {
+			if _, err := Evaluate(simpleJSON, expr); err == nil {
+				t.Errorf("%s: expected an error", expr)
+			}
+		}
+	})
+
+	t.Run("whatever order the input comes in", func(t *testing.T) {
+		// @2020 orders against @2021-03 and against @2020-01-15 alone, but
+		// not against @2020-01-15: every order of the three fails
+		for _, expr := range []string{
+			"(@2020 | @2021-03 | @2020-01-15).sort()",
+			"(@2020 | @2020-01-15 | @2021-03).sort()",
+			"(@2021-03 | @2020 | @2020-01-15).sort()",
+			"(@2021-03 | @2020-01-15 | @2020).sort()",
+			"(@2020-01-15 | @2020 | @2021-03).sort()",
+			"(@2020-01-15 | @2021-03 | @2020).sort()",
+		} {
+			if _, err := Evaluate(simpleJSON, expr); err == nil {
+				t.Errorf("%s: expected an error", expr)
+			}
+		}
+	})
+
+	t.Run("whatever order temporals and quantities come in", func(t *testing.T) {
+		// Each orders its middle value against the other two, which do not
+		// compare: an offset against none, a calendar year against days
+		for _, trio := range [][3]string{
+			{"@2020-01-01T10:00Z", "@2020-01-02", "@2020-01-03T10:00"},
+			{"@2020-01-01", "@2020-01-02T01:00+05:00", "@2020-01-01T22:00-05:00"},
+			{"1 year", "400 days", "500 'd'"},
+			// DateTimes alone: hour against minute precision across offsets,
+			// and an offset against none across precisions
+			{"@2020-01-01T10+05:30", "@2020-01-01T05:00Z", "@2020-01-01T10:45+05:30"},
+			{"@2020-01-01T10:00Z", "@2020-01-02T", "@2020-01-03T10:00"},
+		} {
+			for _, p := range [][3]int{{0, 1, 2}, {0, 2, 1}, {1, 0, 2}, {1, 2, 0}, {2, 0, 1}, {2, 1, 0}} {
+				items := trio[p[0]] + ").combine(" + trio[p[1]] + ").combine(" + trio[p[2]]
+				for _, key := range []string{"", "$this", "-$this"} {
+					expr := "(" + items + ").sort(" + key + ")"
+					if _, err := Evaluate(simpleJSON, expr); err == nil {
+						t.Errorf("%s: expected an error", expr)
+					}
+				}
+			}
+		}
+	})
+
+	t.Run("FHIR Quantities sort by their values", func(t *testing.T) {
+		obs := []byte(`{"resourceType":"Observation","component":[
+		  {"valueQuantity":{"value":3,"unit":"g","system":"http://unitsofmeasure.org","code":"g"}},
+		  {"valueQuantity":{"value":500,"unit":"mg","system":"http://unitsofmeasure.org","code":"mg"}},
+		  {"valueQuantity":{"value":2,"unit":"g","system":"http://unitsofmeasure.org","code":"g"}}]}`)
+		assertBooleanResult(t, evalOrFatal(t, obs,
+			"Observation.component.sort(value).value.value = (500 | 2 | 3)"), true)
+		mixed := []byte(`{"resourceType":"Observation","component":[
+		  {"valueQuantity":{"value":3,"unit":"g","system":"http://unitsofmeasure.org","code":"g"}},
+		  {"valueQuantity":{"value":2,"unit":"cm","system":"http://unitsofmeasure.org","code":"cm"}}]}`)
+		if _, err := Evaluate(mixed, "Observation.component.sort(value)"); err == nil {
+			t.Error("quantities whose units do not convert: expected an error")
+		}
+	})
+
+	t.Run("a later key is compared only where the earlier keys tie", func(t *testing.T) {
+		// The second key is a string for 1 and an integer elsewhere, which
+		// only the two 1s, a string each, are ever compared on
+		assertBooleanResult(t, evalOrFatal(t, simpleJSON,
+			"(1 | 2 | 3).combine(1).sort($this, iif($this = 1, 'a', 1)) = (1 | 2 | 3).combine(1).sort()"), true)
+		// Where the earlier keys tie, the later key must compare: 1 and 1.0
+		// tie on the first, and their second keys are 'a' and 1
+		if _, err := Evaluate(simpleJSON, "(1).combine(1.0).combine(2).sort($this, iif($this is Integer, 'a', 1))"); err == nil {
+			t.Error("tied keys that do not compare: expected an error")
+		}
 	})
 
 	t.Run("collections of fewer than two elements are returned as is", func(t *testing.T) {

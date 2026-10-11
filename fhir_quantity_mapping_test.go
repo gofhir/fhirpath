@@ -267,9 +267,9 @@ func TestFHIRQuantityComparatorIsRefused(t *testing.T) {
 	refused(t, pair, "Observation.component[0].value + Observation.component[1].value")
 }
 
-// TestFHIRQuantityBoundSortKey checks that a sort refuses a bound where it
-// orders by it, the first item of a key, even beside an empty key that no
-// comparison reaches, and not where it is further along a key.
+// TestFHIRQuantityBoundSortKey checks that a sort refuses a bound it orders by,
+// even beside an empty key, and that a key of several items, a bound among
+// them, is refused as a key of several items.
 func TestFHIRQuantityBoundSortKey(t *testing.T) {
 	withEmpty := []byte(`{"resourceType":"Observation","component":[
 		{"valueQuantity":{"value":5,"comparator":"<","system":"http://unitsofmeasure.org","code":"mg"}},
@@ -283,8 +283,9 @@ func TestFHIRQuantityBoundSortKey(t *testing.T) {
 		{"referenceRange":[{"low":{"value":5,"system":"http://unitsofmeasure.org","code":"mg"}},
 			{"low":{"value":1,"comparator":"<","system":"http://unitsofmeasure.org","code":"mg"}}]},
 		{"referenceRange":[{"low":{"value":3,"system":"http://unitsofmeasure.org","code":"mg"}}]}]}`)
-	if got := evaluateScalar(t, "Observation.component.sort(referenceRange.low).first().referenceRange.count()", further); got != "1" {
-		t.Errorf("sorted first a component with %s ranges, want the one whose first low is 3 mg", got)
+	if _, err := MustCompile("Observation.component.sort(referenceRange.low)").Evaluate(further); err == nil ||
+		!strings.Contains(err.Error(), "expected a single value") {
+		t.Errorf("a key of two items: error %v, want a singleton error", err)
 	}
 }
 

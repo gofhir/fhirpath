@@ -37,6 +37,7 @@ testInheritance/testFHIRPathIsFunction7
 testObservations/testPolymorphismAsB
 testObservations/testPolymorphismB
 testReplaceMatches/testReplaceMatches2
+testSort/testSort10
 testType/testType10
 testType/testType12
 testType/testType14
