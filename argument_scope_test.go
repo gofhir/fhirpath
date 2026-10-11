@@ -148,6 +148,11 @@ func TestDecimalEquivalence(t *testing.T) {
 		// Trailing zeroes do not add precision
 		{"1.10 ~ 1.1", "true"},
 		{"1.0 ~ 1", "true"},
+
+		// An integer is the less precise side, whichever side it stands on
+		{"1.4 ~ 1", "true"},
+		{"1 ~ 1.4", "true"},
+		{"1 ~ 1.6", "false"},
 	}
 
 	for _, tc := range cases {
