@@ -1,6 +1,11 @@
 package types
 
-import "testing"
+import (
+	"encoding/json"
+	"testing"
+
+	"github.com/buger/jsonparser"
+)
 
 // FuzzEquivalentASCII holds the comparison of strings as written to the one
 // String.Equivalent makes, on every text it decides.
@@ -50,6 +55,38 @@ func FuzzEquivalentJSON(f *testing.F) {
 		}
 		if sameJSON(x, y) && !ab {
 			t.Fatalf("%q and %q are equal but not equivalent", a, b)
+		}
+	})
+}
+
+// FuzzEquivalentJSONStrings holds a string child to what reading it gives: two
+// objects that differ in one string are equivalent exactly where the two
+// strings, read as navigation reads them, are.
+func FuzzEquivalentJSONStrings(f *testing.F) {
+	for _, seed := range [][2]string{
+		{"a , b", "a,b"},
+		{"[ 1 ]", "[1]"},
+		{"2024", " 2024"},
+		{"ABC", "abc"},
+		{"x\ny", "X Y"},
+		{"2020-01-01T10:00:00Z", "2020-01-01T10:00:00+00:00"},
+	} {
+		f.Add(seed[0], seed[1])
+	}
+	f.Fuzz(func(t *testing.T, a, b string) {
+		x, err := json.Marshal(map[string]string{"k": a})
+		if err != nil {
+			return
+		}
+		y, err := json.Marshal(map[string]string{"k": b})
+		if err != nil {
+			return
+		}
+		xs, _, _, _ := jsonparser.Get(x, "k")
+		ys, _, _, _ := jsonparser.Get(y, "k")
+		want := valueEquivalent(jsonValue(xs, jsonparser.String, false), jsonValue(ys, jsonparser.String, false))
+		if got := equivalentJSON(x, y); got != want {
+			t.Fatalf("equivalentJSON(%s, %s) = %v, reading the strings gives %v", x, y, got, want)
 		}
 	})
 }

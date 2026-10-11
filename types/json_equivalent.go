@@ -101,7 +101,7 @@ func isEmptyArray(data []byte) bool {
 // equivalentChildren compares two child properties, each a single value or an
 // array, as collections: a single value is a collection of one.
 func equivalentChildren(left, right jsonChild) bool {
-	if left.dataType == right.dataType && sameJSON(left.data, right.data) {
+	if writtenAlike(left.data, left.dataType, right.data, right.dataType) {
 		return true
 	}
 	if left.dataType != jsonparser.Array && right.dataType != jsonparser.Array {
@@ -112,16 +112,31 @@ func equivalentChildren(left, right jsonChild) bool {
 		return false
 	}
 	r, ok := childValues(right)
-	if !ok || len(l) != len(r) {
-		return false
-	}
-	// In any order: each value on the left pairs with an unused equivalent one
-	// on the right
+	return ok && len(l) == len(r) && pairInAnyOrder(l, r)
+}
+
+// pairInAnyOrder reports whether each value on the left pairs with an unused
+// equivalent one on the right. Values written alike pair first, which costs no
+// reading and loses no pairing, since a value pairs with whatever its copy
+// would; repeats in another order then pair without reading any.
+func pairInAnyOrder(l, r []childValue) bool {
 	used := make([]bool, len(r))
-	for _, item := range l {
+	paired := make([]bool, len(l))
+	for i, item := range l {
+		for j, candidate := range r {
+			if !used[j] && writtenAlike(item.data, item.dataType, candidate.data, candidate.dataType) {
+				used[j], paired[i] = true, true
+				break
+			}
+		}
+	}
+	for i, item := range l {
+		if paired[i] {
+			continue
+		}
 		matched := false
 		for j, candidate := range r {
-			if !used[j] && valueEquivalent(item, candidate) {
+			if !used[j] && valueEquivalent(item.value, candidate.value) {
 				used[j], matched = true, true
 				break
 			}
@@ -131,6 +146,19 @@ func equivalentChildren(left, right jsonChild) bool {
 		}
 	}
 	return true
+}
+
+// writtenAlike reports two values written alike: a string as the same text,
+// anything else as the same JSON apart from layout. A string's text is all
+// content, its spaces included, so it is compared byte for byte.
+func writtenAlike(a []byte, aType jsonparser.ValueType, b []byte, bType jsonparser.ValueType) bool {
+	if aType != bType {
+		return false
+	}
+	if aType == jsonparser.String {
+		return bytes.Equal(a, b)
+	}
+	return sameJSON(a, b)
 }
 
 // scalarsEquivalent compares two single values as written. Two strings that
@@ -222,19 +250,26 @@ func lowerASCII(c byte) byte {
 	return c
 }
 
+// childValue is one value of a child property: as written, and as read.
+type childValue struct {
+	data     []byte
+	dataType jsonparser.ValueType
+	value    Value
+}
+
 // childValues reads a child property as the values navigation gives for it.
-func childValues(child jsonChild) ([]Value, bool) {
+func childValues(child jsonChild) ([]childValue, bool) {
 	if child.dataType != jsonparser.Array {
 		v := jsonValue(child.data, child.dataType, false)
-		return []Value{v}, v != nil
+		return []childValue{{child.data, child.dataType, v}}, v != nil
 	}
-	var values []Value
+	var values []childValue
 	ok := true
 	_, err := jsonparser.ArrayEach(child.data, func(value []byte, dataType jsonparser.ValueType, _ int, _ error) {
 		if dataType == jsonparser.Null {
 			// An element's place in a primitive array whose extension is in the
 			// parallel _ array: nothing to compare on this side
-			values = append(values, nil)
+			values = append(values, childValue{value, dataType, nil})
 			return
 		}
 		v := jsonValue(value, dataType, false)
@@ -242,7 +277,7 @@ func childValues(child jsonChild) ([]Value, bool) {
 			ok = false
 			return
 		}
-		values = append(values, v)
+		values = append(values, childValue{value, dataType, v})
 	})
 	return values, ok && err == nil
 }

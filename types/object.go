@@ -655,12 +655,21 @@ func (o *ObjectValue) Equal(other Value) bool {
 }
 
 // Equivalent compares two objects child by child, each with the equivalence
-// of its type, recursively: see equivalentJSON.
+// of its type, recursively: see equivalentJSON. Two FHIR Quantities compare
+// as the quantities they are, as under =: a UCUM code is case-sensitive, so
+// 'ms' is not 'mS', and 1 'g' is equivalent to 1000 'mg'. A bound is no
+// quantity, and compares child by child.
 func (o *ObjectValue) Equivalent(other Value) bool {
-	if ov, ok := other.(*ObjectValue); ok {
-		return equivalentJSON(o.data, ov.data)
+	ov, ok := other.(*ObjectValue)
+	if !ok {
+		return false
 	}
-	return false
+	if lq, lok, lerr := o.AsQuantity(); lok && lerr == nil {
+		if rq, rok, rerr := ov.AsQuantity(); rok && rerr == nil {
+			return lq.Equivalent(rq)
+		}
+	}
+	return equivalentJSON(o.data, ov.data)
 }
 
 // String returns the JSON representation.

@@ -56,6 +56,14 @@ func TestObjectEqualityByContent(t *testing.T) {
 		{"a nested string in another case", `{"code":"a","extension":[{"url":"u","valueString":"X"}]}`, `{"code":"a","extension":[{"url":"u","valueString":"x"}]}`, "false", "true"},
 		{"a Boolean", `{"code":"a","userSelected":true}`, `{"code":"a","userSelected":false}`, "false", "false"},
 		{"a repeat on one side", `{"code":"a","extension":[{"url":"u"},{"url":"u"}]}`, `{"code":"a","extension":[{"url":"u"}]}`, "false", "false"},
+		{"a repeat paired twice", `{"code":"a","extension":[{"url":"u"},{"url":"u"}]}`, `{"code":"a","extension":[{"url":"u"},{"url":"v"}]}`, "false", "false"},
+		{"spaces inside a string are content", `{"code":"a , b"}`, `{"code":"a,b"}`, "false", "false"},
+		{"punctuation inside a string", `{"code":"[ 1 ]"}`, `{"code":"[1]"}`, "false", "false"},
+		{"a string and its prefix", `{"code":"ab"}`, `{"code":"a"}`, "false", "false"},
+		{"another key", `{"code":"a"}`, `{"display":"a"}`, "false", "false"},
+		{"a null child is absent", `{"code":"a","display":null}`, `{"code":"a"}`, "false", "true"},
+		{"an empty array is absent", `{"code":"a","extension":[]}`, `{"code":"a"}`, "false", "true"},
+		{"an escape against a space", `{"display":"a\nb"}`, `{"display":"A B"}`, "false", "true"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			data := codingsAt(tc.first, tc.second)
@@ -140,16 +148,23 @@ func TestObjectEquivalenceByChild(t *testing.T) {
 	obs := []byte(`{"resourceType":"Observation",
 	  "valueQuantity":{"value":1.0,"unit":"mg"},
 	  "component":[
-	    {"valueQuantity":{"value":1.04,"unit":"MG"}},
+	    {"valueQuantity":{"value":1.04,"unit":"mg"}},
 	    {"valueQuantity":{"value":2,"unit":"mg"}},
 	    {"valuePeriod":{"start":"2020-01-01T10:00:00Z"}},
 	    {"valuePeriod":{"start":"2020-01-01T10:00:00+00:00"}},
-	    {"valuePeriod":{"start":"2020-01-01"}}]}`)
+	    {"valuePeriod":{"start":"2020-01-01"}},
+	    {"valueQuantity":{"value":1,"system":"http://unitsofmeasure.org","code":"g"}},
+	    {"valueQuantity":{"value":1000,"system":"http://unitsofmeasure.org","code":"mg"}},
+	    {"valueQuantity":{"value":1,"system":"http://unitsofmeasure.org","code":"ms"}},
+	    {"valueQuantity":{"value":1,"system":"http://unitsofmeasure.org","code":"mS"}}]}`)
 	for expr, want := range map[string]string{
 		// A decimal as decimals are equivalent: at the precision of the less
 		// precise side, trailing zeroes carrying none
 		"Observation.value ~ Observation.component[0].value": "true",
 		"Observation.value ~ Observation.component[1].value": "false",
+		// FHIR Quantities compare as quantities, their UCUM codes case-sensitive
+		"Observation.component[5].value ~ Observation.component[6].value": "true",
+		"Observation.component[7].value ~ Observation.component[8].value": "false",
 		// A date by its value, not its text; a date at another precision is not
 		"Observation.component[2].value ~ Observation.component[3].value": "true",
 		"Observation.component[2].value ~ Observation.component[4].value": "false",
@@ -164,9 +179,11 @@ func TestObjectEquivalenceByChild(t *testing.T) {
 	names := []byte(`{"resourceType":"Patient","name":[
 	  {"given":["Ann",null],"_given":[null,{"extension":[{"url":"u","valueString":"x"}]}]},
 	  {"given":["ANN",null],"_given":[null,{"extension":[{"url":"u","valueString":"X"}]}]},
-	  {"given":["Ann","Bea"]}]}`)
+	  {"given":["Ann","Bea"]},
+	  {"given":["Ann","Bea"],"_given":[null,{"extension":[{"url":"u","valueString":"x"}]}]}]}`)
 	for expr, want := range map[string]string{
 		"Patient.name[0] ~ Patient.name[1]":  "true",
+		"Patient.name[0] ~ Patient.name[3]":  "false",
 		"Patient.name[0] ~ Patient.name[2]":  "false",
 		"Patient.name[0] !~ Patient.name[2]": "true",
 	} {
