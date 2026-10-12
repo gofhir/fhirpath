@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.13.4](https://github.com/gofhir/fhirpath/compare/v1.13.3...v1.13.4) (2026-10-12)
+
+
+### Bug Fixes
+
+* a primitive written with no value is of the primitive's type ([#160](https://github.com/gofhir/fhirpath/issues/160)) ([7bc803a](https://github.com/gofhir/fhirpath/commit/7bc803aad1dc5578f92ec683b5bf1e6907794851))
+* follow the HL7 validator where it answers, and record where it does not ([#157](https://github.com/gofhir/fhirpath/issues/157)) ([6772986](https://github.com/gofhir/fhirpath/commit/6772986bd15c3faee171aafae9e9351f9be5a684))
+
 ## [1.13.3](https://github.com/gofhir/fhirpath/compare/v1.13.2...v1.13.3) (2026-10-12)
 
 
