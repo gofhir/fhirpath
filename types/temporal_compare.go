@@ -40,13 +40,19 @@ var ErrPrecisionMismatch = errors.New("temporal values are specified to differen
 // the message looking in the wrong place.
 var ErrOffsetMismatch = errors.New("one temporal value specifies a timezone offset and the other does not")
 
+// ErrSpansOverlap reports that two temporal values written at different
+// offsets name spans of time that overlap without being the same, so their
+// order is unknown: @2020-01-01T10+05:30 is 04:30 to 05:30 at UTC, and
+// @2020-01-01T04Z 04:00 to 05:00. See compareSpans.
+var ErrSpansOverlap = errors.New("temporal values at different offsets name overlapping spans of time")
+
 // IsUnknownTemporalComparison reports whether err means a comparison of two
 // temporal values has no answer, rather than that it went wrong. The
 // specification expresses both as an empty result, so callers translate them
 // alike; asking through this predicate is what keeps a new one from being
 // handled in one place and forgotten in another.
 func IsUnknownTemporalComparison(err error) bool {
-	return errors.Is(err, ErrPrecisionMismatch) || errors.Is(err, ErrOffsetMismatch)
+	return errors.Is(err, ErrPrecisionMismatch) || errors.Is(err, ErrOffsetMismatch) || errors.Is(err, ErrSpansOverlap)
 }
 
 var errNotTemporal = errors.New("value is not a temporal that can be compared")
@@ -85,16 +91,19 @@ type temporalValue struct {
 }
 
 // compareTemporal orders two temporal values component by component, from the
-// most significant down, stopping at the first difference.
+// most significant down, stopping at the first difference; two at different
+// offsets, as the spans of time they name (see compareSpans).
 //
 // Returns ErrPrecisionMismatch when every shared component matches but the
-// values are specified to different precisions.
+// values are specified to different precisions, and, for two at different
+// offsets, ErrSpansOverlap when their spans overlap.
 func compareTemporal(left, right temporalValue) (int, error) {
-	// Offsets only matter once both values reach a time of day; normalizing to
-	// UTC is what "respecting timezone offsets" amounts to.
+	// Two at different offsets are compared as the spans of time they name,
+	// which is what "respecting timezone offsets" amounts to: re-expressing a
+	// value given to the hour in another offset can put it on a minute, or a
+	// value given to the year in another year, that it never stated.
 	if left.hasOffset && right.hasOffset && left.offset != right.offset {
-		left = left.inUTC()
-		right = right.inUTC()
+		return compareSpans(left, right)
 	}
 
 	// "To support comparison of DateTime values, either both values have no
@@ -129,8 +138,56 @@ func compareTemporal(left, right temporalValue) (int, error) {
 	return 0, nil
 }
 
-// inUTC re-expresses the value's components at UTC, so that two values written
-// against different offsets compare on the same footing.
+// compareSpans orders two values written at different offsets by the spans of
+// time they name: @2020-01-01T10+05:30 is 04:30 to 05:30 at UTC. The same
+// span is equal; spans apart are ordered; spans that overlap without being
+// the same have no order, ErrSpansOverlap, unknown as for different precisions:
+// @2020-01-01T10+05:30 = @2020-01-01T04Z is empty, the two hours overlapping
+// from 04:30 to 05:00. A value given to the second or finer names an instant,
+// seconds and milliseconds being one precision.
+func compareSpans(left, right temporalValue) (int, error) {
+	leftStart, leftEnd := left.span()
+	rightStart, rightEnd := right.span()
+	switch {
+	case leftStart.Equal(rightStart) && leftEnd.Equal(rightEnd):
+		return 0, nil
+	case !leftEnd.After(rightStart) && !leftStart.Equal(rightStart):
+		return -1, nil
+	case !rightEnd.After(leftStart) && !leftStart.Equal(rightStart):
+		return 1, nil
+	}
+	return 0, ErrSpansOverlap
+}
+
+// span returns the start and end of the time a value names at its precision,
+// in absolute time: the end is the start for a value given to the second.
+func (v temporalValue) span() (start, end time.Time) {
+	start = time.Date(
+		v.parts[unitYear], time.Month(v.parts[unitMonth]), v.parts[unitDay],
+		v.parts[unitHour], v.parts[unitMinute], v.parts[unitSecond]/1000,
+		(v.parts[unitSecond]%1000)*1e6,
+		time.FixedZone("", v.offset*60),
+	)
+	switch v.unit {
+	case unitYear:
+		end = start.AddDate(1, 0, 0)
+	case unitMonth:
+		end = start.AddDate(0, 1, 0)
+	case unitDay:
+		end = start.AddDate(0, 0, 1)
+	case unitHour:
+		end = start.Add(time.Hour)
+	case unitMinute:
+		end = start.Add(time.Minute)
+	default:
+		end = start
+	}
+	return start, end
+}
+
+// inUTC re-expresses the value's components at UTC, so that difference() and
+// duration() count between two values written against different offsets on
+// the same footing. Comparison reads spans instead: see compareSpans.
 func (v temporalValue) inUTC() temporalValue {
 	instant := time.Date(
 		v.parts[unitYear], time.Month(v.parts[unitMonth]), v.parts[unitDay],
