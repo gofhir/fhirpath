@@ -197,9 +197,11 @@ func (d Date) Compare(other Value) (int, error) {
 }
 
 // AddDuration adds a duration (as Quantity with temporal unit) to the date.
-// Supported units: year(s), month(s), week(s), day(s)
+// Hours and finer units are converted to days first, truncating, since a
+// date has no time of day: @2000-01-01 - 25 hours is @1999-12-31.
 func (d Date) AddDuration(value int, unit string) (Date, error) {
-	years, months, days, millis, err := durationParts(value, unit)
+	// A date is at most day precision, so no sub-day shift is left over
+	years, months, days, _, err := durationPartsAt(value, unit, durationField(d.precision))
 	if err != nil {
 		return Date{}, err
 	}
@@ -209,13 +211,8 @@ func (d Date) AddDuration(value int, unit string) (Date, error) {
 	// specification's table describes.
 	baseYear, baseMonth, baseDay := shiftCalendarMonths(d.year, d.monthOrFirst(), d.dayOrFirst(), years, months)
 
-	// A date has no time of day, so a sub-day duration cannot move it. The
-	// specification keeps the value unchanged rather than rounding.
 	shifted := time.Date(baseYear, time.Month(baseMonth), baseDay, 0, 0, 0, 0, time.UTC).
 		AddDate(0, 0, days)
-	if millis != 0 {
-		shifted = shifted.Add(time.Duration(millis) * time.Millisecond)
-	}
 
 	result := Date{
 		year:      shifted.Year(),

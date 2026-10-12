@@ -115,15 +115,9 @@ func resolveDurationUnit(unit string) (durationField, int, error) {
 	return resolved.field, resolved.multiplier, nil
 }
 
-// durationParts converts a duration into the arguments time arithmetic needs:
-// a year/month/day shift and a sub-day shift in milliseconds.
-func durationParts(value int, unit string) (years, months, days, millis int, err error) {
-	field, multiplier, err := resolveDurationUnit(unit)
-	if err != nil {
-		return 0, 0, 0, 0, err
-	}
-
-	amount := value * multiplier
+// partsOfField spreads an amount of one field over the year/month/day shift
+// and the sub-day shift in milliseconds that time arithmetic takes.
+func partsOfField(field durationField, amount int) (years, months, days, millis int) {
 	switch field {
 	case fieldYear:
 		years = amount
@@ -140,7 +134,62 @@ func durationParts(value int, unit string) (years, months, days, millis int, err
 	case fieldMillisecond:
 		millis = amount
 	}
+	return years, months, days, millis
+}
+
+// durationPartsAt converts a duration into the arguments time arithmetic
+// needs, a year/month/day shift and a sub-day shift in milliseconds, for a
+// value of the given precision. A duration finer than the value is converted
+// to its precision first: "the operation is performed by converting the
+// time-valued quantity to the highest precision in the partial (truncating
+// any decimal fraction) and then adding". A year is 12 months or 365 days and
+// a month 30 days, as the specification's conversion table has them:
+// @2016 + 365 days is @2017, @2026-02 + 4 weeks is @2026-02, and the
+// truncation runs toward zero, so @2000 - 1 day is @2000.
+func durationPartsAt(value int, unit string, precision durationField) (years, months, days, millis int, err error) {
+	field, multiplier, err := resolveDurationUnit(unit)
+	if err != nil {
+		return 0, 0, 0, 0, err
+	}
+	amount := value * multiplier
+	// Seconds and milliseconds are one precision, as comparison has them: the
+	// millisecond shifts and is then dropped, so @2000-01-01T00:00:00 - 1 'ms'
+	// is @1999-12-31T23:59:59
+	if precision == fieldSecond {
+		precision = fieldMillisecond
+	}
+	if field > precision {
+		switch {
+		case precision == fieldYear && field == fieldMonth:
+			amount /= 12
+		// Each unit of a day or finer divides the coarser one evenly, so the
+		// amount is divided by a whole ratio and never multiplied past int
+		case precision == fieldYear:
+			amount /= 365 * millisIn(fieldDay) / millisIn(field)
+		case precision == fieldMonth:
+			amount /= 30 * millisIn(fieldDay) / millisIn(field)
+		default:
+			amount /= millisIn(precision) / millisIn(field)
+		}
+		field = precision
+	}
+	years, months, days, millis = partsOfField(field, amount)
 	return years, months, days, millis, nil
+}
+
+// millisIn returns the milliseconds in one unit of a field of a day or finer.
+func millisIn(field durationField) int {
+	switch field {
+	case fieldDay:
+		return 24 * 3600 * 1000
+	case fieldHour:
+		return 3600 * 1000
+	case fieldMinute:
+		return 60 * 1000
+	case fieldSecond:
+		return 1000
+	}
+	return 1
 }
 
 // shiftCalendarMonths moves a year, month and day by whole years and months,

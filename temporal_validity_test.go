@@ -72,7 +72,7 @@ func TestTemporalValidity(t *testing.T) {
 // TestTemporalArithmeticRange checks the range of a date reached by
 // arithmetic: "If the resulting year is out of range, an error is thrown."
 func TestTemporalArithmeticRange(t *testing.T) {
-	for _, expr := range []string{"@9999-12-31 + 1 day", "@0001-01-01 - 1 day", "@9999 + 1 year", "@9999-12-31T23:59:59Z + 1 second", "@0001-01-01T00:00:00Z - 1 second"} {
+	for _, expr := range []string{"@9999-12-31 + 1 day", "@0001-01-01 - 1 day", "@9999 + 1 year", "@9999-12-31T23:59:59Z + 1 second", "@0001-01-01T00:00:00Z - 1 second", "@9999 + 365 days", "@0001-01 - 30 days"} {
 		if _, err := Evaluate(simpleJSON, expr); err == nil {
 			t.Errorf("%s: expected an error", expr)
 		}
