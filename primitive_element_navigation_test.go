@@ -27,9 +27,8 @@ func TestAPrimitivesElementIsReachedByNavigation(t *testing.T) {
 		{"birthDate.id", "[b1]"},
 		{"name.family.extension.count()", "[1]"},
 		{"name.given.extension.value", "[absent]"},
-		// Its id and extension, and its value: "FHIR primitives have a value
-		// child".
-		{"birthDate.children().count()", "[3]"},
+		// Its id and extension. Its value is not a child: see CONFORMANCE.md.
+		{"birthDate.children().count()", "[2]"},
 		{"birthDate.descendants().count() > birthDate.children().count()", "[true]"},
 		// A primitive and its element are one child of their parent, not two,
 		// and a value with only an element is still a child; resourceType is
