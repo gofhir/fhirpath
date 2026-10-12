@@ -147,14 +147,13 @@ func TestAPrimitiveReadWithoutATypeIsStillAFHIRPrimitive(t *testing.T) {
 	}
 }
 
-// "FHIR primitives have a value child, but, as described above, they are
-// automatically cast to FHIRPath primitives when comparisons are made, and
-// that the primitive value will be included in the set returned by children()
-// or descendants()." The value comes after id and extension, as a primitive
-// type's StructureDefinition lists them, and has no children of its own. A
-// System value, a literal or a primitive's value, is only ever a System type,
-// so a filter by FHIR type finds each primitive once, with or without a model.
-func TestAPrimitivesValueIsAChild(t *testing.T) {
+// A primitive's children are its id and its extensions; its value is not one,
+// as in the HL7 validator, in which the children() and descendants() counts
+// below were measured (6.10.2), though FHIR says "the primitive value will be
+// included in the set returned by children() or descendants()": see
+// CONFORMANCE.md. A System value, a literal or a primitive's value, is only
+// ever a System type.
+func TestAPrimitivesValueIsNotAChild(t *testing.T) {
 	patient := []byte(`{"resourceType":"Patient","birthDate":"2000-01-01",` +
 		`"_birthDate":{"id":"b","extension":[{"url":"u","valueCode":"x"}]},` +
 		`"name":[{"family":"F","given":["A","B"]}]}`)
@@ -169,20 +168,23 @@ func TestAPrimitivesValueIsAChild(t *testing.T) {
 		expr                  string
 		withModel, withoutOne string
 	}{
-		{"Patient.birthDate.children().count()", "[3]", "[3]"},
-		{"Patient.birthDate.children().last()", "[2000-01-01]", "[2000-01-01]"},
-		{"Patient.birthDate.children().last() is System.Date", "[true]", "[true]"},
-		{"Patient.name.family.children()", "[F]", "[F]"},
-		{"Patient.name.family.children().children().count()", "[0]", "[0]"},
-		{"Patient.name.descendants().count()", "[6]", "[6]"},
+		{"Patient.birthDate.children().count()", "[2]", "[2]"},
+		{"Patient.birthDate.children().last()", `[{"url":"u","valueCode":"x"}]`, `[{"url":"u","valueCode":"x"}]`},
+		{"Patient.birthDate.descendants().count()", "[4]", "[4]"},
+		{"Patient.name.family.children()", "[]", "[]"},
+		{"Patient.name.descendants().count()", "[3]", "[3]"},
 		{"Patient.name.descendants().ofType(string).count()", "[3]", "[3]"},
+		{"Patient.name.descendants().where(hasValue()).count()", "[3]", "[3]"},
+		{"Patient.birthDate.descendants().where($this is System.Date).count()", "[0]", "[0]"},
+		// A filter by value finds the primitive alone.
+		{"Patient.descendants().where($this = 'A').count()", "[1]", "[1]"},
 		// "ofType() does not have such restrictions - both of the following
 		// are valid: Patient.name.given.ofType(FHIR.string);
-		// Patient.name.given.ofType(System.string)": the primitives and their
-		// values.
-		{"Patient.name.descendants().ofType(System.String).count()", "[6]", "[6]"},
-		{"Patient.name.descendants().where(hasValue()).count()", "[3]", "[3]"},
-		{"Patient.birthDate.descendants().where($this is System.Date).count()", "[1]", "[1]"},
+		// Patient.name.given.ofType(System.string)": the primitives. The HL7
+		// validator answers 0, which #153 is to settle.
+		{"Patient.name.descendants().ofType(System.String).count()", "[3]", "[3]"},
+		// The value is still read by name.
+		{"Patient.birthDate.value", "[2000-01-01]", "[2000-01-01]"},
 		// A System value is only ever a System type.
 		{"'abc'.is(string)", "[false]", "[false]"},
 		{"'abc'.is(FHIR.string)", "[false]", "[false]"},
@@ -210,6 +212,33 @@ func TestAPrimitivesValueIsAChild(t *testing.T) {
 				if got := result.String(); got != run.want {
 					t.Errorf("%s = %s %s, want %s", tt.expr, got, run.how, run.want)
 				}
+			}
+		})
+	}
+}
+
+// TestDescendantsCountEachPrimitiveOnce pins the counts CONFORMANCE.md
+// records beyond the patient above, each measured in the HL7 validator
+// (6.10.2).
+func TestDescendantsCountEachPrimitiveOnce(t *testing.T) {
+	tests := []struct {
+		resource, expr, want string
+	}{
+		// The issue's Bundle: the entry written {} and the response's status.
+		{`{"resourceType":"Bundle","type":"transaction-response","entry":[{},{"response":{"status":"200"}}]}`, "Bundle.descendants().count()", "[5]"},
+		// A primitive written with only an extension: the extension, its url
+		// and its value.
+		{`{"resourceType":"Patient","_active":{"extension":[{"url":"u","valueBoolean":false}]}}`, "Patient.active.descendants().count()", "[3]"},
+		{`{"resourceType":"Patient","_active":{}}`, "Patient.active.children().count()", "[0]"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.expr, func(t *testing.T) {
+			result, err := fhirpath.Evaluate([]byte(tt.resource), tt.expr)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := result.String(); got != tt.want {
+				t.Errorf("%s = %s, want %s", tt.expr, got, tt.want)
 			}
 		})
 	}

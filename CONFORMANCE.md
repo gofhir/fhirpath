@@ -956,6 +956,31 @@ that holds no value adds nothing to a value beside it: `"given": ["J"],
 "_given": [{}]` is equivalent to `"given": ["J"]`. Beside a `null` it is the
 item, and is not.
 
+### A primitive's value is not a child
+
+Measured in the HL7 validator 6.10.2.
+
+A FHIR primitive's children are its `id` and its extensions, and `descendants()`
+reaches each primitive once. Its value is not a child; it is still read by
+name, `birthDate.value`, and by `hasValue()` and `getValue()`.
+
+| On | Expression | Validator and this engine | 1.10.5 to 1.13.x |
+|---|---|---|---|
+| `"birthDate": "2020"` | `Patient.birthDate.children().count()` | 0 | 1 |
+| `"birthDate": "2020", "_birthDate": {"id": "x", "extension": [{"url": "u", "valueString": "v"}]}` | `Patient.birthDate.children().count()` | 2 | 3 |
+| | `Patient.birthDate.descendants().count()` | 4 | 8 |
+| `"name": [{"family": "F", "given": ["A", "B"]}]` | `Patient.name.descendants().count()` | 3 | 6 |
+| | `Patient.descendants().where($this = 'A').count()` | 1 | 2 |
+| `"_active": {"extension": [{"url": "u", "valueBoolean": false}]}` | `Patient.active.descendants().count()` | 3 | 5 |
+
+FHIR's FHIRPath page says the opposite: "FHIR primitives have a value child,
+but, as described above, they are automatically cast to FHIRPath primitives
+when comparisons are made, and that the primitive value will be included in
+the set returned by children() or descendants()." The validator's `children()`
+lists the element's child nodes, and the value is not one. Read as a child, a
+filter by value over `descendants()` found a primitive and its value both, and
+any count of `children()` or `descendants()` differed from the validator's.
+
 ## Decisions taken where the specification is silent
 
 Recorded here and at the point of code, so nobody has to guess whether a choice
@@ -986,9 +1011,9 @@ was reasoned or accidental.
 | An element written as an empty object, `"name": {}` or an item `{}` of an array | An item of its collection that `exists()` and `empty()` answer as though it were not there | Where the HL7 validator answers over the specification text: see [An element that holds no value](#an-element-that-holds-no-value) |
 | A FHIR primitive's `value`, and `hasValue()`/`getValue()` | The System value the primitive holds, without its FHIR type or element | FHIR: "FHIR.string … has the properties id, extension, and also the implicit value property that is actually of type of System.String", so `birthDate.value is System.Date`. The HL7 validator answers `value` with a FHIR `string` of the text whatever the primitive's type; that is not what the text says |
 | What is a FHIR primitive, as opposed to a System value | By where the value came from: one read from the resource is a FHIR primitive, with or without a model, and even where the model types it a System one; a literal or a function's result is a System value | `'abc'.value` is empty and `'abc'.hasValue()` false with or without a model, as the text says, and so for `active.toBoolean()`. A primitive at a path the model does not know is still a FHIR primitive, so ele-1 holds on it. R4 gives `Resource.id`, `Element.id` and `Extension.url` the type code `System.String` and names their FHIR type, `id`, `string` and `uri`, in `structuredefinition-fhir-type`; the two parts of the definition disagree, and we follow the one that names the FHIR type, as the HL7 validator does, so `Patient.id.hasValue()` is true. Their `type()` stays what the model gives |
-| A primitive's value in `children()` and `descendants()` | Included, after `id` and `extension`, as a System value with no children of its own | FHIR: "FHIR primitives have a value child … and the primitive value will be included in the set returned by children() or descendants()". The HL7 validator leaves it out — its `children()` lists the element's child nodes, and the value is not one — so `birthDate.children().count()` is 3 here and 2 there, and a filter by value over `descendants()` finds a primitive and its value both: `descendants().where($this = 'b')` counts two where HL7 counts one; `where(hasValue() and $this = 'b')` counts the primitive alone. No answer over the R4, R4B and R5 example corpora changes, and over them it costs +0.65% bytes and +0.53% allocations; `descendants()` alone allocates about 15% more |
-| `is()`, `as()` and `ofType()` on a System value | Only System types match, with a model or without one | A literal, a function's result or a primitive's value is a System value: `'abc'.is(String)` and `'abc'.is(System.string)` are true, `'abc'.is(string)` and `'abc'.is(FHIR.string)` false. Without a model only a value read from the resource is taken for what its type name might be in FHIR, so `descendants().ofType(string)` finds each string once. `ofType(System.string)` still finds FHIR strings too: "ofType() does not have such restrictions" |
-| Order of `children()` and `descendants()` | With a model that implements `ElementOrder`, the order the element's definition lists its children in; otherwise as the JSON writes them | The text leaves it undefined — "using functions like first() on the result may return different results on different platforms" — and allows "the logical order implied by the object model", which is the order the HL7 validator's parser builds. JSON keys are unordered, so without it one instance written two ways answers `children().first()` two ways. A field the definition does not list comes last, as written, where HL7 rejects it; an array keeps its order; an object the model does not know, or whose type is only guessed from its fields, stays as written. A primitive's element, `_birthDate`, is ordered and its fields typed by its primitive's type, `date`: id, extension, then the value; and every element's `extension` is an `Extension`, as `Element` defines it, where a model does not list a primitive type's elements. An instance already in the definition's order, as HL7 and HAPI write, costs no allocation |
+| A primitive's value in `children()` and `descendants()` | Not a child | Where the HL7 validator answers over the specification text: see [A primitive's value is not a child](#a-primitives-value-is-not-a-child) |
+| `is()`, `as()` and `ofType()` on a System value | Only System types match, with a model or without one | A literal, a function's result or a primitive's value is a System value: `'abc'.is(String)` and `'abc'.is(System.string)` are true, `'abc'.is(string)` and `'abc'.is(FHIR.string)` false. Without a model only a value read from the resource is taken for what its type name might be in FHIR, so a literal or a function's result is never a FHIR string. `ofType(System.string)` still finds FHIR strings too: "ofType() does not have such restrictions" |
+| Order of `children()` and `descendants()` | With a model that implements `ElementOrder`, the order the element's definition lists its children in; otherwise as the JSON writes them | The text leaves it undefined — "using functions like first() on the result may return different results on different platforms" — and allows "the logical order implied by the object model", which is the order the HL7 validator's parser builds. JSON keys are unordered, so without it one instance written two ways answers `children().first()` two ways. A field the definition does not list comes last, as written, where HL7 rejects it; an array keeps its order; an object the model does not know, or whose type is only guessed from its fields, stays as written. A primitive's element, `_birthDate`, is ordered and its fields typed by its primitive's type, `date`: id, then extension; and every element's `extension` is an `Extension`, as `Element` defines it, where a model does not list a primitive type's elements. An instance already in the definition's order, as HL7 and HAPI write, costs no allocation |
 
 ## Upstream issues
 

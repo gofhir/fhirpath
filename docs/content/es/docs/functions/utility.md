@@ -97,10 +97,10 @@ result, _ := fhirpath.Evaluate(patient, "Patient.children().count()")
 
 **Casos Limite / Notas:**
 
-- Solo funciona con tipos complejos (`ObjectValue`). Los valores primitivos (cadenas, enteros, etc.) no tienen hijos y no producen salida.
-- Devuelve los valores de todos los campos del objeto, independientemente del nombre del campo.
+- Los hijos de un primitivo FHIR son su `id` y sus extensiones, cuando se escriben a su lado como `_birthDate`; su valor no es un hijo, como en el validador HL7, asi que `Patient.birthDate.children()` es vacio con `"birthDate": "2020"`. Un valor System (un literal o el resultado de una funcion) no tiene hijos. Ver [CONFORMANCE.md](https://github.com/gofhir/fhirpath/blob/main/CONFORMANCE.md#a-primitives-value-is-not-a-child).
+- Devuelve los valores de todos los campos del objeto, independientemente del nombre del campo, salvo el valor de un primitivo.
 - Una coleccion de entrada vacia devuelve una coleccion vacia.
-- El orden de los hijos depende de la estructura del objeto subyacente.
+- Con un modelo que conoce el orden de los elementos, los hijos vienen en el orden que lista la definicion del elemento; si no, como los escribe el JSON.
 
 ---
 
@@ -132,8 +132,8 @@ result, _ := fhirpath.Evaluate(patient, "Patient.name.descendants()")
 **Casos Limite / Notas:**
 
 - Esta funcion recorre recursivamente todo el arbol de elementos bajo la entrada.
-- La deteccion de ciclos esta incorporada: los elementos que ya han sido visitados se omiten para prevenir bucles infinitos.
-- Solo los tipos complejos (`ObjectValue`) se recorren. Los valores primitivos se incluyen en el resultado pero no producen mas descendientes.
+- El recorrido se detiene en una profundidad máxima, el límite `maxDepth`, que lo acota en entradas muy anidadas.
+- Los primitivos se incluyen una vez en el resultado, y se recorren solo a traves de su `id` y sus extensiones; el valor de un primitivo no es descendiente de el.
 - Una coleccion de entrada vacia devuelve una coleccion vacia.
 - Para recursos grandes, `descendants()` puede devolver una coleccion muy grande. Considere usar expresiones de ruta mas especificas cuando sea posible.
 - El resultado incluye nodos intermedios, no solo nodos hoja. Se devuelven tanto descendientes complejos como primitivos.

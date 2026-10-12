@@ -97,10 +97,10 @@ result, _ := fhirpath.Evaluate(patient, "Patient.children().count()")
 
 **Edge Cases / Notes:**
 
-- Only works on complex types (`ObjectValue`). Primitive values (strings, integers, etc.) have no children and produce no output.
-- Returns the values of all fields in the object, regardless of field name.
+- A FHIR primitive's children are its `id` and extensions, when written beside it as `_birthDate`; its value is not a child, as in the HL7 validator, so `Patient.birthDate.children()` is empty on `"birthDate": "2020"`. A System value (a literal or a function's result) has no children. See [CONFORMANCE.md](https://github.com/gofhir/fhirpath/blob/main/CONFORMANCE.md#a-primitives-value-is-not-a-child).
+- Returns the values of all fields in the object, regardless of field name, apart from a primitive's value.
 - An empty input collection returns an empty collection.
-- The order of children depends on the underlying object structure.
+- With a model that knows the element order, children come in the order the element's definition lists them; otherwise as the JSON writes them.
 
 ---
 
@@ -132,8 +132,8 @@ result, _ := fhirpath.Evaluate(patient, "Patient.name.descendants()")
 **Edge Cases / Notes:**
 
 - This function recursively traverses the entire element tree beneath the input.
-- Cycle detection is built in: elements that have already been visited are skipped to prevent infinite loops.
-- Only complex types (`ObjectValue`) are traversed. Primitive values are included in the result but do not produce further descendants.
+- The traversal stops at a maximum depth, the `maxDepth` limit, which bounds it on deeply nested input.
+- Primitives are included in the result once, and descended into only through their `id` and extensions; a primitive's value is not a descendant of it.
 - An empty input collection returns an empty collection.
 - For large resources, `descendants()` may return a very large collection. Consider using more targeted path expressions when possible.
 - The result includes intermediate nodes, not just leaf nodes. Both complex and primitive descendants are returned.

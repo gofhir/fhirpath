@@ -70,12 +70,12 @@ func TestChildrenComeInTheDefinitionsOrder(t *testing.T) {
 		{"Observation.children().first()", "[o1]", `[{"display":"Peter","type":"Patient","reference":"Patient/1"}]`},
 		{"Observation.children().last()", "[u]", `[{"text":"x"}]`},
 		{"Observation.children().skip(1).first()", "[final]", "[v]"},
-		// A backbone element is ordered by the path it was reached by; an
-		// array keeps its own order.
-		{"Observation.component.first().children().first().children().first()", "[{\"code\":\"a\"}]", "[c1]"},
+		// A backbone element is ordered by the path it was reached by, and
+		// what it holds by its own type; an array keeps its own order.
+		{"Observation.component.first().children().first()", `[{"text":"t1","coding":[{"code":"a"}]}]`, "[c1]"},
+		{"Observation.component.first().code.children().first()", "[{\"code\":\"a\"}]", "[t1]"},
 		{"Observation.component.children().count()", "[3]", "[3]"},
 		{"Observation.component.code.text", "[t1, t2]", "[t1, t2]"},
-		{"Observation.component.first().children().first()", `[{"text":"t1","coding":[{"code":"a"}]}]`, "[c1]"},
 		// descendants() is children() repeated, in the same order.
 		{"Observation.subject.descendants().first()", "[Patient/1]", "[Peter]"},
 	}
@@ -122,8 +122,8 @@ func TestChildrenComeInTheDefinitionsOrder(t *testing.T) {
 
 // The element FHIR writes beside a primitive under _name has no type of its
 // own; it is ordered, and its children typed, by the type the primitive's path
-// declares: _birthDate as date, id, then extension, and its value after them;
-// an extension in it as an Extension, as one on the resource is. An object the
+// declares: _birthDate as date, id, then extension; its value is no child. An
+// extension in it is typed as an Extension, as one on the resource is. An object the
 // model knows nothing of stays as the JSON writes it.
 func TestAPrimitivesElementIsInItsTypesOrder(t *testing.T) {
 	patient := []byte(`{"resourceType":"Patient",` +
@@ -144,7 +144,7 @@ func TestAPrimitivesElementIsInItsTypesOrder(t *testing.T) {
 	}
 
 	for expr, want := range map[string]string{
-		"Patient.birthDate.children()":                    `[b1, {"valueCode":"c","url":"u"}, 2000]`,
+		"Patient.birthDate.children()":                    `[b1, {"valueCode":"c","url":"u"}]`,
 		"Patient.birthDate.extension.children().first()":  "[u]",
 		"Patient.extension.children().first()":            "[u]",
 		"Patient.birthDate.descendants().first()":         "[b1]",
@@ -250,8 +250,7 @@ func TestAnObjectOfAGuessedTypeStaysAsWritten(t *testing.T) {
 
 // An element a model types a System type, as R4 types Resource.id
 // System.String, is still a primitive FHIR writes with an element beside it,
-// _id, which is ordered as FHIR's primitive of that kind: id, extension, then
-// the value.
+// _id, which is ordered as FHIR's primitive of that kind: id, then extension.
 func TestTheElementOfASystemTypedPrimitiveIsInOrder(t *testing.T) {
 	patient := []byte(`{"resourceType":"Patient","_id":{"extension":[{"url":"u","valueCode":"c"}],"id":"i1"},"id":"p1"}`)
 	model := &orderedModel{
@@ -269,7 +268,7 @@ func TestTheElementOfASystemTypedPrimitiveIsInOrder(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	if got := result.String(); got != `[i1, {"url":"u","valueCode":"c"}, p1]` {
-		t.Errorf("Patient.id.children() = %s, want its id, its extension, its value", got)
+	if got := result.String(); got != `[i1, {"url":"u","valueCode":"c"}]` {
+		t.Errorf("Patient.id.children() = %s, want its id, its extension", got)
 	}
 }
