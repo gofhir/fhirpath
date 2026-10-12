@@ -856,12 +856,6 @@ func (o *ObjectValue) fieldCollection(field, fhirType string) Collection {
 // Each item records the field it was read from and its index there, which is
 // all Location needs of it.
 func pairedCollection(field string, value, element jsonField, fhirType string) Collection {
-	parse := jsonValueToFHIRValue
-	if fhirType != "" {
-		parse = typedParser(fhirType)
-	}
-	primitiveType := primitiveTypeOf(fhirType)
-
 	if value.missing() && element.missing() {
 		return Collection{}
 	}
@@ -869,7 +863,7 @@ func pairedCollection(field string, value, element jsonField, fhirType string) C
 	// A single value, with or without its element beside it
 	if !value.isArray() && !element.isArray() {
 		elementValue := elementBeside(element)
-		result := pairValueWithElement(value, elementValue, parse, primitiveType)
+		result := pairValueWithElement(value, elementValue, fhirType)
 		for _, v := range result {
 			placePaired(v, elementValue, field, 0, value, element)
 		}
@@ -896,7 +890,7 @@ func pairedCollection(field string, value, element jsonField, fhirType string) C
 			entry = values[i]
 		}
 
-		for _, v := range pairValueWithElement(entry, elementValue, parse, primitiveType) {
+		for _, v := range pairValueWithElement(entry, elementValue, fhirType) {
 			placePaired(v, elementValue, field, i, value, element)
 			result = append(result, v)
 		}
@@ -1283,12 +1277,7 @@ func (f jsonField) isArray() bool { return f.dataType == jsonparser.Array }
 // pairValueWithElement turns one value and its element into the item, or items,
 // they stand for: the value carrying the element, the element alone when there
 // is no value, or nothing when there is neither.
-func pairValueWithElement(
-	value jsonField,
-	element *ObjectValue,
-	parse func([]byte, jsonparser.ValueType) Value,
-	primitiveType string,
-) Collection {
+func pairValueWithElement(value jsonField, element *ObjectValue, fhirType string) Collection {
 	if value.missing() || value.dataType == jsonparser.Null {
 		if element == nil {
 			return Collection{}
@@ -1299,13 +1288,18 @@ func pairValueWithElement(
 		// for the field, or the one a choice element's name tells; without
 		// either there is none to give.
 		element.role = roleValueless
-		if primitiveType != "" {
+		if primitiveType := primitiveTypeOf(fhirType); primitiveType != "" {
 			element.typeName = primitiveType
 		}
 		return Collection{element}
 	}
 
-	parsed := parse(value.data, value.dataType)
+	var parsed Value
+	if fhirType == "" {
+		parsed = jsonValueToFHIRValue(value.data, value.dataType)
+	} else {
+		parsed = jsonValueToFHIRValueWithType(value.data, value.dataType, fhirType)
+	}
 	if parsed == nil {
 		return Collection{}
 	}
@@ -2332,15 +2326,21 @@ func (o *ObjectValue) GetCollectionWithType(field, fhirType string) Collection {
 	})
 }
 
-// primitiveTypeOf is the FHIR primitive a declared type names, or the suffix
-// of a choice element's name: boolean for boolean or Boolean, dateTime for
-// DateTime, string for a System.String, as R4 types Resource.id; "" for a
-// complex type, Quantity, and for no type. R4 also names the FHIR type of a
-// System-typed element, id or uri, in an extension no model here reads, so
-// such an element is a string.
+// primitiveTypeOf is the FHIR primitive a declared type names: a model
+// declares one in lower camel case, boolean, as FHIR writes its primitives,
+// and a System type for R4's Resource.id and Extension.url, read as string. A
+// choice element's name capitalizes it, Boolean in valueBoolean, so a suffix
+// is a primitive when FHIR lists it as one. A complex type, Quantity, and no
+// type name none.
 func primitiveTypeOf(fhirType string) string {
 	if system, ok := strings.CutPrefix(fhirType, systemTypePrefix); ok {
 		return lowerFirst(system)
+	}
+	if fhirType == "" {
+		return ""
+	}
+	if first := fhirType[0]; first >= 'a' && first <= 'z' {
+		return fhirType
 	}
 	if name := lowerFirst(fhirType); fhirPrimitives[name] {
 		return name
@@ -2348,19 +2348,13 @@ func primitiveTypeOf(fhirType string) string {
 	return ""
 }
 
-// fhirPrimitives are FHIR's primitive types, by name.
+// fhirPrimitives are FHIR's primitive types, by name, which tell a choice
+// element's capitalized suffix of a primitive from one of a complex type.
 var fhirPrimitives = map[string]bool{
 	"base64Binary": true, "boolean": true, "canonical": true, "code": true, "date": true,
 	"dateTime": true, "decimal": true, "id": true, "instant": true, "integer": true,
 	"integer64": true, "markdown": true, "oid": true, "positiveInt": true, "string": true,
 	"time": true, "unsignedInt": true, "uri": true, "url": true, "uuid": true, "xhtml": true,
-}
-
-// typedParser reads a value as the FHIR type the model declares for it.
-func typedParser(fhirType string) func([]byte, jsonparser.ValueType) Value {
-	return func(data []byte, dataType jsonparser.ValueType) Value {
-		return jsonValueToFHIRValueWithType(data, dataType, fhirType)
-	}
 }
 
 // jsonArrayToCollection converts a JSON array to a Collection.

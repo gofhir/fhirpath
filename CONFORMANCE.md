@@ -956,10 +956,15 @@ validator answers `System.Boolean` from `type()` and false to `is
 FHIR.boolean`: see [Measured, and not followed](#measured-and-not-followed).
 Having no value, it is no System value: `ofType(Boolean)` leaves it out, where
 it keeps a `boolean` with one, and the validator raises an exception on both.
+
 R4 types `Resource.id`, `Element.id` and `Extension.url` `System.String`, and
-names their FHIR type, `id` or `uri`, in an extension no model here reads: one
-written with no value is a `string`, so `url is uri` is false, where the
-validator answers true.
+names their FHIR type, `id` or `uri`, in an extension no model here reads. With
+a value, such a field is a System.String this engine also takes for the FHIR
+type names: `Patient.id is id` and `is String` are true, where the validator
+answers false to both. Written with no value it is a `string`, as the validator
+has it for `is`: `Patient.id is string` true, `is id` and `is String` false.
+`Extension.url is uri` is the one it misses there: false, where the validator
+answers true with a value and without one.
 
 | On | Expression | Validator and this engine |
 |---|---|---|
