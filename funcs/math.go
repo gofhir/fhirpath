@@ -1,7 +1,10 @@
 package funcs
 
 import (
+	"errors"
 	"math"
+	"strconv"
+	"strings"
 
 	"github.com/shopspring/decimal"
 
@@ -421,119 +424,246 @@ func fnSum(ctx *eval.Context, input types.Collection, _ []interface{}) (types.Co
 	return types.Collection{types.NewInteger(sum.IntPart())}, nil
 }
 
-// findExtreme finds either the minimum or maximum value in a collection.
-// When findMin is true, finds minimum; otherwise finds maximum.
+// findExtreme finds the minimum or, when findMin is false, the maximum of a
+// collection. "Comparison semantics are defined by the Comparison Operators
+// for the type of value being aggregated", so items compare as < compares
+// them: Integer against Decimal exactly, quantities through their units,
+// temporals by their components. "All items in the input collection SHALL be
+// the same type, otherwise an exception is thrown": a pair < refuses, 1 and
+// 'a', ends the evaluation.
+//
+// A pair whose order is unknown, temporals at different precisions or
+// quantities whose units do not convert, does not end it. The extreme is the
+// item that orders against every other and stands below (or above) them all,
+// @2019 among @2019, @2020-01-01T10Z and @2020-01-01T10:30Z for min(); where
+// no item does, as for max() there, there is none and the result is empty, as
+// < answers for such a pair. The answer does not depend on the order of the
+// input.
 func findExtreme(ctx *eval.Context, input types.Collection, findMin bool) (types.Collection, error) {
 	if input.Empty() {
 		return types.Collection{}, nil
 	}
-
-	// Check for cancellation
 	if err := ctx.CheckCancellation(); err != nil {
 		return nil, err
 	}
-
-	var extremeVal types.Value
-	var extremeFloat float64
-	first := true
-	isNumeric := false
-
-	// compareFn returns true if newVal should replace current extreme
-	compareFn := func(newVal, currentVal float64) bool {
-		if findMin {
-			return newVal < currentVal
+	// Numbers, or strings, always order, and compare directly in one pass
+	if extremeItem, ok := totalExtreme(input, findMin); ok {
+		return types.Collection{extremeItem}, nil
+	}
+	for _, item := range input {
+		if !aggregable(item) {
+			return types.Collection{}, nil
 		}
-		return newVal > currentVal
+	}
+	// One item is its own extreme, compared with nothing: a FHIR Quantity
+	// bound, < 5 'mg', is no value to order against another, but it is the
+	// only one there is
+	if len(input) == 1 {
+		return input, nil
 	}
 
-	// compareStrFn returns true if newStr should replace current extreme
-	compareStrFn := func(newStr, currentStr string) bool {
-		if findMin {
-			return newStr < currentStr
+	// below reports whether a stands below b, for min(), or above it; known is
+	// false where their order is unknown
+	below := func(a, b types.Value) (stands, known bool, err error) {
+		cmp, err := eval.Compare(a, b)
+		if err != nil {
+			if unknownOrder(err) {
+				return false, false, nil
+			}
+			return false, false, err
 		}
-		return newStr > currentStr
+		if findMin {
+			return cmp < 0, true, nil
+		}
+		return cmp > 0, true, nil
+	}
+	// extreme reports whether a orders against every item and none stands
+	// beyond it. The item that ruled out the last one tried is tried first:
+	// items alike are ruled out alike, so a collection of many equal items and
+	// one they do not order against is checked in one pass, not one per item.
+	var witness types.Value
+	extreme := func(a types.Value) (bool, error) {
+		if witness != nil {
+			if beyond, known, err := below(witness, a); err != nil || !known || beyond {
+				return false, err
+			}
+		}
+		for _, other := range input {
+			beyond, known, err := below(other, a)
+			if err != nil || !known || beyond {
+				witness = other
+				return false, err
+			}
+		}
+		return true, nil
 	}
 
-	// compareCmpFn returns true if cmp result indicates newVal should replace
-	compareCmpFn := func(cmp int) bool {
+	// One pass finds the extreme where every pair orders; where it is checked
+	// and holds, it is the answer
+	candidate := input[0]
+	for _, item := range input[1:] {
+		beyond, known, err := below(item, candidate)
+		if err != nil {
+			return nil, err
+		}
+		if known && beyond {
+			candidate = item
+		}
+	}
+	if ok, err := extreme(candidate); err != nil || ok {
+		if err != nil {
+			return nil, err
+		}
+		return types.Collection{candidate}, nil
+	}
+
+	// Some pair has no order: the extreme, if any item is one, is found by
+	// checking each. An item written as one already ruled out is ruled out
+	// too, unchecked: it compares alike against every other
+	tried := map[string]bool{}
+	for i, item := range input {
+		if i%100 == 0 {
+			if err := ctx.CheckCancellation(); err != nil {
+				return nil, err
+			}
+		}
+		key := triedKey(item)
+		if tried[key] {
+			continue
+		}
+		tried[key] = true
+		ok, err := extreme(item)
+		if err != nil {
+			return nil, err
+		}
+		if ok {
+			return types.Collection{item}, nil
+		}
+	}
+	return types.Collection{}, nil
+}
+
+// totalExtreme finds the extreme of a collection of numbers only, or strings
+// only, which always order, in one pass and without eval.Compare; the first
+// of equal items is kept. It reports false for any other collection.
+func totalExtreme(input types.Collection, findMin bool) (types.Value, bool) {
+	beyond := func(cmp int) bool {
 		if findMin {
 			return cmp < 0
 		}
 		return cmp > 0
 	}
+	switch first := input[0].(type) {
+	case types.String:
+		extremeItem := first
+		for _, item := range input[1:] {
+			s, ok := item.(types.String)
+			if !ok {
+				return nil, false
+			}
+			if beyond(strings.Compare(s.Value(), extremeItem.Value())) {
+				extremeItem = s
+			}
+		}
+		return extremeItem, true
+	case types.Integer:
+		// Integers only compare as int64s; a Decimal among them, as decimals
+		if extremeItem, ok := integerExtreme(input, beyond); ok {
+			return extremeItem, true
+		}
+		return decimalExtreme(input, beyond)
+	case types.Decimal:
+		return decimalExtreme(input, beyond)
+	}
+	return nil, false
+}
 
-	for _, item := range input {
-		switch v := item.(type) {
-		case types.Integer:
-			val := float64(v.Value())
-			if first {
-				extremeFloat = val
-				extremeVal = item
-				first = false
-				isNumeric = true
-			} else if isNumeric && compareFn(val, extremeFloat) {
-				extremeFloat = val
-				extremeVal = item
-			}
-		case types.Decimal:
-			val := v.Value().InexactFloat64()
-			if first {
-				extremeFloat = val
-				extremeVal = item
-				first = false
-				isNumeric = true
-			} else if isNumeric && compareFn(val, extremeFloat) {
-				extremeFloat = val
-				extremeVal = item
-			}
-		case types.String:
-			if first {
-				extremeVal = v
-				first = false
-			} else if extremeStr, ok := extremeVal.(types.String); ok {
-				if compareStrFn(v.Value(), extremeStr.Value()) {
-					extremeVal = v
-				}
-			}
-		case types.Date:
-			if first {
-				extremeVal = v
-				first = false
-			} else if extremeDate, ok := extremeVal.(types.Date); ok {
-				cmp, err := v.Compare(extremeDate)
-				if err == nil && compareCmpFn(cmp) {
-					extremeVal = v
-				}
-			}
-		case types.DateTime:
-			if first {
-				extremeVal = v
-				first = false
-			} else if extremeDT, ok := extremeVal.(types.DateTime); ok {
-				cmp, err := v.Compare(extremeDT)
-				if err == nil && compareCmpFn(cmp) {
-					extremeVal = v
-				}
-			}
-		case types.Time:
-			if first {
-				extremeVal = v
-				first = false
-			} else if extremeTime, ok := extremeVal.(types.Time); ok {
-				cmp, err := v.Compare(extremeTime)
-				if err == nil && compareCmpFn(cmp) {
-					extremeVal = v
-				}
-			}
-		default:
-			return types.Collection{}, nil
+// integerExtreme is totalExtreme over integers only, reporting false where any
+// item is not an Integer.
+func integerExtreme(input types.Collection, beyond func(int) bool) (types.Value, bool) {
+	extremeItem, ok := input[0].(types.Integer)
+	if !ok {
+		return nil, false
+	}
+	for _, item := range input[1:] {
+		i, isInteger := item.(types.Integer)
+		if !isInteger {
+			return nil, false
+		}
+		if beyond(cmpInt64(i.Value(), extremeItem.Value())) {
+			extremeItem = i
 		}
 	}
+	return extremeItem, true
+}
 
-	if extremeVal == nil {
-		return types.Collection{}, nil
+// cmpInt64 orders two int64s as Cmp does.
+func cmpInt64(a, b int64) int {
+	switch {
+	case a < b:
+		return -1
+	case a > b:
+		return 1
 	}
-	return types.Collection{extremeVal}, nil
+	return 0
+}
+
+// decimalExtreme is totalExtreme over Integers and Decimals, compared as
+// decimals, reporting false where any item is neither.
+func decimalExtreme(input types.Collection, beyond func(int) bool) (types.Value, bool) {
+	extremeItem, extremeValue := input[0], numericValue(input[0])
+	for _, item := range input[1:] {
+		switch item.(type) {
+		case types.Integer, types.Decimal:
+		default:
+			return nil, false
+		}
+		if value := numericValue(item); beyond(value.Cmp(extremeValue)) {
+			extremeItem, extremeValue = item, value
+		}
+	}
+	return extremeItem, true
+}
+
+// numericValue returns an Integer's or a Decimal's value as a decimal.
+func numericValue(item types.Value) decimal.Decimal {
+	if i, ok := item.(types.Integer); ok {
+		return decimal.NewFromInt(i.Value())
+	}
+	return item.(types.Decimal).Value()
+}
+
+// triedKey names an item as written, and for a DateTime with the offset it
+// is placed at, which a default offset sets without changing how it is
+// written: items with one key compare alike against every other.
+func triedKey(item types.Value) string {
+	key := item.Type() + "\x00" + item.String()
+	if dt, ok := item.(types.DateTime); ok {
+		if offset, placed := dt.EffectiveOffset(); placed {
+			key += "\x00" + strconv.Itoa(offset)
+		}
+	}
+	return key
+}
+
+// aggregable reports an item min() and max() order: a number, a string, a
+// temporal, or a quantity, a FHIR Quantity among them.
+func aggregable(item types.Value) bool {
+	switch v := item.(type) {
+	case types.Integer, types.Decimal, types.String, types.Date, types.DateTime, types.Time, types.Quantity:
+		return true
+	case *types.ObjectValue:
+		_, ok, err := eval.AsQuantity(v)
+		return ok || err != nil
+	}
+	return false
+}
+
+// unknownOrder reports a comparison that has no answer, rather than one that
+// is refused: < answers empty for it.
+func unknownOrder(err error) bool {
+	return types.IsUnknownTemporalComparison(err) || errors.Is(err, types.ErrIncompatibleUnits) ||
+		errors.Is(err, types.ErrDecimalRange)
 }
 
 // fnMin returns the minimum value in the collection.
