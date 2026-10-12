@@ -149,9 +149,10 @@ func TestAPrimitiveReadWithoutATypeIsStillAFHIRPrimitive(t *testing.T) {
 
 // A primitive's children are its id and its extensions; its value is not one,
 // as in the HL7 validator, in which the children() and descendants() counts
-// below were measured (6.10.2), though FHIR says "the primitive value will be included in the set returned
-// by children() or descendants()": see CONFORMANCE.md. A System value, a
-// literal or a primitive's value, is only ever a System type.
+// below were measured (6.10.2), though FHIR says "the primitive value will be
+// included in the set returned by children() or descendants()": see
+// CONFORMANCE.md. A System value, a literal or a primitive's value, is only
+// ever a System type.
 func TestAPrimitivesValueIsNotAChild(t *testing.T) {
 	patient := []byte(`{"resourceType":"Patient","birthDate":"2000-01-01",` +
 		`"_birthDate":{"id":"b","extension":[{"url":"u","valueCode":"x"}]},` +
