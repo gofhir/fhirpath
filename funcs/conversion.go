@@ -287,7 +287,8 @@ func fnToInteger(_ *eval.Context, input types.Collection, _ []interface{}) (type
 		}
 		return types.Collection{types.NewInteger(i)}, nil
 	case types.Decimal:
-		return types.Collection{types.NewInteger(v.Value().IntPart())}, nil
+		// One past the int64 range does not convert
+		return wholeInteger(v.Value())
 	default:
 		return types.Collection{}, nil
 	}
@@ -310,7 +311,9 @@ func fnConvertsToInteger(_ *eval.Context, input types.Collection, _ []interface{
 		_, err := strconv.ParseInt(v.Value(), 10, 64)
 		return types.Collection{types.NewBoolean(err == nil)}, nil
 	case types.Decimal:
-		return types.Collection{types.NewBoolean(true)}, nil
+		// As toInteger() converts it: not past the int64 range
+		_, err := types.IntegerFromDecimal(v.Value())
+		return types.Collection{types.NewBoolean(err == nil)}, nil
 	default:
 		return types.Collection{types.NewBoolean(false)}, nil
 	}

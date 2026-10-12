@@ -165,7 +165,7 @@ func Add(left, right types.Value) (types.Value, error) {
 	case types.Integer:
 		switch r := right.(type) {
 		case types.Integer:
-			return l.Add(r), nil
+			return exactInteger(l.AddExact(r))
 		case types.Decimal:
 			return l.ToDecimal().Add(r), nil
 		}
@@ -208,7 +208,7 @@ func Subtract(left, right types.Value) (types.Value, error) {
 	case types.Integer:
 		switch r := right.(type) {
 		case types.Integer:
-			return l.Subtract(r), nil
+			return exactInteger(l.SubtractExact(r))
 		case types.Decimal:
 			return l.ToDecimal().Subtract(r), nil
 		}
@@ -250,7 +250,7 @@ func Multiply(left, right types.Value) (types.Value, error) {
 	case types.Integer:
 		switch r := right.(type) {
 		case types.Integer:
-			return l.Multiply(r), nil
+			return exactInteger(l.MultiplyExact(r))
 		case types.Decimal:
 			return l.ToDecimal().Multiply(r), nil
 		}
@@ -331,7 +331,7 @@ func IntegerDivide(left, right types.Value) (types.Value, error) {
 			if r.Value() == 0 {
 				return nil, ErrDivideByZero
 			}
-			return l.Div(r)
+			return exactInteger(l.Div(r))
 		}
 	}
 
@@ -343,11 +343,11 @@ func IntegerDivide(left, right types.Value) (types.Value, error) {
 		return nil, ErrDivideByZero
 	}
 
-	quotient, err := l.Divide(r)
-	if err != nil {
-		return nil, err
-	}
-	return types.NewDecimalFromInt(quotient.Truncate().Value()), nil
+	// The exact truncated quotient, which neither an int64 wraps past its
+	// range, 100000000000000000000.0 div 1.0 was 7766279631452241920, nor a
+	// division rounded first carries up: 0.99999999999999999 div 1.0 was 1
+	quotient, _ := l.Value().QuoRem(r.Value(), 0)
+	return types.NewDecimalFromDecimal(quotient), nil
 }
 
 // Modulo computes the remainder of the truncated division, over the same types
@@ -370,13 +370,10 @@ func Modulo(left, right types.Value) (types.Value, error) {
 		return nil, ErrDivideByZero
 	}
 
-	// The remainder of the truncated division: l - trunc(l/r)*r
-	quotient, err := l.Divide(r)
-	if err != nil {
-		return nil, err
-	}
-	whole := types.NewDecimalFromInt(quotient.Truncate().Value())
-	return l.Subtract(whole.Multiply(r)), nil
+	// The remainder of the truncated division, l - trunc(l/r)*r, exact: a
+	// division rounded first made 0.99999999999999999 mod 1.0 negative
+	_, remainder := l.Value().QuoRem(r.Value(), 0)
+	return types.NewDecimalFromDecimal(remainder), nil
 }
 
 // decimalOperands widens two numeric values to Decimal, which is the implicit
@@ -401,7 +398,7 @@ func decimalOperands(left, right types.Value) (l, r types.Decimal, ok bool) {
 func Negate(value types.Value) (types.Value, error) {
 	switch v := value.(type) {
 	case types.Integer:
-		return v.Negate(), nil
+		return exactInteger(v.NegateExact())
 	case types.Decimal:
 		return v.Negate(), nil
 	case types.Quantity:
@@ -643,13 +640,32 @@ func valuesEquivalent(left, right types.Value) bool {
 	return left.Equivalent(right)
 }
 
-// overflowEmpty answers empty for a value that overflows the decimals this
-// engine holds, as an overflow does, and the error for anything else.
+// exactInteger passes on an Integer result, or the ErrIntegerRange it lies
+// past the range with, which the evaluator answers empty. Add, Subtract,
+// Multiply, IntegerDivide and Negate report an Integer past the range so, as
+// they report ErrDecimalRange for a decimal.
+func exactInteger(v types.Integer, err error) (types.Value, error) {
+	if err != nil {
+		return nil, err
+	}
+	return v, nil
+}
+
+// overflowEmpty answers empty for a value that overflows the decimals or the
+// integers this engine holds, as an overflow does, and the error for anything
+// else.
 func overflowEmpty(err error) (types.Collection, error) {
-	if errors.Is(err, types.ErrDecimalRange) {
+	if isOverflow(err) {
 		return types.EmptyCollection, nil
 	}
 	return nil, err
+}
+
+// isOverflow reports an error that is an overflow: a decimal or an Integer
+// past the range this engine holds it in. "Operations that cause arithmetic
+// overflow or underflow will result in empty".
+func isOverflow(err error) bool {
+	return errors.Is(err, types.ErrDecimalRange) || errors.Is(err, types.ErrIntegerRange)
 }
 
 // NotEquivalent returns true if left !~ right.
