@@ -3,6 +3,8 @@
 package funcs
 
 import (
+	"errors"
+
 	"github.com/gofhir/fhirpath/eval"
 	"github.com/gofhir/fhirpath/types"
 )
@@ -34,6 +36,9 @@ func fnComparable(_ *eval.Context, input types.Collection, args []interface{}) (
 	// A FHIR Quantity object converts as the comparison operators convert it,
 	// and a bound compared with a quantity is refused as they refuse it
 	left, right, ok, err := eval.QuantityPair(input[0], argCol[0])
+	if errors.Is(err, types.ErrDecimalRange) {
+		return types.Collection{}, nil
+	}
 	if err != nil || !ok {
 		return types.Collection{}, err
 	}

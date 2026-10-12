@@ -297,6 +297,11 @@ func fnRound(_ *eval.Context, input types.Collection, args []interface{}) (types
 	case types.Integer:
 		return types.Collection{v}, nil
 	case types.Decimal:
+		// More places than this engine's decimals hold is an overflow, found
+		// before writing them out
+		if precision > types.DecimalDigits {
+			return types.Collection{}, nil
+		}
 		rounded := v.Value().Round(precision)
 		d, err := types.NewDecimal(rounded.String())
 		if err != nil {

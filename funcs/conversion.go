@@ -357,7 +357,7 @@ func fnConvertsToDecimal(_ *eval.Context, input types.Collection, _ []interface{
 	case types.Decimal, types.Integer, types.Boolean:
 		return types.Collection{types.NewBoolean(true)}, nil
 	case types.String:
-		_, err := decimal.NewFromString(v.Value())
+		_, err := types.ParseDecimal(v.Value())
 		return types.Collection{types.NewBoolean(err == nil)}, nil
 	default:
 		return types.Collection{types.NewBoolean(false)}, nil

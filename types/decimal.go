@@ -1,6 +1,7 @@
 package types
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"strings"
@@ -19,10 +20,67 @@ type Decimal struct {
 	primitiveElement
 }
 
-// NewDecimal creates a new Decimal from a string.
-func NewDecimal(s string) (Decimal, error) {
+// DecimalDigits bounds this engine's decimals: at most this many digits before
+// the decimal point, and none further than this many places after it.
+//
+// FHIRPath sets a range every implementation must reach, (-10^28+1)/10^8 to
+// (10^28-1)/10^8 with a step of 10^-8, and lets one go further; this engine
+// goes far further, but not without end. A decimal is held exactly, so one
+// written 1E8227822 is a number of eight million digits, and comparing or
+// rounding it wrote them all out: half a second for each =, and more than
+// five for round(). FHIR's own decimal allows an exponent of nine digits, so
+// the bound is the engine's, and a value beyond it is an overflow: "Operations
+// that cause arithmetic overflow or underflow will result in empty".
+const DecimalDigits = 1000
+
+// InDecimalRange reports a decimal within DecimalDigits on either side of the
+// point.
+//
+// A zero is bounded too: 0E2000000000 is no larger than 0, but writing it out
+// at its scale writes two billion zeroes.
+func InDecimalRange(d decimal.Decimal) bool {
+	exponent := int64(d.Exponent())
+	if exponent < -DecimalDigits || exponent > DecimalDigits {
+		return false
+	}
+	return d.IsZero() || exponent+int64(d.NumDigits()) <= DecimalDigits
+}
+
+// InRange reports a value whose decimal, its own or a quantity's, is within
+// DecimalDigits; any other value is in range.
+func InRange(v Value) bool {
+	switch value := v.(type) {
+	case Decimal:
+		return InDecimalRange(value.value)
+	case Quantity:
+		return InDecimalRange(value.value)
+	}
+	return true
+}
+
+// ErrDecimalRange reports a decimal beyond DecimalDigits.
+var ErrDecimalRange = errors.New("decimal beyond the range this engine holds")
+
+// ParseDecimal reads a decimal, refusing one beyond DecimalDigits.
+func ParseDecimal(s string) (decimal.Decimal, error) {
 	d, err := decimal.NewFromString(s)
 	if err != nil {
+		return decimal.Decimal{}, err
+	}
+	if !InDecimalRange(d) {
+		return decimal.Decimal{}, fmt.Errorf("%w: %.40s", ErrDecimalRange, s)
+	}
+	return d, nil
+}
+
+// NewDecimal creates a new Decimal from a string, refusing one beyond
+// DecimalDigits.
+func NewDecimal(s string) (Decimal, error) {
+	d, err := ParseDecimal(s)
+	if err != nil {
+		if errors.Is(err, ErrDecimalRange) {
+			return Decimal{}, err
+		}
 		return Decimal{}, fmt.Errorf("invalid decimal: %s", s)
 	}
 	return Decimal{value: d, original: s}, nil

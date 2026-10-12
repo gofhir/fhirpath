@@ -1783,10 +1783,20 @@ func applyMultiplicative(leftCol, rightCol types.Collection, op string) interfac
 	if err != nil {
 		// A zero divisor is not an error: "12 / 0 // empty ({ })", and the same
 		// for div and mod
-		if errors.Is(err, ErrDivideByZero) {
+		if errors.Is(err, ErrDivideByZero) || errors.Is(err, types.ErrDecimalRange) {
 			return types.Collection{}
 		}
 		return err
+	}
+	return arithmeticResult(result)
+}
+
+// arithmeticResult wraps the result of an arithmetic operator, empty where it
+// overflows the decimals this engine holds: "Operations that cause arithmetic
+// overflow or underflow will result in empty".
+func arithmeticResult(result types.Value) types.Collection {
+	if !types.InRange(result) {
+		return types.Collection{}
 	}
 	return types.Collection{result}
 }
@@ -1841,12 +1851,12 @@ func applyAdditive(leftCol, rightCol types.Collection, op string) interface{} {
 
 	if err != nil {
 		// Quantities with incommensurable units evaluate to empty, per spec
-		if errors.Is(err, types.ErrIncompatibleUnits) {
+		if errors.Is(err, types.ErrIncompatibleUnits) || errors.Is(err, types.ErrDecimalRange) {
 			return types.Collection{}
 		}
 		return err
 	}
-	return types.Collection{result}
+	return arithmeticResult(result)
 }
 
 // VisitUnionExpression visits expr | expr.

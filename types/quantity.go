@@ -61,7 +61,7 @@ func ParseQuantityString(s string) (Quantity, bool) {
 		return Quantity{}, false
 	}
 
-	value, err := decimal.NewFromString(matches[1])
+	value, err := ParseDecimal(matches[1])
 	if err != nil {
 		return Quantity{}, false
 	}
@@ -130,7 +130,7 @@ func NewQuantity(s string) (Quantity, error) {
 		return Quantity{}, fmt.Errorf("invalid quantity format: %s", s)
 	}
 
-	val, err := decimal.NewFromString(matches[1])
+	val, err := ParseDecimal(matches[1])
 	if err != nil {
 		return Quantity{}, fmt.Errorf("invalid quantity value: %s", matches[1])
 	}

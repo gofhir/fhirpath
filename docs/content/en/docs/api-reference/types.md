@@ -404,7 +404,11 @@ type Decimal struct {
 
 | Function | Signature | Description |
 |----------|-----------|-------------|
-| `NewDecimal` | `func NewDecimal(s string) (Decimal, error)` | Creates from a string like `"3.14"` |
+| `NewDecimal` | `func NewDecimal(s string) (Decimal, error)` | Creates from a string like `"3.14"`; a value beyond `DecimalDigits` returns `ErrDecimalRange` |
+| `ParseDecimal` | `func ParseDecimal(s string) (decimal.Decimal, error)` | Reads a `shopspring/decimal`, refusing one beyond `DecimalDigits` with `ErrDecimalRange` |
+| `InDecimalRange` | `func InDecimalRange(d decimal.Decimal) bool` | Reports a decimal within `DecimalDigits` on either side of the point |
+| `InRange` | `func InRange(v Value) bool` | Reports a `Decimal` or `Quantity` whose value is in range; any other value is |
+| `DecimalDigits` | `const DecimalDigits = 1000` | The engine's bound: at most 1000 digits before the point, none further than 1000 places after it. Beyond it a value overflows, and reads as empty |
 | `NewDecimalFromInt` | `func NewDecimalFromInt(v int64) Decimal` | Creates from an `int64` |
 | `NewDecimalFromFloat` | `func NewDecimalFromFloat(v float64) Decimal` | Creates from a `float64` |
 | `MustDecimal` | `func MustDecimal(s string) Decimal` | Like `NewDecimal`, panics on error |

@@ -2,7 +2,6 @@ package types
 
 import (
 	"encoding/json"
-	"regexp"
 	"testing"
 
 	"github.com/buger/jsonparser"
@@ -32,10 +31,6 @@ func FuzzEquivalentASCII(f *testing.F) {
 	})
 }
 
-// hugeExponent matches a number written with an exponent of four digits or
-// more, 0.E2000 among them.
-var hugeExponent = regexp.MustCompile(`[eE][+-]?\d{4,}`)
-
 // FuzzEquivalentJSON checks that equivalence of objects is reflexive and
 // symmetric, and holds wherever equality does.
 func FuzzEquivalentJSON(f *testing.F) {
@@ -48,15 +43,12 @@ func FuzzEquivalentJSON(f *testing.F) {
 		{`{"a":[]}`, `{}`},
 		{`{"q":{"value":4,"system":"http://unitsofmeasure.org","code":"g"}}`, `{"q":{"value":4040,"system":"http://unitsofmeasure.org","code":"mg"}}`},
 		{`{"v":[1,0.6]}`, `{"v":[1.4,1]}`},
+		{`{"a":0.E2000000000,"":1}`, `{"":0,"a":0}`},
+		{`{"":1E8227822}`, `{"":[9]}`},
 	} {
 		f.Add(seed[0], seed[1])
 	}
 	f.Fuzz(func(t *testing.T, a, b string) {
-		// A number with an exponent of thousands takes decimal arithmetic
-		// minutes wherever it is compared, not only here
-		if hugeExponent.MatchString(a) || hugeExponent.MatchString(b) {
-			return
-		}
 		x, y := []byte(a), []byte(b)
 		if !equivalentJSON(x, x) {
 			t.Fatalf("equivalentJSON(%q, itself) is false", a)
