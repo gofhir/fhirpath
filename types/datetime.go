@@ -400,7 +400,8 @@ func (dt DateTime) Millisecond() int { return dt.millis }
 // AddDuration adds a duration (as Quantity with temporal unit) to the datetime.
 // Supported units: year(s), month(s), week(s), day(s), hour(s), minute(s), second(s), millisecond(s)
 func (dt DateTime) AddDuration(value int, unit string) (DateTime, error) {
-	years, months, days, millis, err := durationParts(value, unit)
+	// The precisions run year to millisecond, as the duration fields do
+	years, months, days, millis, err := durationPartsAt(value, unit, durationField(dt.precision))
 	if err != nil {
 		return DateTime{}, err
 	}
