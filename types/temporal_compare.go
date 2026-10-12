@@ -40,13 +40,19 @@ var ErrPrecisionMismatch = errors.New("temporal values are specified to differen
 // the message looking in the wrong place.
 var ErrOffsetMismatch = errors.New("one temporal value specifies a timezone offset and the other does not")
 
+// ErrSpansOverlap reports that two temporal values written at different
+// offsets name spans of time that overlap without being the same, so their
+// order is unknown: @2020-01-01T10+05:30 is 04:30 to 05:30 at UTC, and
+// @2020-01-01T04Z 04:00 to 05:00. See compareSpans.
+var ErrSpansOverlap = errors.New("temporal values at different offsets name overlapping spans of time")
+
 // IsUnknownTemporalComparison reports whether err means a comparison of two
 // temporal values has no answer, rather than that it went wrong. The
 // specification expresses both as an empty result, so callers translate them
 // alike; asking through this predicate is what keeps a new one from being
 // handled in one place and forgotten in another.
 func IsUnknownTemporalComparison(err error) bool {
-	return errors.Is(err, ErrPrecisionMismatch) || errors.Is(err, ErrOffsetMismatch)
+	return errors.Is(err, ErrPrecisionMismatch) || errors.Is(err, ErrOffsetMismatch) || errors.Is(err, ErrSpansOverlap)
 }
 
 var errNotTemporal = errors.New("value is not a temporal that can be compared")
@@ -89,7 +95,8 @@ type temporalValue struct {
 // offsets, as the spans of time they name (see compareSpans).
 //
 // Returns ErrPrecisionMismatch when every shared component matches but the
-// values are specified to different precisions.
+// values are specified to different precisions, and, for two at different
+// offsets, ErrSpansOverlap when their spans overlap.
 func compareTemporal(left, right temporalValue) (int, error) {
 	// Two at different offsets are compared as the spans of time they name,
 	// which is what "respecting timezone offsets" amounts to: re-expressing a
@@ -134,7 +141,7 @@ func compareTemporal(left, right temporalValue) (int, error) {
 // compareSpans orders two values written at different offsets by the spans of
 // time they name: @2020-01-01T10+05:30 is 04:30 to 05:30 at UTC. The same
 // span is equal; spans apart are ordered; spans that overlap without being
-// the same have no order, the result unknown as for different precisions:
+// the same have no order, ErrSpansOverlap, unknown as for different precisions:
 // @2020-01-01T10+05:30 = @2020-01-01T04Z is empty, the two hours overlapping
 // from 04:30 to 05:00. A value given to the second or finer names an instant,
 // seconds and milliseconds being one precision.
@@ -149,7 +156,7 @@ func compareSpans(left, right temporalValue) (int, error) {
 	case !rightEnd.After(leftStart) && !leftStart.Equal(rightStart):
 		return 1, nil
 	}
-	return 0, ErrPrecisionMismatch
+	return 0, ErrSpansOverlap
 }
 
 // span returns the start and end of the time a value names at its precision,

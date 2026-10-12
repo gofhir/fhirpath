@@ -39,6 +39,7 @@ func TestTemporalSpansAcrossOffsets(t *testing.T) {
 		// A year, a month and a day run to their calendar ends
 		"'2020+05:00'.toDateTime() < '2020-12-31T18:00:00Z'.toDateTime()":       "EMPTY",
 		"'2020-01+05:00'.toDateTime() < '2020-01-30T20:00:00Z'.toDateTime()":    "EMPTY",
+		"'2020-02+05:00'.toDateTime() < '2020-02-29T19:00:00Z'.toDateTime()":    "true",
 		"'2020-01-01+05:00'.toDateTime() < '2020-01-01T00:00:00Z'.toDateTime()": "EMPTY",
 	} {
 		if got := evaluateScalar(t, expr, simpleJSON); got != want {
