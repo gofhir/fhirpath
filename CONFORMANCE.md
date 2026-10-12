@@ -940,10 +940,12 @@ the validator.
 | `"given": [null, "a"], "_given": [{}, null]` | `Patient.name.given.join(',')` | `a` |
 
 `=` compares the null, which equals no value. Where the validator raises a
-NullPointerException, `<`, the arithmetic operators and the String functions,
-this engine reads the value as empty: `"_birthDate": {}` makes
-`birthDate < @2020` empty. `given + 'x'` is empty too, where the validator
-answers `nullx`, Java's concatenation of a null. Up to 1.13.2 a primitive with
+NullPointerException, `<`, the arithmetic operators, unary `-`, the String
+functions, `duration()` and `difference()`, this engine reads the value as
+empty: `"_birthDate": {}` makes `birthDate < @2020` empty. `given + 'x'` is
+empty too, where the validator answers `nullx`, Java's concatenation of a
+null; `&` reads it as the empty string, as it does an empty operand, so
+`gender & 'x'` is `x`. Up to 1.13.2 a primitive with
 only an extension was read as an object: a boolean reading took it for true,
 `join()` wrote it as `{}`, and `allTrue()` raised a type error.
 

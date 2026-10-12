@@ -76,20 +76,39 @@ const indexedChildren = 16
 // where it first stands, as navigation reads it.
 func parseJSONObject(data []byte) (jsonObject, bool) {
 	object := jsonObject{children: make([]jsonChild, 0, 8)}
+	besides := 0
 	err := jsonparser.ObjectEach(data, func(key, value []byte, dataType jsonparser.ValueType, _ int) error {
 		if _, seen := object.find(key, len(object.children)); seen {
 			return nil
 		}
-		switch {
-		case dataType == jsonparser.Null, dataType == jsonparser.Array && nullsOnly(value):
+		if dataType == jsonparser.Null || dataType == jsonparser.Array && nullsOnly(value) {
 			return nil
-		case len(key) > 1 && key[0] == '_' && addsNothing(data, key, value, dataType):
-			return nil
+		}
+		if len(key) > 1 && key[0] == '_' {
+			besides++
 		}
 		object.add(jsonChild{key: key, data: value, dataType: dataType})
 		return nil
 	})
-	return object, err == nil
+	if err != nil || besides == 0 {
+		return object, err == nil
+	}
+
+	// The element beside a primitive is told by the value beside it, which
+	// the object may hold before it or after: looked up among the children
+	// once they are all read, so that each is found in the index rather than
+	// by reading the object again
+	kept := jsonObject{children: make([]jsonChild, 0, len(object.children))}
+	for _, child := range object.children {
+		if len(child.key) > 1 && child.key[0] == '_' {
+			value, _ := object.find(child.key[1:], len(object.children))
+			if addsNothing(child, value) {
+				continue
+			}
+		}
+		kept.add(child)
+	}
+	return kept, true
 }
 
 // add appends a child, indexing the children once there are enough of them.
@@ -127,34 +146,31 @@ func (o *jsonObject) find(key []byte, at int) (jsonChild, bool) {
 	return jsonChild{}, false
 }
 
-// addsNothing reports an element beside a primitive, _given beside given in
-// object, that holds no value and stands only beside values: given "J" with
-// _given [{}] is given "J", as in the HL7 validator. One beside a null is the
-// item there, and is kept.
-func addsNothing(object, key, element []byte, dataType jsonparser.ValueType) bool {
-	if !holdsNoValue(element, dataType) {
+// addsNothing reports an element beside a primitive, _given beside given,
+// that holds no value and stands only beside values: given "J" with _given
+// [{}] is given "J", as in the HL7 validator. One beside a null is the item
+// there, and is kept. value is the primitive's child, the zero jsonChild
+// where there is none; a null, or an array of nothing but nulls, is none.
+func addsNothing(element, value jsonChild) bool {
+	if !holdsNoValue(element.data, element.dataType) {
 		return false
 	}
-	value, valueType, _, err := jsonparser.Get(object, string(key[1:]))
-	if err != nil {
-		value, valueType = nil, jsonparser.NotExist
-	}
 
-	if dataType != jsonparser.Array {
-		return valueType != jsonparser.Null && valueType != jsonparser.NotExist && valueType != jsonparser.Array
+	if element.dataType != jsonparser.Array {
+		return value.key != nil && value.dataType != jsonparser.Array
 	}
 
 	var values []jsonparser.ValueType
-	if valueType == jsonparser.Array {
+	if value.key != nil && value.dataType == jsonparser.Array {
 		//nolint:errcheck // An array that does not parse stands beside nothing
-		jsonparser.ArrayEach(value, func(_ []byte, dataType jsonparser.ValueType, _ int, _ error) {
+		jsonparser.ArrayEach(value.data, func(_ []byte, dataType jsonparser.ValueType, _ int, _ error) {
 			values = append(values, dataType)
 		})
 	}
 	beside := true
 	i := 0
 	//nolint:errcheck // An array that does not parse holds no value, as holdsNoValue found
-	jsonparser.ArrayEach(element, func(_ []byte, dataType jsonparser.ValueType, _ int, _ error) {
+	jsonparser.ArrayEach(element.data, func(_ []byte, dataType jsonparser.ValueType, _ int, _ error) {
 		if dataType != jsonparser.Null && (i >= len(values) || values[i] == jsonparser.Null) {
 			beside = false
 		}

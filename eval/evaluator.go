@@ -1734,8 +1734,8 @@ func (e *Evaluator) VisitPolarityExpression(ctx *grammar.PolarityExpressionConte
 
 // applyPolarity applies a leading + or -.
 func applyPolarity(col types.Collection, negate bool) interface{} {
-	if col.Empty() {
-		return col
+	if noValue(col) {
+		return types.Collection{}
 	}
 	if len(col) != 1 {
 		return SingletonError(len(col))
