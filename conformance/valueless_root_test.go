@@ -23,6 +23,12 @@ func TestAPrimitiveWithNoValueBuiltAsTheRootHasNoValue(t *testing.T) {
 		// A complex value has one, as in the validator, which accepts
 		// "maritalStatus": {"id": "x"}
 		{`{"id":"x"}`, "CodeableConcept", "hasValue()", "[true]"},
+		// The type as the R4 model gives it for Resource.id, and as others
+		// spell a primitive
+		{`{"id":"x"}`, "http://hl7.org/fhirpath/System.String", "hasValue()", "[false]"},
+		{`{"id":"x"}`, "http://hl7.org/fhirpath/System.String", "hasValue() or (children().count() > id.count())", "[false]"},
+		{`{"id":"x"}`, "FHIR.string", "hasValue()", "[false]"},
+		{`{"id":"x"}`, "String", "hasValue()", "[false]"},
 	}
 
 	for _, tt := range tests {

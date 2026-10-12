@@ -34,10 +34,10 @@ type ObjectValue struct {
 	// private records that one goroutine reads the object, so it can keep
 	// what it works out about itself. See MarkPrivate.
 	private bool
-	// role records an object that is the root of the input it was read from,
-	// see Location, or the element of a primitive written with no value, see
-	// Valueless. An element is read from a field, so it is never a root, and
-	// one byte holds either.
+	// role records, as flags, an object that is the root of the input it was
+	// read from, see Location, and the element of a primitive written with no
+	// value, see Valueless. A caller can hand the engine such an element as
+	// the root, so one byte holds both.
 	role  objectRole
 	reads uint8 // how many times a field was read by scanning. See readField.
 	// position is the object's index in the field it was read from plus one,
@@ -137,7 +137,7 @@ func (o *ObjectValue) Location() string {
 	for ; top.parent != nil; top = top.parent {
 		chain = append(chain, top)
 	}
-	if top.role != roleRoot {
+	if top.role&roleRoot == 0 {
 		return ""
 	}
 
@@ -198,8 +198,8 @@ func (o *ObjectValue) Parent() *ObjectValue {
 // is read — its JSON, its parent, the field and index it was read from — and
 // leaves a root to name itself again, since a root records its name lazily.
 func (o *ObjectValue) reread() *ObjectValue {
-	if o.role == roleRoot {
-		return &ObjectValue{data: o.data, role: roleRoot}
+	if o.role&roleRoot != 0 {
+		return &ObjectValue{data: o.data, role: o.role}
 	}
 	return &ObjectValue{data: o.data, parent: o.parent, field: o.field, position: o.position, role: o.role}
 }
@@ -359,7 +359,7 @@ func (o *ObjectValue) rootName() string {
 func asRoot(col Collection) Collection {
 	for _, value := range col {
 		if obj, ok := value.(*ObjectValue); ok {
-			obj.role = roleRoot
+			obj.role |= roleRoot
 			if obj.typeName == "" {
 				obj.typeName = obj.readType()
 			}
@@ -409,11 +409,19 @@ func NewObjectValue(data []byte) *ObjectValue {
 
 // NewObjectValueWithType creates a new ObjectValue with an explicit FHIR type.
 // Used when the type is known from polymorphic field resolution (e.g., valueQuantity → "Quantity").
+//
+// An object of a FHIR primitive's type is the element of a primitive written
+// with no value, as a validator builds "_family" to evaluate it, and is
+// Valueless.
 func NewObjectValueWithType(data []byte, typeName string) *ObjectValue {
-	return &ObjectValue{
+	o := &ObjectValue{
 		data:     data,
 		typeName: typeName,
 	}
+	if isPrimitiveTypeName(typeName) {
+		o.role |= roleValueless
+	}
+	return o
 }
 
 // FHIR type constants for type inference.
@@ -915,26 +923,34 @@ func elementBeside(element jsonField) *ObjectValue {
 // reading, an operator or a String function, it is empty: Patient.active or
 // false is empty on "_active": {}, not true.
 //
-// An object typed as a FHIR primitive is one too, however it was made: a
-// primitive with a value is read as its value, so an object of a primitive's
-// type is only ever the element standing for one with none. A caller that
-// builds it itself, NewObjectValueWithType of "_family" as a string, and
-// evaluates it as the root, which takes the role of root, gets the same
-// answers as navigation does: hasValue() false, and ele-1 failing on an
-// element that holds only an id.
-func (o *ObjectValue) Valueless() bool {
-	return o.role == roleValueless || fhirPrimitives[o.typeName]
-}
+// One a caller builds itself is one too: NewObjectValueWithType of a
+// primitive's type marks it, since a primitive with a value is read as its
+// value and an object of a primitive's type is only ever the element standing
+// for one with none. Evaluated as the root, it keeps the mark, and answers as
+// navigation does: hasValue() false, and ele-1 failing on "_family":
+// {"id": "x"}. The element beside a primitive that has a value is not marked:
+// it is no item.
+func (o *ObjectValue) Valueless() bool { return o.role&roleValueless != 0 }
 
-// objectRole is what sets an object apart from the others; see
+// objectRole is what sets an object apart from the others, as flags; see
 // ObjectValue.role.
 type objectRole uint8
 
 const (
-	roleNone objectRole = iota
-	roleRoot
+	roleRoot objectRole = 1 << iota
 	roleValueless
 )
+
+// isPrimitiveTypeName reports a type name that names a FHIR primitive, as a
+// model or a caller may write it: string, FHIR.string, or the System type R4
+// declares for Resource.id, http://hl7.org/fhirpath/System.String.
+func isPrimitiveTypeName(typeName string) bool {
+	typeName = strings.TrimPrefix(typeName, "FHIR.")
+	if system, ok := strings.CutPrefix(typeName, systemTypePrefix); ok {
+		typeName = system
+	}
+	return fhirPrimitives[lowerFirst(typeName)]
+}
 
 // HoldsNoValue reports an object under which nothing holds a value: an
 // element written as {}, as {"extension": [{}]}, or a resource written with
@@ -1297,7 +1313,7 @@ func pairValueWithElement(value jsonField, element *ObjectValue, fhirType string
 		// which ofType(boolean) keeps. The type is the one the model declares
 		// for the field, or the one a choice element's name tells; without
 		// either there is none to give.
-		element.role = roleValueless
+		element.role |= roleValueless
 		if primitiveType := primitiveTypeOf(fhirType); primitiveType != "" {
 			element.typeName = primitiveType
 		}
