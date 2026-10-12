@@ -1,6 +1,7 @@
 package funcs
 
 import (
+	"errors"
 	"fmt"
 	"time"
 
@@ -73,6 +74,9 @@ func boundaryOf(value types.Value, precision int, provided, low bool) (types.Col
 		// A FHIR Quantity, mapped as comparable() and the comparison operators
 		// map it, and a bound refused as they refuse it
 		q, ok, err := eval.AsQuantity(v)
+		if errors.Is(err, types.ErrDecimalRange) {
+			return types.Collection{}, nil
+		}
 		if err != nil || !ok {
 			return types.Collection{}, err
 		}

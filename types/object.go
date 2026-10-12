@@ -2258,9 +2258,9 @@ var ErrQuantityBound = errors.New("a FHIR Quantity with a comparator is a bound,
 // AsQuantity converts a FHIR Quantity as [ObjectValue.ToQuantity] does, and
 // reports one that would convert but for its comparator as [ErrQuantityBound].
 func (o *ObjectValue) AsQuantity() (Quantity, bool, error) {
-	val, ok := o.quantityValue()
+	val, ok, err := o.quantityValue()
 	if !ok {
-		return Quantity{}, false, nil
+		return Quantity{}, false, err
 	}
 
 	// Prefer "code" over "unit": code carries the computable UCUM symbol ("mg"),
@@ -2293,7 +2293,7 @@ func (o *ObjectValue) AsQuantity() (Quantity, bool, error) {
 // QuantityBound reports [ErrQuantityBound] for a FHIR Quantity with a
 // comparator, and nil for anything else.
 func (o *ObjectValue) QuantityBound() error {
-	if _, ok := o.quantityValue(); !ok {
+	if _, ok, err := o.quantityValue(); !ok && err == nil {
 		return nil
 	}
 	return o.quantityBound()
@@ -2327,7 +2327,7 @@ func (o *ObjectValue) money() (decimal.Decimal, string, bool) {
 	if err != nil || dataType != jsonparser.Number {
 		return decimal.Decimal{}, "", false
 	}
-	value, err := decimal.NewFromString(string(valueBytes))
+	value, err := ParseDecimal(string(valueBytes))
 	if err != nil {
 		return decimal.Decimal{}, "", false
 	}
@@ -2337,19 +2337,25 @@ func (o *ObjectValue) money() (decimal.Decimal, string, bool) {
 // quantityValue reads the value of a FHIR Quantity: a number, on an object that
 // is not a Money. A Money has a value too, but its currency is no unit, and
 // mapping it with none made a sum of money comparable to a mass.
-func (o *ObjectValue) quantityValue() (decimal.Decimal, bool) {
+//
+// A value beyond the decimals this engine holds is reported as
+// ErrDecimalRange: the object is a quantity, but its value overflows.
+func (o *ObjectValue) quantityValue() (decimal.Decimal, bool, error) {
 	valueBytes, dataType, _, err := jsonparser.Get(o.data, "value")
 	if err != nil || dataType != jsonparser.Number {
-		return decimal.Decimal{}, false
-	}
-	val, err := decimal.NewFromString(string(valueBytes))
-	if err != nil {
-		return decimal.Decimal{}, false
+		return decimal.Decimal{}, false, nil
 	}
 	if _, isMoney := o.stringField("currency"); isMoney {
-		return decimal.Decimal{}, false
+		return decimal.Decimal{}, false, nil
 	}
-	return val, true
+	val, err := ParseDecimal(string(valueBytes))
+	if err != nil {
+		if errors.Is(err, ErrDecimalRange) {
+			return decimal.Decimal{}, false, err
+		}
+		return decimal.Decimal{}, false, nil
+	}
+	return val, true, nil
 }
 
 // quantityBound reports the comparator of a quantity, if it has one.

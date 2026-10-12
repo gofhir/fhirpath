@@ -404,7 +404,13 @@ type Decimal struct {
 
 | Función | Firma | Descripción |
 |----------|-----------|-------------|
-| `NewDecimal` | `func NewDecimal(s string) (Decimal, error)` | Crea desde una cadena como `"3.14"` |
+| `NewDecimal` | `func NewDecimal(s string) (Decimal, error)` | Crea desde una cadena como `"3.14"`; un valor fuera de `DecimalDigits` devuelve `ErrDecimalRange` |
+| `ParseDecimal` | `func ParseDecimal(s string) (decimal.Decimal, error)` | Lee un `shopspring/decimal`, rechazando con `ErrDecimalRange` uno fuera de `DecimalDigits` |
+| `InDecimalRange` | `func InDecimalRange(d decimal.Decimal) bool` | Indica si un decimal esta dentro de `DecimalDigits` a ambos lados de la coma |
+| `InRange` | `func InRange(v Value) bool` | Indica si un `Decimal` o `Quantity` tiene su valor dentro del rango; cualquier otro valor lo esta |
+| `WithinRange` | `func WithinRange(v Value) (Value, bool)` | Devuelve un valor calculado tal como lo maneja el motor, llevando un cero fuera del limite a la escala mas cercana dentro de el, y false si desborda |
+| `ErrDecimalRange` | `var ErrDecimalRange error` | El error para un decimal fuera de `DecimalDigits` |
+| `DecimalDigits` | `const DecimalDigits = 1000` | El limite del motor: hasta 1000 digitos antes de la coma y ninguno mas alla de 1000 lugares despues. Fuera de el, un valor desborda y se lee como vacio |
 | `NewDecimalFromInt` | `func NewDecimalFromInt(v int64) Decimal` | Crea desde un `int64` |
 | `NewDecimalFromFloat` | `func NewDecimalFromFloat(v float64) Decimal` | Crea desde un `float64` |
 | `MustDecimal` | `func MustDecimal(s string) Decimal` | Como `NewDecimal`, genera panic en caso de error |

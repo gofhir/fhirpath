@@ -357,7 +357,7 @@ func fnConvertsToDecimal(_ *eval.Context, input types.Collection, _ []interface{
 	case types.Decimal, types.Integer, types.Boolean:
 		return types.Collection{types.NewBoolean(true)}, nil
 	case types.String:
-		_, err := decimal.NewFromString(v.Value())
+		_, err := types.ParseDecimal(v.Value())
 		return types.Collection{types.NewBoolean(err == nil)}, nil
 	default:
 		return types.Collection{types.NewBoolean(false)}, nil
@@ -539,7 +539,8 @@ func fnToQuantity(_ *eval.Context, input types.Collection, args []interface{}) (
 	// With one, the value is converted rather than relabelled: 52 'cm' in
 	// meters is 0.52 'm', and a value that cannot be converted is empty
 	converted, ok := quantity.ConvertTo(unit)
-	if !ok {
+	if !ok || !types.InRange(converted) {
+		// A value converted past the decimals this engine holds overflows
 		return types.Collection{}, nil
 	}
 	return types.Collection{converted}, nil

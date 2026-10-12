@@ -84,7 +84,7 @@ func Convert(value decimal.Decimal, from, to string) (decimal.Decimal, error) {
 			}
 			// Zero on a logarithmic scale is minus infinity, which no decimal holds
 			if math.IsInf(approximate, 0) || math.IsNaN(approximate) {
-				return decimal.Decimal{}, fmt.Errorf("ucum: %s in %s has no finite value", from, to)
+				return decimal.Decimal{}, fmt.Errorf("%w: %s in %s", ErrNotFinite, from, to)
 			}
 			return decimal.NewFromFloat(approximate), nil
 		}
@@ -232,8 +232,15 @@ func combine(leftValue decimal.Decimal, leftUnit string, rightValue decimal.Deci
 		return decimal.Decimal{}, "", err
 	}
 
-	left := ucumlib.Pair{Value: leftValue.InexactFloat64(), Code: leftUnit}
-	right := ucumlib.Pair{Value: rightValue.InexactFloat64(), Code: rightUnit}
+	// The library combines the two in float64, applying each unit's scale, an
+	// offset or a logarithm included. A value past float64's range has no
+	// answer there; one too small for it is zero, as it always was
+	leftFloat, rightFloat := leftValue.InexactFloat64(), rightValue.InexactFloat64()
+	if !finite(leftFloat) || !finite(rightFloat) {
+		return decimal.Decimal{}, "", ErrNotFinite
+	}
+	left := ucumlib.Pair{Value: leftFloat, Code: leftUnit}
+	right := ucumlib.Pair{Value: rightFloat, Code: rightUnit}
 
 	var result ucumlib.Pair
 	if divide {
@@ -244,9 +251,21 @@ func combine(leftValue decimal.Decimal, leftUnit string, rightValue decimal.Deci
 	if err != nil {
 		return decimal.Decimal{}, "", err
 	}
+	if !finite(result.Value) {
+		return decimal.Decimal{}, "", ErrNotFinite
+	}
 
 	return decimal.NewFromFloat(result.Value), result.Code, nil
 }
+
+// finite reports a float64 that is a number.
+func finite(f float64) bool {
+	return !math.IsInf(f, 0) && !math.IsNaN(f)
+}
+
+// ErrNotFinite reports a result that has no finite value, which no decimal
+// holds: 1E200 'm' by 1E200 'm' in float64, or zero on a logarithmic scale.
+var ErrNotFinite = errors.New("ucum: the result has no finite value")
 
 // Validate reports whether a code is a well-formed UCUM unit.
 func Validate(code string) error {

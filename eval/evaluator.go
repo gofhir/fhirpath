@@ -697,6 +697,11 @@ func (e *Evaluator) VisitNumberLiteral(ctx *grammar.NumberLiteralContext) interf
 
 	// Parse as decimal
 	d, err := types.NewDecimal(text)
+	if errors.Is(err, types.ErrDecimalRange) {
+		// A literal beyond the decimals this engine holds overflows, as the
+		// same text does through toDecimal()
+		return types.Collection{}
+	}
 	if err != nil {
 		return ParseError("invalid number: " + text)
 	}
@@ -749,6 +754,11 @@ func (e *Evaluator) VisitTimeLiteral(ctx *grammar.TimeLiteralContext) interface{
 func (e *Evaluator) VisitQuantityLiteral(ctx *grammar.QuantityLiteralContext) interface{} {
 	text := ctx.GetText()
 	q, err := types.NewQuantity(text)
+	if errors.Is(err, types.ErrDecimalRange) {
+		// A value beyond the decimals this engine holds overflows, as a
+		// number literal does
+		return types.Collection{}
+	}
 	if err != nil {
 		return ParseError("invalid quantity: " + text)
 	}
@@ -1064,8 +1074,13 @@ func quantityKeys(keys [][]types.Collection) {
 			if _, isObject := key[0].(*types.ObjectValue); !isObject {
 				continue
 			}
-			if q, ok, err := AsQuantity(key[0]); err == nil && ok {
+			q, ok, err := AsQuantity(key[0])
+			switch {
+			case err == nil && ok:
 				itemKeys[i] = types.Collection{q}
+			case errors.Is(err, types.ErrDecimalRange):
+				// A quantity whose value overflows is empty, as an overflow is
+				itemKeys[i] = types.Collection{}
 			}
 		}
 	}
@@ -1783,10 +1798,21 @@ func applyMultiplicative(leftCol, rightCol types.Collection, op string) interfac
 	if err != nil {
 		// A zero divisor is not an error: "12 / 0 // empty ({ })", and the same
 		// for div and mod
-		if errors.Is(err, ErrDivideByZero) {
+		if errors.Is(err, ErrDivideByZero) || errors.Is(err, types.ErrDecimalRange) {
 			return types.Collection{}
 		}
 		return err
+	}
+	return arithmeticResult(result)
+}
+
+// arithmeticResult wraps the result of an arithmetic operator, empty where it
+// overflows the decimals this engine holds: "Operations that cause arithmetic
+// overflow or underflow will result in empty".
+func arithmeticResult(result types.Value) types.Collection {
+	result, ok := types.WithinRange(result)
+	if !ok {
+		return types.Collection{}
 	}
 	return types.Collection{result}
 }
@@ -1841,12 +1867,12 @@ func applyAdditive(leftCol, rightCol types.Collection, op string) interface{} {
 
 	if err != nil {
 		// Quantities with incommensurable units evaluate to empty, per spec
-		if errors.Is(err, types.ErrIncompatibleUnits) {
+		if errors.Is(err, types.ErrIncompatibleUnits) || errors.Is(err, types.ErrDecimalRange) {
 			return types.Collection{}
 		}
 		return err
 	}
-	return types.Collection{result}
+	return arithmeticResult(result)
 }
 
 // VisitUnionExpression visits expr | expr.

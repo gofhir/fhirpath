@@ -25,6 +25,10 @@ func AsQuantity(v types.Value) (types.Quantity, bool, error) {
 		return q, true, nil
 	case *types.ObjectValue:
 		quantity, ok, err := q.AsQuantity()
+		if errors.Is(err, types.ErrDecimalRange) {
+			// An overflow, not a bound: the caller answers empty
+			return types.Quantity{}, false, err
+		}
 		if err != nil {
 			return types.Quantity{}, false, boundError(err)
 		}
@@ -46,7 +50,11 @@ func boundError(err error) error {
 func QuantityPair(left, right types.Value) (lq, rq types.Quantity, ok bool, err error) {
 	lq, lok, lerr := AsQuantity(left)
 	rq, rok, rerr := AsQuantity(right)
+	leftOverflows, rightOverflows := errors.Is(lerr, types.ErrDecimalRange), errors.Is(rerr, types.ErrDecimalRange)
 	switch {
+	// A quantity whose value overflows, against another quantity: an overflow
+	case leftOverflows && rightOverflows:
+		return types.Quantity{}, types.Quantity{}, false, types.ErrDecimalRange
 	case lerr != nil && rok:
 		return types.Quantity{}, types.Quantity{}, false, lerr
 	case rerr != nil && lok:
@@ -483,7 +491,8 @@ func compareWith(left, right types.Value, accept func(cmp int) bool) (types.Coll
 		// Both cases are "the answer is unknown", which the spec expresses as
 		// empty: quantities whose units are not commensurable, and temporals
 		// that cannot be placed against one another.
-		if errors.Is(err, types.ErrIncompatibleUnits) || types.IsUnknownTemporalComparison(err) {
+		if errors.Is(err, types.ErrIncompatibleUnits) || types.IsUnknownTemporalComparison(err) ||
+			errors.Is(err, types.ErrDecimalRange) {
 			return types.EmptyCollection, nil
 		}
 		return nil, err
@@ -585,7 +594,7 @@ func equal(left, right types.Collection) (types.Collection, error) {
 		//	1 week = 1 'wk'  // true  ; these two are equal by definition
 		lq, rq, ok, err := QuantityPair(left[i], right[i])
 		if err != nil {
-			return nil, err
+			return overflowEmpty(err)
 		}
 		if ok {
 			if !lq.Comparable(rq) {
@@ -713,10 +722,23 @@ func equivalent(left, right types.Collection) (types.Collection, error) {
 // refused, as under =; two objects compare as complex types.
 func valuesEquivalent(left, right types.Value) (bool, error) {
 	lq, rq, ok, err := literalQuantityOperands(left, right)
+	if errors.Is(err, types.ErrDecimalRange) {
+		// A value that overflows is equivalent to nothing
+		return false, nil
+	}
 	if err != nil || ok {
 		return err == nil && lq.Equivalent(rq), err
 	}
 	return left.Equivalent(right), nil
+}
+
+// overflowEmpty answers empty for a value that overflows the decimals this
+// engine holds, as an overflow does, and the error for anything else.
+func overflowEmpty(err error) (types.Collection, error) {
+	if errors.Is(err, types.ErrDecimalRange) {
+		return types.EmptyCollection, nil
+	}
+	return nil, err
 }
 
 // NotEquivalent returns true if left !~ right.
