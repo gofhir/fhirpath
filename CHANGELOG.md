@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.13.2](https://github.com/gofhir/fhirpath/compare/v1.13.1...v1.13.2) (2026-10-12)
+
+
+### Bug Fixes
+
+* a quantity finer than a partial date is truncated to its precision before the shift ([#150](https://github.com/gofhir/fhirpath/issues/150)) ([b85edcf](https://github.com/gofhir/fhirpath/commit/b85edcfb603df0fef9a5d3ba3e98019726abf73e))
+* dates off the calendar and times off the clock are not dates or times ([#147](https://github.com/gofhir/fhirpath/issues/147)) ([330ac94](https://github.com/gofhir/fhirpath/commit/330ac94781cdc5045d899725c30b8b7ef6b9ed4a))
+
 ## [1.13.1](https://github.com/gofhir/fhirpath/compare/v1.13.0...v1.13.1) (2026-10-12)
 
 
