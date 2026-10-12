@@ -635,7 +635,7 @@ func fnLength(_ *eval.Context, input types.Collection, _ []interface{}) (types.C
 // present is false with no error when the input is empty, which callers turn
 // into an empty result.
 func toString(col types.Collection) (value string, present bool, err error) {
-	if col.Empty() {
+	if col.Empty() || col.Valueless() {
 		return "", false, nil
 	}
 	if len(col) > 1 {

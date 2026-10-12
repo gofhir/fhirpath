@@ -921,9 +921,26 @@ it is false and `empty()` true. Nothing else about it changes: it is still
 the input, and an expression that does not ask whether it exists reads it as
 before.
 
-Not measured, and so left as the specification text has them: `iif()`,
-`coalesce()` and the boolean reading of a collection, which see such an
-element as an item.
+`iif()`, `coalesce()` and the boolean reading of a collection see such an
+element as an item, as the validator does: on a contact whose `name` is `{}`,
+`iif(Patient.contact.name, 'a', 'b')` is `a`, and
+`coalesce(Patient.contact.name, 'x').exists()` false.
+
+A primitive written with no value, only the element beside it, is the
+exception: its value is null, and where a value is wanted it is empty, as in
+the validator.
+
+| On | Expression | Validator and this engine |
+|---|---|---|
+| `"_active": {}` | `Patient.active or false`, `Patient.active.not()` | empty |
+| | `iif(Patient.active, 'a', 'b')` | `b` |
+| `"_active": {"extension": [...]}` | `Patient.active or false`, `Patient.active.not()` | empty |
+
+Where the validator raises a NullPointerException instead, this engine reads
+the value as empty too: `=`, `<`, `+` and the String functions give empty, so
+`"_birthDate": {}` makes `birthDate < @2020` empty. Up to 1.13.2 a primitive
+with only an extension was read as an object, and a boolean reading took it
+for true.
 
 `~` compares children as navigation reads them, so a member written `{}` is a
 child: `contact[0] ~ contact[1]` is false between a contact whose `name` is `{}`

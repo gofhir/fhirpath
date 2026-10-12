@@ -1,7 +1,10 @@
 package fhirpath_test
 
 import (
+	"fmt"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/gofhir/fhirpath"
 )
@@ -81,6 +84,21 @@ func TestAnElementThatHoldsNoValueIsAnItemThatDoesNotExist(t *testing.T) {
 		{`{"resourceType":"Patient","name":[{"given":[null,"J"],"_given":[{},null]}]}`, "Patient.name.given.count()", "[2]"},
 		{`{"resourceType":"Patient","name":[{"given":[null,"J"],"_given":[{},null]}]}`, "Patient.name.given.exists()", "[true]"},
 		{`{"resourceType":"Patient","name":[{"given":[null,"J"],"_given":[{},null]}]}`, "Patient.name.given.first().exists()", "[false]"},
+		// Its value is null, so where a value is wanted it is empty, not an
+		// object that a Boolean reading takes for true.
+		{`{"resourceType":"Patient","_active":{}}`, "Patient.active or false", "[]"},
+		{`{"resourceType":"Patient","_active":{}}`, "Patient.active.not()", "[]"},
+		{`{"resourceType":"Patient","_active":{}}`, "iif(Patient.active, 'a', 'b')", "[b]"},
+		{`{"resourceType":"Patient","_active":{"extension":[{"url":"u","valueString":"x"}]}}`, "Patient.active or false", "[]"},
+		{`{"resourceType":"Patient","_active":{"extension":[{"url":"u","valueString":"x"}]}}`, "Patient.active.not()", "[]"},
+		{`{"resourceType":"Patient","_active":{"extension":[{"url":"u","valueString":"x"}]}}`, "Patient.active.exists()", "[true]"},
+		{`{"resourceType":"Patient","active":true,"_active":{}}`, "Patient.active or false", "[true]"},
+		// Not measured: the HL7 validator raises a NullPointerException.
+		{`{"resourceType":"Patient","_active":{}}`, "Patient.active = true", "[]"},
+		{`{"resourceType":"Patient","_birthDate":{}}`, "Patient.birthDate < @2020", "[]"},
+		{`{"resourceType":"Patient","_birthDate":{}}`, "Patient.birthDate + 1 day", "[]"},
+		{`{"resourceType":"Patient","name":[{"given":[null],"_given":[{}]}]}`, "Patient.name.given.length()", "[]"},
+		{`{"resourceType":"Patient","name":[{"given":[null],"_given":[{}]}]}`, "Patient.name.given + 'x'", "[]"},
 		// ~ compares children as navigation reads them: a member written {}
 		// is a child, and an element beside a value that holds none is not.
 		{`{"resourceType":"Patient","contact":[{"gender":"male","name":{}},{"gender":"male"}]}`, "Patient.contact[0] ~ Patient.contact[1]", "[false]"},
@@ -118,5 +136,37 @@ func TestAnElementThatHoldsNoValueIsAnItemThatDoesNotExist(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestExistsReadsAResourceOnlyUpToAValue checks that exists() on a resource
+// costs no more than reading it up to its first value. A Bundle that writes
+// its entries before its type would otherwise be read whole for each entry
+// here, and 20000 entries took minutes.
+func TestExistsReadsAResourceOnlyUpToAValue(t *testing.T) {
+	if testing.Short() {
+		t.Skip("reads a large Bundle")
+	}
+	var bundle strings.Builder
+	bundle.WriteString(`{"resourceType":"Bundle","entry":[`)
+	const entries = 20000
+	for i := 0; i < entries; i++ {
+		if i > 0 {
+			bundle.WriteString(",")
+		}
+		fmt.Fprintf(&bundle, `{"resource":{"resourceType":"Patient","id":"p%d"}}`, i)
+	}
+	bundle.WriteString(`],"type":"collection"}`)
+
+	start := time.Now()
+	result, err := fhirpath.Evaluate([]byte(bundle.String()), "Bundle.entry.where(%resource.exists()).count()")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := result.String(); got != fmt.Sprintf("[%d]", entries) {
+		t.Errorf("count = %s, want %d", got, entries)
+	}
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Errorf("took %v: exists() reads the whole Bundle for each entry", elapsed)
 	}
 }

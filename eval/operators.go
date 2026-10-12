@@ -557,10 +557,15 @@ func Equal(left, right types.Collection) types.Collection {
 	return result
 }
 
+// noValue reports an operand that propagates empty: an empty collection, or
+// a primitive written with no value; see types.Collection.Valueless.
+func noValue(operand types.Collection) bool {
+	return operand.Empty() || operand.Valueless()
+}
+
 // equal is Equal with the error it can end in.
 func equal(left, right types.Collection) (types.Collection, error) {
-	// Empty propagation
-	if left.Empty() || right.Empty() {
+	if noValue(left) || noValue(right) {
 		return types.EmptyCollection, nil
 	}
 

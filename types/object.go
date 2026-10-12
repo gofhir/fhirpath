@@ -35,9 +35,11 @@ type ObjectValue struct {
 	// private records that one goroutine reads the object, so it can keep
 	// what it works out about itself. See MarkPrivate.
 	private bool
-	// root records that the object is the root of the input it was read from.
-	// See Location.
-	root  bool
+	// role records an object that is the root of the input it was read from,
+	// see Location, or the element of a primitive written with no value, see
+	// Valueless. An element is read from a field, so it is never a root, and
+	// one byte holds either.
+	role  objectRole
 	reads uint8 // how many times a field was read by scanning. See readField.
 	// position is the object's index in the field it was read from plus one,
 	// or zero when the field is not an array. A root is read from no field,
@@ -136,7 +138,7 @@ func (o *ObjectValue) Location() string {
 	for ; top.parent != nil; top = top.parent {
 		chain = append(chain, top)
 	}
-	if !top.root {
+	if top.role != roleRoot {
 		return ""
 	}
 
@@ -197,8 +199,8 @@ func (o *ObjectValue) Parent() *ObjectValue {
 // is read — its JSON, its parent, the field and index it was read from — and
 // leaves a root to name itself again, since a root records its name lazily.
 func (o *ObjectValue) reread() *ObjectValue {
-	if o.root {
-		return &ObjectValue{data: o.data, root: true}
+	if o.role == roleRoot {
+		return &ObjectValue{data: o.data, role: roleRoot}
 	}
 	return &ObjectValue{data: o.data, parent: o.parent, field: o.field, position: o.position}
 }
@@ -358,7 +360,7 @@ func (o *ObjectValue) rootName() string {
 func asRoot(col Collection) Collection {
 	for _, value := range col {
 		if obj, ok := value.(*ObjectValue); ok {
-			obj.root = true
+			obj.role = roleRoot
 			if obj.typeName == "" {
 				obj.typeName = obj.readType()
 			}
@@ -885,6 +887,23 @@ func elementBeside(element jsonField) *ObjectValue {
 	return NewObjectValue(element.data)
 }
 
+// Valueless reports the element of a primitive written with no value: an
+// item of its collection, which navigation reaches, but one whose value is
+// null, as the HL7 validator reads it. Where a value is wanted, in a Boolean
+// reading, an operator or a String function, it is empty: Patient.active or
+// false is empty on "_active": {}, not true.
+func (o *ObjectValue) Valueless() bool { return o.role == roleValueless }
+
+// objectRole is what sets an object apart from the others; see
+// ObjectValue.role.
+type objectRole uint8
+
+const (
+	roleNone objectRole = iota
+	roleRoot
+	roleValueless
+)
+
 // HoldsNoValue reports an object under which nothing holds a value: an
 // element written as {}, as {"extension": [{}]}, or a resource written with
 // nothing but its resourceType. ele-1, which every element inherits, says
@@ -905,41 +924,120 @@ func holdsNoValue(data []byte, dataType jsonparser.ValueType) bool {
 	switch dataType {
 	case jsonparser.Null:
 		return true
-
-	case jsonparser.Object:
-		empty := true
-		err := jsonparser.ObjectEach(data, func(key, value []byte, dataType jsonparser.ValueType, _ int) error {
-			if string(key) == "resourceType" || holdsNoValue(value, dataType) {
-				return nil
-			}
-			empty = false
-			return errFieldsFound
-		})
-		// An object that does not parse is not known to hold nothing.
-		return empty && err == nil
-
-	case jsonparser.Array:
-		return arrayHoldsNoValue(data)
+	case jsonparser.Object, jsonparser.Array:
+		noValue, _ := holdsNoValueAt(data, skipJSONSpace(data, 0))
+		return noValue
 	}
 	return false
 }
 
-// arrayHoldsNoValue reports a JSON array whose items hold no value, reading
-// item by item and stopping at the first that holds one, where ArrayEach
-// would read the array through.
-func arrayHoldsNoValue(data []byte) bool {
-	offset := skipJSONSpace(data, 1) // past the [
-	for offset < len(data) && data[offset] != ']' {
-		item, itemType, end, err := jsonparser.Get(data[offset:])
-		if err != nil || !holdsNoValue(item, itemType) {
-			return false
+// holdsNoValueAt reads the JSON value that starts at offset, and reports
+// whether nothing under it holds a value and, when nothing does, where it
+// ends. It stops at the first value it meets: an object or array is read only
+// up to there, where finding its members first, as ObjectEach does, would read
+// it all, and exists() on a Bundle whose entries come before its type would
+// cost the whole Bundle each time. A value that does not parse is not known
+// to hold nothing.
+func holdsNoValueAt(data []byte, offset int) (noValue bool, end int) {
+	if offset >= len(data) {
+		return false, 0
+	}
+	switch data[offset] {
+	case 'n':
+		if !bytes.HasPrefix(data[offset:], []byte("null")) {
+			return false, 0
 		}
-		offset = skipJSONSpace(data, offset+end)
-		if offset < len(data) && data[offset] == ',' {
+		return true, offset + len("null")
+
+	case '[':
+		return arrayHoldsNoValueAt(data, offset)
+	case '{':
+		return objectHoldsNoValueAt(data, offset)
+	}
+	return false, 0
+}
+
+// arrayHoldsNoValueAt is holdsNoValueAt for the array that starts at offset.
+func arrayHoldsNoValueAt(data []byte, offset int) (noValue bool, end int) {
+	offset = skipJSONSpace(data, offset+1)
+	if offset < len(data) && data[offset] == ']' {
+		return true, offset + 1
+	}
+	for offset < len(data) {
+		noValue, end := holdsNoValueAt(data, offset)
+		if !noValue {
+			return false, 0
+		}
+		offset = skipJSONSpace(data, end)
+		switch {
+		case offset < len(data) && data[offset] == ',':
 			offset = skipJSONSpace(data, offset+1)
+		case offset < len(data) && data[offset] == ']':
+			return true, offset + 1
+		default:
+			return false, 0
 		}
 	}
-	return offset < len(data)
+	return false, 0
+}
+
+// objectHoldsNoValueAt is holdsNoValueAt for the object that starts at offset.
+func objectHoldsNoValueAt(data []byte, offset int) (noValue bool, end int) {
+	offset = skipJSONSpace(data, offset+1)
+	if offset < len(data) && data[offset] == '}' {
+		return true, offset + 1
+	}
+	for offset < len(data) && data[offset] == '"' {
+		keyEnd := stringEnd(data, offset)
+		if keyEnd < 0 {
+			return false, 0
+		}
+		key := data[offset+1 : keyEnd-1]
+		offset = skipJSONSpace(data, keyEnd)
+		if offset >= len(data) || data[offset] != ':' {
+			return false, 0
+		}
+		offset = skipJSONSpace(data, offset+1)
+
+		if string(key) == "resourceType" {
+			_, _, skipped, err := jsonparser.Get(data[offset:])
+			if err != nil {
+				return false, 0
+			}
+			offset += skipped
+		} else {
+			noValue, end := holdsNoValueAt(data, offset)
+			if !noValue {
+				return false, 0
+			}
+			offset = end
+		}
+
+		offset = skipJSONSpace(data, offset)
+		switch {
+		case offset < len(data) && data[offset] == ',':
+			offset = skipJSONSpace(data, offset+1)
+		case offset < len(data) && data[offset] == '}':
+			return true, offset + 1
+		default:
+			return false, 0
+		}
+	}
+	return false, 0
+}
+
+// stringEnd returns the offset just past the JSON string that starts at
+// offset, or -1 when it does not close.
+func stringEnd(data []byte, offset int) int {
+	for i := offset + 1; i < len(data); i++ {
+		switch data[i] {
+		case '\\':
+			i++
+		case '"':
+			return i + 1
+		}
+	}
+	return -1
 }
 
 // skipJSONSpace returns the offset of the first byte from offset on that is
@@ -1148,6 +1246,7 @@ func pairValueWithElement(
 		if element == nil {
 			return Collection{}
 		}
+		element.role = roleValueless
 		return Collection{element}
 	}
 
