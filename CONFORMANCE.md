@@ -935,12 +935,17 @@ the validator.
 | `"_active": {}` | `Patient.active or false`, `Patient.active.not()` | empty |
 | | `iif(Patient.active, 'a', 'b')` | `b` |
 | `"_active": {"extension": [...]}` | `Patient.active or false`, `Patient.active.not()` | empty |
+| `"_active": {}` | `Patient.active = true`, `Patient.active = false` / `!= true` | false / true |
+| | `allTrue()`, `anyTrue()`, `allFalse()`, `anyFalse()` | false |
+| `"given": [null, "a"], "_given": [{}, null]` | `Patient.name.given.join(',')` | `a` |
 
-Where the validator raises a NullPointerException instead, this engine reads
-the value as empty too: `=`, `<`, `+` and the String functions give empty, so
-`"_birthDate": {}` makes `birthDate < @2020` empty. Up to 1.13.2 a primitive
-with only an extension was read as an object, and a boolean reading took it
-for true.
+`=` compares the null, which equals no value. Where the validator raises a
+NullPointerException, `<`, the arithmetic operators and the String functions,
+this engine reads the value as empty: `"_birthDate": {}` makes
+`birthDate < @2020` empty. `given + 'x'` is empty too, where the validator
+answers `nullx`, Java's concatenation of a null. Up to 1.13.2 a primitive with
+only an extension was read as an object: a boolean reading took it for true,
+`join()` wrote it as `{}`, and `allTrue()` raised a type error.
 
 `~` compares children as navigation reads them, so a member written `{}` is a
 child: `contact[0] ~ contact[1]` is false between a contact whose `name` is `{}`

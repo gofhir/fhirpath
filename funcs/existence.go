@@ -155,10 +155,13 @@ func fnAllTrue(_ *eval.Context, input types.Collection, _ []interface{}) (types.
 //
 // A non-Boolean item is not a false one. Reading it as false would answer
 // (true | 'foo').allTrue() with a confident no, when what happened is that the
-// collection was never the kind of thing the function accepts.
+// collection was never the kind of thing the function accepts. A Boolean
+// written with no value is one, neither true nor false, as the HL7 validator
+// reads it: on "_active": {}, Patient.active.allTrue() and allFalse() are
+// both false.
 func requireBooleans(name string, input types.Collection) error {
 	for _, item := range input {
-		if _, ok := item.(types.Boolean); !ok {
+		if _, ok := item.(types.Boolean); !ok && !types.IsValueless(item) {
 			return eval.NewEvalError(eval.ErrType,
 				"%s() takes a collection of Boolean values, and found %s", name, item.Type())
 		}

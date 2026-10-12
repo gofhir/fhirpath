@@ -988,16 +988,11 @@ func objectHoldsNoValueAt(data []byte, offset int) (noValue bool, end int) {
 		return true, offset + 1
 	}
 	for offset < len(data) && data[offset] == '"' {
-		keyEnd := stringEnd(data, offset)
-		if keyEnd < 0 {
+		key, valueAt, ok := objectKey(data, offset)
+		if !ok {
 			return false, 0
 		}
-		key := data[offset+1 : keyEnd-1]
-		offset = skipJSONSpace(data, keyEnd)
-		if offset >= len(data) || data[offset] != ':' {
-			return false, 0
-		}
-		offset = skipJSONSpace(data, offset+1)
+		offset = valueAt
 
 		if string(key) == "resourceType" {
 			_, _, skipped, err := jsonparser.Get(data[offset:])
@@ -1024,6 +1019,29 @@ func objectHoldsNoValueAt(data []byte, offset int) (noValue bool, end int) {
 		}
 	}
 	return false, 0
+}
+
+// objectKey reads the member key that starts at offset, unescaped, and
+// returns it with the offset of the member's value.
+func objectKey(data []byte, offset int) (key []byte, valueAt int, ok bool) {
+	keyEnd := stringEnd(data, offset)
+	if keyEnd < 0 {
+		return nil, 0, false
+	}
+	key = data[offset+1 : keyEnd-1]
+	// A key written with escapes is read as what they spell
+	if bytes.IndexByte(key, '\\') >= 0 {
+		unescaped, err := jsonparser.Unescape(key, nil)
+		if err != nil {
+			return nil, 0, false
+		}
+		key = unescaped
+	}
+	offset = skipJSONSpace(data, keyEnd)
+	if offset >= len(data) || data[offset] != ':' {
+		return nil, 0, false
+	}
+	return key, skipJSONSpace(data, offset+1), true
 }
 
 // stringEnd returns the offset just past the JSON string that starts at

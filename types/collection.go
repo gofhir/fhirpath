@@ -188,7 +188,13 @@ func (c Collection) Valueless() bool {
 	if len(c) != 1 {
 		return false
 	}
-	o, ok := c[0].(*ObjectValue)
+	return IsValueless(c[0])
+}
+
+// IsValueless reports an item that is a primitive written with no value; see
+// ObjectValue.Valueless.
+func IsValueless(v Value) bool {
+	o, ok := v.(*ObjectValue)
 	return ok && o.Valueless()
 }
 

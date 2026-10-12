@@ -567,6 +567,10 @@ func fnJoin(_ *eval.Context, input types.Collection, args []interface{}) (types.
 
 	parts := make([]string, 0, len(input))
 	for _, item := range input {
+		// A primitive with no value adds nothing, as in the HL7 validator
+		if types.IsValueless(item) {
+			continue
+		}
 		if s, ok := item.(types.String); ok {
 			parts = append(parts, s.Value())
 		} else {
