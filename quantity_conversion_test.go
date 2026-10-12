@@ -254,6 +254,13 @@ func TestQuantityEquivalenceSpecExamples(t *testing.T) {
 		"273.15 'K' ~ 1.5 'mCel'": "true",
 		// A zero carries no precision, however many zeroes it is written with
 		"0.000 'g' ~ 0.01 'g'": "true",
+		// A converted value keeps the precision it was written with, in its own
+		// unit: 200 cm is given to the centimeter, 2.00 m, not to the meter
+		"2.4 'm' ~ 200 'cm'":    "false",
+		"2 'm' ~ 200 'cm'":      "true",
+		"1.501 'kg' ~ 1500 'g'": "false",
+		"1.01 'h' ~ 60 'min'":   "false",
+		"24 'h' ~ 1.4 'd'":      "false",
 		// 100.0 is given to whole grams, not to hundreds
 		"100.0 'g' ~ 101 'g'": "false",
 		"1 'L' ~ 1.6 'dm3'":   "false",
@@ -275,11 +282,12 @@ func TestQuantityEquivalenceTie(t *testing.T) {
 	patient := []byte(`{"resourceType":"Patient"}`)
 
 	for expr, want := range map[string]string{
-		// -272.15 Cel is 1.00 K, compared with 0.5 K at whole kelvin: 1 = 1
-		"0.5 'K' ~ -272.15 'Cel'": "true",
-		// 0.5 K is -272.65 Cel, compared with -272.15 at hundredths
-		"-272.15 'Cel' ~ 0.5 'K'": "false",
-		"274.6 'K' ~ 1.5 'Cel'":   "false",
+		// 274.6 K is 1.45 Cel, compared with 1.5 at tenths: 1.5 = 1.5
+		"1.5 'Cel' ~ 274.6 'K'": "true",
+		// 1.5 Cel is 274.65 K, compared with 274.6 at tenths: 274.7 is not
+		"274.6 'K' ~ 1.5 'Cel'": "false",
+		// -272.15 Cel is given to hundredths, so 1.00 K is too: 0.5 is not 1.0
+		"0.5 'K' ~ -272.15 'Cel'": "false",
 		"1 'L' ~ 1.04 'dm3'":      "true",
 		"1.04 'dm3' ~ 1 'L'":      "true",
 		// A logarithm has no step, and the left unit is kept as on a tie:

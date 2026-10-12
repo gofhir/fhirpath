@@ -3,6 +3,7 @@ package types
 import (
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"regexp"
 	"strings"
@@ -194,36 +195,65 @@ func (q Quantity) Equivalent(other Value) bool {
 		}
 	}
 
-	coarse, converted, ok := inLessGranular(q, o)
+	g, ok := inLessGranular(q, o)
 	if !ok {
 		return false
 	}
-	places := significantPlaces(coarse.value)
-	if theirs := significantPlaces(converted); theirs < places {
+	places := significantPlaces(g.coarse.value)
+	if theirs := g.finePlaces(); theirs < places {
 		places = theirs
 	}
-	return coarse.value.Round(places).Equal(converted.Round(places))
+	return g.coarse.value.Round(places).Equal(g.converted.Round(places))
 }
 
-// inLessGranular returns the operand whose unit is the less granular, and the
-// other's value in that unit. "If the conversion factor is greater than 1,
-// then the other unit is more granular"; where it is 1, "choose the unit of
-// the operator's left argument". Units on ratio scales convert by a factor,
-// found once per pair of units; a scale with an offset, a temperature, has no
-// factor, and a step of it is measured as the difference two points convert
-// to, since a point is not a step: 1 '[degF]' is 255.9 'K', a degree of it 5/9
-// of a kelvin.
-func inLessGranular(q, o Quantity) (coarse Quantity, converted decimal.Decimal, ok bool) {
+// granularity is two quantities expressed in the less granular unit: the
+// coarse one as it is, the fine one converted, and how much of the coarse unit
+// one of the fine unit is.
+type granularity struct {
+	coarse, fine Quantity
+	converted    decimal.Decimal
+	// fineStep is how much of the coarse unit one of the fine unit is, or zero
+	// on a scale with no step
+	fineStep decimal.Decimal
+}
+
+// finePlaces returns how many places the fine value carries once converted.
+// Its precision is what it was written with, in its own unit: 200 'cm' is
+// given to the centimeter, so in meters to two places, though it converts to
+// 2 'm'. Where no step is known, the converted value's own places stand in.
+func (g granularity) finePlaces() int32 {
+	if g.fineStep.IsZero() {
+		return significantPlaces(g.converted)
+	}
+	// One unit of the fine value's last place, 10^-p, is 10^-p * step in the
+	// coarse unit; its first significant digit is the last place there
+	step := g.fineStep.Abs()
+	digits := step.NumDigits()
+	if digits > math.MaxInt32 {
+		return significantPlaces(g.converted)
+	}
+	return significantPlaces(g.fine.value) - int32(digits) - step.Exponent() + 1 //nolint:gosec // digits is bounded just above
+}
+
+// inLessGranular expresses two quantities in the less granular of their units.
+// "If the conversion factor is greater than 1, then the other unit is more
+// granular"; where it is 1, "choose the unit of the operator's left
+// argument". Units on ratio scales convert by a factor, found once per pair
+// of units; a scale with an offset, a temperature, has no factor, and a step
+// of it is measured as the difference two points convert to, since a point is
+// not a step: 1 '[degF]' is 255.9 'K', a degree of it 5/9 of a kelvin.
+func inLessGranular(q, o Quantity) (granularity, bool) {
+	one := decimal.NewFromInt(1)
 	if q.unit == o.unit {
-		return q, o.value, true
+		return granularity{coarse: q, fine: o, converted: o.value, fineStep: one}, true
 	}
 	if q.unit == "" || o.unit == "" ||
 		isCalendarUnit(q.unit) && isCalendarUnit(o.unit) {
 		// The calendar's own units, and a quantity without a unit, which takes
 		// the other's: no offset, so one of the one unit measures a step
-		step, err := Quantity{value: decimal.NewFromInt(1), unit: o.unit}.valueIn(q)
+		step, err := Quantity{value: one, unit: o.unit}.valueIn(q)
 		if err != nil {
-			return Quantity{}, decimal.Decimal{}, false
+			return granularity{}, false
 		}
 		return inUnitOfStep(q, o, step)
 	}
@@ -232,39 +262,41 @@ func inLessGranular(q, o Quantity) (coarse Quantity, converted decimal.Decimal, 
 		if ucum.NotLinear(err) {
 			return inLessGranularByPoints(q, o)
 		}
-		return Quantity{}, decimal.Decimal{}, false
+		return granularity{}, false
 	}
 	if factor.Cmp(big.NewRat(1, 1)) > 0 {
-		converted, err = ucum.Unscale(q.value, factor)
-		return o, converted, err == nil
+		converted, convertErr := ucum.Unscale(q.value, factor)
+		step, stepErr := ucum.Unscale(one, factor)
+		return granularity{coarse: o, fine: q, converted: converted, fineStep: step}, convertErr == nil && stepErr == nil
 	}
-	converted, err = ucum.Scale(o.value, factor)
-	return q, converted, err == nil
+	converted, convertErr := ucum.Scale(o.value, factor)
+	step, stepErr := ucum.Scale(one, factor)
+	return granularity{coarse: q, fine: o, converted: converted, fineStep: step}, convertErr == nil && stepErr == nil
 }
 
 // inLessGranularByPoints is inLessGranular for units on a scale with an
 // offset, whose step ucum.Step measures. A scale with no step, a logarithm or
 // an angle, has no unit more granular than another, and the left operand's
 // unit is kept, as on a tie.
-func inLessGranularByPoints(q, o Quantity) (coarse Quantity, converted decimal.Decimal, ok bool) {
+func inLessGranularByPoints(q, o Quantity) (granularity, bool) {
 	step, err := ucum.Step(convertibleUnit(o.unit), convertibleUnit(q.unit))
 	if err != nil {
-		converted, err := o.valueIn(q)
-		return q, converted, err == nil
+		converted, convertErr := o.valueIn(q)
+		return granularity{coarse: q, fine: o, converted: converted}, convertErr == nil
 	}
 	return inUnitOfStep(q, o, step)
 }
 
 // inUnitOfStep converts into the less granular unit, given how much of q's
 // unit a step of o's unit is; on a tie, q's, the left one.
-func inUnitOfStep(q, o Quantity, step decimal.Decimal) (coarse Quantity, converted decimal.Decimal, ok bool) {
-	var err error
+func inUnitOfStep(q, o Quantity, step decimal.Decimal) (granularity, bool) {
 	if step.GreaterThan(decimal.NewFromInt(1)) {
-		converted, err = q.valueIn(o)
-		return o, converted, err == nil
+		converted, err := q.valueIn(o)
+		inverse := decimal.NewFromInt(1).DivRound(step, 34)
+		return granularity{coarse: o, fine: q, converted: converted, fineStep: inverse}, err == nil
 	}
-	converted, err = o.valueIn(q)
-	return q, converted, err == nil
+	converted, err := o.valueIn(q)
+	return granularity{coarse: q, fine: o, converted: converted, fineStep: step}, err == nil
 }
 
 // matchingUCUMUnit returns the UCUM unit a calendar duration matches: its
