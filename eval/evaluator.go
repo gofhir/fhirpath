@@ -2711,19 +2711,6 @@ func (e *Evaluator) resolveElement(obj *types.ObjectValue, name string) (element
 				return nested, t
 			}
 		}
-		// The element FHIR writes beside a primitive with no value has no type
-		// of its own, and nothing is defined beneath a primitive's path; its
-		// fields are its type's: _birthDate's extension is date.extension, an
-		// Extension. One beside a value has its value's type, tried above, so
-		// only a primitive type not yet tried is, which keeps the path it
-		// builds off every other navigation.
-		if declared := m.TypeOf(base); isFHIRPrimitiveName(declared) && declared != obj.Type() {
-			if nested := e.buildElementPath(declared, name); nested != "" {
-				if t := m.TypeOf(nested); t != "" {
-					return nested, t
-				}
-			}
-		}
 	}
 
 	// Every element's extension and modifierExtension are Extensions, which
