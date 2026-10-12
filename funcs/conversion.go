@@ -539,7 +539,8 @@ func fnToQuantity(_ *eval.Context, input types.Collection, args []interface{}) (
 	// With one, the value is converted rather than relabelled: 52 'cm' in
 	// meters is 0.52 'm', and a value that cannot be converted is empty
 	converted, ok := quantity.ConvertTo(unit)
-	if !ok {
+	if !ok || !types.InRange(converted) {
+		// A value converted past the decimals this engine holds overflows
 		return types.Collection{}, nil
 	}
 	return types.Collection{converted}, nil

@@ -26,6 +26,7 @@ func AsQuantity(v types.Value) (types.Quantity, bool, error) {
 	case *types.ObjectValue:
 		quantity, ok, err := q.AsQuantity()
 		if errors.Is(err, types.ErrDecimalRange) {
+			// An overflow, not a bound: the caller answers empty
 			return types.Quantity{}, false, err
 		}
 		if err != nil {
@@ -49,7 +50,11 @@ func boundError(err error) error {
 func QuantityPair(left, right types.Value) (lq, rq types.Quantity, ok bool, err error) {
 	lq, lok, lerr := AsQuantity(left)
 	rq, rok, rerr := AsQuantity(right)
+	leftOverflows, rightOverflows := errors.Is(lerr, types.ErrDecimalRange), errors.Is(rerr, types.ErrDecimalRange)
 	switch {
+	// A quantity whose value overflows, against another quantity: an overflow
+	case leftOverflows && (rok || rightOverflows), rightOverflows && lok:
+		return types.Quantity{}, types.Quantity{}, false, types.ErrDecimalRange
 	case lerr != nil && rok:
 		return types.Quantity{}, types.Quantity{}, false, lerr
 	case rerr != nil && lok:

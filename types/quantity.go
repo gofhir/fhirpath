@@ -646,7 +646,7 @@ func (q Quantity) resultUnit(other Quantity) string {
 func (q Quantity) MultiplyQuantity(other Quantity) (Quantity, error) {
 	value, unit, err := ucum.Multiply(q.value, q.unit, other.value, other.unit)
 	if err != nil {
-		return Quantity{}, fmt.Errorf("%w: %s and %s", ErrIncompatibleUnits, q.unit, other.unit)
+		return Quantity{}, combineError(err, q.unit, other.unit)
 	}
 	return Quantity{value: value, unit: unit}, nil
 }
@@ -659,9 +659,18 @@ func (q Quantity) DivideQuantity(other Quantity) (Quantity, error) {
 	}
 	value, unit, err := ucum.Divide(q.value, q.unit, other.value, other.unit)
 	if err != nil {
-		return Quantity{}, fmt.Errorf("%w: %s and %s", ErrIncompatibleUnits, q.unit, other.unit)
+		return Quantity{}, combineError(err, q.unit, other.unit)
 	}
 	return Quantity{value: value, unit: unit}, nil
+}
+
+// combineError reports why two quantities did not combine: a result with no
+// finite value overflows; anything else is units that do not combine.
+func combineError(err error, left, right string) error {
+	if errors.Is(err, ucum.ErrNotFinite) {
+		return ErrDecimalRange
+	}
+	return fmt.Errorf("%w: %s and %s", ErrIncompatibleUnits, left, right)
 }
 
 // Multiply multiplies the quantity by a number.

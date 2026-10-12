@@ -84,7 +84,7 @@ func Convert(value decimal.Decimal, from, to string) (decimal.Decimal, error) {
 			}
 			// Zero on a logarithmic scale is minus infinity, which no decimal holds
 			if math.IsInf(approximate, 0) || math.IsNaN(approximate) {
-				return decimal.Decimal{}, fmt.Errorf("ucum: %s in %s has no finite value", from, to)
+				return decimal.Decimal{}, fmt.Errorf("%w: %s in %s", ErrNotFinite, from, to)
 			}
 			return decimal.NewFromFloat(approximate), nil
 		}
@@ -244,9 +244,16 @@ func combine(leftValue decimal.Decimal, leftUnit string, rightValue decimal.Deci
 	if err != nil {
 		return decimal.Decimal{}, "", err
 	}
+	if math.IsInf(result.Value, 0) || math.IsNaN(result.Value) {
+		return decimal.Decimal{}, "", ErrNotFinite
+	}
 
 	return decimal.NewFromFloat(result.Value), result.Code, nil
 }
+
+// ErrNotFinite reports a result that has no finite value, which no decimal
+// holds: 1E200 'm' by 1E200 'm' in float64, or zero on a logarithmic scale.
+var ErrNotFinite = errors.New("ucum: the result has no finite value")
 
 // Validate reports whether a code is a well-formed UCUM unit.
 func Validate(code string) error {

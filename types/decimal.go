@@ -43,7 +43,16 @@ func InDecimalRange(d decimal.Decimal) bool {
 	if exponent < -DecimalDigits || exponent > DecimalDigits {
 		return false
 	}
-	return d.IsZero() || exponent+int64(d.NumDigits()) <= DecimalDigits
+	if d.IsZero() {
+		return true
+	}
+	// A coefficient of b bits has at most b·log10(2) + 1 digits; well within the
+	// bound, the count is not needed, and counting a large coefficient's
+	// digits costs a power of ten
+	if bits := int64(d.Coefficient().BitLen()); exponent+bits*30103/100000+1 <= DecimalDigits {
+		return true
+	}
+	return exponent+int64(d.NumDigits()) <= DecimalDigits
 }
 
 // InRange reports a value whose decimal, its own or a quantity's, is within

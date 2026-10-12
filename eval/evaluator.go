@@ -697,6 +697,11 @@ func (e *Evaluator) VisitNumberLiteral(ctx *grammar.NumberLiteralContext) interf
 
 	// Parse as decimal
 	d, err := types.NewDecimal(text)
+	if errors.Is(err, types.ErrDecimalRange) {
+		// A literal beyond the decimals this engine holds overflows, as the
+		// same text does through toDecimal()
+		return types.Collection{}
+	}
 	if err != nil {
 		return ParseError("invalid number: " + text)
 	}
@@ -1064,8 +1069,13 @@ func quantityKeys(keys [][]types.Collection) {
 			if _, isObject := key[0].(*types.ObjectValue); !isObject {
 				continue
 			}
-			if q, ok, err := AsQuantity(key[0]); err == nil && ok {
+			q, ok, err := AsQuantity(key[0])
+			switch {
+			case err == nil && ok:
 				itemKeys[i] = types.Collection{q}
+			case errors.Is(err, types.ErrDecimalRange):
+				// A quantity whose value overflows is empty, as an overflow is
+				itemKeys[i] = types.Collection{}
 			}
 		}
 	}

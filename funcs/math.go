@@ -169,7 +169,7 @@ func fnExp(_ *eval.Context, input types.Collection, _ []interface{}) (types.Coll
 		return types.Collection{}, nil
 	}
 
-	return types.Collection{types.NewDecimalFromFloat(math.Exp(val))}, nil
+	return floatResult(math.Exp(val)), nil
 }
 
 // fnFloor returns the largest integer <= input.
@@ -209,7 +209,7 @@ func fnLn(_ *eval.Context, input types.Collection, _ []interface{}) (types.Colle
 		return types.Collection{}, nil
 	}
 
-	return types.Collection{types.NewDecimalFromFloat(math.Log(val))}, nil
+	return floatResult(math.Log(val)), nil
 }
 
 // fnLog returns the logarithm with the given base.
@@ -238,7 +238,7 @@ func fnLog(_ *eval.Context, input types.Collection, args []interface{}) (types.C
 	}
 
 	result := math.Log(val) / math.Log(base)
-	return types.Collection{types.NewDecimalFromFloat(result)}, nil
+	return floatResult(result), nil
 }
 
 // fnPower returns input raised to the given power.
@@ -269,7 +269,7 @@ func fnPower(_ *eval.Context, input types.Collection, args []interface{}) (types
 		return types.Collection{}, nil
 	}
 
-	return types.Collection{types.NewDecimalFromFloat(result)}, nil
+	return floatResult(result), nil
 }
 
 // fnRound rounds to the specified number of decimal places.
@@ -283,6 +283,12 @@ func fnRound(_ *eval.Context, input types.Collection, args []interface{}) (types
 		p, err := toInteger(args[0])
 		if err != nil {
 			return types.Collection{}, nil
+		}
+		// "the number of digits of precision must be >= 0 or the evaluation
+		// will end and signal an error"; rounding 1.5 to ten million places
+		// left of the point took seconds besides
+		if p < 0 {
+			return nil, eval.NewEvalError(eval.ErrInvalidArguments, "round() precision must be >= 0, got %d", p)
 		}
 		// Limit precision to reasonable bounds to avoid overflow
 		if p > math.MaxInt32 {
@@ -333,7 +339,7 @@ func fnSqrt(_ *eval.Context, input types.Collection, _ []interface{}) (types.Col
 		return types.Collection{}, nil
 	}
 
-	return types.Collection{types.NewDecimalFromFloat(math.Sqrt(val))}, nil
+	return floatResult(math.Sqrt(val)), nil
 }
 
 // fnTruncate returns the integer part (truncates toward zero).
@@ -581,4 +587,14 @@ func fnAvg(ctx *eval.Context, input types.Collection, _ []interface{}) (types.Co
 		return types.Collection{}, nil
 	}
 	return types.Collection{d}, nil
+}
+
+// floatResult wraps the result of a function computed in float64. A result
+// with no finite value, which no decimal holds, overflows to empty: 1000.exp()
+// is +Inf.
+func floatResult(f float64) types.Collection {
+	if math.IsInf(f, 0) || math.IsNaN(f) {
+		return types.Collection{}
+	}
+	return types.Collection{types.NewDecimalFromFloat(f)}
 }
