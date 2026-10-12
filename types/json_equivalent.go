@@ -11,7 +11,7 @@ import (
 // recursively." Each child is read as navigation reads it and compared with
 // the equivalence of its type — a string ignoring case and leading and
 // trailing whitespace, with whitespace normalized, a decimal as decimals are
-// equivalent, a date by its value — and a child that repeats is compared as ~
+// equivalent, a date as dates are — and a child that repeats is compared as ~
 // compares collections, in any order.
 //
 // A child present on one side only is not equivalent, as an empty collection
