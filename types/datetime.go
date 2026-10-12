@@ -201,9 +201,17 @@ func (dt DateTime) Equal(other Value) bool {
 	return false
 }
 
-// Equivalent checks equivalence with another value.
+// Equivalent compares as = does, component by component, except that values
+// at different precisions are false rather than unknown: "the comparison is
+// the same as for equality, with the exception that if the input values have
+// different levels of precision, the result is false". A comparison = has no
+// answer for, an offset against none, is false too, as ~ always answers.
+// Seconds and milliseconds are one precision, compared as = compares them,
+// as the specification's examples do: @2012-01-01T10:30:31.1 ~
+// @2012-01-01T10:30:31 is false.
 func (dt DateTime) Equivalent(other Value) bool {
-	return dt.Equal(other)
+	equal, err := EqualTemporal(dt, other)
+	return err == nil && equal
 }
 
 // String returns the string representation.
