@@ -449,6 +449,12 @@ func findExtreme(ctx *eval.Context, input types.Collection, findMin bool) (types
 			return types.Collection{}, nil
 		}
 	}
+	// One item is its own extreme, compared with nothing: a FHIR Quantity
+	// bound, < 5 'mg', is no value to order against another, but it is the
+	// only one there is
+	if len(input) == 1 {
+		return input, nil
+	}
 
 	// below reports whether a stands below b, for min(), or above it; known is
 	// false where their order is unknown
@@ -466,11 +472,20 @@ func findExtreme(ctx *eval.Context, input types.Collection, findMin bool) (types
 		return cmp > 0, true, nil
 	}
 	// extreme reports whether a orders against every item and none stands
-	// beyond it
+	// beyond it. The item that ruled out the last one tried is tried first:
+	// items alike are ruled out alike, so a collection of many equal items and
+	// one they do not order against is checked in one pass, not one per item.
+	var witness types.Value
 	extreme := func(a types.Value) (bool, error) {
+		if witness != nil {
+			if beyond, known, err := below(witness, a); err != nil || !known || beyond {
+				return false, err
+			}
+		}
 		for _, other := range input {
 			beyond, known, err := below(other, a)
 			if err != nil || !known || beyond {
+				witness = other
 				return false, err
 			}
 		}
