@@ -132,6 +132,9 @@ func NewQuantity(s string) (Quantity, error) {
 
 	val, err := ParseDecimal(matches[1])
 	if err != nil {
+		if errors.Is(err, ErrDecimalRange) {
+			return Quantity{}, err
+		}
 		return Quantity{}, fmt.Errorf("invalid quantity value: %s", matches[1])
 	}
 

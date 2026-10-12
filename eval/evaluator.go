@@ -754,6 +754,11 @@ func (e *Evaluator) VisitTimeLiteral(ctx *grammar.TimeLiteralContext) interface{
 func (e *Evaluator) VisitQuantityLiteral(ctx *grammar.QuantityLiteralContext) interface{} {
 	text := ctx.GetText()
 	q, err := types.NewQuantity(text)
+	if errors.Is(err, types.ErrDecimalRange) {
+		// A value beyond the decimals this engine holds overflows, as a
+		// number literal does
+		return types.Collection{}
+	}
 	if err != nil {
 		return ParseError("invalid quantity: " + text)
 	}

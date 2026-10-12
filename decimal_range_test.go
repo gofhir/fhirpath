@@ -61,16 +61,19 @@ func TestDecimalRange(t *testing.T) {
 		ext("plain") + ".round(1000)":         "2.5",
 		ext("plain") + ".round(1001)":         "EMPTY",
 		// A literal beyond the bound overflows as the same text does
-		"1" + strings.Repeat("0", 1000) + " > 0": "EMPTY",
-		"1" + strings.Repeat("0", 999) + " > 0":  "true",
+		"1" + strings.Repeat("0", 1000) + " > 0":            "EMPTY",
+		"1" + strings.Repeat("0", 999) + " > 0":             "true",
+		"(1" + strings.Repeat("0", 1000) + " 'g').exists()": "false",
 		// A quantity's value overflowing in arithmetic or conversion
 		ext("widest") + ".toQuantity() * 10": "EMPTY",
 		"1 'Ym'.toQuantity('ym') > 0 'ym'":   "true",
 		// Functions computed in float64 overflow where the result is infinite
 		"1000.exp()": "EMPTY",
-		// Products and quotients of quantities are exact, past float64's range
-		"(" + ext("large") + " * " + ext("large") + ").exists()": "true",
-		widestQ + " / " + widestQ:                                "1 '1'",
+		// Products and quotients of quantities are computed in float64, with
+		// each unit's scale; a value past its range has no answer there
+		"(" + ext("large") + " * " + ext("large") + ").exists()": "false",
+		widestQ + " / " + widestQ:                                "EMPTY",
+		"2 'Cel' * 1 'm'":                                        "275.15 'K.m'",
 		// A logarithm of infinity over another is no number
 		ext("widest") + ".log(" + ext("widest") + ")": "EMPTY",
 		// A converted value is held to the range
