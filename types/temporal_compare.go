@@ -93,6 +93,12 @@ func compareTemporal(left, right temporalValue) (int, error) {
 	// Offsets only matter once both values reach a time of day; normalizing to
 	// UTC is what "respecting timezone offsets" amounts to.
 	if left.hasOffset && right.hasOffset && left.offset != right.offset {
+		// Offsets a fraction of an hour apart move a value given only to the
+		// hour onto a minute it does not state: 10+05:30 is 04:30 at UTC,
+		// which an hour cannot say, so whether it is 04Z is unknown
+		if (left.offset-right.offset)%60 != 0 && min(left.unit, right.unit) < unitMinute && max(left.unit, right.unit) >= unitHour {
+			return 0, ErrPrecisionMismatch
+		}
 		left = left.inUTC()
 		right = right.inUTC()
 	}
