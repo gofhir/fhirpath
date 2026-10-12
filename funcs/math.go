@@ -512,13 +512,20 @@ func findExtreme(ctx *eval.Context, input types.Collection, findMin bool) (types
 	}
 
 	// Some pair has no order: the extreme, if any item is one, is found by
-	// checking each
+	// checking each. An item written as one already ruled out is ruled out
+	// too, unchecked: it compares alike against every other
+	tried := map[string]bool{}
 	for i, item := range input {
 		if i%100 == 0 {
 			if err := ctx.CheckCancellation(); err != nil {
 				return nil, err
 			}
 		}
+		key := item.Type() + "\x00" + item.String()
+		if tried[key] {
+			continue
+		}
+		tried[key] = true
 		ok, err := extreme(item)
 		if err != nil {
 			return nil, err

@@ -3,6 +3,7 @@ package fhirpath
 import (
 	"strings"
 	"testing"
+	"time"
 )
 
 // TestMinMax covers min() and max(), which compare as the comparison
@@ -47,6 +48,7 @@ func TestMinMax(t *testing.T) {
 		"(@2020-01-01 | @2020-01-01T10:00Z).max()": "EMPTY",
 		// Types min() does not order
 		"(true | false).max()": "EMPTY",
+		"true.max()":           "EMPTY",
 		"{}.max()":             "EMPTY",
 	} {
 		if got := evaluateScalar(t, expr, obs); got != want {
@@ -82,5 +84,42 @@ func TestMinMaxOrderIndependent(t *testing.T) {
 				t.Errorf("%s() over %v = %s, but %s in another order", fn, parts, got, first)
 			}
 		}
+	}
+}
+
+// TestMinMaxUnorderedIsLinear checks that items alike are ruled out alike:
+// many equal items and one they have no order against, or items in groups
+// that rule one another out in turn, are checked in a pass each rather than
+// one pass per item.
+func TestMinMaxUnorderedIsLinear(t *testing.T) {
+	values := make([]string, 0, 20001)
+	for range 20000 {
+		values = append(values, `{"valueDateTime":"2020-06-15"}`)
+	}
+	values = append(values, `{"valueDateTime":"2020"}`)
+	many := []byte(`{"resourceType":"Observation","component":[` + strings.Join(values, ",") + `]}`)
+
+	alternating := make([]string, 0, 5000)
+	for i := range 3750 {
+		v := "2020-06-15T23:00:00Z"
+		if i%2 == 1 {
+			v = "2020-06-16"
+		}
+		alternating = append(alternating, `{"valueDateTime":"`+v+`"}`)
+	}
+	for range 1250 {
+		alternating = append(alternating, `{"valueDateTime":"2020-06-16T00:00:00+01:00"}`)
+	}
+	groups := []byte(`{"resourceType":"Observation","component":[` + strings.Join(alternating, ",") + `]}`)
+
+	start := time.Now()
+	for _, doc := range [][]byte{many, groups} {
+		if got := evaluateScalar(t, "Observation.component.value.max()", doc); got != "EMPTY" {
+			t.Errorf("max() = %s, want EMPTY", got)
+		}
+	}
+	// Checking each item against every other took tens of seconds here
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Errorf("took %s", elapsed)
 	}
 }
