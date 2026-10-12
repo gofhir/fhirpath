@@ -176,7 +176,7 @@ fmt.Println(dt.Minute()) // 30
 
 La aritmética de DateTime soporta todas las unidades temporales incluyendo `hour`, `minute`, `second` y `millisecond`.
 
-Una cantidad más fina que el valor que desplaza se convierte primero a la precisión del valor, truncando hacia cero, como pide la especificación: un año son 12 meses o 365 días y un mes 30 días, así que `@2016 + 365 days` es `@2017`, `@2026-02 + 4 weeks` es `@2026-02` y `@2000 - 1 day` es `@2000`. Segundos y milisegundos cuentan como una sola precisión, así que `@2000-01-01T00:00:00 - 1 'ms'` pasa al segundo anterior. La aritmética de Time sigue la misma regla.
+Una cantidad más fina que el valor que desplaza se convierte primero a la precisión del valor, truncando hacia cero, como pide la especificación: un año son 12 meses o 365 días y un mes 30 días, así que `@2016 + 365 days` es `@2017`, `@2026-02 + 4 weeks` es `@2026-02` y `@2000 - 1 day` es `@2000`. Segundos y milisegundos cuentan como una sola precisión, así que `@2000-01-01T00:00:00 - 1 'ms'` pasa al segundo anterior: a precisión de segundo, un resto menor que un segundo redondea hacia abajo. La aritmética de Time sigue la misma regla.
 
 ### Time
 
