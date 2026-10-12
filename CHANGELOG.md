@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.13.0](https://github.com/gofhir/fhirpath/compare/v1.12.4...v1.13.0) (2026-10-12)
+
+
+### Features
+
+* a decimal beyond 1000 digits on either side of the point overflows to empty ([#135](https://github.com/gofhir/fhirpath/issues/135)) ([d6f9fdb](https://github.com/gofhir/fhirpath/commit/d6f9fdbbb71958c51c09e89106b75613f381e4bc))
+
+
+### Bug Fixes
+
+* ~, union(), distinct() and in compare temporals as = does, across precision and offset ([#137](https://github.com/gofhir/fhirpath/issues/137)) ([f57cc51](https://github.com/gofhir/fhirpath/commit/f57cc5157ce8d10979a482e0cd6dcac39a3ea8c5))
+
 ## [1.12.4](https://github.com/gofhir/fhirpath/compare/v1.12.3...v1.12.4) (2026-10-12)
 
 
