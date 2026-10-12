@@ -597,7 +597,8 @@ This is not a lenient reading of an ambiguous rule. Checked against fhirpath.js
 So a specification-exact engine cannot validate dom-3 on R4 at all, and R4 is
 what most deployments run.
 
-HAPI, the engine behind the official validator, resolves it by version:
+HL7's Java FHIRPath engine (`org.hl7.fhir.r5.fhirpath.FHIRPathEngine`, in
+org.hl7.fhir.core), the one the official validator runs, resolves it by version:
 
 ```java
 private void initFlags() {
@@ -610,10 +611,11 @@ private void initFlags() {
 
 Before R5 it filters, exactly as this engine does; from R5 on it enforces the
 singleton rule. This engine does the same, by the version a model declares
-through `VersionedModel`; a model that declares none is taken for pre-R5. HAPI
-also sets a flag for case sensitivity on type names only from R5 on, but a name
-in the wrong case is no type in either version there: `as(humanName)` is an
-error with `-version 4.0.1` and with `-version 5.0.0`, as it is here.
+through `VersionedModel`; a model that declares none is taken for pre-R5. The
+Java engine also sets a flag for case sensitivity on type names only from R5
+on, but a name in the wrong case is no type in either version there:
+`as(humanName)` is an error with `-version 4.0.1` and with `-version 5.0.0`, as
+it is here.
 
 HL7 came to the same conclusion, in stages. The invariant is worded differently
 in each of the three versions:
