@@ -157,7 +157,7 @@ func NewDateTime(s string) (DateTime, error) {
 				return DateTime{}, fmt.Errorf("invalid timezone hours in datetime: %s", s)
 			}
 			mins, err := strconv.Atoi(matches[8][4:6])
-			if err != nil {
+			if err != nil || mins > 59 {
 				return DateTime{}, fmt.Errorf("invalid timezone minutes in datetime: %s", s)
 			}
 			dt.tzOffset = sign * (hours*60 + mins)
@@ -165,7 +165,33 @@ func NewDateTime(s string) (DateTime, error) {
 	}
 
 	dt.precision = precision
+	if err := dt.validate(matches[2] != "", matches[3] != ""); err != nil {
+		return DateTime{}, fmt.Errorf("%w: %s", err, s)
+	}
 	return dt, nil
+}
+
+// validate refuses a DateTime off the calendar or the clock, on the
+// components it writes — @2012T12:30:00 writes a time without a month or a
+// day — or with an offset no timezone has.
+func (dt DateTime) validate(monthWritten, dayWritten bool) error {
+	month, day := 1, 1
+	if monthWritten {
+		month = dt.month
+	}
+	if dayWritten {
+		day = dt.day
+	}
+	if err := validCalendar(dt.year, month, day); err != nil {
+		return err
+	}
+	if err := validClock(dt.hour, dt.minute, dt.second); err != nil {
+		return err
+	}
+	if dt.hasTZ && (dt.tzOffset < minTimezoneOffset || dt.tzOffset > maxTimezoneOffset) {
+		return ErrInvalidTemporal
+	}
+	return nil
 }
 
 // NewDateTimeFromTime creates a DateTime from time.Time.
@@ -287,10 +313,12 @@ func (dt DateTime) Equivalent(other Value) bool {
 func (dt DateTime) String() string {
 	result := fmt.Sprintf("%04d", dt.year)
 
-	if dt.precision >= DTMonthPrecision {
+	// A month or a day the value does not write, as @2012T12:30:00 writes a
+	// time without them, is left out: 2012-00-00 is no date to read back
+	if dt.precision >= DTMonthPrecision && dt.month != 0 {
 		result += fmt.Sprintf("-%02d", dt.month)
 	}
-	if dt.precision >= DTDayPrecision {
+	if dt.precision >= DTDayPrecision && dt.day != 0 {
 		result += fmt.Sprintf("-%02d", dt.day)
 	}
 	if dt.precision >= DTHourPrecision {
@@ -428,6 +456,10 @@ func (dt DateTime) AddDuration(value int, unit string) (DateTime, error) {
 		result.millis = 0
 	}
 
+	// "If the resulting year is out of range, an error is thrown"
+	if result.year < 1 || result.year > 9999 {
+		return DateTime{}, fmt.Errorf("%w: date arithmetic reaches year %d, outside 1 to 9999", ErrInvalidTemporal, result.year)
+	}
 	return result, nil
 }
 

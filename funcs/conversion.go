@@ -410,8 +410,10 @@ func fnToDate(_ *eval.Context, input types.Collection, _ []interface{}) (types.C
 	case types.Date:
 		return systemResult(v), nil
 	case types.DateTime:
-		// Extract date portion (DateTime.String() always has at least date portion)
-		d, err := types.NewDate(v.String()[:10])
+		// The date the DateTime states, to the day at most, as dateOf() reads
+		// it: @2012T is 2012. Slicing its text took ten characters it may not
+		// have
+		d, err := types.NewDate(datePartOf(v))
 		if err != nil {
 			return types.Collection{}, nil
 		}
@@ -428,17 +430,15 @@ func fnToDate(_ *eval.Context, input types.Collection, _ []interface{}) (types.C
 }
 
 // fnConvertsToDate returns true if the input can be converted to date.
-func fnConvertsToDate(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
-	if input.Empty() {
-		return types.Collection{types.NewBoolean(false)}, nil
+// It answers what toDate() answers, as convertsToDateTime() and
+// convertsToTime() do: true for a Date, a DateTime or a string that names a
+// day on the calendar, so not for 'abc' or '2021-02-30'.
+func fnConvertsToDate(ctx *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
+	converted, err := fnToDate(ctx, input, args)
+	if err != nil {
+		return nil, err
 	}
-
-	// Basic check - will be enhanced with temporal types
-	if _, ok := input[0].(types.String); ok {
-		return types.Collection{types.NewBoolean(true)}, nil
-	}
-
-	return types.Collection{types.NewBoolean(false)}, nil
+	return types.Collection{types.NewBoolean(!converted.Empty())}, nil
 }
 
 // fnToDateTime converts the input to a datetime.

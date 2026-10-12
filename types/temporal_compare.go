@@ -363,6 +363,48 @@ func equalTemporal(left, right Value) bool {
 	return err == nil && equal
 }
 
+// ErrInvalidTemporal reports a date off the calendar, February 30 or month 13,
+// a time off the clock, hour 25, or an offset no timezone has. FHIRPath's
+// Date runs from @0001-01-01 to @9999-12-31 and its Time from @T00:00:00.000
+// to @T23:59:59.999; reading such a value as written and comparing it
+// normalized, as time.Date does, made equality intransitive.
+var ErrInvalidTemporal = errors.New("not a date or time on the calendar and the clock")
+
+// validCalendar reports a year, month and day that name a day of the
+// proleptic Gregorian calendar, years 1 to 9999.
+func validCalendar(year, month, day int) error {
+	if year < 1 || year > 9999 || month < 1 || month > 12 || day < 1 ||
+		day > daysIn(year, month) {
+		return ErrInvalidTemporal
+	}
+	return nil
+}
+
+// daysIn returns the number of days in a month.
+func daysIn(year, month int) int {
+	switch month {
+	case 2:
+		if year%4 == 0 && (year%100 != 0 || year%400 == 0) {
+			return 29
+		}
+		return 28
+	case 4, 6, 9, 11:
+		return 30
+	}
+	return 31
+}
+
+// validClock reports an hour, minute and second on the clock. A leap second,
+// 60, which FHIR's regular expressions allow, is not: FHIRPath's Time ends at
+// @T23:59:59.999, and time.Date reads :60 as the next minute, which made a
+// value equal to two that are not equal to one another.
+func validClock(hour, minute, second int) error {
+	if hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59 {
+		return ErrInvalidTemporal
+	}
+	return nil
+}
+
 // IsTemporal reports whether a value is a Date, DateTime or Time.
 func IsTemporal(v Value) bool {
 	switch v.(type) {
