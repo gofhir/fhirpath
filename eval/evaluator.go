@@ -1805,7 +1805,8 @@ func applyMultiplicative(leftCol, rightCol types.Collection, op string) interfac
 // overflows the decimals this engine holds: "Operations that cause arithmetic
 // overflow or underflow will result in empty".
 func arithmeticResult(result types.Value) types.Collection {
-	if !types.InRange(result) {
+	result, ok := types.WithinRange(result)
+	if !ok {
 		return types.Collection{}
 	}
 	return types.Collection{result}

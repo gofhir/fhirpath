@@ -20,15 +20,18 @@ func TestDecimalRange(t *testing.T) {
 	    {"url":"tiny","valueDecimal":1E-8227822},
 	    {"url":"widest","valueDecimal":1E999},
 	    {"url":"beyond","valueDecimal":1E1000},
+	    {"url":"beyondCounted","valueDecimal":1000000000000000E985},
 	    {"url":"finest","valueDecimal":1E-1000},
 	    {"url":"finer","valueDecimal":1E-1001},
 	    {"url":"plain","valueDecimal":2.5},
 	    {"url":"zero","valueDecimal":0E2000000000},
 	    {"url":"zeroWidest","valueDecimal":0E1000},
 	    {"url":"zeroBeyond","valueDecimal":0E1001},
-	    {"url":"large","valueQuantity":{"value":1E200,"system":"http://unitsofmeasure.org","code":"m"}}],
+	    {"url":"large","valueQuantity":{"value":1E200,"system":"http://unitsofmeasure.org","code":"m"}},
+	    {"url":"widestQ","valueQuantity":{"value":1E999,"system":"http://unitsofmeasure.org","code":"m"}}],
 	  "valueQuantity":{"value":1E999999,"unit":"mg","system":"http://unitsofmeasure.org","code":"mg"}}`)
 	ext := func(url string) string { return "Observation.extension.where(url = '" + url + "').value" }
+	widestQ := ext("widestQ")
 
 	start := time.Now()
 	for expr, want := range map[string]string{
@@ -36,7 +39,9 @@ func TestDecimalRange(t *testing.T) {
 		ext("huge") + ".exists()":   "false",
 		ext("tiny") + ".exists()":   "false",
 		ext("beyond") + ".exists()": "false",
-		ext("finer") + ".exists()":  "false",
+		// 10^1000 written with a coefficient of sixteen digits, counted exactly
+		ext("beyondCounted") + ".exists()": "false",
+		ext("finer") + ".exists()":         "false",
 		// A zero at a scale of two billion is no larger, but writing it out was
 		ext("zero") + ".exists()":       "false",
 		ext("zeroWidest") + ".exists()": "true",
@@ -63,7 +68,15 @@ func TestDecimalRange(t *testing.T) {
 		"1 'Ym'.toQuantity('ym') > 0 'ym'":   "true",
 		// Functions computed in float64 overflow where the result is infinite
 		"1000.exp()": "EMPTY",
-		"(" + ext("large") + " * " + ext("large") + ").exists()":    "false",
+		// Products and quotients of quantities are exact, past float64's range
+		"(" + ext("large") + " * " + ext("large") + ").exists()": "true",
+		widestQ + " / " + widestQ:                                "1 '1'",
+		// A logarithm of infinity over another is no number
+		ext("widest") + ".log(" + ext("widest") + ")": "EMPTY",
+		// A converted value is held to the range
+		widestQ + ".toQuantity('mm')": "EMPTY",
+		// A zero at a scale past the bound is zero
+		ext("zeroWidest") + " * " + ext("widest") + " = 0":          "true",
 		"'1E8227822'.toDecimal()":                                   "EMPTY",
 		"'1E8227822'.convertsToDecimal()":                           "false",
 		"(" + ext("widest") + " | " + ext("widest") + ").sum() > 0": "true",

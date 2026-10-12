@@ -232,23 +232,63 @@ func combine(leftValue decimal.Decimal, leftUnit string, rightValue decimal.Deci
 		return decimal.Decimal{}, "", err
 	}
 
-	left := ucumlib.Pair{Value: leftValue.InexactFloat64(), Code: leftUnit}
-	right := ucumlib.Pair{Value: rightValue.InexactFloat64(), Code: rightUnit}
-
-	var result ucumlib.Pair
+	// The library combines the units, and with them a factor, from one of
+	// each: 1 'cm' by 1 'm' is 0.01 'm2'. The values themselves are combined
+	// exactly, so that neither a value too large for a float64 nor one too
+	// small turns into infinity or zero: 1E999 'm' over 1E999 'm' is 1 '1'.
+	one := ucumlib.Pair{Value: 1, Code: leftUnit}
+	other := ucumlib.Pair{Value: 1, Code: rightUnit}
+	var units ucumlib.Pair
 	if divide {
-		result, err = svc.Divide(left, right)
+		units, err = svc.Divide(one, other)
 	} else {
-		result, err = svc.Multiply(left, right)
+		units, err = svc.Multiply(one, other)
 	}
 	if err != nil {
 		return decimal.Decimal{}, "", err
 	}
-	if math.IsInf(result.Value, 0) || math.IsNaN(result.Value) {
+	if math.IsInf(units.Value, 0) || math.IsNaN(units.Value) || units.Value == 0 {
 		return decimal.Decimal{}, "", ErrNotFinite
 	}
 
-	return decimal.NewFromFloat(result.Value), result.Code, nil
+	factor := new(big.Rat).SetFloat64(units.Value)
+	if factor == nil {
+		return decimal.Decimal{}, "", ErrNotFinite
+	}
+	// A factor read back from a float64 is its shortest decimal: 274.15, not
+	// the binary fraction nearest it
+	if shortest, isDecimal := new(big.Rat).SetString(decimal.NewFromFloat(units.Value).String()); isDecimal {
+		factor = shortest
+	}
+	if divide {
+		if rightValue.IsZero() {
+			return decimal.Decimal{}, "", fmt.Errorf("division by zero")
+		}
+		// A quotient to the sixteen places a decimal division keeps
+		quotient := new(big.Rat).Quo(toRat(leftValue), toRat(rightValue))
+		value, quotientErr := fromRatPlaces(quotient.Mul(quotient, factor), divisionPlaces)
+		return value, units.Code, quotientErr
+	}
+	product := new(big.Rat).Mul(toRat(leftValue), toRat(rightValue))
+	value, productErr := fromRat(product.Mul(product, factor))
+	return value, units.Code, productErr
+}
+
+// divisionPlaces is how many places a quotient keeps, as a decimal division
+// does.
+const divisionPlaces = 16
+
+// fromRatPlaces is fromRat at a given number of places.
+func fromRatPlaces(r *big.Rat, places int) (decimal.Decimal, error) {
+	value, err := decimal.NewFromString(r.FloatString(places))
+	if err != nil {
+		return decimal.Decimal{}, err
+	}
+	normalized, err := decimal.NewFromString(value.String())
+	if err != nil {
+		return value, nil
+	}
+	return normalized, nil
 }
 
 // ErrNotFinite reports a result that has no finite value, which no decimal

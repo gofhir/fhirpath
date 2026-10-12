@@ -176,6 +176,8 @@ result, _ := fhirpath.Evaluate(resource, "(2.345).round(1)")
 
 - If no precision is specified, defaults to `0` (rounds to nearest integer).
 - If the input is an `Integer`, it is returned unchanged.
+- A negative precision ends the evaluation with an error, as FHIRPath 3.0.0 requires: "the number of digits of precision must be >= 0".
+- A precision of more than 1000 places is beyond the decimals this engine holds, and the result is empty.
 - Uses banker's rounding (round half to even) via the `shopspring/decimal` library.
 - Returns empty collection if the input is empty or not numeric.
 

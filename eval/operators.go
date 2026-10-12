@@ -53,7 +53,7 @@ func QuantityPair(left, right types.Value) (lq, rq types.Quantity, ok bool, err 
 	leftOverflows, rightOverflows := errors.Is(lerr, types.ErrDecimalRange), errors.Is(rerr, types.ErrDecimalRange)
 	switch {
 	// A quantity whose value overflows, against another quantity: an overflow
-	case leftOverflows && (rok || rightOverflows), rightOverflows && lok:
+	case leftOverflows && rightOverflows:
 		return types.Quantity{}, types.Quantity{}, false, types.ErrDecimalRange
 	case lerr != nil && rok:
 		return types.Quantity{}, types.Quantity{}, false, lerr

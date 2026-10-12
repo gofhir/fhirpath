@@ -176,6 +176,8 @@ result, _ := fhirpath.Evaluate(resource, "(2.345).round(1)")
 
 - Si no se especifica la precision, el valor por defecto es `0` (redondea al entero mas cercano).
 - Si la entrada es un `Integer`, se devuelve sin cambios.
+- Una precision negativa termina la evaluacion con un error, como exige FHIRPath 3.0.0: "the number of digits of precision must be >= 0".
+- Una precision de mas de 1000 lugares excede los decimales que este motor maneja, y el resultado es vacio.
 - Utiliza redondeo bancario (redondeo a par) mediante la biblioteca `shopspring/decimal`.
 - Devuelve una coleccion vacia si la entrada esta vacia o no es numerica.
 

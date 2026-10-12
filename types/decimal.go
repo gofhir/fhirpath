@@ -49,10 +49,26 @@ func InDecimalRange(d decimal.Decimal) bool {
 	// A coefficient of b bits has at most b·log10(2) + 1 digits; well within the
 	// bound, the count is not needed, and counting a large coefficient's
 	// digits costs a power of ten
-	if bits := int64(d.Coefficient().BitLen()); exponent+bits*30103/100000+1 <= DecimalDigits {
+	coefficient := d.Coefficient()
+	if bits := int64(coefficient.BitLen()); exponent+bits*30103/100000+1 <= DecimalDigits {
 		return true
 	}
-	return exponent+int64(d.NumDigits()) <= DecimalDigits
+	// Near the bound, the digits are counted exactly: NumDigits estimates a
+	// small coefficient through a float logarithm, and counts 10^15 as 15
+	digits := len(coefficient.Abs(coefficient).Text(10))
+	return exponent+int64(digits) <= DecimalDigits
+}
+
+// normalizedZero returns a zero computed at a scale beyond the bound at the
+// nearest scale within it: 0E1000 times 1E999 is zero, not an overflow.
+func normalizedZero(d decimal.Decimal) decimal.Decimal {
+	switch exponent := d.Exponent(); {
+	case exponent > DecimalDigits:
+		return decimal.Zero
+	case exponent < -DecimalDigits:
+		return decimal.New(0, -DecimalDigits)
+	}
+	return d
 }
 
 // InRange reports a value whose decimal, its own or a quantity's, is within
@@ -65,6 +81,25 @@ func InRange(v Value) bool {
 		return InDecimalRange(value.value)
 	}
 	return true
+}
+
+// WithinRange returns a computed value as this engine holds it, and false
+// where it overflows. A zero at a scale beyond the bound is no overflow: it is
+// taken to the nearest scale within it.
+func WithinRange(v Value) (Value, bool) {
+	switch value := v.(type) {
+	case Decimal:
+		if value.value.IsZero() {
+			value = Decimal{value: normalizedZero(value.value)}
+		}
+		return value, InDecimalRange(value.value)
+	case Quantity:
+		if value.value.IsZero() {
+			value.value = normalizedZero(value.value)
+		}
+		return value, InDecimalRange(value.value)
+	}
+	return v, true
 }
 
 // ErrDecimalRange reports a decimal beyond DecimalDigits.
