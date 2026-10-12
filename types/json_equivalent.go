@@ -15,8 +15,9 @@ import (
 // compares collections, in any order.
 //
 // A child present on one side only is not equivalent, as an empty collection
-// is not equivalent to a non-empty one; an empty array or a null counts as
-// absent, as navigation reads nothing there.
+// is not equivalent to a non-empty one; a null, an empty object, and an array
+// that holds nothing but those count as absent, as navigation reads nothing
+// there, and neither is an item of an array.
 //
 // The comparison reads the two texts and writes to no object: either may be
 // shared with other goroutines. A child written alike on both sides is
@@ -67,8 +68,8 @@ type jsonObject struct {
 const indexedChildren = 16
 
 // parseJSONObject reads the children of a JSON object in the order written,
-// leaving out the ones navigation reads nothing from: a null and an empty
-// array. A key written twice, which no valid resource has, is read where it
+// leaving out the ones navigation reads nothing from: a null, an empty object,
+// and an array that holds nothing but those. A key written twice, which no valid resource has, is read where it
 // first stands, as navigation reads it.
 func parseJSONObject(data []byte) (jsonObject, bool) {
 	object := jsonObject{children: make([]jsonChild, 0, 8)}
@@ -76,13 +77,8 @@ func parseJSONObject(data []byte) (jsonObject, bool) {
 		if _, seen := object.find(key, len(object.children)); seen {
 			return nil
 		}
-		switch dataType {
-		case jsonparser.Null:
+		if readsAsNothing(value, dataType) || dataType == jsonparser.Array && holdsNothing(value) {
 			return nil
-		case jsonparser.Array:
-			if isEmptyArray(value) {
-				return nil
-			}
 		}
 		object.add(jsonChild{key: key, data: value, dataType: dataType})
 		return nil
@@ -125,12 +121,20 @@ func (o *jsonObject) find(key []byte, at int) (jsonChild, bool) {
 	return jsonChild{}, false
 }
 
-// isEmptyArray reports a JSON array with no elements.
-func isEmptyArray(data []byte) bool {
+// readsAsNothing reports a JSON value navigation reads no item from: a null,
+// or an empty object.
+func readsAsNothing(data []byte, dataType jsonparser.ValueType) bool {
+	return dataType == jsonparser.Null || dataType == jsonparser.Object && emptyObject(data)
+}
+
+// holdsNothing reports a JSON array whose elements all read as nothing.
+func holdsNothing(data []byte) bool {
 	empty := true
 	//nolint:errcheck // An array that does not parse is compared as written
-	jsonparser.ArrayEach(data, func([]byte, jsonparser.ValueType, int, error) {
-		empty = false
+	jsonparser.ArrayEach(data, func(value []byte, dataType jsonparser.ValueType, _ int, _ error) {
+		if empty && !readsAsNothing(value, dataType) {
+			empty = false
+		}
 	})
 	return empty
 }
@@ -335,13 +339,17 @@ type childValue struct {
 
 // childValues returns the values of a child property, an array's elements or
 // the single value; reading them is left to the comparison, which reads only
-// what it must.
+// what it must. An item that reads as nothing, a null or an empty object, is
+// no item, as navigation reads it, and is left out.
 func childValues(child jsonChild) ([]childValue, bool) {
 	if child.dataType != jsonparser.Array {
 		return []childValue{{child.data, child.dataType}}, true
 	}
 	var values []childValue
 	_, err := jsonparser.ArrayEach(child.data, func(value []byte, dataType jsonparser.ValueType, _ int, _ error) {
+		if readsAsNothing(value, dataType) {
+			return
+		}
 		values = append(values, childValue{value, dataType})
 	})
 	return values, err == nil

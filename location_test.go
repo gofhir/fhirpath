@@ -64,6 +64,9 @@ func TestAResultKnowsWhereItSitsInTheInput(t *testing.T) {
 		{bundle, "Bundle.entry.resource.ofType(Patient).name.given[2]", []string{"Bundle.entry[0].resource.name[1].given[2]"}},
 		{bundle, "Bundle.entry[1].resource.subject.resolve()", []string{"Bundle.entry[0].resource"}},
 		{bundle, "Bundle.entry[1].resource.subject.resolve().contact[1]", []string{"Bundle.entry[0].resource.contact[1]"}},
+		// An item is located where the JSON writes it, past an empty object
+		// that is no item.
+		{`{"resourceType":"Patient","name":[{},{"family":"M"}]}`, "Patient.name", []string{"Patient.name[1]"}},
 		// An object a function made was not read from the input.
 		{patient, "Patient.type()", []string{""}},
 	}
@@ -115,7 +118,7 @@ func TestAResultKnowsWhereItSitsInTheInput(t *testing.T) {
 // resource being evaluated.
 func TestAResolvedResourceHasNoLocation(t *testing.T) {
 	ctx := eval.NewContext([]byte(`{"resourceType":"Patient","generalPractitioner":[{"reference":"Patient/2"}]}`))
-	ctx.SetResolver(staticResolver(`{"resourceType":"Patient","id":"2","contact":[{}]}`))
+	ctx.SetResolver(staticResolver(`{"resourceType":"Patient","id":"2","contact":[{"gender":"male"}]}`))
 
 	for expr, want := range map[string][]string{
 		"Patient.generalPractitioner.resolve()":         {""},
@@ -150,7 +153,7 @@ func TestARootWithoutAResourceType(t *testing.T) {
 	}
 	checkLocations(t, "", result, []string{"", "given[1]"})
 
-	col, err = types.JSONToCollection([]byte(`[{"resourceType":"Patient","contact":[{}]}]`))
+	col, err = types.JSONToCollection([]byte(`[{"resourceType":"Patient","contact":[{"gender":"male"}]}]`))
 	if err != nil {
 		t.Fatal(err)
 	}
