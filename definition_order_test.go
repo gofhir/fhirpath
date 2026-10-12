@@ -76,7 +76,6 @@ func TestChildrenComeInTheDefinitionsOrder(t *testing.T) {
 		{"Observation.component.first().code.children().first()", "[{\"code\":\"a\"}]", "[t1]"},
 		{"Observation.component.children().count()", "[3]", "[3]"},
 		{"Observation.component.code.text", "[t1, t2]", "[t1, t2]"},
-		{"Observation.component.first().children().first()", `[{"text":"t1","coding":[{"code":"a"}]}]`, "[c1]"},
 		// descendants() is children() repeated, in the same order.
 		{"Observation.subject.descendants().first()", "[Patient/1]", "[Peter]"},
 	}

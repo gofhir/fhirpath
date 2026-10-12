@@ -1,7 +1,10 @@
 package fhirpath_test
 
 import (
+	"fmt"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/gofhir/fhirpath"
 )
@@ -81,6 +84,41 @@ func TestAnElementThatHoldsNoValueIsAnItemThatDoesNotExist(t *testing.T) {
 		{`{"resourceType":"Patient","name":[{"given":[null,"J"],"_given":[{},null]}]}`, "Patient.name.given.count()", "[2]"},
 		{`{"resourceType":"Patient","name":[{"given":[null,"J"],"_given":[{},null]}]}`, "Patient.name.given.exists()", "[true]"},
 		{`{"resourceType":"Patient","name":[{"given":[null,"J"],"_given":[{},null]}]}`, "Patient.name.given.first().exists()", "[false]"},
+		// Its value is null, so where a value is wanted it is empty, not an
+		// object that a Boolean reading takes for true.
+		{`{"resourceType":"Patient","_active":{}}`, "Patient.active or false", "[]"},
+		{`{"resourceType":"Patient","_active":{}}`, "Patient.active.not()", "[]"},
+		{`{"resourceType":"Patient","_active":{}}`, "iif(Patient.active, 'a', 'b')", "[b]"},
+		{`{"resourceType":"Patient","_active":{"extension":[{"url":"u","valueString":"x"}]}}`, "Patient.active or false", "[]"},
+		{`{"resourceType":"Patient","_active":{"extension":[{"url":"u","valueString":"x"}]}}`, "Patient.active.not()", "[]"},
+		{`{"resourceType":"Patient","_active":{"extension":[{"url":"u","valueString":"x"}]}}`, "Patient.active.exists()", "[true]"},
+		{`{"resourceType":"Patient","active":true,"_active":{}}`, "Patient.active or false", "[true]"},
+		// = compares its null, which equals no value.
+		{`{"resourceType":"Patient","_active":{}}`, "Patient.active = true", "[false]"},
+		{`{"resourceType":"Patient","_active":{}}`, "Patient.active = false", "[false]"},
+		{`{"resourceType":"Patient","_active":{}}`, "Patient.active != true", "[true]"},
+		// A Boolean with no value is neither true nor false.
+		{`{"resourceType":"Patient","_active":{}}`, "Patient.active.allTrue()", "[false]"},
+		{`{"resourceType":"Patient","_active":{}}`, "Patient.active.anyTrue()", "[false]"},
+		{`{"resourceType":"Patient","_active":{}}`, "Patient.active.allFalse()", "[false]"},
+		{`{"resourceType":"Patient","_active":{}}`, "Patient.active.anyFalse()", "[false]"},
+		// join() leaves it out.
+		{`{"resourceType":"Patient","name":[{"given":[null,"a"],"_given":[{},null]}]}`, "Patient.name.given.join(',')", "[a]"},
+		// Not measured: the HL7 validator raises a NullPointerException.
+		{`{"resourceType":"Patient","_birthDate":{}}`, "Patient.birthDate < @2020", "[]"},
+		{`{"resourceType":"Patient","_birthDate":{}}`, "Patient.birthDate + 1 day", "[]"},
+		{`{"resourceType":"Patient","name":[{"given":[null],"_given":[{}]}]}`, "Patient.name.given.length()", "[]"},
+		// The HL7 validator answers nullx, Java's concatenation of a null; +
+		// propagates empty, as it does for any empty operand.
+		{`{"resourceType":"Patient","name":[{"given":[null],"_given":[{}]}]}`, "Patient.name.given + 'x'", "[]"},
+		// Nor do the other operators and functions that want a value.
+		{`{"resourceType":"Patient","_multipleBirthInteger":{}}`, "-Patient.multipleBirth", "[]"},
+		{`{"resourceType":"Patient","_gender":{}}`, "Patient.gender & 'x'", "[x]"},
+		{`{"resourceType":"Patient","_birthDate":{}}`, "Patient.birthDate.duration(@2020, 'years')", "[]"},
+		{`{"resourceType":"Patient","_birthDate":{}}`, "Patient.birthDate.difference(@2020, 'years')", "[]"},
+		{`{"resourceType":"Patient","_birthDate":{}}`, "@2020.duration(Patient.birthDate, 'years')", "[]"},
+		// A resourceType written with escapes is still the resource's name.
+		{`{"resourceType":"Patient","contained":[{"resource\u0054ype":"Patient"}]}`, "Patient.contained.exists()", "[false]"},
 		// ~ compares children as navigation reads them: a member written {}
 		// is a child, and an element beside a value that holds none is not.
 		{`{"resourceType":"Patient","contact":[{"gender":"male","name":{}},{"gender":"male"}]}`, "Patient.contact[0] ~ Patient.contact[1]", "[false]"},
@@ -118,5 +156,70 @@ func TestAnElementThatHoldsNoValueIsAnItemThatDoesNotExist(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestExistsReadsAResourceOnlyUpToAValue checks that exists() on a resource
+// costs no more than reading it up to its first value. A Bundle that writes
+// its entries before its type would otherwise be read whole for each entry
+// here, and 20000 entries took minutes.
+func TestExistsReadsAResourceOnlyUpToAValue(t *testing.T) {
+	if testing.Short() {
+		t.Skip("reads a large Bundle")
+	}
+	var bundle strings.Builder
+	bundle.WriteString(`{"resourceType":"Bundle","entry":[`)
+	const entries = 20000
+	for i := 0; i < entries; i++ {
+		if i > 0 {
+			bundle.WriteString(",")
+		}
+		fmt.Fprintf(&bundle, `{"resource":{"resourceType":"Patient","id":"p%d"}}`, i)
+	}
+	bundle.WriteString(`],"type":"collection"}`)
+
+	start := time.Now()
+	result, err := fhirpath.Evaluate([]byte(bundle.String()), "Bundle.entry.where(%resource.exists()).count()")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := result.String(); got != fmt.Sprintf("[%d]", entries) {
+		t.Errorf("count = %s, want %d", got, entries)
+	}
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Errorf("took %v: exists() reads the whole Bundle for each entry", elapsed)
+	}
+}
+
+// TestEquivalenceReadsEachElementBesideAPrimitiveOnce checks that ~ tells
+// each element beside a primitive by the value beside it without reading the
+// object again for each: 12000 such pairs took seconds.
+func TestEquivalenceReadsEachElementBesideAPrimitiveOnce(t *testing.T) {
+	if testing.Short() {
+		t.Skip("reads a large object")
+	}
+	const pairs = 12000
+	var forwards, backwards strings.Builder
+	for i := 0; i < pairs; i++ {
+		if i > 0 {
+			forwards.WriteString(",")
+			backwards.WriteString(",")
+		}
+		fmt.Fprintf(&forwards, `"x%d":"v","_x%d":{}`, i, i)
+		fmt.Fprintf(&backwards, `"x%d":"v","_x%d":{}`, pairs-1-i, pairs-1-i)
+	}
+	bundle := `{"resourceType":"Bundle","entry":[{"resource":{"resourceType":"Basic",` + forwards.String() +
+		`}},{"resource":{"resourceType":"Basic",` + backwards.String() + `}}]}`
+
+	start := time.Now()
+	result, err := fhirpath.Evaluate([]byte(bundle), "Bundle.entry[0].resource ~ Bundle.entry[1].resource")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := result.String(); got != "[true]" {
+		t.Errorf("~ = %s, want [true]", got)
+	}
+	if elapsed := time.Since(start); elapsed > 1500*time.Millisecond {
+		t.Errorf("took %v: ~ reads the object again for each element beside a primitive", elapsed)
 	}
 }

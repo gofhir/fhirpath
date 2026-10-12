@@ -148,10 +148,11 @@ func TestAPrimitiveReadWithoutATypeIsStillAFHIRPrimitive(t *testing.T) {
 }
 
 // A primitive's children are its id and its extensions; its value is not one,
-// as in the HL7 validator, which every count below was measured in (6.10.2),
-// though FHIR says "the primitive value will be included in the set returned
-// by children() or descendants()": see CONFORMANCE.md. A System value, a
-// literal or a primitive's value, is only ever a System type.
+// as in the HL7 validator, in which the children() and descendants() counts
+// below were measured (6.10.2), though FHIR says "the primitive value will be
+// included in the set returned by children() or descendants()": see
+// CONFORMANCE.md. A System value, a literal or a primitive's value, is only
+// ever a System type.
 func TestAPrimitivesValueIsNotAChild(t *testing.T) {
 	patient := []byte(`{"resourceType":"Patient","birthDate":"2000-01-01",` +
 		`"_birthDate":{"id":"b","extension":[{"url":"u","valueCode":"x"}]},` +
@@ -211,6 +212,33 @@ func TestAPrimitivesValueIsNotAChild(t *testing.T) {
 				if got := result.String(); got != run.want {
 					t.Errorf("%s = %s %s, want %s", tt.expr, got, run.how, run.want)
 				}
+			}
+		})
+	}
+}
+
+// TestDescendantsCountEachPrimitiveOnce pins the counts CONFORMANCE.md
+// records beyond the patient above, each measured in the HL7 validator
+// (6.10.2).
+func TestDescendantsCountEachPrimitiveOnce(t *testing.T) {
+	tests := []struct {
+		resource, expr, want string
+	}{
+		// The issue's Bundle: the entry written {} and the response's status.
+		{`{"resourceType":"Bundle","type":"transaction-response","entry":[{},{"response":{"status":"200"}}]}`, "Bundle.descendants().count()", "[5]"},
+		// A primitive written with only an extension: the extension, its url
+		// and its value.
+		{`{"resourceType":"Patient","_active":{"extension":[{"url":"u","valueBoolean":false}]}}`, "Patient.active.descendants().count()", "[3]"},
+		{`{"resourceType":"Patient","_active":{}}`, "Patient.active.children().count()", "[0]"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.expr, func(t *testing.T) {
+			result, err := fhirpath.Evaluate([]byte(tt.resource), tt.expr)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := result.String(); got != tt.want {
+				t.Errorf("%s = %s, want %s", tt.expr, got, tt.want)
 			}
 		})
 	}

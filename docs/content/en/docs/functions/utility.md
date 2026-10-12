@@ -132,7 +132,7 @@ result, _ := fhirpath.Evaluate(patient, "Patient.name.descendants()")
 **Edge Cases / Notes:**
 
 - This function recursively traverses the entire element tree beneath the input.
-- Cycle detection is built in: elements that have already been visited are skipped to prevent infinite loops.
+- The traversal stops at a maximum depth, the `maxDepth` limit, which bounds it on deeply nested input.
 - Primitives are included in the result once, and descended into only through their `id` and extensions; a primitive's value is not a descendant of it.
 - An empty input collection returns an empty collection.
 - For large resources, `descendants()` may return a very large collection. Consider using more targeted path expressions when possible.

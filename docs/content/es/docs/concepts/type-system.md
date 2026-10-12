@@ -162,7 +162,7 @@ fmt.Println(d.Day())    // 15
 
 Comparar fechas con diferentes precisiones puede ser **ambiguo**. Por ejemplo, `@2024` vs `@2024-06-15` no es claramente menor ni mayor, por lo que `Compare` retorna un error para señalar la ambigüedad (coincidiendo con la semántica de propagación vacía de FHIRPath para valores incomparables).
 
-La aritmética de fechas se soporta a través de `AddDuration` y `SubtractDuration` con unidades de cantidad temporales (`year`, `month`, `week`, `day`).
+La aritmética de fechas se soporta a través de `AddDuration` y `SubtractDuration` con unidades de cantidad temporales (`year`, `month`, `week`, `day`); las horas y unidades más finas se convierten antes a días enteros, como se describe en DateTime más abajo.
 
 ### DateTime
 
@@ -176,6 +176,8 @@ fmt.Println(dt.Minute()) // 30
 ```
 
 La aritmética de DateTime soporta todas las unidades temporales incluyendo `hour`, `minute`, `second` y `millisecond`.
+
+Una cantidad más fina que el valor que desplaza se convierte primero a la precisión del valor, truncando hacia cero, como pide la especificación: un año son 12 meses o 365 días y un mes 30 días, así que `@2016 + 365 days` es `@2017`, `@2026-02 + 4 weeks` es `@2026-02` y `@2000 - 1 day` es `@2000`. Segundos y milisegundos cuentan como una sola precisión, así que `@2000-01-01T00:00:00 - 1 'ms'` pasa al segundo anterior: a precisión de segundo, un resto menor que un segundo redondea hacia abajo. Un Time se convierte del mismo modo, pero a precisión de segundo conserva el milisegundo que no muestra, mientras que un DateTime lo descarta.
 
 ### Time
 

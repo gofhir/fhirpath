@@ -224,7 +224,7 @@ func fnHasValue(_ *eval.Context, input types.Collection, _ []interface{}) (types
 	// with only an id, which the validator accepts. CONFORMANCE.md records
 	// the choice.
 	if len(input) == 1 {
-		if obj, ok := input[0].(*types.ObjectValue); ok && !obj.StandsForValuelessPrimitive() {
+		if obj, ok := input[0].(*types.ObjectValue); ok && !obj.Valueless() {
 			return types.TrueCollection, nil
 		}
 	}

@@ -935,10 +935,33 @@ it is false and `empty()` true. Nothing else about it changes: it is still
 the input, and an expression that does not ask whether it exists reads it as
 before.
 
-`iif()`, `coalesce()`, `not()`, `where()` and `select()` see such an element
-as an item, as in the validator: `iif(Patient.contact.name, 'y', 'n')` is `'y'`
-and `coalesce(Patient.contact.name, 'x')` the element, on a contact whose
-`name` is `{}`.
+`iif()`, `coalesce()` and the boolean reading of a collection see such an
+element as an item, as the validator does: on a contact whose `name` is `{}`,
+`iif(Patient.contact.name, 'a', 'b')` is `a`, and
+`coalesce(Patient.contact.name, 'x').exists()` false.
+
+A primitive written with no value, only the element beside it, is the
+exception: its value is null, and where a value is wanted it is empty, as in
+the validator.
+
+| On | Expression | Validator and this engine |
+|---|---|---|
+| `"_active": {}` | `Patient.active or false`, `Patient.active.not()` | empty |
+| | `iif(Patient.active, 'a', 'b')` | `b` |
+| `"_active": {"extension": [...]}` | `Patient.active or false`, `Patient.active.not()` | empty |
+| `"_active": {}` | `Patient.active = true`, `Patient.active = false` / `!= true` | false / true |
+| | `allTrue()`, `anyTrue()`, `allFalse()`, `anyFalse()` | false |
+| `"given": [null, "a"], "_given": [{}, null]` | `Patient.name.given.join(',')` | `a` |
+
+`=` compares the null, which equals no value. Where the validator raises a
+NullPointerException, `<`, the arithmetic operators, unary `-`, the String
+functions, `duration()` and `difference()`, this engine reads the value as
+empty: `"_birthDate": {}` makes `birthDate < @2020` empty. `given + 'x'` is
+empty too, where the validator answers `nullx`, Java's concatenation of a
+null; `&` reads it as the empty string, as it does an empty operand, so
+`gender & 'x'` is `x`. Up to 1.13.2 a primitive with
+only an extension was read as an object: a boolean reading took it for true,
+`join()` wrote it as `{}`, and `allTrue()` raised a type error.
 
 `~` compares children as navigation reads them, so a member written `{}` is a
 child: `contact[0] ~ contact[1]` is false between a contact whose `name` is `{}`
@@ -962,7 +985,7 @@ name, `birthDate.value`, and by `hasValue()` and `getValue()`.
 | | `Patient.birthDate.descendants().count()` | 4 | 8 |
 | `"name": [{"family": "F", "given": ["A", "B"]}]` | `Patient.name.descendants().count()` | 3 | 6 |
 | | `Patient.descendants().where($this = 'A').count()` | 1 | 2 |
-| `"_active": {"extension": [...]}` | `Patient.active.descendants().count()` | 3 | 5 |
+| `"_active": {"extension": [{"url": "u", "valueBoolean": false}]}` | `Patient.active.descendants().count()` | 3 | 5 |
 
 FHIR's FHIRPath page says the opposite: "FHIR primitives have a value child,
 but, as described above, they are automatically cast to FHIRPath primitives
@@ -1092,6 +1115,7 @@ was reasoned or accidental.
 | `type()` results per element | One per input element | 3.0.0 states this, then contradicts it in its own `ListTypeInfo` example |
 | `min()` and `max()` over items some of which have no order | The item that orders against every other and stands below, or above, them all; empty where no item does. `(@2019 | @2020-01-01T10Z | @2020-01-01T10:30Z).min()` is `@2019`, and `.max()` empty. Items `<` refuses, `1` and `'a'`, end the evaluation | The specification defines the aggregates by "the Comparison Operators for the type of value being aggregated", which answer empty for such a pair, and says "All items in the input collection SHALL be the same type, otherwise an exception is thrown". Skipping such pairs answered by input order, the same value as both minimum and maximum. fhirpath.js skips them too; it gives `.max()` above as `@2020-01-01T10Z` |
 | A date off the calendar or a time off the clock | Not a date or a time: `@2021-02-30`, `@2021-13-01`, `@T24:00` and an offset beyond ±14:00 are parse errors; `'2021-02-30'.toDate()` is empty and `convertsToDate()` false; in the input, such a string is read as the string it is, of the type its element declares, so comparing it with a date, as `per-1` does, is the type error comparing any string with a date is, as in fhirpath.js. A leap second, `23:59:60`, is not a time either: FHIR's regular expressions allow it, and fhirpath.js reads it, but FHIRPath's Time ends at 23:59:59.999, and `time.Date` reads :60 as the next minute, which would make a value equal to two that are not equal to one another. Arithmetic past year 9999 or before year 1 ends the evaluation with an error, as 3.0.0 asks | FHIRPath's Date runs "@0001-01-01 to @9999-12-31" and its Time "@T00:00:00.000 to @T23:59:59.999"; fhirpath.js rejects such literals too. Accepted as written, February 30 was compared as itself component by component and as March 2 at an offset, where time.Date normalizes it, which made equality intransitive |
+| A quantity finer than the date, time or date/time it shifts | Converted to the value's precision first, truncating toward zero, at 12 months or 365 days to a year and 30 days to a month: `@2016 + 365 days` is `@2017`, `@2026-02 + 4 weeks` is `@2026-02`, `@2000 - 1 day` is `@2000`, `@T10 - 30 minutes` is `@T10`. Seconds and milliseconds are one precision: a value written to the second is shifted to the millisecond and the millisecond then dropped, so `@2000-01-01T00:00:00 - 1 'ms'` is `@1999-12-31T23:59:59`, and there a remainder of less than a second rounds down rather than toward zero | 3.0.0: "converting the time-valued quantity to the highest precision in the partial (truncating any decimal fraction) and then adding", with these examples. Shifting at full precision and dropping the finer components afterwards moved a value a whole unit back for any subtraction, `@2000 - 1 day` to `@1999`. Seconds and milliseconds are one precision in comparison too, and fhirpath.js also moves into the previous second, though it keeps the millisecond, `09:59:59.999` |
 | Comparing temporals written at two different offsets | As the spans of time they name: the same span is equal, spans apart are ordered, and spans that overlap without being the same have no order, empty. `@2020-01-01T10+05:30` is 04:30 to 05:30 at UTC, so it equals only a value naming the same hour, `@2020-01-01T11+06:30`, is after `04:29Z`, and has no order against `04Z`. A day, month or year at one offset is not the same at another: `'2020-02-29+01:00'.toDateTime() = '2020-02-29+02:00'.toDateTime()` is empty. With both values to the minute or finer, the spans are instants or align, and the answers are as a conversion to UTC gives | "Respecting timezone offsets": re-expressing a value given to the hour at UTC put it on a minute it never stated, so `@2020-01-01T10+05:30 = @2020-01-01T04Z` was true, and a year at one offset moved into the year before. fhirpath.js reads `10+05:30` as the instant 04:30Z and answers `= 04Z` false |
 | Comparing a temporal that carries a timezone offset with one that does not | No answer — empty, reported as `ErrOffsetMismatch`. Under `~`, which always answers, false, as for values at different precisions, and `union()`, `distinct()` and `in` hold the two as different values. A Date compares with a DateTime at the same precision, `@2020-01-01 ~ @2020-01-01T` true, as it converts to one | The default offset is a policy the specification leaves to the caller, and FHIR requires the offset where it matters, so a bare value is a literal or invalid data. See below |
 | Temporal comparison across precisions | Component by component, stopping at the first difference; empty only when everything shared matches | Not a judgement call — the spec states it, and it is why `now() > today()` is empty while `now() > @1974-12-25` is true |

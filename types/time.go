@@ -222,7 +222,8 @@ const millisecondsPerDay = 24 * 60 * 60 * 1000
 // of day names no value, and the specification says so: "This includes
 // attempting to add date components to a Time."
 func (t Time) AddDuration(value int, unit string) (Time, error) {
-	years, months, days, millis, err := durationParts(value, unit)
+	// A time's precisions run hour to millisecond, the last four duration fields
+	years, months, days, millis, err := durationPartsAt(value, unit, fieldHour+durationField(t.precision))
 	if err != nil {
 		return Time{}, err
 	}

@@ -79,3 +79,75 @@ func TestCalendarArithmeticKeepsPrecision(t *testing.T) {
 		})
 	}
 }
+
+// TestCalendarArithmeticTruncatesAFinerQuantity covers a quantity finer than
+// the value it shifts:
+//
+// "For partial date/time values where the time-valued quantity is more precise
+// than the partial date/time, the operation is performed by converting the
+// time-valued quantity to the highest precision in the partial (truncating any
+// decimal fraction) and then adding"
+//
+// The quantity is truncated before the shift, so a subtraction of less than a
+// whole unit of the value leaves it where it was rather than a unit back.
+func TestCalendarArithmeticTruncatesAFinerQuantity(t *testing.T) {
+	patient := []byte(`{"resourceType":"Patient"}`)
+
+	cases := []struct {
+		expr string
+		want string
+	}{
+		// The specification's examples
+		{"@2014 + 24 months", "2016"},
+		{"@2014 + 23 months", "2015"},
+		{"@2016 + 365 days", "2017"},
+		{"@2014 + 11 months", "2014"},
+		{"@2026-02 + 5 weeks", "2026-03"},
+		{"@2026-02 + 4 weeks", "2026-02"},
+
+		// A year is 365 days and a month 30, whatever the calendar holds
+		{"@2016 + 364 days", "2016"},
+		{"@2016-01 + 59 days", "2016-02"},
+		{"@2016-01 + 60 days", "2016-03"},
+		{"@2016-01 + 30 days", "2016-02"},
+		{"@2016 + 31536000 seconds", "2017"},
+		{"@2016T + 365 days", "2017"},
+
+		// A whole unit of the value moves it, and a unit less does not
+		{"@2000-01-01 + 24 hours", "2000-01-02"},
+		{"@2000-01-01 + 23 hours", "2000-01-01"},
+		{"@2000-01-01T10 + 60 minutes", "2000-01-01T11"},
+		{"@2000-01-01T10 + 59 minutes", "2000-01-01T10"},
+		{"@T10 + 3600 seconds", "11"},
+		{"@T10:00 + 60 seconds", "10:01"},
+		{"@T10:00 + 59 seconds", "10:00"},
+
+		// Subtraction truncates toward zero
+		{"@2000 - 1 day", "2000"},
+		{"@2014 - 23 months", "2013"},
+		{"@2016-03 - 31 days", "2016-02"},
+		{"@2000-01-01 - 1 hour", "2000-01-01"},
+		{"@2000-01-01 - 25 hours", "1999-12-31"},
+		{"@2000-01-01T10 - 30 minutes", "2000-01-01T10"},
+		{"@2000-01-01T10 - 90 minutes", "2000-01-01T09"},
+		// So it stays within the years a date may name
+		{"@0001 - 1 day", "0001"},
+		{"@9999 + 364 days", "9999"},
+
+		// Seconds and milliseconds are one precision
+		{"@2000-01-01T00:00:00 - 1 'ms'", "1999-12-31T23:59:59"},
+
+		// A time of day truncates as a date does
+		{"@T10 - 30 minutes", "10"},
+		{"@T10:00 + 90 seconds", "10:01"},
+		{"@T00:00 - 1 second", "00:00"},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.expr, func(t *testing.T) {
+			if got := evaluateScalar(t, tc.expr, patient); got != tc.want {
+				t.Errorf("%s = %s, want %s", tc.expr, got, tc.want)
+			}
+		})
+	}
+}
