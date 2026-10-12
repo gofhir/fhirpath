@@ -182,6 +182,22 @@ func (c Collection) ToBoolean() (bool, error) {
 	return false, fmt.Errorf("cannot convert %s to boolean", c[0].Type())
 }
 
+// Valueless reports a collection of a single primitive written with no value,
+// which reads as empty wherever a value is wanted; see ObjectValue.Valueless.
+func (c Collection) Valueless() bool {
+	if len(c) != 1 {
+		return false
+	}
+	return IsValueless(c[0])
+}
+
+// IsValueless reports an item that is a primitive written with no value; see
+// ObjectValue.Valueless.
+func IsValueless(v Value) bool {
+	o, ok := v.(*ObjectValue)
+	return ok && o.Valueless()
+}
+
 // SingletonBoolean applies the FHIRPath "Singleton Evaluation of Collections"
 // rule for operations that expect a Boolean input: a single Boolean node
 // evaluates to its value, and a single node of any other type evaluates to
@@ -191,7 +207,7 @@ func (c Collection) ToBoolean() (bool, error) {
 // ok is false when the collection is empty or holds more than one item; callers
 // propagate empty in that case.
 func (c Collection) SingletonBoolean() (value, ok bool) {
-	if len(c) != 1 {
+	if len(c) != 1 || c.Valueless() {
 		return false, false
 	}
 	if b, isBool := c[0].(Boolean); isBool {

@@ -864,6 +864,98 @@ it should signal an error or return empty is a question the specification does
 not settle for Integer either, and it is worth answering deliberately rather
 than by widening the type.
 
+## Where this engine follows the HL7 validator over the specification text
+
+The HL7 validator is what a FHIR server's users check their resources against.
+Where its FHIRPath answers differ from what the specification text says, an
+engine that follows the text accepts what the validator rejects, or the other
+way round, and the server built on it cannot be used in its place. So where
+the two disagree, this engine answers as the validator does, and each such
+case is recorded here: what the validator answers, measured, the version it
+was measured in, and the text it departs from. A test pins each answer, so a
+validator release that changes one shows up when it is measured again.
+
+Each answer was measured with `validator_cli.jar -fhirpath "<expression>"
+<file> -version 4.0.1`.
+
+### An element that holds no value
+
+Measured in the HL7 validator 6.10.2.
+
+An element written as `{}`, or as an object under which nothing holds a
+value — `{"given": []}`, `{"extension": [{}]}` — has neither a value nor
+children, which ele-1, inherited by every element, forbids: "All FHIR elements
+must have a @value or children". The validator reads it as an item of its
+collection, located where the JSON writes it, for every function but two:
+`exists()` and `empty()` answer as though it were not there.
+
+| On | Expression | Validator and this engine |
+|---|---|---|
+| `"entry": [{}, {"response": {"status": "200"}}]` | `Bundle.entry.count()` | 2 |
+| | `Bundle.entry.all(response.exists())` (bdl-4) | false |
+| | `Bundle.entry[0].count()` | 1 |
+| | `Bundle.entry[0].exists()` | false |
+| | `Bundle.entry[0].empty()` | true |
+| | `Bundle.entry.first().exists()` | false |
+| `"contact": [{"name": {}}]` | `Patient.contact.name.exists()` (pat-1) | false |
+| | `Patient.contact.name.exists(true)` | true |
+| | `Patient.contact.name.where(true).exists()` | false |
+| | `Patient.contact.exists()`, `Patient.exists()` | false |
+| `{"resourceType": "Patient"}` | `Patient.exists()`, `%resource.exists()` | false |
+| `"_active": {}` | `Patient.active.count()` / `.exists()` | 1 / false |
+| `{"family": ""}`, `{"id": "x"}` as `name` | `name.exists()` | true: a string, even empty, is a value |
+
+FHIRPath defines both functions on the collection alone. 2.0.0: `empty()`
+"Returns `true` if the input collection is empty (`{ }`) and `false`
+otherwise", and `exists()` "is the opposite of `empty()`, and as such is a
+shorthand for `empty().not()`", and with criteria "shorthand for
+`where(criteria).exists()`"; `count()` "Returns 0 when the input collection is
+empty". By that text a collection that counts 1 is not empty, `exists(true)` and
+`where(true).exists()` agree, and a resource that holds only its
+`resourceType`, which ele-1 does not reach, exists. FHIR says such an element is
+invalid, not that it is absent.
+
+A root with no type written `{}`, which the validator does not read, holds no
+value either, as a resource with only its `resourceType` does: `exists()` on
+it is false and `empty()` true. Nothing else about it changes: it is still
+the input, and an expression that does not ask whether it exists reads it as
+before.
+
+`iif()`, `coalesce()` and the boolean reading of a collection see such an
+element as an item, as the validator does: on a contact whose `name` is `{}`,
+`iif(Patient.contact.name, 'a', 'b')` is `a`, and
+`coalesce(Patient.contact.name, 'x').exists()` false.
+
+A primitive written with no value, only the element beside it, is the
+exception: its value is null, and where a value is wanted it is empty, as in
+the validator.
+
+| On | Expression | Validator and this engine |
+|---|---|---|
+| `"_active": {}` | `Patient.active or false`, `Patient.active.not()` | empty |
+| | `iif(Patient.active, 'a', 'b')` | `b` |
+| `"_active": {"extension": [...]}` | `Patient.active or false`, `Patient.active.not()` | empty |
+| `"_active": {}` | `Patient.active = true`, `Patient.active = false` / `!= true` | false / true |
+| | `allTrue()`, `anyTrue()`, `allFalse()`, `anyFalse()` | false |
+| `"given": [null, "a"], "_given": [{}, null]` | `Patient.name.given.join(',')` | `a` |
+
+`=` compares the null, which equals no value. Where the validator raises a
+NullPointerException, `<`, the arithmetic operators, unary `-`, the String
+functions, `duration()` and `difference()`, this engine reads the value as
+empty: `"_birthDate": {}` makes `birthDate < @2020` empty. `given + 'x'` is
+empty too, where the validator answers `nullx`, Java's concatenation of a
+null; `&` reads it as the empty string, as it does an empty operand, so
+`gender & 'x'` is `x`. Up to 1.13.2 a primitive with
+only an extension was read as an object: a boolean reading took it for true,
+`join()` wrote it as `{}`, and `allTrue()` raised a type error.
+
+`~` compares children as navigation reads them, so a member written `{}` is a
+child: `contact[0] ~ contact[1]` is false between a contact whose `name` is `{}`
+and one with no `name`, as in the validator. An element beside a primitive
+that holds no value adds nothing to a value beside it: `"given": ["J"],
+"_given": [{}]` is equivalent to `"given": ["J"]`. Beside a `null` it is the
+item, and is not.
+
 ## Decisions taken where the specification is silent
 
 Recorded here and at the point of code, so nobody has to guess whether a choice
@@ -891,7 +983,7 @@ was reasoned or accidental.
 | `as()`/`ofType()` on a primitive | Requires the declared type; `is()` keeps hierarchy matching | FHIR: "all primitives are considered to be independent types (so markdown is not a subclass of string)" |
 | Telling `FHIR.boolean` from `System.Boolean` | By case: FHIR names primitives in lower camel case, FHIRPath capitalizes its own | The suite requires `active.is(boolean)` true and `active.is(Boolean)` false. Complex types such as `Quantity` are spelled alike in both namespaces, so the rule applies to primitives only |
 | Type of a polymorphic element without a model | Taken from the field name, corrected to FHIR's casing | `valueOid` states the element is an `oid`; that is information in the document, not a guess. The value itself says whether the type is primitive or complex |
-| An element written as an empty object, `"name": {}` or an item `{}` of an array | Not there: it is no item of the collection, so `name.exists()` is false and `name.count()` 0, and it is neither a child nor a descendant. Nor is an element beside a primitive written as `{}`: `"_given": [{}]` beside a `null` is no item. An object that holds anything, even only an `id`, is there. `~` between two objects compares what navigation reads, so a member or an item written as `{}` or `null` is no child there either; `=`, and `distinct()` and `union()` with it, compare content as written and still tell it apart. A document read as the root with no type, `{}` itself, is still an item: it is the input, not an element reached in it | FHIR: ele-1, which every element inherits, "All FHIR elements must have a @value or children", and json.html, objects "must not be empty". The HL7 validator reads such an element as absent, so pat-1 fails on a contact whose `name` is `{}` and ext-1 on an extension whose `valueAddress` is `{}`, where reading it as an item made both hold. An object whose members hold nothing, `{"extension": []}`, is still read as an item: it is as invalid, but telling it apart means reading it through |
+| An element written as an empty object, `"name": {}` or an item `{}` of an array | An item of its collection that `exists()` and `empty()` answer as though it were not there | Where the HL7 validator answers over the specification text: see [An element that holds no value](#an-element-that-holds-no-value) |
 | A FHIR primitive's `value`, and `hasValue()`/`getValue()` | The System value the primitive holds, without its FHIR type or element | FHIR: "FHIR.string … has the properties id, extension, and also the implicit value property that is actually of type of System.String", so `birthDate.value is System.Date`. The HL7 validator answers `value` with a FHIR `string` of the text whatever the primitive's type; that is not what the text says |
 | What is a FHIR primitive, as opposed to a System value | By where the value came from: one read from the resource is a FHIR primitive, with or without a model, and even where the model types it a System one; a literal or a function's result is a System value | `'abc'.value` is empty and `'abc'.hasValue()` false with or without a model, as the text says, and so for `active.toBoolean()`. A primitive at a path the model does not know is still a FHIR primitive, so ele-1 holds on it. R4 gives `Resource.id`, `Element.id` and `Extension.url` the type code `System.String` and names their FHIR type, `id`, `string` and `uri`, in `structuredefinition-fhir-type`; the two parts of the definition disagree, and we follow the one that names the FHIR type, as the HL7 validator does, so `Patient.id.hasValue()` is true. Their `type()` stays what the model gives |
 | A primitive's value in `children()` and `descendants()` | Included, after `id` and `extension`, as a System value with no children of its own | FHIR: "FHIR primitives have a value child … and the primitive value will be included in the set returned by children() or descendants()". The HL7 validator leaves it out — its `children()` lists the element's child nodes, and the value is not one — so `birthDate.children().count()` is 3 here and 2 there, and a filter by value over `descendants()` finds a primitive and its value both: `descendants().where($this = 'b')` counts two where HL7 counts one; `where(hasValue() and $this = 'b')` counts the primitive alone. No answer over the R4, R4B and R5 example corpora changes, and over them it costs +0.65% bytes and +0.53% allocations; `descendants()` alone allocates about 15% more |

@@ -35,9 +35,11 @@ type ObjectValue struct {
 	// private records that one goroutine reads the object, so it can keep
 	// what it works out about itself. See MarkPrivate.
 	private bool
-	// root records that the object is the root of the input it was read from.
-	// See Location.
-	root  bool
+	// role records an object that is the root of the input it was read from,
+	// see Location, or the element of a primitive written with no value, see
+	// Valueless. An element is read from a field, so it is never a root, and
+	// one byte holds either.
+	role  objectRole
 	reads uint8 // how many times a field was read by scanning. See readField.
 	// position is the object's index in the field it was read from plus one,
 	// or zero when the field is not an array. A root is read from no field,
@@ -136,7 +138,7 @@ func (o *ObjectValue) Location() string {
 	for ; top.parent != nil; top = top.parent {
 		chain = append(chain, top)
 	}
-	if !top.root {
+	if top.role != roleRoot {
 		return ""
 	}
 
@@ -197,8 +199,8 @@ func (o *ObjectValue) Parent() *ObjectValue {
 // is read — its JSON, its parent, the field and index it was read from — and
 // leaves a root to name itself again, since a root records its name lazily.
 func (o *ObjectValue) reread() *ObjectValue {
-	if o.root {
-		return &ObjectValue{data: o.data, root: true}
+	if o.role == roleRoot {
+		return &ObjectValue{data: o.data, role: roleRoot}
 	}
 	return &ObjectValue{data: o.data, parent: o.parent, field: o.field, position: o.position}
 }
@@ -358,7 +360,7 @@ func (o *ObjectValue) rootName() string {
 func asRoot(col Collection) Collection {
 	for _, value := range col {
 		if obj, ok := value.(*ObjectValue); ok {
-			obj.root = true
+			obj.role = roleRoot
 			if obj.typeName == "" {
 				obj.typeName = obj.readType()
 			}
@@ -557,10 +559,9 @@ func (o *ObjectValue) fieldSummary() (summary fields, resourceType string) {
 			}
 		}
 
-		// A field that reads as nothing, a null or an empty object, is not
-		// there to tell the type by.
+		// A field written as null or as {} is not there to tell the type by.
 		field, ok := inferenceFields[string(key)]
-		if !ok || readsAsNothing(entry, entryType) {
+		if !ok || entryType == jsonparser.Null || entryType == jsonparser.Object && emptyObject(entry) {
 			return nil
 		}
 
@@ -693,7 +694,7 @@ func (o *ObjectValue) Get(field string) (Value, bool) {
 		return nil, false
 	}
 
-	// A field that reads as nothing, a null or an empty object, is not there.
+	// A field written as null is not there.
 	v := jsonValueToFHIRValue(value, dataType)
 	if v == nil {
 		return nil, false
@@ -877,20 +878,196 @@ func pairedCollection(field string, value, element jsonField, parse func([]byte,
 }
 
 // elementBeside is the element written beside a primitive, or nil when
-// there is none. One written as an empty object has neither an id nor
-// extensions, and is no element: see emptyObject.
+// there is none. One written as an empty object is still an element: beside a
+// null it is the item, as it is in the HL7 validator; see HoldsNoValue.
 func elementBeside(element jsonField) *ObjectValue {
-	if !element.found || element.dataType != jsonparser.Object || emptyObject(element.data) {
+	if !element.found || element.dataType != jsonparser.Object {
 		return nil
 	}
 	return NewObjectValue(element.data)
 }
 
-// emptyObject reports whether a JSON object has no members. An element written
-// as one has neither a value nor children, and ele-1, which every element
-// inherits, says "All FHIR elements must have a @value or children": it is not
-// there, and reads as nothing, as it does in the HL7 validator. One that holds
-// only an id has content, and is there.
+// Valueless reports the element of a primitive written with no value: an
+// item of its collection, which navigation reaches, but one whose value is
+// null, as the HL7 validator reads it. Where a value is wanted, in a Boolean
+// reading, an operator or a String function, it is empty: Patient.active or
+// false is empty on "_active": {}, not true.
+func (o *ObjectValue) Valueless() bool { return o.role == roleValueless }
+
+// objectRole is what sets an object apart from the others; see
+// ObjectValue.role.
+type objectRole uint8
+
+const (
+	roleNone objectRole = iota
+	roleRoot
+	roleValueless
+)
+
+// HoldsNoValue reports an object under which nothing holds a value: an
+// element written as {}, as {"extension": [{}]}, or a resource written with
+// nothing but its resourceType. ele-1, which every element inherits, says
+// "All FHIR elements must have a @value or children", and such an element has
+// neither. It is still an item of its collection, as it is in the HL7
+// validator, which reads it as there for every function but exists() and
+// empty(): those answer as though it were not.
+func HoldsNoValue(v Value) bool {
+	o, ok := v.(*ObjectValue)
+	return ok && holdsNoValue(o.data, jsonparser.Object)
+}
+
+// holdsNoValue reports a JSON value under which nothing holds a value: a null,
+// an object whose members hold none, an array whose items hold none. A
+// string, even an empty one, a number and a boolean are values. A
+// resourceType names the resource, and is no child of it.
+func holdsNoValue(data []byte, dataType jsonparser.ValueType) bool {
+	switch dataType {
+	case jsonparser.Null:
+		return true
+	case jsonparser.Object, jsonparser.Array:
+		noValue, _ := holdsNoValueAt(data, skipJSONSpace(data, 0))
+		return noValue
+	}
+	return false
+}
+
+// holdsNoValueAt reads the JSON value that starts at offset, and reports
+// whether nothing under it holds a value and, when nothing does, where it
+// ends. It stops at the first value it meets: an object or array is read only
+// up to there, where finding its members first, as ObjectEach does, would read
+// it all, and exists() on a Bundle whose entries come before its type would
+// cost the whole Bundle each time. A value that does not parse is not known
+// to hold nothing.
+func holdsNoValueAt(data []byte, offset int) (noValue bool, end int) {
+	if offset >= len(data) {
+		return false, 0
+	}
+	switch data[offset] {
+	case 'n':
+		if !bytes.HasPrefix(data[offset:], []byte("null")) {
+			return false, 0
+		}
+		return true, offset + len("null")
+
+	case '[':
+		return arrayHoldsNoValueAt(data, offset)
+	case '{':
+		return objectHoldsNoValueAt(data, offset)
+	}
+	return false, 0
+}
+
+// arrayHoldsNoValueAt is holdsNoValueAt for the array that starts at offset.
+func arrayHoldsNoValueAt(data []byte, offset int) (noValue bool, end int) {
+	offset = skipJSONSpace(data, offset+1)
+	if offset < len(data) && data[offset] == ']' {
+		return true, offset + 1
+	}
+	for offset < len(data) {
+		noValue, end := holdsNoValueAt(data, offset)
+		if !noValue {
+			return false, 0
+		}
+		offset = skipJSONSpace(data, end)
+		switch {
+		case offset < len(data) && data[offset] == ',':
+			offset = skipJSONSpace(data, offset+1)
+		case offset < len(data) && data[offset] == ']':
+			return true, offset + 1
+		default:
+			return false, 0
+		}
+	}
+	return false, 0
+}
+
+// objectHoldsNoValueAt is holdsNoValueAt for the object that starts at offset.
+func objectHoldsNoValueAt(data []byte, offset int) (noValue bool, end int) {
+	offset = skipJSONSpace(data, offset+1)
+	if offset < len(data) && data[offset] == '}' {
+		return true, offset + 1
+	}
+	for offset < len(data) && data[offset] == '"' {
+		key, valueAt, ok := objectKey(data, offset)
+		if !ok {
+			return false, 0
+		}
+		offset = valueAt
+
+		if string(key) == "resourceType" {
+			_, _, skipped, err := jsonparser.Get(data[offset:])
+			if err != nil {
+				return false, 0
+			}
+			offset += skipped
+		} else {
+			noValue, end := holdsNoValueAt(data, offset)
+			if !noValue {
+				return false, 0
+			}
+			offset = end
+		}
+
+		offset = skipJSONSpace(data, offset)
+		switch {
+		case offset < len(data) && data[offset] == ',':
+			offset = skipJSONSpace(data, offset+1)
+		case offset < len(data) && data[offset] == '}':
+			return true, offset + 1
+		default:
+			return false, 0
+		}
+	}
+	return false, 0
+}
+
+// objectKey reads the member key that starts at offset, unescaped, and
+// returns it with the offset of the member's value.
+func objectKey(data []byte, offset int) (key []byte, valueAt int, ok bool) {
+	keyEnd := stringEnd(data, offset)
+	if keyEnd < 0 {
+		return nil, 0, false
+	}
+	key = data[offset+1 : keyEnd-1]
+	// A key written with escapes is read as what they spell
+	if bytes.IndexByte(key, '\\') >= 0 {
+		unescaped, err := jsonparser.Unescape(key, nil)
+		if err != nil {
+			return nil, 0, false
+		}
+		key = unescaped
+	}
+	offset = skipJSONSpace(data, keyEnd)
+	if offset >= len(data) || data[offset] != ':' {
+		return nil, 0, false
+	}
+	return key, skipJSONSpace(data, offset+1), true
+}
+
+// stringEnd returns the offset just past the JSON string that starts at
+// offset, or -1 when it does not close.
+func stringEnd(data []byte, offset int) int {
+	for i := offset + 1; i < len(data); i++ {
+		switch data[i] {
+		case '\\':
+			i++
+		case '"':
+			return i + 1
+		}
+	}
+	return -1
+}
+
+// skipJSONSpace returns the offset of the first byte from offset on that is
+// not JSON whitespace.
+func skipJSONSpace(data []byte, offset int) int {
+	for offset < len(data) && isJSONSpace(data[offset]) {
+		offset++
+	}
+	return offset
+}
+
+// emptyObject reports whether a JSON object has no members.
 func emptyObject(data []byte) bool {
 	for _, c := range data {
 		if c != '{' && c != '}' && !isJSONSpace(c) {
@@ -1087,6 +1264,7 @@ func pairValueWithElement(
 		if element == nil {
 			return Collection{}
 		}
+		element.role = roleValueless
 		return Collection{element}
 	}
 
@@ -1750,9 +1928,6 @@ func jsonValue(data []byte, dataType jsonparser.ValueType, read bool) Value {
 		return v
 
 	case jsonparser.Object:
-		if emptyObject(data) {
-			return nil
-		}
 		return NewObjectValue(data)
 
 	case jsonparser.Array:
@@ -1817,9 +1992,6 @@ func jsonValueToFHIRValueWithType(data []byte, dataType jsonparser.ValueType, fh
 	}
 	// Objects carry the type so that Type() reports it
 	if dataType == jsonparser.Object && fhirType != "" {
-		if emptyObject(data) {
-			return nil
-		}
 		if IsAbstractResourceType(fhirType) {
 			if resource := asResource(data); resource != nil {
 				return resource

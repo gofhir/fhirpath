@@ -39,6 +39,7 @@ result, _ := fhirpath.Evaluate(resource, "{}.empty()")
 
 - Siempre devuelve `true` o `false`, nunca una coleccion vacia.
 - Esta es la unica funcion de existencia que garantiza devolver un booleano incluso para una entrada vacia.
+- Un elemento que no contiene ningun valor, escrito como `{}` o como `{"extension": [{}]}`, es un item de su coleccion pero aqui no cuenta, como en el validador HL7: en una entrada escrita `{}`, `Bundle.entry[0].count()` es `1` y `Bundle.entry[0].empty()` es `true`. Ver [CONFORMANCE.md](https://github.com/gofhir/fhirpath/blob/main/CONFORMANCE.md#an-element-that-holds-no-value).
 
 ---
 
@@ -76,7 +77,8 @@ result, _ := fhirpath.Evaluate(patient, "Patient.telecom.exists(system = 'phone'
 **Casos Limite / Notas:**
 
 - Sin criterio, `exists()` es el inverso de `empty()`.
-- Con criterio, es equivalente a `where(criterio).exists()`.
+- Con criterio, es `true` cuando el criterio conserva algun item, como `where(criterio).count() > 0`.
+- Sin criterio, un elemento que no contiene ningun valor, escrito como `{}` o como `{"extension": [{}]}`, no cuenta, como en el validador HL7: `Patient.contact.name.exists()` es `false` en un contacto cuyo `name` es `{}`, mientras `name.count()` es `1`. Ver [CONFORMANCE.md](https://github.com/gofhir/fhirpath/blob/main/CONFORMANCE.md#an-element-that-holds-no-value).
 - Devuelve `false` para una coleccion de entrada vacia.
 - La expresion de criterio se evalua con `$this` asignado a cada elemento.
 

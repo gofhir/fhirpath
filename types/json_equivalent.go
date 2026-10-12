@@ -15,9 +15,11 @@ import (
 // compares collections, in any order.
 //
 // A child present on one side only is not equivalent, as an empty collection
-// is not equivalent to a non-empty one; a null, an empty object, and an array
-// that holds nothing but those count as absent, as navigation reads nothing
-// there, and neither is an item of an array.
+// is not equivalent to a non-empty one; a null, or an array of nothing but
+// nulls, counts as absent, as navigation reads nothing there. An element written as {} is read
+// as an item, and is a child. The element beside a primitive that holds no
+// value adds nothing to the primitive, as in the HL7 validator, and counts as
+// absent too.
 //
 // The comparison reads the two texts and writes to no object: either may be
 // shared with other goroutines. A child written alike on both sides is
@@ -68,22 +70,45 @@ type jsonObject struct {
 const indexedChildren = 16
 
 // parseJSONObject reads the children of a JSON object in the order written,
-// leaving out the ones navigation reads nothing from: a null, an empty object,
-// and an array that holds nothing but those. A key written twice, which no valid resource has, is read where it
-// first stands, as navigation reads it.
+// leaving out the ones navigation reads nothing from, a null and an array of
+// nothing but nulls, and the element beside a primitive that adds nothing to its values:
+// see addsNothing. A key written twice, which no valid resource has, is read
+// where it first stands, as navigation reads it.
 func parseJSONObject(data []byte) (jsonObject, bool) {
 	object := jsonObject{children: make([]jsonChild, 0, 8)}
+	besides := 0
 	err := jsonparser.ObjectEach(data, func(key, value []byte, dataType jsonparser.ValueType, _ int) error {
 		if _, seen := object.find(key, len(object.children)); seen {
 			return nil
 		}
-		if readsAsNothing(value, dataType) || dataType == jsonparser.Array && holdsNothing(value) {
+		if dataType == jsonparser.Null || dataType == jsonparser.Array && nullsOnly(value) {
 			return nil
+		}
+		if len(key) > 1 && key[0] == '_' {
+			besides++
 		}
 		object.add(jsonChild{key: key, data: value, dataType: dataType})
 		return nil
 	})
-	return object, err == nil
+	if err != nil || besides == 0 {
+		return object, err == nil
+	}
+
+	// The element beside a primitive is told by the value beside it, which
+	// the object may hold before it or after: looked up among the children
+	// once they are all read, so that each is found in the index rather than
+	// by reading the object again
+	kept := jsonObject{children: make([]jsonChild, 0, len(object.children))}
+	for _, child := range object.children {
+		if len(child.key) > 1 && child.key[0] == '_' {
+			value, _ := object.find(child.key[1:], len(object.children))
+			if addsNothing(child, value) {
+				continue
+			}
+		}
+		kept.add(child)
+	}
+	return kept, true
 }
 
 // add appends a child, indexing the children once there are enough of them.
@@ -121,22 +146,49 @@ func (o *jsonObject) find(key []byte, at int) (jsonChild, bool) {
 	return jsonChild{}, false
 }
 
-// readsAsNothing reports a JSON value navigation reads no item from: a null,
-// or an empty object.
-func readsAsNothing(data []byte, dataType jsonparser.ValueType) bool {
-	return dataType == jsonparser.Null || dataType == jsonparser.Object && emptyObject(data)
+// addsNothing reports an element beside a primitive, _given beside given,
+// that holds no value and stands only beside values: given "J" with _given
+// [{}] is given "J", as in the HL7 validator. One beside a null is the item
+// there, and is kept. value is the primitive's child, the zero jsonChild
+// where there is none; a null, or an array of nothing but nulls, is none.
+func addsNothing(element, value jsonChild) bool {
+	if !holdsNoValue(element.data, element.dataType) {
+		return false
+	}
+
+	if element.dataType != jsonparser.Array {
+		return value.key != nil && value.dataType != jsonparser.Array
+	}
+
+	var values []jsonparser.ValueType
+	if value.key != nil && value.dataType == jsonparser.Array {
+		//nolint:errcheck // An array that does not parse stands beside nothing
+		jsonparser.ArrayEach(value.data, func(_ []byte, dataType jsonparser.ValueType, _ int, _ error) {
+			values = append(values, dataType)
+		})
+	}
+	beside := true
+	i := 0
+	//nolint:errcheck // An array that does not parse holds no value, as holdsNoValue found
+	jsonparser.ArrayEach(element.data, func(_ []byte, dataType jsonparser.ValueType, _ int, _ error) {
+		if dataType != jsonparser.Null && (i >= len(values) || values[i] == jsonparser.Null) {
+			beside = false
+		}
+		i++
+	})
+	return beside
 }
 
-// holdsNothing reports a JSON array whose elements all read as nothing.
-func holdsNothing(data []byte) bool {
-	empty := true
+// nullsOnly reports a JSON array whose elements, if any, are all null.
+func nullsOnly(data []byte) bool {
+	nulls := true
 	//nolint:errcheck // An array that does not parse is compared as written
-	jsonparser.ArrayEach(data, func(value []byte, dataType jsonparser.ValueType, _ int, _ error) {
-		if empty && !readsAsNothing(value, dataType) {
-			empty = false
+	jsonparser.ArrayEach(data, func(_ []byte, dataType jsonparser.ValueType, _ int, _ error) {
+		if dataType != jsonparser.Null {
+			nulls = false
 		}
 	})
-	return empty
+	return nulls
 }
 
 // equivalentChildren compares two child properties, each a single value or an
@@ -339,15 +391,15 @@ type childValue struct {
 
 // childValues returns the values of a child property, an array's elements or
 // the single value; reading them is left to the comparison, which reads only
-// what it must. An item that reads as nothing, a null or an empty object, is
-// no item, as navigation reads it, and is left out.
+// what it must. A null item is left out, as navigation reads nothing there;
+// one with an element beside it is compared where the element is.
 func childValues(child jsonChild) ([]childValue, bool) {
 	if child.dataType != jsonparser.Array {
 		return []childValue{{child.data, child.dataType}}, true
 	}
 	var values []childValue
 	_, err := jsonparser.ArrayEach(child.data, func(value []byte, dataType jsonparser.ValueType, _ int, _ error) {
-		if readsAsNothing(value, dataType) {
+		if dataType == jsonparser.Null {
 			return
 		}
 		values = append(values, childValue{value, dataType})

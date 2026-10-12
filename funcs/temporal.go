@@ -170,7 +170,8 @@ func fnDuration(_ *eval.Context, input types.Collection, args []interface{}) (ty
 // operand is empty or specified less precisely than the request, an error when
 // the precision does not apply to the type at hand.
 func measureTemporal(name string, measure temporalMeasure, input types.Collection, args []interface{}) (types.Collection, error) {
-	if input.Empty() {
+	// A date written with no value has none to measure from
+	if input.Empty() || input.Valueless() {
 		return types.Collection{}, nil
 	}
 	if len(input) > 1 {
@@ -178,7 +179,7 @@ func measureTemporal(name string, measure temporalMeasure, input types.Collectio
 	}
 
 	target, ok := args[0].(types.Collection)
-	if !ok || target.Empty() {
+	if !ok || target.Empty() || target.Valueless() {
 		return types.Collection{}, nil
 	}
 	if len(target) > 1 {

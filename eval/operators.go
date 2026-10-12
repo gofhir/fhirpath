@@ -557,9 +557,17 @@ func Equal(left, right types.Collection) types.Collection {
 	return result
 }
 
+// noValue reports an operand that propagates empty: an empty collection, or
+// a primitive written with no value; see types.Collection.Valueless.
+func noValue(operand types.Collection) bool {
+	return operand.Empty() || operand.Valueless()
+}
+
 // equal is Equal with the error it can end in.
 func equal(left, right types.Collection) (types.Collection, error) {
-	// Empty propagation
+	// Empty propagation. A primitive with no value is not empty here: the HL7
+	// validator compares its null, unequal to any value, so on "_active": {}
+	// Patient.active = true is false
 	if left.Empty() || right.Empty() {
 		return types.EmptyCollection, nil
 	}
@@ -874,7 +882,7 @@ func Concatenate(left, right types.Collection) (types.Collection, error) {
 // else follows the singleton rule: more than one item, or one that is not a
 // String, is an error rather than a value picked out of the collection.
 func concatenationOperand(operand types.Collection) (string, error) {
-	if operand.Empty() {
+	if noValue(operand) {
 		return "", nil
 	}
 	if len(operand) > 1 {

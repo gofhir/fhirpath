@@ -39,6 +39,7 @@ result, _ := fhirpath.Evaluate(resource, "{}.empty()")
 
 - Always returns `true` or `false`, never an empty collection.
 - This is the only existence function guaranteed to return a boolean even for empty input.
+- An element that holds no value, written as `{}` or as `{"extension": [{}]}`, is an item of its collection but does not count here, as in the HL7 validator: on an entry written `{}`, `Bundle.entry[0].count()` is `1` and `Bundle.entry[0].empty()` is `true`. See [CONFORMANCE.md](https://github.com/gofhir/fhirpath/blob/main/CONFORMANCE.md#an-element-that-holds-no-value).
 
 ---
 
@@ -76,7 +77,8 @@ result, _ := fhirpath.Evaluate(patient, "Patient.telecom.exists(system = 'phone'
 **Edge Cases / Notes:**
 
 - Without criteria, `exists()` is the inverse of `empty()`.
-- With criteria, it is equivalent to `where(criteria).exists()`.
+- With criteria, it is true when the criteria keep any item, as `where(criteria).count() > 0` is.
+- Without criteria, an element that holds no value, written as `{}` or as `{"extension": [{}]}`, does not count, as in the HL7 validator: `Patient.contact.name.exists()` is `false` on a contact whose `name` is `{}`, while `name.count()` is `1`. See [CONFORMANCE.md](https://github.com/gofhir/fhirpath/blob/main/CONFORMANCE.md#an-element-that-holds-no-value).
 - Returns `false` for an empty input collection.
 - The criteria expression is evaluated with `$this` set to each element.
 

@@ -1734,8 +1734,8 @@ func (e *Evaluator) VisitPolarityExpression(ctx *grammar.PolarityExpressionConte
 
 // applyPolarity applies a leading + or -.
 func applyPolarity(col types.Collection, negate bool) interface{} {
-	if col.Empty() {
-		return col
+	if noValue(col) {
+		return types.Collection{}
 	}
 	if len(col) != 1 {
 		return SingletonError(len(col))
@@ -1771,8 +1771,8 @@ func (e *Evaluator) VisitMultiplicativeExpression(ctx *grammar.MultiplicativeExp
 
 // applyMultiplicative applies *, /, div and mod.
 func applyMultiplicative(leftCol, rightCol types.Collection, op string) interface{} {
-	// Empty propagation
-	if leftCol.Empty() || rightCol.Empty() {
+	// Empty propagation, a primitive with no value being empty
+	if noValue(leftCol) || noValue(rightCol) {
 		return types.Collection{}
 	}
 
@@ -1845,8 +1845,8 @@ func applyAdditive(leftCol, rightCol types.Collection, op string) interface{} {
 		return result
 	}
 
-	// Empty propagation for + and -
-	if leftCol.Empty() || rightCol.Empty() {
+	// Empty propagation for + and -, a primitive with no value being empty
+	if noValue(leftCol) || noValue(rightCol) {
 		return types.Collection{}
 	}
 
@@ -1931,8 +1931,8 @@ func (e *Evaluator) VisitInequalityExpression(ctx *grammar.InequalityExpressionC
 
 // applyInequality applies <, <=, > and >=.
 func applyInequality(leftCol, rightCol types.Collection, op string) interface{} {
-	// Empty propagation
-	if leftCol.Empty() || rightCol.Empty() {
+	// Empty propagation, a primitive with no value being empty
+	if noValue(leftCol) || noValue(rightCol) {
 		return types.Collection{}
 	}
 

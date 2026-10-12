@@ -10,22 +10,27 @@ import (
 	"github.com/gofhir/models/r5/v2"
 )
 
-// With the generated models, an element written as an empty object is not
-// there either, whether its type is read off the model or off a choice
-// element's name: pat-1 fails on a contact whose name is {}, and ext-1 on an
-// extension whose value is {}, as they do in the HL7 validator.
-func TestAnElementWrittenAsAnEmptyObjectIsNotThereWithTheGeneratedModels(t *testing.T) {
+// With the generated models, an element that holds no value is an item that
+// does not exist either, whether its type is read off the model or off a
+// choice element's name: pat-1 fails on a contact whose name is {}, ext-1 on
+// an extension whose value is {}, and bdl-4 on an entry written {}, as they do
+// in the HL7 validator.
+func TestAnElementThatHoldsNoValueIsAnItemThatDoesNotExistWithTheGeneratedModels(t *testing.T) {
 	tests := []struct {
 		resource, expr, want string
 	}{
 		{`{"resourceType":"Patient","contact":[{"name":{}}]}`,
 			"contact.all(name.exists() or telecom.exists() or address.exists() or organization.exists())", "[false]"},
 		{`{"resourceType":"Patient","contact":[{"name":{"id":"x"}}]}`, "contact.name.exists()", "[true]"},
-		{`{"resourceType":"Patient","contact":[{"name":{}}]}`, "contact.descendants().count()", "[0]"},
+		{`{"resourceType":"Patient","contact":[{"name":{}}]}`, "contact.name.count()", "[1]"},
+		{`{"resourceType":"Patient","contact":[{"name":{}}]}`, "contact.descendants().count()", "[1]"},
 		{`{"resourceType":"Patient","extension":[{"url":"u","valueAddress":{}}]}`,
 			"extension.all(extension.exists() != value.exists())", "[false]"},
 		{`{"resourceType":"Patient","extension":[{"url":"u","valueAddress":{}}]}`, "extension.value.ofType(Address).exists()", "[false]"},
+		{`{"resourceType":"Patient","extension":[{"url":"u","valueAddress":{}}]}`, "extension.value.ofType(Address).count()", "[1]"},
 		{`{"resourceType":"Bundle","entry":[{"resource":{}}]}`, "entry.resource.exists()", "[false]"},
+		{`{"resourceType":"Bundle","type":"transaction-response","entry":[{},{"response":{"status":"200"}}]}`, "entry.count()", "[2]"},
+		{`{"resourceType":"Bundle","type":"transaction-response","entry":[{},{"response":{"status":"200"}}]}`, "entry.all(response.exists())", "[false]"},
 	}
 
 	for _, model := range []struct {
@@ -46,9 +51,9 @@ func TestAnElementWrittenAsAnEmptyObjectIsNotThereWithTheGeneratedModels(t *test
 	}
 }
 
-// A root that is an element written as an empty object is not there either,
+// A root that is an element written as an empty object does not exist either,
 // whether the document is checked as it is read or known to be well formed.
-func TestAnElementRootWrittenAsAnEmptyObjectIsNotThere(t *testing.T) {
+func TestAnElementRootWrittenAsAnEmptyObjectDoesNotExist(t *testing.T) {
 	for _, newContext := range []struct {
 		name string
 		new  func([]byte) *eval.Context
