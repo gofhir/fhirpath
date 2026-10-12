@@ -106,8 +106,13 @@ func (d Date) Type() string {
 // @2020-01-01T00:00:00Z are two values, not one. A Date compares with a
 // DateTime, as it converts to one; a Time with neither.
 func (d Date) Equal(other Value) bool {
-	equal, err := EqualTemporal(d, other)
-	return err == nil && equal
+	// Two of one precision compare on the components it states
+	if o, ok := other.(Date); ok && d.precision == o.precision {
+		return d.year == o.year &&
+			(d.precision < MonthPrecision || d.month == o.month) &&
+			(d.precision < DayPrecision || d.day == o.day)
+	}
+	return equalTemporal(d, other)
 }
 
 // Equivalent is Equal: "the comparison is the same as for equality, with the

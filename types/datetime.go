@@ -206,12 +206,46 @@ func (dt DateTime) Equal(other Value) bool {
 	if o, ok := other.(DateTime); ok && dt.precision == o.precision {
 		offset, hasOffset := dt.EffectiveOffset()
 		otherOffset, otherHasOffset := o.EffectiveOffset()
-		if hasOffset == otherHasOffset && offset == otherOffset {
+		switch {
+		case hasOffset == otherHasOffset && offset == otherOffset:
 			return dt.sameComponents(o)
+		case hasOffset && otherHasOffset && dt.precision >= DTMinutePrecision:
+			// Two at different offsets, to the minute or finer: the same
+			// instant, the offsets taken off in whole minutes
+			return dt.utcMinute(offset) == o.utcMinute(otherOffset) &&
+				(dt.precision < DTSecondPrecision || dt.second == o.second) &&
+				(dt.precision < DTMillisPrecision || dt.millis == o.millis)
 		}
 	}
-	equal, err := EqualTemporal(dt, other)
-	return err == nil && equal
+	return equalTemporal(dt, other)
+}
+
+// utcMinute returns the value's minute counted from the civil epoch, at UTC.
+func (dt DateTime) utcMinute(offset int) int64 {
+	return daysFromCivil(dt.year, dt.month, dt.day)*24*60 + int64(dt.hour*60+dt.minute-offset)
+}
+
+// daysFromCivil counts days from 1970-01-01 to a proleptic Gregorian date, by
+// Howard Hinnant's algorithm, without a time.Time.
+func daysFromCivil(year, month, day int) int64 {
+	y := int64(year)
+	if month <= 2 {
+		y--
+	}
+	era := y / 400
+	if y < 0 && y%400 != 0 {
+		era--
+	}
+	yearOfEra := y - era*400
+	m := int64(month)
+	if m > 2 {
+		m -= 3
+	} else {
+		m += 9
+	}
+	dayOfYear := (153*m+2)/5 + int64(day) - 1
+	dayOfEra := yearOfEra*365 + yearOfEra/4 - yearOfEra/100 + dayOfYear
+	return era*146097 + dayOfEra - 719468
 }
 
 // sameComponents compares two DateTimes of one precision on the components

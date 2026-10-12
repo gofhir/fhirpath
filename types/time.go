@@ -120,8 +120,23 @@ func (t Time) Type() string {
 // @2020-01-01T00:00:00Z are two values, not one. A Date compares with a
 // DateTime, as it converts to one; a Time with neither.
 func (t Time) Equal(other Value) bool {
-	equal, err := EqualTemporal(t, other)
-	return err == nil && equal
+	// Two of one precision, seconds and milliseconds being one, compare on
+	// the components it states, the seconds as thousandths
+	if o, ok := other.(Time); ok && t.clockPrecision() == o.clockPrecision() {
+		return t.hour == o.hour &&
+			(t.precision < MinutePrecision || t.minute == o.minute) &&
+			(t.precision < SecondPrecision || t.second*1000+t.millis == o.second*1000+o.millis)
+	}
+	return equalTemporal(t, other)
+}
+
+// clockPrecision is the precision comparison reads, seconds and milliseconds
+// being one.
+func (t Time) clockPrecision() TimePrecision {
+	if t.precision == MillisPrecision {
+		return SecondPrecision
+	}
+	return t.precision
 }
 
 // Equivalent is Equal: "the comparison is the same as for equality, with the
