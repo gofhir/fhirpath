@@ -305,7 +305,7 @@ result, _ = compiled.EvaluateWithOptions(resource,
 
 ## hasValue
 
-Devuelve `true` si la entrada contiene un valor primitivo (Boolean, String, Integer, Decimal, Date, DateTime o Time).
+Devuelve `true` si la entrada es un único primitivo FHIR con valor, o un único valor complejo.
 
 **Firma:**
 ```
@@ -320,8 +320,8 @@ hasValue() : Boolean
 result, _ := fhirpath.Evaluate(patient, "Patient.active.hasValue()")
 // true (active is a boolean primitive)
 
-result, _ := fhirpath.Evaluate(patient, "Patient.name.hasValue()")
-// false (name is a complex type, not a primitive)
+result, _ := fhirpath.Evaluate(patient, "Patient.name.first().hasValue()")
+// true (a single complex value, as in the HL7 validator)
 
 result, _ := fhirpath.Evaluate(patient, "Patient.birthDate.hasValue()")
 // true (birthDate is a date primitive)
@@ -329,8 +329,9 @@ result, _ := fhirpath.Evaluate(patient, "Patient.birthDate.hasValue()")
 
 **Casos Limite / Notas:**
 - Devuelve `false` para entrada vacia.
-- Devuelve `true` si **algun** elemento en la coleccion tiene un valor primitivo.
-- Los tipos complejos (objetos) no cuentan como si tuvieran un valor, incluso si contienen campos primitivos.
+- Devuelve `false` para mas de un elemento.
+- Un primitivo escrito con extensiones pero sin valor no tiene valor: `false`.
+- Un unico valor complejo tiene valor, como en el validador HL7, aunque FHIR define la funcion solo para primitivos. Ver [CONFORMANCE.md](https://github.com/gofhir/fhirpath/blob/main/CONFORMANCE.md#hasvalue-is-true-on-a-complex-value).
 
 ---
 

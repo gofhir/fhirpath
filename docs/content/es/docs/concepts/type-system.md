@@ -35,7 +35,7 @@ type Value interface {
     Equal(other Value) bool
 
     // Equivalent compares equivalence (the ~ operator).
-    // For strings: case-insensitive, normalizes whitespace.
+    // For strings: case-insensitive, whitespace as written.
     Equivalent(other Value) bool
 
     // String returns a human-readable string representation.
@@ -46,7 +46,7 @@ type Value interface {
 }
 ```
 
-La distinción entre `Equal` y `Equivalent` es importante. La igualdad (`=`) es una comparación estricta: `'Hello'` no es igual a `'hello'`. La equivalencia (`~`) es una comparación más flexible: para cadenas de texto es insensible a mayúsculas y normaliza los espacios en blanco; para cantidades utiliza la normalización UCUM de modo que `1000 'mg'` es equivalente a `1 'g'`.
+La distinción entre `Equal` y `Equivalent` es importante. La igualdad (`=`) es una comparación estricta: `'Hello'` no es igual a `'hello'`. La equivalencia (`~`) es una comparación más flexible: para cadenas de texto es insensible a mayúsculas, y compara los espacios en blanco tal como están escritos, como el validador HL7; para cantidades utiliza la normalización UCUM de modo que `1000 'mg'` es equivalente a `1 'g'`.
 
 ## La Interfaz Comparable
 
@@ -139,13 +139,14 @@ fmt.Println(s.Lower())           // fhirpath
 fmt.Println(s.Contains("Path"))  // true
 ```
 
-La equivalencia para cadenas de texto es insensible a mayúsculas y normaliza los espacios en blanco:
+La equivalencia para cadenas de texto es insensible a mayúsculas, y compara los espacios en blanco tal como están escritos, como el validador HL7:
 
 ```go
-a := types.NewString("Hello  World")
+a := types.NewString("Hello World")
 b := types.NewString("hello world")
 fmt.Println(a.Equal(b))      // false
 fmt.Println(a.Equivalent(b)) // true
+fmt.Println(a.Equivalent(types.NewString("hello  world"))) // false
 ```
 
 ### Date

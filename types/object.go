@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
-	"fmt"
 	"math"
 	"slices"
 	"strconv"
@@ -202,7 +201,7 @@ func (o *ObjectValue) reread() *ObjectValue {
 	if o.role == roleRoot {
 		return &ObjectValue{data: o.data, role: roleRoot}
 	}
-	return &ObjectValue{data: o.data, parent: o.parent, field: o.field, position: o.position}
+	return &ObjectValue{data: o.data, parent: o.parent, field: o.field, position: o.position, role: o.role}
 }
 
 // ParentField returns the field of Parent that holds the object, as the JSON
@@ -658,12 +657,35 @@ func (o *ObjectValue) Equal(other Value) bool {
 }
 
 // Equivalent compares two objects child by child, each with the equivalence
-// of its type, recursively: see equivalentJSON.
+// of its type, recursively: see equivalentJSON. Two Quantities compare as
+// quantities, at any depth, as in the HL7 validator: a reference range whose
+// low is 1 'g' is equivalent to one whose low is 1000 'mg'.
 func (o *ObjectValue) Equivalent(other Value) bool {
-	if ov, ok := other.(*ObjectValue); ok {
-		return equivalentJSON(o.data, ov.data)
+	ov, ok := other.(*ObjectValue)
+	if !ok {
+		return false
 	}
-	return false
+	if sameJSON(o.data, ov.data) {
+		return true
+	}
+	if lq, ok := o.typedQuantity(); ok {
+		if rq, ok := ov.typedQuantity(); ok {
+			return lq.Equivalent(rq)
+		}
+	}
+	return equivalentJSON(o.data, ov.data)
+}
+
+// typedQuantity is the System.Quantity of an object whose type is Quantity or
+// one of its profiles, as a model gives it or its unit, code or system tells
+// it. An object of no known type is not one here: nested in a complex value,
+// an adjudication would compare by its value alone.
+func (o *ObjectValue) typedQuantity() (Quantity, bool) {
+	if !bytes.Contains(o.data, []byte(`"value"`)) || !quantityTypes[o.Type()] {
+		return Quantity{}, false
+	}
+	q, ok, err := o.AsQuantity()
+	return q, ok && err == nil
 }
 
 // String returns the JSON representation.
@@ -2451,25 +2473,39 @@ func (o *ObjectValue) stringField(field string) (string, bool) {
 // (with fields like "value", "unit", "code", "system").
 // Returns the Quantity and true if successful, or zero Quantity and false if not.
 //
-// A Money is not a quantity, and a quantity with a comparator is a bound rather
-// than a value: neither converts. [ObjectValue.AsQuantity] tells the second
-// apart as an error.
+// A Money is not a quantity, and does not convert. A quantity with a
+// comparator converts to its value, as in the HL7 validator: see
+// [ObjectValue.AsQuantity].
 func (o *ObjectValue) ToQuantity() (Quantity, bool) {
 	q, ok, err := o.AsQuantity()
 	return q, ok && err == nil
 }
 
-// ErrQuantityBound reports a FHIR Quantity whose comparator makes it a bound:
-// < 5 'mg' says the value is below 5 mg, not that it is 5 mg, so it has no
-// System.Quantity to compare, add or bound.
+// ErrQuantityBound was reported for a FHIR Quantity with a comparator.
+//
+// Deprecated: a quantity with a comparator now converts to its value, as in
+// the HL7 validator, and nothing reports this error.
 var ErrQuantityBound = errors.New("a FHIR Quantity with a comparator is a bound, not a value")
 
 // AsQuantity converts a FHIR Quantity as [ObjectValue.ToQuantity] does, and
-// reports one that would convert but for its comparator as [ErrQuantityBound].
+// reports a value beyond the decimals this engine holds as ErrDecimalRange.
+//
+// A comparator is not read: < 5 'mg' converts to 5 'mg', as in the HL7
+// validator, which reads the value of a quantity whatever bounds it. FHIR
+// marks the comparator a modifier and states no FHIRPath rule for it;
+// CONFORMANCE.md records the choice.
 func (o *ObjectValue) AsQuantity() (Quantity, bool, error) {
 	val, ok, err := o.quantityValue()
 	if !ok {
 		return Quantity{}, false, err
+	}
+	// Only a quantity converts, as in the HL7 validator, which maps the types
+	// named Quantity and no other: an adjudication has a numeric value too,
+	// and read as a quantity two of them with the same value were equal
+	// whatever their category. An object of no known type, a value alone
+	// without a model, may be one, and converts as before.
+	if t := o.Type(); t != typeObject && !quantityTypes[t] {
+		return Quantity{}, false, nil
 	}
 
 	// Prefer "code" over "unit": code carries the computable UCUM symbol ("mg"),
@@ -2493,19 +2529,25 @@ func (o *ObjectValue) AsQuantity() (Quantity, bool, error) {
 		}
 	}
 
-	if err := o.quantityBound(); err != nil {
-		return Quantity{}, false, err
-	}
 	return NewQuantityFromDecimal(val, unit), true, nil
 }
 
-// QuantityBound reports [ErrQuantityBound] for a FHIR Quantity with a
-// comparator, and nil for anything else.
+// quantityTypes are the FHIR types that map to a System.Quantity: Quantity and
+// the types that profile it. Without a model an object is a Quantity when it
+// has a numeric value beside a unit, a code or a system, see quantityType, and
+// one with a numeric value alone is of no known type.
+var quantityTypes = map[string]bool{
+	"Quantity": true, "SimpleQuantity": true, "MoneyQuantity": true,
+	"Age": true, "Distance": true, "Duration": true, "Count": true,
+}
+
+// QuantityBound reported [ErrQuantityBound] for a FHIR Quantity with a
+// comparator.
+//
+// Deprecated: a quantity with a comparator now converts to its value, and
+// this returns nil.
 func (o *ObjectValue) QuantityBound() error {
-	if _, ok, err := o.quantityValue(); !ok && err == nil {
-		return nil
-	}
-	return o.quantityBound()
+	return nil
 }
 
 // MoneyEqual compares two Money values by their amount and currency, and
@@ -2565,12 +2607,4 @@ func (o *ObjectValue) quantityValue() (decimal.Decimal, bool, error) {
 		return decimal.Decimal{}, false, nil
 	}
 	return val, true, nil
-}
-
-// quantityBound reports the comparator of a quantity, if it has one.
-func (o *ObjectValue) quantityBound() error {
-	if comparator, _ := o.stringField("comparator"); comparator != "" {
-		return fmt.Errorf("%w: the comparator is '%s'", ErrQuantityBound, comparator)
-	}
-	return nil
 }

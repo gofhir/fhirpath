@@ -150,7 +150,7 @@ result, _ := fhirpath.Evaluate(resource, "(@2024-01-01 | @2024-06-15 | @2024-03-
   - `Quantity`, incluida una Quantity FHIR, segun sus unidades
   - `String` (comparacion lexicografica)
   - `Date`, `DateTime` y `Time`, componente por componente
-- Elementos que `<` se niega a comparar, como `1` y `'a'`, terminan la evaluacion con un error: "All items in the input collection SHALL be the same type". Un solo elemento se devuelve tal cual, incluida una Quantity FHIR con `comparator`; entre varios elementos, esa cota se rechaza como la rechaza `<`.
+- Elementos que `<` se niega a comparar, como `1` y `'a'`, terminan la evaluacion con un error: "All items in the input collection SHALL be the same type". Un solo elemento se devuelve tal cual. Una Quantity FHIR con `comparator` se compara como su valor, como en el validador HL7.
 - Si el orden de algun par es desconocido (fechas de distinta precision, una fecha con offset contra una sin offset, o cantidades cuyas unidades no se convierten), el minimo es el elemento que se ordena contra todos los demas y queda por debajo de todos; si ninguno lo hace, el resultado es vacio. `(@2019 | @2020-01-01T10Z | @2020-01-01T10:30Z).min()` es `@2019`.
 - Soporta cancelacion para colecciones grandes.
 
@@ -183,7 +183,7 @@ result, _ := fhirpath.Evaluate(resource, "(@2024-01-01 | @2024-06-15 | @2024-03-
 **Casos Limite / Notas:**
 - Devuelve una coleccion vacia si la entrada esta vacia.
 - Devuelve una coleccion vacia si la coleccion contiene tipos no soportados.
-- Los elementos se comparan como en `min()`, y los que `<` se niega a comparar terminan la evaluacion con un error. Un solo elemento se devuelve tal cual, incluida una Quantity FHIR con `comparator`.
+- Los elementos se comparan como en `min()`, y los que `<` se niega a comparar terminan la evaluacion con un error. Un solo elemento se devuelve tal cual. Una Quantity FHIR con `comparator` se compara como su valor.
 - Si el orden de algun par es desconocido, el maximo es el elemento que se ordena contra todos los demas y queda por encima de todos; si ninguno lo hace, el resultado es vacio. `(@2019 | @2020-01-01T10Z | @2020-01-01T10:30Z).max()` es vacio, porque los dos ultimos no tienen orden.
 - Soporta cancelacion para colecciones grandes.
 

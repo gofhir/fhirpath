@@ -185,67 +185,39 @@ func TestFHIRMoneyIsNotAQuantity(t *testing.T) {
 	}
 }
 
-// TestFHIRQuantityComparatorIsRefused covers a quantity whose comparator makes
-// it a bound: < 5 'mg' is below 5 mg, not 5 mg. Reading it as 5 mg answered
-// for a value nobody measured. Where it would be read as a quantity, against
-// another quantity or in any order, the evaluation ends with an error, as it
-// does in fhirpath.js; elsewhere it is any object.
-func TestFHIRQuantityComparatorIsRefused(t *testing.T) {
+// TestFHIRQuantityComparatorIsNotRead covers a quantity with a comparator. The
+// HL7 validator reads its value whatever bounds it, so < 5 'mg' compares, is
+// equivalent and is bounded as 5 'mg'; each answer below is what the validator
+// 6.10.2 gives. Refusing it ended the evaluation, and so the constraint, where
+// the validator answers. CONFORMANCE.md records the choice.
+func TestFHIRQuantityComparatorIsNotRead(t *testing.T) {
 	bound := observationWith(`{"value":5,"comparator":"<","system":"http://unitsofmeasure.org","code":"mg"}`)
 
-	refused := func(t *testing.T, data []byte, expr string) {
-		t.Helper()
-		_, err := MustCompile(expr).Evaluate(data)
-		if err == nil || !strings.Contains(err.Error(), "is a bound, not a value") || !strings.Contains(err.Error(), "'<'") {
-			t.Errorf("%s: error %v, want the comparator refused", expr, err)
-		}
-	}
-
-	for _, expr := range []string{
-		"Observation.value = 5 'mg'",
-		"Observation.value != 5 'mg'",
-		"Observation.value ~ 5 'mg'",
-		"Observation.value < 6 'mg'",
-		"6 'mg' > Observation.value",
-		"Observation.value < 'x'",
-		"Observation.value + 1 'mg'",
-		"Observation.value * 2",
-		"Observation.value / 2",
-		"@2014-01-01 + Observation.value",
-		"Observation.value.comparable(1 'mg')",
-		"(1 'mg').comparable(Observation.value)",
-		"Observation.value.lowBoundary()",
-		"Observation.value.highBoundary()",
-		"(Observation.value | 1 'mg' | 10 'mg').sort()",
-		"('x' | Observation.value).sort()",
-		// Where ~ finds no pairing, a refused pair is the answer, from either side
-		"(5 'mg' | 'x') ~ (Observation.value | 5 'mg')",
-		"(Observation.value | 5 'mg') ~ (5 'mg' | 'x')",
-	} {
-		t.Run(expr, func(t *testing.T) { refused(t, bound, expr) })
-	}
-
-	// Whatever its unit, in an order
-	for _, quantity := range []string{
-		`{"value":5,"comparator":"<","unit":"tablet"}`,
-		`{"value":5,"comparator":"<"}`,
-	} {
-		refused(t, observationWith(quantity), "Observation.value < 6 'mg'")
-	}
-
-	// Elsewhere it is any object: empty still propagates, it is no match for a
-	// string, two bounds are equal as objects, and it converts to nothing
 	for _, tc := range []struct{ expr, want string }{
-		{"Observation.value.toQuantity()", "EMPTY"},
-		{"Observation.value.convertsToQuantity()", "false"},
+		{"Observation.value = 5 'mg'", "true"},
+		{"Observation.value != 5 'mg'", "false"},
+		{"Observation.value ~ 5 'mg'", "true"},
+		{"Observation.value < 6 'mg'", "true"},
+		{"6 'mg' > Observation.value", "true"},
+		{"Observation.value.comparable(1 'mg')", "true"},
+		{"(1 'mg').comparable(Observation.value)", "true"},
+		{"Observation.value.lowBoundary()", "4.50000000 'mg'"},
+		{"Observation.value.highBoundary()", "5.50000000 'mg'"},
+		{"Observation.value.toQuantity()", "5 'mg'"},
+		{"Observation.value.convertsToQuantity()", "true"},
+		{"Observation.value = 'x'", "false"},
+		{"Observation.value = Observation.value", "true"},
 		{"Observation.value.value < 6", "true"},
+		// The comparator is still read by name.
 		{"Observation.value.comparator", "<"},
+		// Arithmetic reads the value too. The validator raises an exception on
+		// arithmetic with any FHIR Quantity; CONFORMANCE.md records it.
+		{"Observation.value + 1 'mg'", "6 'mg'"},
+		// Empty still propagates, and a collection argument has no answer.
 		{"{} = Observation.value", "EMPTY"},
 		{"Observation.value + {}", "EMPTY"},
-		{"Observation.value = 'x'", "false"},
-		{"'x' in Observation.descendants()", "false"},
 		{"Observation.value.comparable(1 'mg' | 2 'mg')", "EMPTY"},
-		{"Observation.value = Observation.value", "true"},
+		{"'x' in Observation.descendants()", "false"},
 		{"(5 'mg' | Observation.value) ~ (Observation.value | 5 'mg')", "true"},
 	} {
 		t.Run(tc.expr, func(t *testing.T) {
@@ -260,23 +232,19 @@ func TestFHIRQuantityComparatorIsRefused(t *testing.T) {
 	if got := evaluateScalar(t, "Observation.value = 5 'mg'", unbounded); got != "true" {
 		t.Errorf("with an empty comparator: %s, want true", got)
 	}
-
-	// Two bounds in arithmetic name the comparator
-	pair := []byte(`{"resourceType":"Observation","component":[{"valueQuantity":` + `{"value":4,"comparator":"<","system":"http://unitsofmeasure.org","code":"mg"}` +
-		`},{"valueQuantity":{"value":4,"comparator":"<","system":"http://unitsofmeasure.org","code":"mg"}}]}`)
-	refused(t, pair, "Observation.component[0].value + Observation.component[1].value")
 }
 
-// TestFHIRQuantityBoundSortKey checks that a sort refuses a bound it orders by,
-// even beside an empty key, and that a key of several items, a bound among
-// them, is refused as a key of several items.
+// TestFHIRQuantityBoundSortKey checks that a sort orders a quantity with a
+// comparator by its value, even beside an empty key, and that a key of several
+// items is refused as a key of several items.
 func TestFHIRQuantityBoundSortKey(t *testing.T) {
 	withEmpty := []byte(`{"resourceType":"Observation","component":[
 		{"valueQuantity":{"value":5,"comparator":"<","system":"http://unitsofmeasure.org","code":"mg"}},
+		{"valueQuantity":{"value":3,"system":"http://unitsofmeasure.org","code":"mg"}},
 		{"code":{"text":"no value"}}]}`)
-	if _, err := MustCompile("Observation.component.sort(value)").Evaluate(withEmpty); err == nil ||
-		!strings.Contains(err.Error(), "is a bound, not a value") {
-		t.Errorf("beside an empty key: error %v, want the comparator refused", err)
+	result, err := MustCompile("Observation.component.sort(value).value.value").Evaluate(withEmpty)
+	if err != nil || result.String() != "[3, 5]" {
+		t.Errorf("sort(value) = %s, %v; want [3, 5]", result, err)
 	}
 
 	further := []byte(`{"resourceType":"Observation","component":[
@@ -318,5 +286,50 @@ func TestRangeInvariantsWithoutUCUMCode(t *testing.T) {
 	tablets := []byte(`{"resourceType":"Observation","valueRange":{"low":{"value":1,"unit":"tablet"},"high":{"value":1.0,"unit":"tablet"}}}`)
 	if got := evaluateScalar(t, "Observation.value.low = Observation.value.high", tablets); got != "true" {
 		t.Errorf("1 tablet = 1.0 tablet: %s, want true", got)
+	}
+}
+
+// TestOnlyAQuantityComparesAsOne checks that = and ~ read two FHIR Quantities
+// as quantities, as the HL7 validator 6.10.2 does. With a model only objects
+// typed Quantity, or one of its profiles, convert: conformance holds the
+// adjudication that tells them apart. Without one, an object of no known
+// type with a numeric value alone converts, so a Range written without units
+// still orders.
+func TestOnlyAQuantityComparesAsOne(t *testing.T) {
+	observation := []byte(`{"resourceType":"Observation","component":[` +
+		`{"valueQuantity":{"value":1,"system":"http://unitsofmeasure.org","code":"g"}},` +
+		`{"valueQuantity":{"value":1000,"system":"http://unitsofmeasure.org","code":"mg"}}],` +
+		`"valueRange":{"low":{"value":1},"high":{"value":5}}}`)
+
+	for _, tc := range []struct{ expr, want string }{
+		{"Observation.component[0].value = Observation.component[1].value", "true"},
+		{"Observation.component[0].value ~ Observation.component[1].value", "true"},
+		{"Observation.value.low < Observation.value.high", "true"},
+	} {
+		if got := evaluateScalar(t, tc.expr, observation); got != tc.want {
+			t.Errorf("%s = %s, want %s", tc.expr, got, tc.want)
+		}
+	}
+}
+
+// TestNestedQuantitiesAreEquivalentAsQuantities checks that ~ compares a
+// Quantity inside a complex value as a quantity too, as the HL7 validator
+// 6.10.2 does, so the answer does not depend on how deep the quantity sits;
+// = compares content as written.
+func TestNestedQuantitiesAreEquivalentAsQuantities(t *testing.T) {
+	observation := []byte(`{"resourceType":"Observation","referenceRange":[` +
+		`{"low":{"value":1,"system":"http://unitsofmeasure.org","code":"g"}},` +
+		`{"low":{"value":1000,"system":"http://unitsofmeasure.org","code":"mg"}},` +
+		`{"low":{"value":2,"system":"http://unitsofmeasure.org","code":"g"}}]}`)
+
+	for _, tc := range []struct{ expr, want string }{
+		{"Observation.referenceRange[0].low ~ Observation.referenceRange[1].low", "true"},
+		{"Observation.referenceRange[0] ~ Observation.referenceRange[1]", "true"},
+		{"Observation.referenceRange[0] ~ Observation.referenceRange[2]", "false"},
+		{"Observation.referenceRange[0] = Observation.referenceRange[1]", "false"},
+	} {
+		if got := evaluateScalar(t, tc.expr, observation); got != tc.want {
+			t.Errorf("%s = %s, want %s", tc.expr, got, tc.want)
+		}
 	}
 }

@@ -2,7 +2,6 @@ package types
 
 import (
 	"strings"
-	"unicode"
 )
 
 // String represents a FHIRPath string value.
@@ -48,35 +47,15 @@ func (s String) Equal(other Value) bool {
 	return false
 }
 
-// Equivalent compares strings case-insensitively with normalized whitespace.
+// Equivalent compares strings ignoring case, and whitespace as written, as
+// the HL7 validator does: 'abc' ~ 'ABC', but 'a b' is not 'a  b' and ' a' is
+// not 'a'. FHIRPath has whitespace normalized too; CONFORMANCE.md records the
+// choice.
 func (s String) Equivalent(other Value) bool {
 	if o, ok := other.(String); ok {
-		return normalizeString(s.value) == normalizeString(o.value)
+		return strings.EqualFold(s.value, o.value)
 	}
 	return false
-}
-
-// normalizeString converts to lowercase and normalizes whitespace.
-func normalizeString(s string) string {
-	// Trim leading/trailing whitespace
-	s = strings.TrimSpace(s)
-	// Convert to lowercase
-	s = strings.ToLower(s)
-	// Normalize internal whitespace to single spaces
-	var result strings.Builder
-	prevSpace := false
-	for _, r := range s {
-		if unicode.IsSpace(r) {
-			if !prevSpace {
-				result.WriteRune(' ')
-				prevSpace = true
-			}
-		} else {
-			result.WriteRune(r)
-			prevSpace = false
-		}
-	}
-	return result.String()
 }
 
 // String returns the string value.

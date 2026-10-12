@@ -29,7 +29,7 @@ type Value interface {
     Equal(other Value) bool
 
     // Equivalent compares equivalence (the ~ operator in FHIRPath).
-    // For strings: case-insensitive, normalized whitespace.
+    // For strings: case-insensitive, whitespace as written.
     Equivalent(other Value) bool
 
     // String returns a human-readable string representation of the value.
@@ -495,7 +495,7 @@ func NewString(v string) String
 | `ToChars` | `func (s String) ToChars() Collection` | Dividir en cadenas de un solo carácter |
 | `Compare` | `func (s String) Compare(other Value) (int, error)` | Comparación lexicográfica |
 
-**Comportamiento de equivalencia:** `Equivalent()` para cadenas es insensible a mayúsculas y normaliza los espacios en blanco (elimina espacios al inicio/final, colapsa espacios internos a espacios simples).
+**Comportamiento de equivalencia:** `Equivalent()` para cadenas es insensible a mayúsculas y compara los espacios en blanco tal como están escritos, como el validador HL7: `'a b'` no es equivalente a `'a  b'`. Ver [CONFORMANCE.md](https://github.com/gofhir/fhirpath/blob/main/CONFORMANCE.md#strings-are-equivalent-ignoring-case-not-whitespace).
 
 **Ejemplo:**
 
@@ -803,9 +803,9 @@ Crea un `ObjectValue` desde bytes JSON crudos que representan un objeto.
 | `Parent` | `func (o *ObjectValue) Parent() *ObjectValue` | Un objeto nuevo y compartido sobre el JSON del padre, ubicado donde esta el padre, que cualquier goroutine puede leer; el padre mismo cuando usa cache (un `Document`); nil para una raiz, un objeto que ninguna lectura creo o uno devuelto por un resolver |
 | `ParentField` | `func (o *ObjectValue) ParentField() string` | El campo de `Parent()` que contiene al objeto, tal como lo escribe el JSON; `""` sin padre |
 | `ReadString` | `func (o *ObjectValue) ReadString(field string) (string, bool)` | Lee un campo de texto tal como lo escribe el JSON (un id como `2024` sigue siendo texto), sin escribir nada en el objeto salvo que use cache |
-| `ToQuantity` | `func (o *ObjectValue) ToQuantity() (Quantity, bool)` | Convertir una FHIR Quantity a System.Quantity, por su code o unit; un Money, o una cantidad con `comparator`, no se convierte |
-| `AsQuantity` | `func (o *ObjectValue) AsQuantity() (Quantity, bool, error)` | Como `ToQuantity`, pero informa una cantidad que se convertiría si no tuviera `comparator` con un error que envuelve `ErrQuantityBound` (se compara con `errors.Is`) |
-| `QuantityBound` | `func (o *ObjectValue) QuantityBound() error` | Un error que envuelve `ErrQuantityBound` para una FHIR Quantity con `comparator`; nil en otro caso |
+| `ToQuantity` | `func (o *ObjectValue) ToQuantity() (Quantity, bool)` | Convertir una FHIR Quantity a System.Quantity, por su code o unit. Sólo se convierte un objeto cuyo tipo es Quantity o uno de sus perfiles; un Money no. El `comparator` no se lee: `< 5 'mg'` se convierte en `5 'mg'` |
+| `AsQuantity` | `func (o *ObjectValue) AsQuantity() (Quantity, bool, error)` | Como `ToQuantity`, pero informa un valor más allá de los decimales que el motor admite con un error que envuelve `ErrDecimalRange` |
+| `QuantityBound` | `func (o *ObjectValue) QuantityBound() error` | Obsoleto: siempre nil, porque una cantidad con `comparator` se convierte en su valor |
 | `MoneyEqual` | `func MoneyEqual(left, right *ObjectValue) (equal, ok bool)` | Compara dos Money por monto y moneda; `ok` es false salvo que ambos sean Money |
 
 **Inferencia de tipo:** El método `Type()` reconoce tipos de recurso FHIR® (vía el campo `resourceType`) y tipos complejos comunes incluyendo `Quantity`, `Coding`, `CodeableConcept`, `Reference`, `Period`, `Identifier`, `Range`, `Ratio`, `Attachment`, `HumanName`, `Address`, `ContactPoint` y `Annotation`.

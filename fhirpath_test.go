@@ -931,20 +931,21 @@ func TestStringEquivalent(t *testing.T) {
 		assertBooleanResult(t, result, true)
 	})
 
-	t.Run("whitespace normalization", func(t *testing.T) {
+	// Whitespace is compared as written, as the HL7 validator 6.10.2 does.
+	t.Run("whitespace is not normalized", func(t *testing.T) {
 		result, err := Evaluate(simpleJSON, "'hello   world' ~ 'hello world'")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		assertBooleanResult(t, result, true)
+		assertBooleanResult(t, result, false)
 	})
 
-	t.Run("leading trailing whitespace ignored", func(t *testing.T) {
+	t.Run("leading and trailing whitespace is not ignored", func(t *testing.T) {
 		result, err := Evaluate(simpleJSON, "'  hello  ' ~ 'hello'")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
-		assertBooleanResult(t, result, true)
+		assertBooleanResult(t, result, false)
 	})
 
 	t.Run("different strings not equivalent", func(t *testing.T) {
