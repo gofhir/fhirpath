@@ -29,6 +29,61 @@ Two further sources matter:
   [`spec/N1/fhirpath.g4`](https://github.com/HL7/FHIRPath/blob/master/spec/N1/fhirpath.g4)
   omits it. The suite follows the prose.
 
+### When 2.0.0 and 3.0.0 disagree
+
+FHIR R4 and R5 both say "The FHIR Specification uses FHIRPath (release 2)",
+2.0.0, and no published FHIR version adopts 3.0.0. Neither reference engine has
+a switch between the two: fhirpath.js 5.2.0 answers alike with its R4 and R5
+models, and the HL7 validator switches by FHIR version, not by FHIRPath
+version. Where the texts, or the validator, part ways, this engine decides in
+this order:
+
+1. Where the HL7 validator gives a coherent answer, it gives that one; see
+   [Where this engine follows the HL7 validator](#where-this-engine-follows-the-hl7-validator-over-the-specification-text).
+   The exceptions are recorded under
+   [Measured, and not followed](#measured-and-not-followed), each with its
+   reason: an answer that rests on a choice this engine made on its own
+   grounds, the 64-bit Integer, or one no published constraint reaches and
+   that would cost a rewrite to match.
+2. Where it does not, it follows 3.0.0 where 3.0.0 fixes a plain defect of
+   2.0.0, or defines what 2.0.0 does not: `sort()`, `comparable()`,
+   `lowBoundary()` and the rest above.
+3. Otherwise it follows 2.0.0: it is normative, and the release R4 and R5
+   cite.
+
+Each entry below that departs from a text names the text. Among the cases
+measured so far, the two FHIRPath versions part ways in three:
+
+| | 2.0.0 | 3.0.0 | This engine |
+|---|---|---|---|
+| `power()` on Integers | an Integer | always a Decimal | a Decimal, as the validator, R4 too |
+| `~` between quantities in different units | in "the most granular unit of either input" | "converted to the least granular unit" | the least granular, 3.0.0: converting to the finer unit made the value look more precise than it was written, the defect 3.0.0 names |
+| `~` between strings | whitespace "normalized": the characters of the Whitespace lexical category, tab, space, line feed and carriage return, equivalent | all characters of the Unicode White_Space class equivalent, a no-break space among them, and "Multiple whitespace characters in sequence are not collapsed", so `'a     b' ~ 'a b'` is false | case set aside, whitespace as written, as the validator: see below |
+
+### What depends on the FHIR version
+
+The validator answers by FHIR version, read here from a model that implements
+`VersionedModel`. Over 203 expressions measured with `-version 4.0.1` and
+`-version 5.0.0` (6.10.2), the batteries of the entries below, it answers
+differently in two places:
+
+| Expression | Validator R4 | Validator R5 | This engine |
+|---|---|---|---|
+| `Patient.name.as(HumanName)`, three names | filters | an error | as the validator, by the model's version |
+| `Patient.id.is(id)` / `is(System.String)` | false / true | true / false | true / true, both versions |
+
+The definitions name the FHIR type of such a field, `id` for `Resource.id`, in
+`structuredefinition-fhir-type`, in R4 and R5 alike; the validator reads it
+for R5 only. Following it needs that type, which no model here hands the
+engine: gofhir/models#84 and gofhir/fhirpath#165. A field the model types
+`System.String` reads as one here, so `Patient.id.is(System.String)` is true,
+where a FHIR string, `Patient.name.family`, is not a System.String: see
+[Measured, and not followed](#measured-and-not-followed).
+Every other expression measured this engine answers alike for R4 and R5, as
+the validator does. One rule the batteries did not reach also depends on the
+version here: `conformsTo()` on a profile it cannot resolve; see
+[conformsTo, where R5 disagrees with itself](#conformsto-where-r5-disagrees-with-itself).
+
 ## Current conformance
 
 Measured against the official suite, in both configurations a caller can use:
@@ -514,10 +569,14 @@ that only checked "does it compile" reported success:
 
 ## A divergence taken on purpose: `as` over a collection
 
+Text departed from: FHIRPath 2.0.0 and 3.0.0 alike. The validator follows it
+from R5 on; see [What depends on the FHIR version](#what-depends-on-the-fhir-version).
+
 The specification is unambiguous about the operator: "If there is more than one
 item in the input collection, the evaluator will throw an error." The official
-suite tests it (`Patient.name.as(HumanName).use`), and this engine does not
-comply — it filters by type, as `ofType()` does.
+suite tests it (`Patient.name.as(HumanName).use`), and with a model older than
+R5 this engine does not comply — it filters by type, as `ofType()` does. With
+an R5 model it raises the error, as the validator does.
 
 That is deliberate, and the reason is FHIR's own normative content. `dom-3`, a
 SHALL invariant on **every** DomainResource, reads:
@@ -540,7 +599,8 @@ This is not a lenient reading of an ambiguous rule. Checked against fhirpath.js
 So a specification-exact engine cannot validate dom-3 on R4 at all, and R4 is
 what most deployments run.
 
-HAPI, the engine behind the official validator, resolves it by version:
+HL7's Java FHIRPath engine (`org.hl7.fhir.r5.fhirpath.FHIRPathEngine`, in
+org.hl7.fhir.core), the one the official validator runs, resolves it by version:
 
 ```java
 private void initFlags() {
@@ -552,10 +612,14 @@ private void initFlags() {
 ```
 
 Before R5 it filters, exactly as this engine does; from R5 on it enforces the
-singleton rule. So the behaviour here matches the reference validator for R4 —
-which is the version the suite and most deployments use — and would need to
-become version-aware to match it for R5 as well. HAPI also enforces case
-sensitivity on type names only from R5 on.
+singleton rule. This engine does the same, by the version a model declares
+through `VersionedModel`; a model that declares none is taken for pre-R5. The
+Java engine also sets a flag for case sensitivity on type names only from R5
+on, but a name in the wrong case is no type in either version there:
+`as(humanName)` is an error with `-version 4.0.1` and with `-version 5.0.0`, as
+it is here with a model that tells which names are types, `TypeRegistry`, as
+the generated models do; with one that does not, the name is taken at face
+value and the cast filters to nothing.
 
 HL7 came to the same conclusion, in stages. The invariant is worded differently
 in each of the three versions:
@@ -576,10 +640,9 @@ three names is 3 with `-version 4.0.1` and an error, "Attempt to use 'as()' on
 more than one item", with `-version 5.0.0`, and this engine answers the same with
 the R4 and the R5 models.
 
-So the divergence is only needed for **R4** invariants. An engine targeting R5
-could follow the specification and still evaluate dom-3. This one sides with the
-R4 invariant, since that is the version most deployments validate against, and
-one suite case is a smaller loss than dom-3 erroring on every DomainResource.
+So the divergence is only needed for **R4** invariants, and only there is it
+taken: one suite case is a smaller loss than dom-3 erroring on every
+DomainResource of the version most deployments validate against.
 
 Worth noting while reading dom-3: one clause is duplicated in both versions —
 `descendants().where(ofType(canonical) = '#').exists()` appears twice, where the
@@ -587,6 +650,11 @@ symmetry with the first branch calls for `uri` and `url`. That defect is
 upstream and unrelated to this engine.
 
 ## A divergence taken on purpose: `and`, `or` and `implies` decide from the left
+
+Text departed from: FHIRPath 2.0.0 and 3.0.0 alike, read strictly: both allow
+short-circuit evaluation and say "implementations must not change semantics
+with short-circuit evaluation", which an error in the right operand the left
+one decides makes this do. The validator short-circuits, in R4 and R5.
 
 When the left operand of `or` is `true`, of `and` is `false`, or of `implies`
 is `false`, this engine answers without evaluating the right one. fhirpath.js
@@ -646,6 +714,9 @@ An expression that has to run on engines that evaluate both operands should
 still guard the right side with `iif()`, as the specification advises.
 
 ## A divergence taken on purpose: a FHIR Quantity maps by its code or unit
+
+Text departed from: FHIR's FHIRPath page, R4 and R5 alike. The validator
+reports nothing on the Ranges in local units the strict reading fails.
 
 FHIR conditions the mapping from a FHIR Quantity to a `System.Quantity`:
 
@@ -904,8 +975,10 @@ validator release that changes one shows up when it is measured again.
 
 Only an answer can be followed. Where the validator ends in an exception, or
 gives two answers that cannot both hold — an equality that is not symmetric,
-a string that converts to a date it cannot make — the engine keeps its own,
-and the case is recorded under [Measured, and not followed](#measured-and-not-followed).
+a string that converts to a date it cannot make — the engine keeps its own.
+A coherent answer is set aside only for the reasons rule 1 under
+[When 2.0.0 and 3.0.0 disagree](#when-200-and-300-disagree) names. Either way
+the case is recorded under [Measured, and not followed](#measured-and-not-followed).
 
 Each answer was measured with `validator_cli.jar -fhirpath "<expression>"
 <file> -version 4.0.1`.
@@ -913,6 +986,8 @@ Each answer was measured with `validator_cli.jar -fhirpath "<expression>"
 ### An element that holds no value
 
 Measured in the HL7 validator 6.10.2.
+
+Text departed from: FHIRPath 2.0.0 and 3.0.0 alike, `exists()` and `empty()`.
 
 An element written as `{}`, or as an object under which nothing holds a
 value — `{"given": []}`, `{"extension": [{}]}` — has neither a value nor
@@ -1016,6 +1091,8 @@ item, and is not.
 
 Measured in the HL7 validator 6.10.2.
 
+Text departed from: FHIR's FHIRPath page, R4 and R5 alike.
+
 A FHIR primitive's children are its `id` and its extensions, and `descendants()`
 reaches each primitive once. Its value is not a child; it is still read by
 name, `birthDate.value`, and by `hasValue()` and `getValue()`.
@@ -1040,6 +1117,9 @@ any count of `children()` or `descendants()` differed from the validator's.
 ### A quantity's comparator is not read
 
 Measured in the HL7 validator 6.10.2.
+
+Text departed from: none states a rule. FHIR marks `comparator` a modifier;
+neither FHIRPath version nor FHIR's FHIRPath page says how a bound maps.
 
 A FHIR Quantity with a `comparator` is read as its value: `< 5 'mg'` compares,
 is equivalent and is bounded as `5 'mg'`, and converts with `toQuantity()`.
@@ -1068,6 +1148,16 @@ or none, so there is no answer of its to follow there; see
 
 Measured in the HL7 validator 6.10.2.
 
+Text departed from: none in comparing two FHIR Quantities as quantities, which
+FHIRPath 2.0.0 and 3.0.0 alike, FHIR's FHIRPath page and the validator all do;
+the engine departed from them before. Across units the four part ways on the
+precision compared at: 2.0.0 in the most granular unit, 3.0.0 in the least,
+which this engine follows, the validator in UCUM's base unit; see
+[When 2.0.0 and 3.0.0 disagree](#when-200-and-300-disagree) and
+[Measured, and not followed](#measured-and-not-followed). A quantity in a local
+unit, which the page does not map, compares here by its unit: see
+[a FHIR Quantity maps by its code or unit](#a-divergence-taken-on-purpose-a-fhir-quantity-maps-by-its-code-or-unit).
+
 `~` between two FHIR Quantities compares them as quantities, as `=` does and as
 it did against a literal: `1 'g'` written in one is equivalent to `1000 'mg'`
 written in the other, and `ms` (millisecond) is not `mS` (millisiemens). Both
@@ -1094,6 +1184,11 @@ dimensions of each quantity must be the same, but not necessarily the unit".
 
 Measured in the HL7 validator 6.10.2.
 
+Text departed from: FHIR's FHIRPath page, R4 and R5 alike, on complex values,
+true where the page answers only of primitives; and R5's alone on a primitive
+with no value, false where R5 says "Otherwise, the return value is empty". The
+validator answers false there for R5 too, and so does this engine.
+
 `hasValue()` on a single complex value is true, whatever it holds; on a FHIR
 primitive it is as before, true when the primitive has a value, false when it
 has only extensions.
@@ -1115,18 +1210,26 @@ some content". A validator built on this engine has to report it the same way.
 
 Measured in the HL7 validator 6.10.2.
 
+Text departed from: FHIRPath 2.0.0 and 3.0.0 alike, on one point only: both
+treat all whitespace characters as equivalent, `'a b' ~ 'a\tb'` true, where the
+validator, and this engine, tell a tab from a space. Not collapsing a run of
+whitespace, and not trimming, is what 3.0.0 says: "Multiple whitespace
+characters in sequence are not collapsed".
+
 `~` between strings sets case aside and compares whitespace as written:
 `'abc' ~ 'ABC'` is true; `'a b' ~ 'a  b'`, `' a' ~ 'a'` and `'a\tb' ~ 'a b'`
-are false. The same holds for strings inside complex values. FHIRPath 2.0.0
-says "the strings must be the same, ignoring case and locale, and normalizing
-whitespace", which this engine did, trimming the ends and folding runs of
-whitespace to one space.
+are false. The same holds for strings inside complex values. Up to 1.13.3 this
+engine trimmed the ends and folded runs of whitespace to one space, more than
+either FHIRPath version asks.
 
 ### Measured, and not followed
 
 Where the validator answers with an error, or two of its answers cannot both
-hold, there is no behavior to follow. These were measured in 6.10.2 and the
-engine keeps its own answer.
+hold, there is no behavior to follow. Where it answers coherently, its answer
+is set aside only for a reason given in the row: it rests on a choice this
+engine made on its own grounds, the 64-bit Integer, or no published constraint
+reaches it and matching it would cost a rewrite. These were measured in 6.10.2
+and the engine keeps its own answer.
 
 | Expression | Validator | This engine | Why not followed |
 |---|---|---|---|
