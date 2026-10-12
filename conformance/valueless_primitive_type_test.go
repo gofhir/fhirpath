@@ -36,6 +36,17 @@ func TestAValuelessPrimitiveIsOfItsTypeWithTheGeneratedModels(t *testing.T) {
 		{"Patient.active.extension.count()", "[1]"},
 	}
 
+	// R4 types Resource.id and Extension.url System.String. Written with no
+	// value, such a field is a string, as the validator has it for is, except
+	// that the validator also takes url for a uri.
+	systemTyped := `{"resourceType":"Patient","_id":` + dar + `,"extension":[{"_url":` + dar + `,"valueString":"x"}]}`
+	systemTests := []struct{ expr, want string }{
+		{"Patient.id is string", "[true]"},
+		{"Patient.id is id", "[false]"},
+		{"Patient.id is String", "[false]"},
+		{"Patient.extension.url is uri", "[false]"},
+	}
+
 	for _, model := range []struct {
 		name  string
 		model fhirpath.Model
@@ -43,6 +54,17 @@ func TestAValuelessPrimitiveIsOfItsTypeWithTheGeneratedModels(t *testing.T) {
 		for _, tt := range tests {
 			t.Run(model.name+"/"+tt.expr, func(t *testing.T) {
 				result, err := fhirpath.MustCompile(tt.expr).EvaluateWithOptions([]byte(patient), fhirpath.WithModel(model.model))
+				if err != nil {
+					t.Fatal(err)
+				}
+				if got := result.String(); got != tt.want {
+					t.Errorf("%s = %s, want %s", tt.expr, got, tt.want)
+				}
+			})
+		}
+		for _, tt := range systemTests {
+			t.Run(model.name+"/"+tt.expr, func(t *testing.T) {
+				result, err := fhirpath.MustCompile(tt.expr).EvaluateWithOptions([]byte(systemTyped), fhirpath.WithModel(model.model))
 				if err != nil {
 					t.Fatal(err)
 				}

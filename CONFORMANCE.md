@@ -947,9 +947,11 @@ the validator.
 It is still of the primitive's type, as in the validator: `"_active"` holding
 only a data-absent-reason is a `boolean`, so `Patient.active is boolean` is true
 and `ofType(boolean)` keeps it, and a `_given` entry beside a `null` is a
-`string`. The type is the one the model declares for the field, or the one a
-choice element's name tells, `_valueString`, with or without a model; without
-either, `_active` with no model, there is none to give, and it is an `Object`.
+`string`. The type is the one the model declares for the field, or, read as a
+choice element, `Observation.value` over `_valueString`, the one its name
+tells, with or without a model. Without either there is none to give, and it is
+an `Object`: `_active` with no model, and `_valueString` read by its own name,
+`Observation.valueString`, with no model to say it is a choice.
 Up to 1.13.3 it was an `Object` everywhere, and filters by FHIR type left it
 out. Its namespace is FHIR's, as for a primitive with a value, where the
 validator answers `System.Boolean` from `type()` and false to `is

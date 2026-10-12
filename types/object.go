@@ -1294,12 +1294,7 @@ func pairValueWithElement(value jsonField, element *ObjectValue, fhirType string
 		return Collection{element}
 	}
 
-	var parsed Value
-	if fhirType == "" {
-		parsed = jsonValueToFHIRValue(value.data, value.dataType)
-	} else {
-		parsed = jsonValueToFHIRValueWithType(value.data, value.dataType, fhirType)
-	}
+	parsed := jsonValueToFHIRValueWithType(value.data, value.dataType, fhirType)
 	if parsed == nil {
 		return Collection{}
 	}
@@ -2334,7 +2329,11 @@ func (o *ObjectValue) GetCollectionWithType(field, fhirType string) Collection {
 // type name none.
 func primitiveTypeOf(fhirType string) string {
 	if system, ok := strings.CutPrefix(fhirType, systemTypePrefix); ok {
-		return lowerFirst(system)
+		// System.Quantity and System.Long name no FHIR primitive
+		if name := lowerFirst(system); fhirPrimitives[name] {
+			return name
+		}
+		return ""
 	}
 	if fhirType == "" {
 		return ""

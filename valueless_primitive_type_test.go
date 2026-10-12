@@ -19,6 +19,10 @@ func TestAValuelessChoiceIsOfTheTypeItsNameTells(t *testing.T) {
 		{`{"resourceType":"Observation","_valueBoolean":` + dar + `}`, "Observation.value.type().name", "[boolean]"},
 		{`{"resourceType":"Patient","extension":[{"url":"u","_valueDate":` + dar + `}]}`, "Patient.extension.value is date", "[true]"},
 		{`{"resourceType":"Patient","_active":` + dar + `}`, "Patient.active.type().name", "[Object]"},
+		// Read by its own name, with no model to say it is a choice, it is a
+		// field like any other.
+		{`{"resourceType":"Observation","_valueDateTime":` + dar + `}`, "Observation.value is dateTime", "[true]"},
+		{`{"resourceType":"Observation","_valueDateTime":` + dar + `}`, "Observation.valueDateTime.type().name", "[Object]"},
 		// A complex type names no primitive: the element of an invalid
 		// "_valueQuantity" is no "quantity".
 		{`{"resourceType":"Observation","_valueQuantity":` + dar + `}`, "Observation.value.type().name", "[Object]"},
