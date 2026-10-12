@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.13.1](https://github.com/gofhir/fhirpath/compare/v1.13.0...v1.13.1) (2026-10-12)
+
+
+### Bug Fixes
+
+* an element written as an empty JSON object is not there ([#142](https://github.com/gofhir/fhirpath/issues/142)) ([4c99e0e](https://github.com/gofhir/fhirpath/commit/4c99e0e927ffe2b73d01172975c5cf35a371dd74))
+* min() and max() compare as &lt; does, and answer only an extreme that orders against all ([#144](https://github.com/gofhir/fhirpath/issues/144)) ([eaa5a74](https://github.com/gofhir/fhirpath/commit/eaa5a7480c71c271d434cefdb43cb70af6f76d1b))
+* temporals at different offsets compare as the spans of time they name ([#140](https://github.com/gofhir/fhirpath/issues/140)) ([b3d1c25](https://github.com/gofhir/fhirpath/commit/b3d1c25023feb7b9dac73f8e35b18b1ad9cb3f74))
+
 ## [1.13.0](https://github.com/gofhir/fhirpath/compare/v1.12.4...v1.13.0) (2026-10-12)
 
 
