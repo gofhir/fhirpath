@@ -53,6 +53,9 @@ func NewDate(s string) (Date, error) {
 		if err != nil {
 			return Date{}, fmt.Errorf("invalid day in date: %s", s)
 		}
+		if err := validCalendar(year, month, day); err != nil {
+			return Date{}, fmt.Errorf("%w: %s", err, s)
+		}
 		return Date{year: year, month: month, day: day, precision: DayPrecision}, nil
 	}
 
@@ -66,6 +69,9 @@ func NewDate(s string) (Date, error) {
 		if err != nil {
 			return Date{}, fmt.Errorf("invalid month in date: %s", s)
 		}
+		if err := validCalendar(year, month, 1); err != nil {
+			return Date{}, fmt.Errorf("%w: %s", err, s)
+		}
 		return Date{year: year, month: month, precision: MonthPrecision}, nil
 	}
 
@@ -74,6 +80,9 @@ func NewDate(s string) (Date, error) {
 		year, err := strconv.Atoi(matches[1])
 		if err != nil {
 			return Date{}, fmt.Errorf("invalid year in date: %s", s)
+		}
+		if err := validCalendar(year, 1, 1); err != nil {
+			return Date{}, fmt.Errorf("%w: %s", err, s)
 		}
 		return Date{year: year, precision: YearPrecision}, nil
 	}

@@ -91,6 +91,9 @@ func NewTime(s string) (Time, error) {
 	}
 
 	t.precision = precision
+	if err := validClock(t.hour, t.minute, t.second); err != nil {
+		return Time{}, fmt.Errorf("%w: %s", err, s)
+	}
 	return t, nil
 }
 
