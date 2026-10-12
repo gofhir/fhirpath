@@ -148,7 +148,9 @@ func (i Integer) MultiplyExact(other Integer) (Integer, error) {
 		return NewInteger(0), nil
 	}
 	product := a * b
-	if product/b != a || (a == -1 && b == math.MinInt64) || (b == -1 && a == math.MinInt64) {
+	// product/b catches every wrap but the least int64 times -1, whose
+	// quotient wraps back to it
+	if product/b != a || (b == -1 && a == math.MinInt64) {
 		return Integer{}, ErrIntegerRange
 	}
 	return NewInteger(product), nil
@@ -218,12 +220,18 @@ func (i Integer) AbsExact() (Integer, error) {
 	return i, nil
 }
 
+// The ends of the int64 range as decimals, made once.
+var (
+	minInt64Decimal = decimal.NewFromInt(math.MinInt64)
+	maxInt64Decimal = decimal.NewFromInt(math.MaxInt64)
+)
+
 // IntegerFromDecimal reads a whole decimal as an Integer, or reports
 // ErrIntegerRange where it lies past the int64 range. A fraction is dropped,
 // toward zero, as decimal.IntPart drops it.
 func IntegerFromDecimal(d decimal.Decimal) (Integer, error) {
 	whole := d.Truncate(0)
-	if whole.LessThan(decimal.NewFromInt(math.MinInt64)) || whole.GreaterThan(decimal.NewFromInt(math.MaxInt64)) {
+	if whole.LessThan(minInt64Decimal) || whole.GreaterThan(maxInt64Decimal) {
 		return Integer{}, ErrIntegerRange
 	}
 	return NewInteger(whole.IntPart()), nil

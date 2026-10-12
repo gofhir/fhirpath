@@ -312,24 +312,30 @@ func (d Decimal) Abs() Decimal {
 
 // Ceiling returns the smallest integer >= d.
 //
-// It wraps past the int64 range; IntegerFromDecimal reports that as
-// ErrIntegerRange.
+// It wraps past the int64 range.
+//
+// Deprecated: use IntegerFromDecimal, which reports a value past the range
+// as ErrIntegerRange.
 func (d Decimal) Ceiling() Integer {
 	return NewInteger(d.value.Ceil().IntPart())
 }
 
 // Floor returns the largest integer <= d.
 //
-// It wraps past the int64 range; IntegerFromDecimal reports that as
-// ErrIntegerRange.
+// It wraps past the int64 range.
+//
+// Deprecated: use IntegerFromDecimal, which reports a value past the range
+// as ErrIntegerRange.
 func (d Decimal) Floor() Integer {
 	return NewInteger(d.value.Floor().IntPart())
 }
 
 // Truncate returns the integer part.
 //
-// It wraps past the int64 range; IntegerFromDecimal reports that as
-// ErrIntegerRange.
+// It wraps past the int64 range.
+//
+// Deprecated: use IntegerFromDecimal, which reports a value past the range
+// as ErrIntegerRange.
 func (d Decimal) Truncate() Integer {
 	return NewInteger(d.value.Truncate(0).IntPart())
 }

@@ -40,11 +40,19 @@ func TestIntegerArithmeticPastTheRangeIsEmpty(t *testing.T) {
 		"(-2.5).ceiling()":              "[-2]",
 		"(-2.5).truncate()":             "[-2]",
 		// div and mod over decimals truncate the decimal itself
-		"100000000000000000000.0 div 1.0":     "[100000000000000000000]",
-		"100000000000000000000.5 mod 1.0":     "[0.5]",
-		"7.5 mod 2":                           "[1.5]",
-		"100000000000000000000.0.toInteger()": "[]",
-		"9223372036854775807.0.toInteger()":   "[9223372036854775807]",
+		"100000000000000000000.0 div 1.0":             "[100000000000000000000]",
+		"100000000000000000000.5 mod 1.0":             "[0.5]",
+		"7.5 mod 2":                                   "[1.5]",
+		"100000000000000000000.0.toInteger()":         "[]",
+		"100000000000000000000.0.convertsToInteger()": "[false]",
+		"9223372036854775807.0.convertsToInteger()":   "[true]",
+		// The quotient is exact, not a division rounded first
+		"0.99999999999999999 div 1.0":       "[0]",
+		"0.99999999999999999 mod 1.0":       "[0.99999999999999999]",
+		"-7.5 div 2":                        "[-3]",
+		"-7.5 mod 2":                        "[-1.5]",
+		"7.5 mod -2":                        "[1.5]",
+		"9223372036854775807.0.toInteger()": "[9223372036854775807]",
 	} {
 		result, err := fhirpath.Evaluate([]byte(`{"resourceType":"Patient"}`), expr)
 		if err != nil {

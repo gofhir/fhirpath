@@ -343,13 +343,11 @@ func IntegerDivide(left, right types.Value) (types.Value, error) {
 		return nil, ErrDivideByZero
 	}
 
-	// Truncated as a decimal, which an int64 would wrap past its range:
-	// 100000000000000000000.0 div 1.0 was 7766279631452241920
-	quotient, err := l.Divide(r)
-	if err != nil {
-		return nil, err
-	}
-	return types.NewDecimalFromDecimal(quotient.Value().Truncate(0)), nil
+	// The exact truncated quotient, which neither an int64 wraps past its
+	// range, 100000000000000000000.0 div 1.0 was 7766279631452241920, nor a
+	// division rounded first carries up: 0.99999999999999999 div 1.0 was 1
+	quotient, _ := l.Value().QuoRem(r.Value(), 0)
+	return types.NewDecimalFromDecimal(quotient), nil
 }
 
 // Modulo computes the remainder of the truncated division, over the same types
@@ -372,13 +370,10 @@ func Modulo(left, right types.Value) (types.Value, error) {
 		return nil, ErrDivideByZero
 	}
 
-	// The remainder of the truncated division: l - trunc(l/r)*r
-	quotient, err := l.Divide(r)
-	if err != nil {
-		return nil, err
-	}
-	whole := types.NewDecimalFromDecimal(quotient.Value().Truncate(0))
-	return l.Subtract(whole.Multiply(r)), nil
+	// The remainder of the truncated division, l - trunc(l/r)*r, exact: a
+	// division rounded first made 0.99999999999999999 mod 1.0 negative
+	_, remainder := l.Value().QuoRem(r.Value(), 0)
+	return types.NewDecimalFromDecimal(remainder), nil
 }
 
 // decimalOperands widens two numeric values to Decimal, which is the implicit

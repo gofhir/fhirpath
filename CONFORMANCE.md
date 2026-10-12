@@ -875,7 +875,12 @@ The same holds for `-`, `*`, `div`, unary `-`, `abs()`, `sum()` and
 `aggregate()` over `+`, and for `toInteger()` on a decimal past the range; the
 ends of the range are values. `div` and `mod` over decimals truncate the
 decimal itself: `100000000000000000000.0 div 1.0` is
-`100000000000000000000`, where it wrapped to `7766279631452241920`. Up to 1.13.4 the sum
+`100000000000000000000`, where it wrapped to `7766279631452241920`, and
+exactly, where a quotient rounded to 16 places first made
+`0.99999999999999999 div 1.0` 1 and its `mod` negative. The least Integer has
+no literal: a literal has no sign, `9223372036854775808` past the range is read
+as a Decimal, and `-` negates it, so `-9223372036854775808` is a Decimal;
+`-9223372036854775807 - 1` is the Integer. Up to 1.13.4 the sum
 wrapped, as Go's `int64` does, to `-9223372036854775808`. `ceiling()`,
 `floor()` and `truncate()` read a decimal as itself, where a float held
 `9007199254740993.5` as `9007199254740994`, and answer empty past the range. A

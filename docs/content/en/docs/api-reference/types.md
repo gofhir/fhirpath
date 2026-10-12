@@ -434,9 +434,9 @@ type Decimal struct {
 | `Divide` | `func (d Decimal) Divide(other Decimal) (Decimal, error)` | Division (16-digit precision) |
 | `Negate` | `func (d Decimal) Negate() Decimal` | Negation |
 | `Abs` | `func (d Decimal) Abs() Decimal` | Absolute value |
-| `Ceiling` | `func (d Decimal) Ceiling() Integer` | Smallest integer >= d |
-| `Floor` | `func (d Decimal) Floor() Integer` | Largest integer <= d |
-| `Truncate` | `func (d Decimal) Truncate() Integer` | Integer part |
+| `Ceiling` | `func (d Decimal) Ceiling() Integer` | Smallest integer >= d; wraps past the `int64` range. Deprecated: use `IntegerFromDecimal` |
+| `Floor` | `func (d Decimal) Floor() Integer` | Largest integer <= d; wraps past the `int64` range. Deprecated: use `IntegerFromDecimal` |
+| `Truncate` | `func (d Decimal) Truncate() Integer` | Integer part; wraps past the `int64` range. Deprecated: use `IntegerFromDecimal` |
 | `Round` | `func (d Decimal) Round(precision int32) Decimal` | Round to precision |
 | `Power` | `func (d Decimal) Power(exp Decimal) Decimal` | Exponentiation |
 | `Sqrt` | `func (d Decimal) Sqrt() (Decimal, error)` | Square root |
@@ -444,7 +444,7 @@ type Decimal struct {
 | `Ln` | `func (d Decimal) Ln() (Decimal, error)` | Natural logarithm |
 | `Log` | `func (d Decimal) Log(base Decimal) (Decimal, error)` | Logarithm with custom base |
 | `IsInteger` | `func (d Decimal) IsInteger() bool` | True if no fractional part |
-| `ToInteger` | `func (d Decimal) ToInteger() (Integer, bool)` | Convert to Integer if whole number |
+| `ToInteger` | `func (d Decimal) ToInteger() (Integer, bool)` | Convert to Integer if a whole number within the `int64` range; `false` otherwise |
 | `Compare` | `func (d Decimal) Compare(other Value) (int, error)` | Comparison (works with `Integer` and `Decimal`) |
 
 **Example:**
