@@ -17,6 +17,8 @@ func TestTemporalValidity(t *testing.T) {
 		"@2021-02-30", "@2021-13-01", "@2021-00-10", "@2100-02-29", "@0000-01-01",
 		"@2021-04-31", "@2021-11-31", "@2021-13", "@0000",
 		"@2021-01-01T25:00", "@2021-01-01T10:60", "@2021-01-01T10:00:61",
+		// A leap second, which FHIR allows but FHIRPath's Time does not reach
+		"@2016-12-31T23:59:60Z", "@T23:59:60",
 		"@T24:00", "@T10:60",
 		"@2021-01-01T10:00+15:00", "@2021-01-01T10:00+05:75", "@2021-01-01T10:00+05:60",
 		"@2021-01-01T10:00+14:01", "@2021-01-01T10:00-14:01",
@@ -37,9 +39,6 @@ func TestTemporalValidity(t *testing.T) {
 		"@2012T12:30:00.exists()":          "true",
 		"@2021-01-01T10:00+14:00.exists()": "true",
 		"@2021-01-01T10:00-14:00.exists()": "true",
-		// A leap second, which FHIR's time, dateTime and instant allow
-		"@2016-12-31T23:59:60Z > @2016-01-01T00:00:00Z": "true",
-		"@T23:59:60.exists()":                           "true",
 		// toDate() of a DateTime keeps its own precision, to the day at most
 		"@2012T.toDate()":            "2012",
 		"@2012-05T.convertsToDate()": "true",
@@ -70,7 +69,7 @@ func TestTemporalValidity(t *testing.T) {
 // TestTemporalArithmeticRange checks the range of a date reached by
 // arithmetic: "If the resulting year is out of range, an error is thrown."
 func TestTemporalArithmeticRange(t *testing.T) {
-	for _, expr := range []string{"@9999-12-31 + 1 day", "@0001-01-01 - 1 day", "@9999 + 1 year", "@9999-12-31T23:59:59Z + 1 second"} {
+	for _, expr := range []string{"@9999-12-31 + 1 day", "@0001-01-01 - 1 day", "@9999 + 1 year", "@9999-12-31T23:59:59Z + 1 second", "@0001-01-01T00:00:00Z - 1 second"} {
 		if _, err := Evaluate(simpleJSON, expr); err == nil {
 			t.Errorf("%s: expected an error", expr)
 		}

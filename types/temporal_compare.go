@@ -394,10 +394,12 @@ func daysIn(year, month int) int {
 	return 31
 }
 
-// validClock reports an hour, minute and second on the clock. A second of 60,
-// a leap second, is one, as FHIR's time, dateTime and instant allow it.
+// validClock reports an hour, minute and second on the clock. A leap second,
+// 60, which FHIR's regular expressions allow, is not: FHIRPath's Time ends at
+// @T23:59:59.999, and time.Date reads :60 as the next minute, which made a
+// value equal to two that are not equal to one another.
 func validClock(hour, minute, second int) error {
-	if hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 60 {
+	if hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59 {
 		return ErrInvalidTemporal
 	}
 	return nil
