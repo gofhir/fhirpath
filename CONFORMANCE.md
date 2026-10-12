@@ -964,7 +964,7 @@ name, `birthDate.value`, and by `hasValue()` and `getValue()`.
 | | `Patient.birthDate.descendants().count()` | 4 | 8 |
 | `"name": [{"family": "F", "given": ["A", "B"]}]` | `Patient.name.descendants().count()` | 3 | 6 |
 | | `Patient.descendants().where($this = 'A').count()` | 1 | 2 |
-| `"_active": {"extension": [...]}` | `Patient.active.descendants().count()` | 3 | 5 |
+| `"_active": {"extension": [{"url": "u", "valueBoolean": false}]}` | `Patient.active.descendants().count()` | 3 | 5 |
 
 FHIR's FHIRPath page says the opposite: "FHIR primitives have a value child,
 but, as described above, they are automatically cast to FHIRPath primitives

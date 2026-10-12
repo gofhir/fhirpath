@@ -132,7 +132,7 @@ result, _ := fhirpath.Evaluate(patient, "Patient.name.descendants()")
 **Casos Limite / Notas:**
 
 - Esta funcion recorre recursivamente todo el arbol de elementos bajo la entrada.
-- La deteccion de ciclos esta incorporada: los elementos que ya han sido visitados se omiten para prevenir bucles infinitos.
+- El recorrido se detiene en una profundidad máxima, el límite `maxDepth`, que lo acota en entradas muy anidadas.
 - Los primitivos se incluyen una vez en el resultado, y se recorren solo a traves de su `id` y sus extensiones; el valor de un primitivo no es descendiente de el.
 - Una coleccion de entrada vacia devuelve una coleccion vacia.
 - Para recursos grandes, `descendants()` puede devolver una coleccion muy grande. Considere usar expresiones de ruta mas especificas cuando sea posible.
