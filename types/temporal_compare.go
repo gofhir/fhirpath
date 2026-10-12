@@ -394,9 +394,10 @@ func daysIn(year, month int) int {
 	return 31
 }
 
-// validClock reports an hour, minute and second on the clock.
+// validClock reports an hour, minute and second on the clock. A second of 60,
+// a leap second, is one, as FHIR's time, dateTime and instant allow it.
 func validClock(hour, minute, second int) error {
-	if hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59 {
+	if hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 60 {
 		return ErrInvalidTemporal
 	}
 	return nil

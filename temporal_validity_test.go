@@ -15,9 +15,11 @@ func TestTemporalValidity(t *testing.T) {
 	// fhirpath.js
 	for _, expr := range []string{
 		"@2021-02-30", "@2021-13-01", "@2021-00-10", "@2100-02-29", "@0000-01-01",
-		"@2021-01-01T25:00", "@2021-01-01T10:60", "@2021-01-01T10:00:60",
+		"@2021-04-31", "@2021-11-31", "@2021-13", "@0000",
+		"@2021-01-01T25:00", "@2021-01-01T10:60", "@2021-01-01T10:00:61",
 		"@T24:00", "@T10:60",
-		"@2021-01-01T10:00+15:00", "@2021-01-01T10:00+05:75",
+		"@2021-01-01T10:00+15:00", "@2021-01-01T10:00+05:75", "@2021-01-01T10:00+05:60",
+		"@2021-01-01T10:00+14:01", "@2021-01-01T10:00-14:01",
 	} {
 		if _, err := Evaluate(simpleJSON, expr); err == nil || !strings.Contains(err.Error(), "invalid") {
 			t.Errorf("%s: error %v, want a parse error", expr, err)
@@ -34,6 +36,13 @@ func TestTemporalValidity(t *testing.T) {
 		"@T23:59:59.999.exists()":          "true",
 		"@2012T12:30:00.exists()":          "true",
 		"@2021-01-01T10:00+14:00.exists()": "true",
+		"@2021-01-01T10:00-14:00.exists()": "true",
+		// A leap second, which FHIR's time, dateTime and instant allow
+		"@2016-12-31T23:59:60Z > @2016-01-01T00:00:00Z": "true",
+		"@T23:59:60.exists()":                           "true",
+		// toDate() of a DateTime keeps its own precision, to the day at most
+		"@2012T.toDate()":            "2012",
+		"@2012-05T.convertsToDate()": "true",
 		// An invalid date in the input is read as the string it is
 		"Patient.birthDate is String":     "true",
 		"Patient.birthDate = @2021-03-02": "false",
@@ -55,5 +64,18 @@ func TestTemporalValidity(t *testing.T) {
 		if got := evaluateScalar(t, expr, doc); got != want {
 			t.Errorf("%s = %s, want %s", expr, got, want)
 		}
+	}
+}
+
+// TestTemporalArithmeticRange checks the range of a date reached by
+// arithmetic: "If the resulting year is out of range, an error is thrown."
+func TestTemporalArithmeticRange(t *testing.T) {
+	for _, expr := range []string{"@9999-12-31 + 1 day", "@0001-01-01 - 1 day", "@9999 + 1 year", "@9999-12-31T23:59:59Z + 1 second"} {
+		if _, err := Evaluate(simpleJSON, expr); err == nil {
+			t.Errorf("%s: expected an error", expr)
+		}
+	}
+	if got := evaluateScalar(t, "@9999-12-30 + 1 day", simpleJSON); got != "9999-12-31" {
+		t.Errorf("@9999-12-30 + 1 day = %s, want 9999-12-31", got)
 	}
 }

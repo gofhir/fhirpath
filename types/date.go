@@ -232,6 +232,10 @@ func (d Date) AddDuration(value int, unit string) (Date, error) {
 		result.day = 0
 	}
 
+	// "If the resulting year is out of range, an error is thrown"
+	if result.year < 1 || result.year > 9999 {
+		return Date{}, fmt.Errorf("%w: year %d", ErrInvalidTemporal, result.year)
+	}
 	return result, nil
 }
 

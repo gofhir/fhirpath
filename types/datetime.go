@@ -188,7 +188,7 @@ func (dt DateTime) validate(monthWritten, dayWritten bool) error {
 	if err := validClock(dt.hour, dt.minute, dt.second); err != nil {
 		return err
 	}
-	if dt.hasTZ && (dt.tzOffset < -14*60 || dt.tzOffset > 14*60) {
+	if dt.hasTZ && (dt.tzOffset < minTimezoneOffset || dt.tzOffset > maxTimezoneOffset) {
 		return ErrInvalidTemporal
 	}
 	return nil
@@ -454,6 +454,10 @@ func (dt DateTime) AddDuration(value int, unit string) (DateTime, error) {
 		result.millis = 0
 	}
 
+	// "If the resulting year is out of range, an error is thrown"
+	if result.year < 1 || result.year > 9999 {
+		return DateTime{}, fmt.Errorf("%w: year %d", ErrInvalidTemporal, result.year)
+	}
 	return result, nil
 }
 

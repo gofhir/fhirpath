@@ -410,8 +410,10 @@ func fnToDate(_ *eval.Context, input types.Collection, _ []interface{}) (types.C
 	case types.Date:
 		return systemResult(v), nil
 	case types.DateTime:
-		// Extract date portion (DateTime.String() always has at least date portion)
-		d, err := types.NewDate(v.String()[:10])
+		// The date the DateTime states, to the day at most, as dateOf() reads
+		// it: @2012T is 2012. Slicing its text took ten characters it may not
+		// have
+		d, err := types.NewDate(datePartOf(v))
 		if err != nil {
 			return types.Collection{}, nil
 		}
