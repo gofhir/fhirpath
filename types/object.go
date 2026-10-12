@@ -557,8 +557,10 @@ func (o *ObjectValue) fieldSummary() (summary fields, resourceType string) {
 			}
 		}
 
+		// A field that reads as nothing, a null or an empty object, is not
+		// there to tell the type by.
 		field, ok := inferenceFields[string(key)]
-		if !ok {
+		if !ok || readsAsNothing(entry, entryType) {
 			return nil
 		}
 
@@ -691,9 +693,14 @@ func (o *ObjectValue) Get(field string) (Value, bool) {
 		return nil, false
 	}
 
-	// Convert to Value, and keep it where no other goroutine reads the object.
-	// What it reads is new, so it is private either way.
+	// A field that reads as nothing, a null or an empty object, is not there.
 	v := jsonValueToFHIRValue(value, dataType)
+	if v == nil {
+		return nil, false
+	}
+
+	// Keep it where no other goroutine reads the object. What it reads is
+	// new, so it is private either way.
 	o.adoptAt(v, field, -1)
 	if o.keeps() {
 		if o.fields == nil {
@@ -832,10 +839,7 @@ func pairedCollection(field string, value, element jsonField, parse func([]byte,
 
 	// A single value, with or without its element beside it
 	if !value.isArray() && !element.isArray() {
-		var elementValue *ObjectValue
-		if element.found && element.dataType == jsonparser.Object {
-			elementValue = NewObjectValue(element.data)
-		}
+		elementValue := elementBeside(element)
 		result := pairValueWithElement(value, elementValue, parse)
 		for _, v := range result {
 			placePaired(v, elementValue, field, 0, value, element)
@@ -854,8 +858,8 @@ func pairedCollection(field string, value, element jsonField, parse func([]byte,
 	result := make(Collection, 0, length)
 	for i := 0; i < length; i++ {
 		var elementValue *ObjectValue
-		if i < len(elements) && elements[i].dataType == jsonparser.Object {
-			elementValue = NewObjectValue(elements[i].data)
+		if i < len(elements) {
+			elementValue = elementBeside(elements[i])
 		}
 
 		var entry jsonField
@@ -870,6 +874,30 @@ func pairedCollection(field string, value, element jsonField, parse func([]byte,
 	}
 
 	return result
+}
+
+// elementBeside is the element written beside a primitive, or nil when
+// there is none. One written as an empty object has neither an id nor
+// extensions, and is no element: see emptyObject.
+func elementBeside(element jsonField) *ObjectValue {
+	if !element.found || element.dataType != jsonparser.Object || emptyObject(element.data) {
+		return nil
+	}
+	return NewObjectValue(element.data)
+}
+
+// emptyObject reports whether a JSON object has no members. An element written
+// as one has neither a value nor children, and ele-1, which every element
+// inherits, says "All FHIR elements must have a @value or children": it is not
+// there, and reads as nothing, as it does in the HL7 validator. One that holds
+// only an id has content, and is there.
+func emptyObject(data []byte) bool {
+	for _, c := range data {
+		if c != '{' && c != '}' && !isJSONSpace(c) {
+			return false
+		}
+	}
+	return true
 }
 
 // placePaired records where an item of a paired field sits: in the field, at
@@ -1722,6 +1750,9 @@ func jsonValue(data []byte, dataType jsonparser.ValueType, read bool) Value {
 		return v
 
 	case jsonparser.Object:
+		if emptyObject(data) {
+			return nil
+		}
 		return NewObjectValue(data)
 
 	case jsonparser.Array:
@@ -1786,6 +1817,9 @@ func jsonValueToFHIRValueWithType(data []byte, dataType jsonparser.ValueType, fh
 	}
 	// Objects carry the type so that Type() reports it
 	if dataType == jsonparser.Object && fhirType != "" {
+		if emptyObject(data) {
+			return nil
+		}
 		if IsAbstractResourceType(fhirType) {
 			if resource := asResource(data); resource != nil {
 				return resource
@@ -2181,7 +2215,10 @@ func ReadRootWithType(data []byte, fhirType string) (Collection, error) {
 		end--
 	}
 	if end-start >= 2 && data[start] == '{' && data[end-1] == '}' {
-		return asRoot(Collection{jsonValueToFHIRValueWithType(data[start:end], jsonparser.Object, fhirType)}), nil
+		if v := jsonValueToFHIRValueWithType(data[start:end], jsonparser.Object, fhirType); v != nil {
+			return asRoot(Collection{v}), nil
+		}
+		return Collection{}, nil
 	}
 	return JSONToCollectionWithType(data, fhirType)
 }
