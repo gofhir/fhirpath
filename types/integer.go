@@ -48,8 +48,14 @@ func (i Integer) Equal(other Value) bool {
 	return false
 }
 
-// Equivalent is the same as Equal for integers.
+// Equivalent is the same as Equal between integers.
+//
+// Against a decimal it is the decimal's equivalence, at the precision of the
+// less precise side, so that 1 ~ 1.4 answers as 1.4 ~ 1 does.
 func (i Integer) Equivalent(other Value) bool {
+	if d, ok := other.(Decimal); ok {
+		return d.Equivalent(i)
+	}
 	return i.Equal(other)
 }
 

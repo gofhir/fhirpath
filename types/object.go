@@ -654,10 +654,13 @@ func (o *ObjectValue) Equal(other Value) bool {
 	return false
 }
 
-// Equivalent is the same as Equal for objects. Applying string equivalence to
-// each child is not done here.
+// Equivalent compares two objects child by child, each with the equivalence
+// of its type, recursively: see equivalentJSON.
 func (o *ObjectValue) Equivalent(other Value) bool {
-	return o.Equal(other)
+	if ov, ok := other.(*ObjectValue); ok {
+		return equivalentJSON(o.data, ov.data)
+	}
+	return false
 }
 
 // String returns the JSON representation.
