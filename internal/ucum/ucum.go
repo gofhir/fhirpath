@@ -16,8 +16,10 @@ package ucum
 import (
 	"errors"
 	"fmt"
+	"math"
 	"math/big"
 	"sync"
+	"sync/atomic"
 
 	"github.com/shopspring/decimal"
 
@@ -80,12 +82,133 @@ func Convert(value decimal.Decimal, from, to string) (decimal.Decimal, error) {
 			if floatErr != nil {
 				return decimal.Decimal{}, floatErr
 			}
+			// Zero on a logarithmic scale is minus infinity, which no decimal holds
+			if math.IsInf(approximate, 0) || math.IsNaN(approximate) {
+				return decimal.Decimal{}, fmt.Errorf("ucum: %s in %s has no finite value", from, to)
+			}
 			return decimal.NewFromFloat(approximate), nil
 		}
 		return decimal.Decimal{}, err
 	}
 
 	return fromRat(converted)
+}
+
+// factors holds what Factor has found, by unit pair: a factor, or that the
+// pair has none. factorCount counts the pairs, so that units read from hostile
+// input cannot grow it without bound.
+var (
+	factors     sync.Map
+	factorCount atomic.Int64
+)
+
+// maxFactors bounds how many unit pairs Factor remembers.
+const maxFactors = 4096
+
+// foundFactor is what Factor found for a pair of units, and for a pair with no
+// factor, the step Step measured.
+type foundFactor struct {
+	factor *big.Rat
+	err    error
+	step   decimal.Decimal
+}
+
+// Factor returns how much of one unit one of another is, exactly, when both
+// stand on ratio scales: 1000 for 'L' to 'mL'. A unit on a scale with an
+// offset, or worse, has no factor: Factor returns an error NotLinear reports,
+// and the caller converts points instead. Either answer is found once per
+// pair of units. The factor returned is shared and must not be modified.
+func Factor(from, to string) (*big.Rat, error) {
+	key := from + "\x00" + to
+	if found, ok := factors.Load(key); ok {
+		f := found.(foundFactor)
+		return f.factor, f.err
+	}
+	svc, err := exact()
+	if err != nil {
+		return nil, err
+	}
+	factor, err := svc.ConversionFactor(from, to)
+	if err != nil && !NotLinear(err) {
+		return nil, err
+	}
+	// A place is taken before the pair is stored, so that callers at once
+	// cannot overshoot the bound
+	if factorCount.Add(1) <= maxFactors {
+		if _, loaded := factors.LoadOrStore(key, foundFactor{factor: factor, err: err}); loaded {
+			factorCount.Add(-1)
+		}
+	} else {
+		factorCount.Add(-1)
+	}
+	return factor, err
+}
+
+// errNotAffine reports a scale on which a step has no constant size, a
+// logarithm or an angle, where no unit is more granular than another.
+var errNotAffine = errors.New("ucum: the scale is not affine: a step has no size")
+
+// Step returns how much of one unit a step of another is, for units with no
+// factor, on a scale with an offset: the difference two points convert to,
+// since a point is not a step — 1 '[degF]' is 255.9 'K', a degree of it 5/9
+// of a kelvin. A scale on which steps differ, a logarithm or an angle, has no
+// step, and Step returns an error. Either answer is found once per pair.
+func Step(from, to string) (decimal.Decimal, error) {
+	key := "step\x00" + from + "\x00" + to
+	if found, ok := factors.Load(key); ok {
+		f := found.(foundFactor)
+		return f.step, f.err
+	}
+	step, err := measureStep(from, to)
+	if factorCount.Add(1) <= maxFactors {
+		if _, loaded := factors.LoadOrStore(key, foundFactor{err: err, step: step}); loaded {
+			factorCount.Add(-1)
+		}
+	} else {
+		factorCount.Add(-1)
+	}
+	return step, err
+}
+
+// measureStep converts three points and returns the step between them where
+// the two steps agree.
+func measureStep(from, to string) (decimal.Decimal, error) {
+	var points [3]decimal.Decimal
+	for i := range points {
+		point, err := Convert(decimal.NewFromInt(int64(i)), from, to)
+		if err != nil {
+			return decimal.Decimal{}, err
+		}
+		points[i] = point
+	}
+	// Conversions to a repeating fraction stop at exactDigits, so two steps of
+	// an affine scale agree to well within that, and those of a logarithm
+	// differ in their first digits
+	step := points[1].Sub(points[0])
+	tolerance := decimal.New(1, -(exactDigits - 6)).Mul(decimal.Max(decimal.NewFromInt(1), step.Abs()))
+	if points[2].Sub(points[1]).Sub(step).Abs().GreaterThan(tolerance) {
+		return decimal.Decimal{}, errNotAffine
+	}
+	return step, nil
+}
+
+// NotLinear reports the error Factor returns for a unit with no factor, on a
+// scale with an offset such as Cel, or a logarithmic one.
+func NotLinear(err error) bool {
+	return errors.Is(err, ucumlib.ErrNotLinear)
+}
+
+// Scale multiplies a value by a factor, exactly.
+func Scale(value decimal.Decimal, factor *big.Rat) (decimal.Decimal, error) {
+	return fromRat(new(big.Rat).Mul(toRat(value), factor))
+}
+
+// Unscale divides a value by a factor, exactly.
+func Unscale(value decimal.Decimal, factor *big.Rat) (decimal.Decimal, error) {
+	if factor.Sign() == 0 {
+		return decimal.Decimal{}, fmt.Errorf("division by a zero factor")
+	}
+	return fromRat(new(big.Rat).Quo(toRat(value), factor))
 }
 
 // Multiply combines two quantities, returning the value and the unit of the

@@ -3,6 +3,8 @@ package types
 import (
 	"errors"
 	"fmt"
+	"math"
+	"math/big"
 	"regexp"
 	"strings"
 
@@ -170,36 +172,161 @@ func (q Quantity) Equal(other Value) bool {
 	return q.value.Equal(rhs)
 }
 
-// Equivalent checks equivalence with another value.
-// For quantities, this uses UCUM normalization to compare values with different units.
-// Per FHIRPath spec: quantities are equivalent if their canonical normalized forms are equal.
+// Equivalent checks equivalence with another value. As FHIRPath 3.0.0 has it,
+// the two are expressed in the less granular of their units, then compared
+// "on values rounded to the precision of the least precise operand", trailing
+// zeroes carrying no precision: 4 'g' ~ 4040 'mg' (4 ~ 4.040, compared at
+// whole grams) whichever side each stands on, and 1 year ~ 11 months.
+//
+// Across a year or a month, where the calendar and UCUM have no common unit,
+// the calendar side is read in the UCUM unit that matches it — "convert the
+// UCUM value to the UCUM unit that matches the calendar unit" — so 1 year ~
+// 1 'a' and 1 year ~ 12 'mo', where = has no answer.
 func (q Quantity) Equivalent(other Value) bool {
 	o, ok := other.(Quantity)
 	if !ok {
 		return false
 	}
+	if crossesCalendarYear(q.unit, o.unit) {
+		if isCalendarUnit(q.unit) {
+			q.unit = matchingUCUMUnit(q.unit)
+		} else {
+			o.unit = matchingUCUMUnit(o.unit)
+		}
+	}
 
-	rhs, err := o.valueIn(q)
-	if err != nil {
+	g, ok := inLessGranular(q, o)
+	if !ok {
 		return false
 	}
-
-	// Equivalence compares "on values rounded to the precision of the least
-	// precise operand", so 4 'g' ~ 4040 'mg': 4.040 g rounded to the whole
-	// gram the left side was written with is 4.
-	places := scaleOf(q.value)
-	if other := scaleOf(rhs); other < places {
-		places = other
+	places := significantPlaces(g.coarse.value)
+	if theirs := g.finePlaces(); theirs < places {
+		places = theirs
 	}
-	return q.value.Round(places).Equal(rhs.Round(places))
+	return g.coarse.value.Round(places).Equal(g.converted.Round(places))
 }
 
-// scaleOf returns how many fractional digits a value carries.
-func scaleOf(d decimal.Decimal) int32 {
-	if exponent := d.Exponent(); exponent < 0 {
-		return -exponent
+// granularity is two quantities expressed in the less granular unit: the
+// coarse one as it is, the fine one converted, and how much of the coarse unit
+// one of the fine unit is.
+type granularity struct {
+	coarse, fine Quantity
+	converted    decimal.Decimal
+	// fineStep is how much of the coarse unit one of the fine unit is, or zero
+	// on a scale with no step
+	fineStep decimal.Decimal
+}
+
+// finePlaces returns how many places the fine value carries once converted.
+// Its precision is what it was written with, in its own unit: 200 'cm' is
+// given to the centimeter, so in meters to two places, though it converts to
+// 2 'm'. Where no step is known, the converted value's own places stand in.
+func (g granularity) finePlaces() int32 {
+	if g.fineStep.IsZero() {
+		return significantPlaces(g.converted)
 	}
-	return 0
+	// One unit of the fine value's last place, 10^-p, is 10^-p * step in the
+	// coarse unit; its first significant digit is the last place there
+	step := g.fineStep.Abs()
+	digits := step.NumDigits()
+	if digits > math.MaxInt32 {
+		return significantPlaces(g.converted)
+	}
+	return significantPlaces(g.fine.value) - int32(digits) - step.Exponent() + 1 //nolint:gosec // digits is bounded just above
+}
+
+// inLessGranular expresses two quantities in the less granular of their units.
+// "If the conversion factor is greater than 1, then the other unit is more
+// granular"; where it is 1, "choose the unit of the operator's left
+// argument". Units on ratio scales convert by a factor, found once per pair
+// of units; a scale with an offset, a temperature, has no factor, and a step
+// of it is measured as the difference two points convert to, since a point is
+// not a step: 1 '[degF]' is 255.9 'K', a degree of it 5/9 of a kelvin.
+func inLessGranular(q, o Quantity) (granularity, bool) {
+	one := decimal.NewFromInt(1)
+	if q.unit == o.unit {
+		return granularity{coarse: q, fine: o, converted: o.value, fineStep: one}, true
+	}
+	if q.unit == "" || o.unit == "" ||
+		isCalendarUnit(q.unit) && isCalendarUnit(o.unit) {
+		// The calendar's own units, and a quantity without a unit, which takes
+		// the other's: no offset, so one of the one unit measures a step
+		step, err := Quantity{value: one, unit: o.unit}.valueIn(q)
+		if err != nil {
+			return granularity{}, false
+		}
+		return inUnitOfStep(q, o, step)
+	}
+	factor, err := ucum.Factor(convertibleUnit(o.unit), convertibleUnit(q.unit))
+	if err != nil {
+		if ucum.NotLinear(err) {
+			return inLessGranularByPoints(q, o)
+		}
+		return granularity{}, false
+	}
+	if factor.Cmp(big.NewRat(1, 1)) > 0 {
+		converted, convertErr := ucum.Unscale(q.value, factor)
+		step, stepErr := ucum.Unscale(one, factor)
+		return granularity{coarse: o, fine: q, converted: converted, fineStep: step}, convertErr == nil && stepErr == nil
+	}
+	converted, convertErr := ucum.Scale(o.value, factor)
+	step, stepErr := ucum.Scale(one, factor)
+	return granularity{coarse: q, fine: o, converted: converted, fineStep: step}, convertErr == nil && stepErr == nil
+}
+
+// inLessGranularByPoints is inLessGranular for units on a scale with an
+// offset, whose step ucum.Step measures. A scale with no step, a logarithm or
+// an angle, has no unit more granular than another, and the left operand's
+// unit is kept, as on a tie.
+func inLessGranularByPoints(q, o Quantity) (granularity, bool) {
+	step, err := ucum.Step(convertibleUnit(o.unit), convertibleUnit(q.unit))
+	if err != nil {
+		converted, convertErr := o.valueIn(q)
+		return granularity{coarse: q, fine: o, converted: converted}, convertErr == nil
+	}
+	return inUnitOfStep(q, o, step)
+}
+
+// inUnitOfStep converts into the less granular unit, given how much of q's
+// unit a step of o's unit is; on a tie, q's, the left one.
+func inUnitOfStep(q, o Quantity, step decimal.Decimal) (granularity, bool) {
+	if step.GreaterThan(decimal.NewFromInt(1)) {
+		converted, err := q.valueIn(o)
+		inverse := decimal.NewFromInt(1).DivRound(step, 34)
+		return granularity{coarse: o, fine: q, converted: converted, fineStep: inverse}, err == nil
+	}
+	converted, err := o.valueIn(q)
+	return granularity{coarse: q, fine: o, converted: converted, fineStep: step}, err == nil
+}
+
+// matchingUCUMUnit returns the UCUM unit a calendar duration matches: its
+// exact equivalent from a week down, and the mean Julian year or month above,
+// "1 year ~ 1 'a'", "1 month ~ 1 'mo'".
+func matchingUCUMUnit(calendar string) string {
+	switch yearsAndMonths[calendar] {
+	case 12:
+		return "a"
+	case 1:
+		return "mo"
+	}
+	return convertibleUnit(calendar)
+}
+
+// significantPlaces counts the digits after the decimal point that carry
+// precision, which excludes trailing zeroes: 1.10 is given to one place.
+func significantPlaces(d decimal.Decimal) int32 {
+	exponent := d.Exponent()
+	if exponent >= 0 || d.IsZero() {
+		return 0
+	}
+	// Each trailing zero of the coefficient lifts the exponent by one, up to
+	// zero, so the count stays within the exponent's range
+	digits := d.Coefficient().Text(10)
+	trailing := len(digits) - len(strings.TrimRight(digits, "0"))
+	for ; trailing > 0 && exponent < 0; trailing-- {
+		exponent++
+	}
+	return -exponent
 }
 
 // String returns the string representation.
