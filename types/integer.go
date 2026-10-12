@@ -1,6 +1,7 @@
 package types
 
 import (
+	"errors"
 	"fmt"
 	"math"
 
@@ -91,19 +92,66 @@ func (i Integer) Compare(other Value) (int, error) {
 	return 0, NewTypeError("Integer", other.Type(), "comparison")
 }
 
-// Add returns the sum of two integers.
+// ErrIntegerRange reports an Integer result beyond the 64 bits this engine
+// holds an Integer in. FHIRPath: "Operations that cause arithmetic overflow or
+// underflow will result in empty".
+var ErrIntegerRange = errors.New("integer beyond the range this engine holds")
+
+// Add returns the sum of two integers, wrapping past the int64 range.
+//
+// Deprecated: use AddExact, which reports a sum past the range.
 func (i Integer) Add(other Integer) Integer {
 	return NewInteger(i.value + other.value)
 }
 
-// Subtract returns the difference of two integers.
+// AddExact returns the sum of two integers, or ErrIntegerRange where it lies
+// past the int64 range.
+func (i Integer) AddExact(other Integer) (Integer, error) {
+	sum := i.value + other.value
+	if (other.value > 0 && sum < i.value) || (other.value < 0 && sum > i.value) {
+		return Integer{}, ErrIntegerRange
+	}
+	return NewInteger(sum), nil
+}
+
+// Subtract returns the difference of two integers, wrapping past the int64
+// range.
+//
+// Deprecated: use SubtractExact, which reports a difference past the range.
 func (i Integer) Subtract(other Integer) Integer {
 	return NewInteger(i.value - other.value)
 }
 
-// Multiply returns the product of two integers.
+// SubtractExact returns the difference of two integers, or ErrIntegerRange
+// where it lies past the int64 range.
+func (i Integer) SubtractExact(other Integer) (Integer, error) {
+	difference := i.value - other.value
+	if (other.value > 0 && difference > i.value) || (other.value < 0 && difference < i.value) {
+		return Integer{}, ErrIntegerRange
+	}
+	return NewInteger(difference), nil
+}
+
+// Multiply returns the product of two integers, wrapping past the int64
+// range.
+//
+// Deprecated: use MultiplyExact, which reports a product past the range.
 func (i Integer) Multiply(other Integer) Integer {
 	return NewInteger(i.value * other.value)
+}
+
+// MultiplyExact returns the product of two integers, or ErrIntegerRange where
+// it lies past the int64 range.
+func (i Integer) MultiplyExact(other Integer) (Integer, error) {
+	a, b := i.value, other.value
+	if a == 0 || b == 0 {
+		return NewInteger(0), nil
+	}
+	product := a * b
+	if product/b != a || (a == -1 && b == math.MinInt64) || (b == -1 && a == math.MinInt64) {
+		return Integer{}, ErrIntegerRange
+	}
+	return NewInteger(product), nil
 }
 
 // Divide returns the result of division as a Decimal.
@@ -114,10 +162,14 @@ func (i Integer) Divide(other Integer) (Decimal, error) {
 	return i.ToDecimal().Divide(other.ToDecimal())
 }
 
-// Div returns the integer division result.
+// Div returns the integer division result, or ErrIntegerRange for the one
+// quotient past the int64 range, the least int64 divided by -1.
 func (i Integer) Div(other Integer) (Integer, error) {
 	if other.value == 0 {
 		return Integer{}, fmt.Errorf("division by zero")
+	}
+	if i.value == math.MinInt64 && other.value == -1 {
+		return Integer{}, ErrIntegerRange
 	}
 	return NewInteger(i.value / other.value), nil
 }
@@ -130,17 +182,51 @@ func (i Integer) Mod(other Integer) (Integer, error) {
 	return NewInteger(i.value % other.value), nil
 }
 
-// Negate returns the negation of the integer.
+// Negate returns the negation of the integer, wrapping past the int64 range.
+//
+// Deprecated: use NegateExact, which reports the one negation past the range.
 func (i Integer) Negate() Integer {
 	return NewInteger(-i.value)
 }
 
-// Abs returns the absolute value.
+// NegateExact returns the negation of the integer, or ErrIntegerRange for the
+// least int64, whose negation lies past the range.
+func (i Integer) NegateExact() (Integer, error) {
+	if i.value == math.MinInt64 {
+		return Integer{}, ErrIntegerRange
+	}
+	return NewInteger(-i.value), nil
+}
+
+// Abs returns the absolute value, wrapping past the int64 range.
+//
+// Deprecated: use AbsExact, which reports the one absolute value past the
+// range.
 func (i Integer) Abs() Integer {
 	if i.value < 0 {
 		return NewInteger(-i.value)
 	}
 	return i
+}
+
+// AbsExact returns the absolute value, or ErrIntegerRange for the least
+// int64, whose absolute value lies past the range.
+func (i Integer) AbsExact() (Integer, error) {
+	if i.value < 0 {
+		return i.NegateExact()
+	}
+	return i, nil
+}
+
+// IntegerFromDecimal reads a whole decimal as an Integer, or reports
+// ErrIntegerRange where it lies past the int64 range. A fraction is dropped,
+// toward zero, as decimal.IntPart drops it.
+func IntegerFromDecimal(d decimal.Decimal) (Integer, error) {
+	whole := d.Truncate(0)
+	if whole.LessThan(decimal.NewFromInt(math.MinInt64)) || whole.GreaterThan(decimal.NewFromInt(math.MaxInt64)) {
+		return Integer{}, ErrIntegerRange
+	}
+	return NewInteger(whole.IntPart()), nil
 }
 
 // Power returns the integer raised to the given power.

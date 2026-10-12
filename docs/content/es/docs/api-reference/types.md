@@ -354,14 +354,19 @@ func NewInteger(v int64) Integer
 |--------|-----------|-------------|
 | `Value` | `func (i Integer) Value() int64` | Retorna el `int64` subyacente |
 | `ToDecimal` | `func (i Integer) ToDecimal() Decimal` | Convierte a `Decimal` |
-| `Add` | `func (i Integer) Add(other Integer) Integer` | Suma |
-| `Subtract` | `func (i Integer) Subtract(other Integer) Integer` | Resta |
-| `Multiply` | `func (i Integer) Multiply(other Integer) Integer` | Multiplicación |
+| `Add` | `func (i Integer) Add(other Integer) Integer` | Suma; da la vuelta fuera del rango de `int64`. Obsoleto: usar `AddExact` |
+| `AddExact` | `func (i Integer) AddExact(other Integer) (Integer, error)` | Suma, o `ErrIntegerRange` fuera del rango de `int64` |
+| `Subtract` | `func (i Integer) Subtract(other Integer) Integer` | Resta; da la vuelta fuera del rango de `int64`. Obsoleto: usar `SubtractExact` |
+| `SubtractExact` | `func (i Integer) SubtractExact(other Integer) (Integer, error)` | Resta, o `ErrIntegerRange` fuera del rango de `int64` |
+| `Multiply` | `func (i Integer) Multiply(other Integer) Integer` | Multiplicación; da la vuelta fuera del rango de `int64`. Obsoleto: usar `MultiplyExact` |
+| `MultiplyExact` | `func (i Integer) MultiplyExact(other Integer) (Integer, error)` | Multiplicación, o `ErrIntegerRange` fuera del rango de `int64` |
 | `Divide` | `func (i Integer) Divide(other Integer) (Decimal, error)` | División (retorna `Decimal`) |
-| `Div` | `func (i Integer) Div(other Integer) (Integer, error)` | División entera |
+| `Div` | `func (i Integer) Div(other Integer) (Integer, error)` | División entera; `ErrIntegerRange` para el menor `int64` dividido por -1 |
 | `Mod` | `func (i Integer) Mod(other Integer) (Integer, error)` | Módulo |
-| `Negate` | `func (i Integer) Negate() Integer` | Negación |
-| `Abs` | `func (i Integer) Abs() Integer` | Valor absoluto |
+| `Negate` | `func (i Integer) Negate() Integer` | Negación; da la vuelta para el menor `int64`. Obsoleto: usar `NegateExact` |
+| `NegateExact` | `func (i Integer) NegateExact() (Integer, error)` | Negación, o `ErrIntegerRange` para el menor `int64` |
+| `Abs` | `func (i Integer) Abs() Integer` | Valor absoluto; da la vuelta para el menor `int64`. Obsoleto: usar `AbsExact` |
+| `AbsExact` | `func (i Integer) AbsExact() (Integer, error)` | Valor absoluto, o `ErrIntegerRange` para el menor `int64` |
 | `Power` | `func (i Integer) Power(exp Integer) Decimal` | Exponenciación (retorna `Decimal`) |
 | `Sqrt` | `func (i Integer) Sqrt() (Decimal, error)` | Raíz cuadrada (retorna `Decimal`) |
 | `Compare` | `func (i Integer) Compare(other Value) (int, error)` | Comparación (funciona con `Integer` y `Decimal`) |
@@ -410,6 +415,8 @@ type Decimal struct {
 | `InRange` | `func InRange(v Value) bool` | Indica si un `Decimal` o `Quantity` tiene su valor dentro del rango; cualquier otro valor lo esta |
 | `WithinRange` | `func WithinRange(v Value) (Value, bool)` | Devuelve un valor calculado tal como lo maneja el motor, llevando un cero fuera del limite a la escala mas cercana dentro de el, y false si desborda |
 | `ErrDecimalRange` | `var ErrDecimalRange error` | El error para un decimal fuera de `DecimalDigits` |
+| `ErrIntegerRange` | `var ErrIntegerRange error` | El error para un resultado Integer fuera del rango de `int64`; el motor lo responde vacío |
+| `IntegerFromDecimal` | `func IntegerFromDecimal(d decimal.Decimal) (Integer, error)` | Lee un decimal como Integer, descartando la fracción hacia cero, o `ErrIntegerRange` fuera del rango de `int64` |
 | `DecimalDigits` | `const DecimalDigits = 1000` | El limite del motor: hasta 1000 digitos antes de la coma y ninguno mas alla de 1000 lugares despues. Fuera de el, un valor desborda y se lee como vacio |
 | `NewDecimalFromInt` | `func NewDecimalFromInt(v int64) Decimal` | Crea desde un `int64` |
 | `NewDecimalFromFloat` | `func NewDecimalFromFloat(v float64) Decimal` | Crea desde un `float64` |

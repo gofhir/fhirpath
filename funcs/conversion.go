@@ -287,7 +287,12 @@ func fnToInteger(_ *eval.Context, input types.Collection, _ []interface{}) (type
 		}
 		return types.Collection{types.NewInteger(i)}, nil
 	case types.Decimal:
-		return types.Collection{types.NewInteger(v.Value().IntPart())}, nil
+		// One past the int64 range does not convert
+		i, err := types.IntegerFromDecimal(v.Value())
+		if err != nil {
+			return types.Collection{}, nil
+		}
+		return types.Collection{i}, nil
 	default:
 		return types.Collection{}, nil
 	}
