@@ -98,21 +98,38 @@ func init() {
 	})
 }
 
-// fnEmpty returns true if the collection is empty.
+// fnEmpty returns true if the collection holds nothing but items that hold no
+// value; see holdsAValue.
 func fnEmpty(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
-	if input.Empty() {
+	if holdsAValue(input) {
+		return types.FalseCollection, nil
+	}
+	return types.TrueCollection, nil
+}
+
+// fnExists returns true if the collection holds an item that holds a value;
+// see holdsAValue. With criteria, the evaluation is handled by the evaluator,
+// and counts every item the criteria keep.
+func fnExists(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
+	if holdsAValue(input) {
 		return types.TrueCollection, nil
 	}
 	return types.FalseCollection, nil
 }
 
-// fnExists returns true if the collection is not empty.
-// With criteria, the evaluation is handled by the evaluator.
-func fnExists(ctx *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
-	if input.Empty() {
-		return types.FalseCollection, nil
+// holdsAValue reports a collection with an item that holds a value. An
+// element written as {}, which ele-1 makes invalid, is an item of its
+// collection, but exists() and empty() answer as though it were not there, as
+// the HL7 validator does: Bundle.entry[0].count() is 1 and
+// Bundle.entry[0].exists() false on an entry written {}. FHIRPath defines
+// both on the collection alone; CONFORMANCE.md records the divergence.
+func holdsAValue(input types.Collection) bool {
+	for _, item := range input {
+		if !types.HoldsNoValue(item) {
+			return true
+		}
 	}
-	return types.TrueCollection, nil
+	return false
 }
 
 // fnAll returns true if all elements match the criteria.

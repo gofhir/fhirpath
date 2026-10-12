@@ -64,9 +64,9 @@ func TestAResultKnowsWhereItSitsInTheInput(t *testing.T) {
 		{bundle, "Bundle.entry.resource.ofType(Patient).name.given[2]", []string{"Bundle.entry[0].resource.name[1].given[2]"}},
 		{bundle, "Bundle.entry[1].resource.subject.resolve()", []string{"Bundle.entry[0].resource"}},
 		{bundle, "Bundle.entry[1].resource.subject.resolve().contact[1]", []string{"Bundle.entry[0].resource.contact[1]"}},
-		// An item is located where the JSON writes it, past an empty object
-		// that is no item.
-		{`{"resourceType":"Patient","name":[{},{"family":"M"}]}`, "Patient.name", []string{"Patient.name[1]"}},
+		// An element written as an empty object is an item, located where the
+		// JSON writes it.
+		{`{"resourceType":"Patient","name":[{},{"family":"M"}]}`, "Patient.name", []string{"Patient.name[0]", "Patient.name[1]"}},
 		// An object a function made was not read from the input.
 		{patient, "Patient.type()", []string{""}},
 	}

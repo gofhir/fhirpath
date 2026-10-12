@@ -557,10 +557,10 @@ func (o *ObjectValue) fieldSummary() (summary fields, resourceType string) {
 			}
 		}
 
-		// A field that reads as nothing, a null or an empty object, is not
+		// A field that holds no value, a null or an empty object, is not
 		// there to tell the type by.
 		field, ok := inferenceFields[string(key)]
-		if !ok || readsAsNothing(entry, entryType) {
+		if !ok || entryType != jsonparser.Array && holdsNoValue(entry, entryType) {
 			return nil
 		}
 
@@ -693,7 +693,7 @@ func (o *ObjectValue) Get(field string) (Value, bool) {
 		return nil, false
 	}
 
-	// A field that reads as nothing, a null or an empty object, is not there.
+	// A field written as null is not there.
 	v := jsonValueToFHIRValue(value, dataType)
 	if v == nil {
 		return nil, false
@@ -877,27 +877,58 @@ func pairedCollection(field string, value, element jsonField, parse func([]byte,
 }
 
 // elementBeside is the element written beside a primitive, or nil when
-// there is none. One written as an empty object has neither an id nor
-// extensions, and is no element: see emptyObject.
+// there is none. One written as an empty object is still an element: beside a
+// null it is the item, as it is in the HL7 validator; see HoldsNoValue.
 func elementBeside(element jsonField) *ObjectValue {
-	if !element.found || element.dataType != jsonparser.Object || emptyObject(element.data) {
+	if !element.found || element.dataType != jsonparser.Object {
 		return nil
 	}
 	return NewObjectValue(element.data)
 }
 
-// emptyObject reports whether a JSON object has no members. An element written
-// as one has neither a value nor children, and ele-1, which every element
-// inherits, says "All FHIR elements must have a @value or children": it is not
-// there, and reads as nothing, as it does in the HL7 validator. One that holds
-// only an id has content, and is there.
-func emptyObject(data []byte) bool {
-	for _, c := range data {
-		if c != '{' && c != '}' && !isJSONSpace(c) {
-			return false
-		}
+// HoldsNoValue reports an object under which nothing holds a value: an
+// element written as {}, as {"extension": [{}]}, or a resource written with
+// nothing but its resourceType. ele-1, which every element inherits, says
+// "All FHIR elements must have a @value or children", and such an element has
+// neither. It is still an item of its collection, as it is in the HL7
+// validator, which reads it as there for every function but exists() and
+// empty(): those answer as though it were not.
+func HoldsNoValue(v Value) bool {
+	o, ok := v.(*ObjectValue)
+	return ok && holdsNoValue(o.data, jsonparser.Object)
+}
+
+// holdsNoValue reports a JSON value under which nothing holds a value: a null,
+// an object whose members hold none, an array whose items hold none. A
+// string, even an empty one, a number and a boolean are values. A
+// resourceType names the resource, and is no child of it.
+func holdsNoValue(data []byte, dataType jsonparser.ValueType) bool {
+	switch dataType {
+	case jsonparser.Null:
+		return true
+
+	case jsonparser.Object:
+		empty := true
+		err := jsonparser.ObjectEach(data, func(key, value []byte, dataType jsonparser.ValueType, _ int) error {
+			if string(key) == "resourceType" || holdsNoValue(value, dataType) {
+				return nil
+			}
+			empty = false
+			return errFieldsFound
+		})
+		// An object that does not parse is not known to hold nothing.
+		return empty && err == nil
+
+	case jsonparser.Array:
+		empty := true
+		_, err := jsonparser.ArrayEach(data, func(value []byte, dataType jsonparser.ValueType, _ int, _ error) {
+			if empty && !holdsNoValue(value, dataType) {
+				empty = false
+			}
+		})
+		return empty && err == nil
 	}
-	return true
+	return false
 }
 
 // placePaired records where an item of a paired field sits: in the field, at
@@ -1750,9 +1781,6 @@ func jsonValue(data []byte, dataType jsonparser.ValueType, read bool) Value {
 		return v
 
 	case jsonparser.Object:
-		if emptyObject(data) {
-			return nil
-		}
 		return NewObjectValue(data)
 
 	case jsonparser.Array:
@@ -1817,9 +1845,6 @@ func jsonValueToFHIRValueWithType(data []byte, dataType jsonparser.ValueType, fh
 	}
 	// Objects carry the type so that Type() reports it
 	if dataType == jsonparser.Object && fhirType != "" {
-		if emptyObject(data) {
-			return nil
-		}
 		if IsAbstractResourceType(fhirType) {
 			if resource := asResource(data); resource != nil {
 				return resource

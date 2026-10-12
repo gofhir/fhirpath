@@ -6,48 +6,90 @@ import (
 	"github.com/gofhir/fhirpath"
 )
 
-// An element written as an empty object has neither a value nor children, and
-// ele-1, which every element inherits, says "All FHIR elements must have a
-// @value or children": it is not there. Read as an item, it made pat-1's
-// name.exists() true on a contact whose name is {}, where the HL7 validator
-// fails pat-1. One that holds only an id has content, and is there.
-func TestAnElementWrittenAsAnEmptyObjectIsNotThere(t *testing.T) {
+// An element written as an empty object, or as one under which nothing holds a
+// value, has neither a value nor children, and ele-1, which every element
+// inherits, says "All FHIR elements must have a @value or children". The HL7
+// validator reads it as an item of its collection, so count(), indexing and
+// all() see it, and answers exists() and empty() as though it were not there:
+// pat-1 fails on a contact whose name is {}, and so does bdl-4 on an entry
+// written {}. Each answer below is what the HL7 validator 6.10.2 gives.
+func TestAnElementThatHoldsNoValueIsAnItemThatDoesNotExist(t *testing.T) {
+	const bundle = `{"resourceType":"Bundle","type":"transaction-response","entry":[{},{"response":{"status":"200"}}]}`
+	const contact = `{"resourceType":"Patient","contact":[{"name":{}}]}`
+	const names = `{"resourceType":"Patient","name":[{},{"family":"M"},{}]}`
+	const extension = `{"resourceType":"Patient","extension":[{"url":"u","valueAddress":{}}]}`
 	tests := []struct {
 		resource, expr, want string
 	}{
-		{`{"resourceType":"Patient","contact":[{"name":{}}]}`, "contact.name.exists()", "[false]"},
-		{`{"resourceType":"Patient","contact":[{"name":{ }}]}`, "contact.name.count()", "[0]"},
-		{`{"resourceType":"Patient","contact":[{"name":{}}]}`, "contact.children().count()", "[0]"},
-		{`{"resourceType":"Patient","contact":[{"name":{}}]}`, "contact.descendants().count()", "[0]"},
-		{`{"resourceType":"Patient","name":[{},{"family":"M"},{}]}`, "name.count()", "[1]"},
-		{`{"resourceType":"Patient","name":[{},{"family":"M"},{}]}`, "children().count()", "[1]"},
-		{`{"resourceType":"Patient","contact":[{"name":{"id":"x"}}]}`, "contact.name.exists()", "[true]"},
-		{`{"resourceType":"Patient","contact":[{"name":{"id":"x"}}]}`, "contact.name.children().count()", "[1]"},
+		// bdl-4, on an entry written {}.
+		{bundle, "Bundle.entry.count()", "[2]"},
+		{bundle, "Bundle.entry.all(response.exists())", "[false]"},
+		{bundle, "Bundle.entry[0].count()", "[1]"},
+		{bundle, "Bundle.entry[0].exists()", "[false]"},
+		{bundle, "Bundle.entry[0].empty()", "[true]"},
+		{bundle, "Bundle.entry.exists()", "[true]"},
+		{bundle, "Bundle.entry.empty()", "[false]"},
+		{bundle, "Bundle.entry.first().exists()", "[false]"},
+		{bundle, "Bundle.entry.where(response.empty()).count()", "[1]"},
+		// exists() with criteria counts every item the criteria keep.
+		{bundle, "Bundle.entry.exists(response.empty())", "[true]"},
+		// pat-1, on a contact whose name is {}.
+		{contact, "Patient.contact.all(name.exists() or telecom.exists() or address.exists() or organization.exists())", "[false]"},
+		{contact, "Patient.contact.name.exists()", "[false]"},
+		{contact, "Patient.contact.name.empty()", "[true]"},
+		{contact, "Patient.contact.name.count()", "[1]"},
+		{contact, "Patient.contact.name.exists(true)", "[true]"},
+		{contact, "Patient.contact.name.where(true).exists()", "[false]"},
+		{contact, "Patient.contact.children().count()", "[1]"},
+		{contact, "Patient.contact.descendants().count()", "[1]"},
+		{contact, "Patient.contact.name.descendants().count()", "[0]"},
+		// Nothing under the contact, nor under the resource, holds a value.
+		{contact, "Patient.contact.exists()", "[false]"},
+		{contact, "Patient.contact.count()", "[1]"},
+		{contact, "Patient.exists()", "[false]"},
+		{`{"resourceType":"Patient"}`, "Patient.exists()", "[false]"},
+		{`{"resourceType":"Patient"}`, "%resource.exists()", "[false]"},
+		{`{"resourceType":"Bundle","type":"collection","entry":[{"resource":{"resourceType":"Patient"}}]}`, "Bundle.entry.resource.count()", "[1]"},
+		{`{"resourceType":"Bundle","type":"collection","entry":[{"resource":{"resourceType":"Patient"}}]}`, "Bundle.entry.resource.exists()", "[false]"},
+		// Items are where the JSON writes them.
+		{names, "Patient.name.count()", "[3]"},
+		{names, "Patient.name[1].family", "[M]"},
+		{names, "Patient.name.exists()", "[true]"},
+		{names, "Patient.name.empty()", "[false]"},
+		{names, "Patient.children().count()", "[3]"},
+		{names, "Patient.name.where(family.empty()).count()", "[2]"},
+		{names, "Patient.name.where(family.empty()).exists()", "[false]"},
+		// Holding no value goes all the way down; an id, or a string even
+		// when empty, is a value.
+		{`{"resourceType":"Patient","contact":[{"name":{"given":[]}}]}`, "Patient.contact.name.exists()", "[false]"},
+		{`{"resourceType":"Patient","contact":[{"name":{"extension":[{}]}}]}`, "Patient.contact.name.exists()", "[false]"},
+		{`{"resourceType":"Patient","contact":[{"name":{"id":"x"}}]}`, "Patient.contact.name.exists()", "[true]"},
+		{`{"resourceType":"Patient","contact":[{"name":{"family":""}}]}`, "Patient.contact.name.exists()", "[true]"},
 		// ext-1, on an extension whose value is {}.
-		{`{"resourceType":"Patient","extension":[{"url":"u","valueAddress":{}}]}`, "extension.value.exists()", "[false]"},
-		{`{"resourceType":"Patient","extension":[{"url":"u","valueAddress":{}}]}`, "extension.all(extension.exists() != value.exists())", "[false]"},
-		// The element beside a primitive is no different: one written as {}
-		// adds nothing to the value, and stands for nothing without one.
-		{`{"resourceType":"Patient","birthDate":"2020","_birthDate":{}}`, "birthDate.children().count()", "[1]"},
-		{`{"resourceType":"Patient","name":[{"given":[null,"J"],"_given":[{},null]}]}`, "name.given.count()", "[1]"},
-		{`{"resourceType":"Patient","_active":{}}`, "active.exists()", "[false]"},
-		// A field read directly, as getExtensionValue() reads value[x], is
-		// not there either.
-		{`{"resourceType":"Patient","extension":[{"url":"u","valueCoding":{}}]}`, "getExtensionValue('u').count()", "[0]"},
+		{extension, "Patient.extension.value.exists()", "[false]"},
+		{extension, "Patient.extension.value.count()", "[1]"},
+		{extension, "Patient.extension.all(extension.exists() != value.exists())", "[false]"},
+		{`{"resourceType":"Patient","extension":[{"url":"u","valueCoding":{}}]}`, "getExtensionValue('u').count()", "[1]"},
+		{`{"resourceType":"Patient","extension":[{"url":"u","valueCoding":{}}]}`, "getExtensionValue('u').exists()", "[false]"},
 		{`{"resourceType":"Patient","extension":[{"url":"u","valueCoding":null}]}`, "getExtensionValue('u').count()", "[0]"},
+		// The element beside a primitive: {} beside a null is the item.
+		{`{"resourceType":"Patient","_active":{}}`, "Patient.active.count()", "[1]"},
+		{`{"resourceType":"Patient","_active":{}}`, "Patient.active.exists()", "[false]"},
+		{`{"resourceType":"Patient","name":[{"given":[null,"J"],"_given":[{},null]}]}`, "Patient.name.given.count()", "[2]"},
+		{`{"resourceType":"Patient","name":[{"given":[null,"J"],"_given":[{},null]}]}`, "Patient.name.given.exists()", "[true]"},
+		{`{"resourceType":"Patient","name":[{"given":[null,"J"],"_given":[{},null]}]}`, "Patient.name.given.first().exists()", "[false]"},
+		// ~ compares children as navigation reads them: a member written {}
+		// is a child, and an element beside a value that holds none is not.
+		{`{"resourceType":"Patient","contact":[{"gender":"male","name":{}},{"gender":"male"}]}`, "Patient.contact[0] ~ Patient.contact[1]", "[false]"},
+		{`{"resourceType":"Patient","name":[{"family":"x","given":["J"],"_given":[{}]},{"family":"x","given":["J"]}]}`, "Patient.name[0] ~ Patient.name[1]", "[true]"},
+		{`{"resourceType":"Patient","name":[{"given":[null,"A"],"_given":[{},null]},{"given":["A"]}]}`, "Patient.name[0] ~ Patient.name[1]", "[false]"},
+		{`{"resourceType":"Patient","name":[{"given":[null,"A"],"_given":[{"id":"x"},null]},{"given":["A"]}]}`, "Patient.name[0] ~ Patient.name[1]", "[false]"},
+		// Not measured in the HL7 validator, which reads no such JSON: a null
+		// with no element beside it is no item, there or for ~.
+		{`{"resourceType":"Patient","name":[{"given":[null,"A"]},{"given":["A"]}]}`, "Patient.name[0] ~ Patient.name[1]", "[true]"},
 		// Nor is a field the type is told by without a model.
 		{`{"resourceType":"Basic","c":{"system":"s","code":"k","value":{}}}`, "c.type().name", "[Coding]"},
 		{`{"resourceType":"Basic","c":{"system":"s","code":"k","value":null}}`, "c.type().name", "[Coding]"},
-		// ~ compares what navigation reads: an empty object is no child there
-		// either. = compares content as written, and is left as it is.
-		{`{"resourceType":"Patient","contact":[{"gender":"male","name":{}},{"gender":"male"}]}`, "contact[0] ~ contact[1]", "[true]"},
-		{`{"resourceType":"Patient","contact":[{"gender":"male","name":[{},{"family":"M"}]},{"gender":"male","name":[{"family":"M"}]}]}`, "contact[0] ~ contact[1]", "[true]"},
-		{`{"resourceType":"Patient","contact":[{"gender":"male","name":[{}]},{"gender":"male"}]}`, "contact[0] ~ contact[1]", "[true]"},
-		{`{"resourceType":"Patient","contact":[{"gender":"male","name":{"id":"x"}},{"gender":"male"}]}`, "contact[0] ~ contact[1]", "[false]"},
-		{`{"resourceType":"Patient","contact":[{"gender":"male","name":[{},null]},{"gender":"male"}]}`, "contact[0] ~ contact[1]", "[true]"},
-		{`{"resourceType":"Patient","name":[{"family":"x","given":["J"],"_given":[{},null]},{"family":"x","given":["J"]}]}`, "name[0] ~ name[1]", "[true]"},
-		{`{"resourceType":"Patient","name":[{"given":[null,"A"]},{"given":["A"]}]}`, "name[0] ~ name[1]", "[true]"},
-		{`{"resourceType":"Patient","name":[{"given":[null,"A"],"_given":[{"id":"x"},null]},{"given":["A"]}]}`, "name[0] ~ name[1]", "[false]"},
 	}
 
 	for _, tt := range tests {
