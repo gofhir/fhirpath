@@ -243,9 +243,9 @@ func inLessGranular(q, o Quantity) (coarse Quantity, converted decimal.Decimal, 
 }
 
 // inLessGranularByPoints is inLessGranular for units on a scale with an
-// offset, whose step ucum.Step measures. A point that has no finite value on
-// the other scale — zero on a logarithmic one — leaves no step to measure, and
-// the left operand's unit is kept, as on a tie.
+// offset, whose step ucum.Step measures. A scale with no step, a logarithm or
+// an angle, has no unit more granular than another, and the left operand's
+// unit is kept, as on a tie.
 func inLessGranularByPoints(q, o Quantity) (coarse Quantity, converted decimal.Decimal, ok bool) {
 	step, err := ucum.Step(convertibleUnit(o.unit), convertibleUnit(q.unit))
 	if err != nil {

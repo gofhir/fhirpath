@@ -8,7 +8,23 @@ import (
 	"github.com/shopspring/decimal"
 )
 
+// forgetFactors empties what Factor and Step remember, so that a test sees
+// neither what another found nor the bound it filled.
+func forgetFactors(t *testing.T) {
+	t.Helper()
+	forget := func() {
+		factors.Range(func(key, _ any) bool {
+			factors.Delete(key)
+			return true
+		})
+		factorCount.Store(0)
+	}
+	forget()
+	t.Cleanup(forget)
+}
+
 func TestFactor(t *testing.T) {
+	forgetFactors(t)
 	factor, err := Factor("L", "mL")
 	if err != nil || factor.Cmp(big.NewRat(1000, 1)) != 0 {
 		t.Fatalf("Factor(L, mL) = %v, %v; want 1000", factor, err)
@@ -51,6 +67,7 @@ func TestFactorKeepsPairsApart(t *testing.T) {
 }
 
 func TestFactorBound(t *testing.T) {
+	forgetFactors(t)
 	var wg sync.WaitGroup
 	for i := range 64 {
 		wg.Add(1)
@@ -89,5 +106,27 @@ func TestConvertWithoutFiniteValue(t *testing.T) {
 	// Zero on a logarithmic scale is minus infinity
 	if got, err := Convert(decimal.Zero, "1", "B"); err == nil {
 		t.Errorf("Convert(0, 1, B) = %v, want an error", got)
+	}
+}
+
+func TestStep(t *testing.T) {
+	forgetFactors(t)
+	// A degree Celsius is a kelvin; a degree Fahrenheit 5/9 of one
+	if step, err := Step("Cel", "K"); err != nil || !step.Equal(decimal.NewFromInt(1)) {
+		t.Errorf("Step(Cel, K) = %v, %v; want 1", step, err)
+	}
+	if step, err := Step("[degF]", "K"); err != nil || step.Sub(decimal.RequireFromString("0.5555555555")).Abs().GreaterThan(decimal.RequireFromString("0.0000000001")) {
+		t.Errorf("Step([degF], K) = %v, %v; want 5/9", step, err)
+	}
+	// Found once
+	before := factorCount.Load()
+	if _, err := Step("Cel", "K"); err != nil || factorCount.Load() != before {
+		t.Errorf("Step(Cel, K) again: %v, %d pairs kept, want %d", err, factorCount.Load(), before)
+	}
+	// A logarithm has no step, either way round
+	for _, pair := range [][2]string{{"B", "1"}, {"1", "B"}, {"[pH]", "mol/L"}} {
+		if step, err := Step(pair[0], pair[1]); err == nil {
+			t.Errorf("Step(%s, %s) = %v, want an error", pair[0], pair[1], step)
+		}
 	}
 }

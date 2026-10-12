@@ -282,6 +282,10 @@ func TestQuantityEquivalenceTie(t *testing.T) {
 		"274.6 'K' ~ 1.5 'Cel'":   "false",
 		"1 'L' ~ 1.04 'dm3'":      "true",
 		"1.04 'dm3' ~ 1 'L'":      "true",
+		// A logarithm has no step, and the left unit is kept as on a tie:
+		// 10 '1' is 1 'B'
+		"1 'B' ~ 10 '1'": "true",
+		"4 '1' ~ 1 'B'":  "false",
 	} {
 		if got := evaluateScalar(t, expr, patient); got != want {
 			t.Errorf("%s = %s, want %s", expr, got, want)

@@ -144,31 +144,50 @@ func Factor(from, to string) (*big.Rat, error) {
 	return factor, err
 }
 
+// errNotAffine reports a scale on which a step has no constant size, a
+// logarithm or an angle, where no unit is more granular than another.
+var errNotAffine = errors.New("ucum: the scale is not affine: a step has no size")
+
 // Step returns how much of one unit a step of another is, for units with no
 // factor, on a scale with an offset: the difference two points convert to,
 // since a point is not a step — 1 '[degF]' is 255.9 'K', a degree of it 5/9
-// of a kelvin. It is measured once per pair of units.
+// of a kelvin. A scale on which steps differ, a logarithm or an angle, has no
+// step, and Step returns an error. Either answer is found once per pair.
 func Step(from, to string) (decimal.Decimal, error) {
 	key := "step\x00" + from + "\x00" + to
 	if found, ok := factors.Load(key); ok {
 		f := found.(foundFactor)
 		return f.step, f.err
 	}
-	one, err := Convert(decimal.NewFromInt(1), from, to)
-	if err != nil {
-		return decimal.Decimal{}, err
-	}
-	zero, err := Convert(decimal.Zero, from, to)
-	if err != nil {
-		return decimal.Decimal{}, err
-	}
-	step := one.Sub(zero)
+	step, err := measureStep(from, to)
 	if factorCount.Add(1) <= maxFactors {
-		if _, loaded := factors.LoadOrStore(key, foundFactor{step: step}); loaded {
+		if _, loaded := factors.LoadOrStore(key, foundFactor{err: err, step: step}); loaded {
 			factorCount.Add(-1)
 		}
 	} else {
 		factorCount.Add(-1)
+	}
+	return step, err
+}
+
+// measureStep converts three points and returns the step between them where
+// the two steps agree.
+func measureStep(from, to string) (decimal.Decimal, error) {
+	var points [3]decimal.Decimal
+	for i := range points {
+		point, err := Convert(decimal.NewFromInt(int64(i)), from, to)
+		if err != nil {
+			return decimal.Decimal{}, err
+		}
+		points[i] = point
+	}
+	// Conversions to a repeating fraction stop at exactDigits, so two steps of
+	// an affine scale agree to well within that, and those of a logarithm
+	// differ in their first digits
+	step := points[1].Sub(points[0])
+	tolerance := decimal.New(1, -(exactDigits - 6)).Mul(decimal.Max(decimal.NewFromInt(1), step.Abs()))
+	if points[2].Sub(points[1]).Sub(step).Abs().GreaterThan(tolerance) {
+		return decimal.Decimal{}, errNotAffine
 	}
 	return step, nil
 }
