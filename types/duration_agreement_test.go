@@ -94,3 +94,21 @@ func TestCalendarKeywordsHaveUCUMCounterparts(t *testing.T) {
 		})
 	}
 }
+
+// TestAddDurationTruncatesWholeSeconds calls AddDuration with seconds, as an
+// API caller may: the evaluator turns seconds into milliseconds first.
+func TestAddDurationTruncatesWholeSeconds(t *testing.T) {
+	hour, err := NewTime("10")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for value, want := range map[int]string{3599: "10", 3600: "11", -3599: "10", -3600: "09"} {
+		got, err := hour.AddDuration(value, "second")
+		if err != nil {
+			t.Fatal(err)
+		}
+		if got.String() != want {
+			t.Errorf("@T10 + %d seconds = %s, want %s", value, got, want)
+		}
+	}
+}

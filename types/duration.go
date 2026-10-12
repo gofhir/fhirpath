@@ -152,8 +152,9 @@ func durationPartsAt(value int, unit string, precision durationField) (years, mo
 		return 0, 0, 0, 0, err
 	}
 	amount := value * multiplier
-	// Seconds and milliseconds are one precision, as comparison has them, so
-	// @T00:00:00 - 1 'ms' is @T23:59:59 with the millisecond carried
+	// Seconds and milliseconds are one precision, as comparison has them: the
+	// millisecond shifts and is then dropped, so @2000-01-01T00:00:00 - 1 'ms'
+	// is @1999-12-31T23:59:59
 	if precision == fieldSecond {
 		precision = fieldMillisecond
 	}

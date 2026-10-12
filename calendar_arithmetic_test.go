@@ -109,6 +109,18 @@ func TestCalendarArithmeticTruncatesAFinerQuantity(t *testing.T) {
 		{"@2016 + 364 days", "2016"},
 		{"@2016-01 + 59 days", "2016-02"},
 		{"@2016-01 + 60 days", "2016-03"},
+		{"@2016-01 + 30 days", "2016-02"},
+		{"@2016 + 31536000 seconds", "2017"},
+		{"@2016T + 365 days", "2017"},
+
+		// A whole unit of the value moves it, and a unit less does not
+		{"@2000-01-01 + 24 hours", "2000-01-02"},
+		{"@2000-01-01 + 23 hours", "2000-01-01"},
+		{"@2000-01-01T10 + 60 minutes", "2000-01-01T11"},
+		{"@2000-01-01T10 + 59 minutes", "2000-01-01T10"},
+		{"@T10 + 3600 seconds", "11"},
+		{"@T10:00 + 60 seconds", "10:01"},
+		{"@T10:00 + 59 seconds", "10:00"},
 
 		// Subtraction truncates toward zero
 		{"@2000 - 1 day", "2000"},
