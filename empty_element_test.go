@@ -111,6 +111,12 @@ func TestAnElementThatHoldsNoValueIsAnItemThatDoesNotExist(t *testing.T) {
 		// The HL7 validator answers nullx, Java's concatenation of a null; +
 		// propagates empty, as it does for any empty operand.
 		{`{"resourceType":"Patient","name":[{"given":[null],"_given":[{}]}]}`, "Patient.name.given + 'x'", "[]"},
+		// Nor do the other operators and functions that want a value.
+		{`{"resourceType":"Patient","_multipleBirthInteger":{}}`, "-Patient.multipleBirth", "[]"},
+		{`{"resourceType":"Patient","_gender":{}}`, "Patient.gender & 'x'", "[x]"},
+		{`{"resourceType":"Patient","_birthDate":{}}`, "Patient.birthDate.duration(@2020, 'years')", "[]"},
+		{`{"resourceType":"Patient","_birthDate":{}}`, "Patient.birthDate.difference(@2020, 'years')", "[]"},
+		{`{"resourceType":"Patient","_birthDate":{}}`, "@2020.duration(Patient.birthDate, 'years')", "[]"},
 		// A resourceType written with escapes is still the resource's name.
 		{`{"resourceType":"Patient","contained":[{"resource\u0054ype":"Patient"}]}`, "Patient.contained.exists()", "[false]"},
 		// ~ compares children as navigation reads them: a member written {}
@@ -182,5 +188,38 @@ func TestExistsReadsAResourceOnlyUpToAValue(t *testing.T) {
 	}
 	if elapsed := time.Since(start); elapsed > 5*time.Second {
 		t.Errorf("took %v: exists() reads the whole Bundle for each entry", elapsed)
+	}
+}
+
+// TestEquivalenceReadsEachElementBesideAPrimitiveOnce checks that ~ tells
+// each element beside a primitive by the value beside it without reading the
+// object again for each: 12000 such pairs took seconds.
+func TestEquivalenceReadsEachElementBesideAPrimitiveOnce(t *testing.T) {
+	if testing.Short() {
+		t.Skip("reads a large object")
+	}
+	const pairs = 12000
+	var forwards, backwards strings.Builder
+	for i := 0; i < pairs; i++ {
+		if i > 0 {
+			forwards.WriteString(",")
+			backwards.WriteString(",")
+		}
+		fmt.Fprintf(&forwards, `"x%d":"v","_x%d":{}`, i, i)
+		fmt.Fprintf(&backwards, `"x%d":"v","_x%d":{}`, pairs-1-i, pairs-1-i)
+	}
+	bundle := `{"resourceType":"Bundle","entry":[{"resource":{"resourceType":"Basic",` + forwards.String() +
+		`}},{"resource":{"resourceType":"Basic",` + backwards.String() + `}}]}`
+
+	start := time.Now()
+	result, err := fhirpath.Evaluate([]byte(bundle), "Bundle.entry[0].resource ~ Bundle.entry[1].resource")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := result.String(); got != "[true]" {
+		t.Errorf("~ = %s, want [true]", got)
+	}
+	if elapsed := time.Since(start); elapsed > 1500*time.Millisecond {
+		t.Errorf("took %v: ~ reads the object again for each element beside a primitive", elapsed)
 	}
 }

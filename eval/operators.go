@@ -882,7 +882,7 @@ func Concatenate(left, right types.Collection) (types.Collection, error) {
 // else follows the singleton rule: more than one item, or one that is not a
 // String, is an error rather than a value picked out of the collection.
 func concatenationOperand(operand types.Collection) (string, error) {
-	if operand.Empty() {
+	if noValue(operand) {
 		return "", nil
 	}
 	if len(operand) > 1 {
