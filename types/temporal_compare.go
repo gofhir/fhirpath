@@ -85,7 +85,8 @@ type temporalValue struct {
 }
 
 // compareTemporal orders two temporal values component by component, from the
-// most significant down, stopping at the first difference.
+// most significant down, stopping at the first difference; two at different
+// offsets, as the spans of time they name (see compareSpans).
 //
 // Returns ErrPrecisionMismatch when every shared component matches but the
 // values are specified to different precisions.
@@ -177,8 +178,9 @@ func (v temporalValue) span() (start, end time.Time) {
 	return start, end
 }
 
-// inUTC re-expresses the value's components at UTC, so that two values written
-// against different offsets compare on the same footing.
+// inUTC re-expresses the value's components at UTC, so that difference() and
+// duration() count between two values written against different offsets on
+// the same footing. Comparison reads spans instead: see compareSpans.
 func (v temporalValue) inUTC() temporalValue {
 	instant := time.Date(
 		v.parts[unitYear], time.Month(v.parts[unitMonth]), v.parts[unitDay],
