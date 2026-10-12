@@ -15,7 +15,7 @@ func TestTemporalValidity(t *testing.T) {
 	// fhirpath.js
 	for _, expr := range []string{
 		"@2021-02-30", "@2021-13-01", "@2021-00-10", "@2100-02-29", "@0000-01-01",
-		"@2021-04-31", "@2021-11-31", "@2021-13", "@0000",
+		"@2021-04-31", "@2021-11-31", "@2021-13", "@0000", "@2021-01-00", "@2021-01-00T10:00",
 		"@2021-01-01T25:00", "@2021-01-01T10:60", "@2021-01-01T10:00:61",
 		// A leap second, which FHIR allows but FHIRPath's Time does not reach
 		"@2016-12-31T23:59:60Z", "@T23:59:60",
@@ -42,6 +42,9 @@ func TestTemporalValidity(t *testing.T) {
 		// toDate() of a DateTime keeps its own precision, to the day at most
 		"@2012T.toDate()":            "2012",
 		"@2012-05T.convertsToDate()": "true",
+		// A DateTime that writes a time without a day reads back as written
+		"@2012T12:30:00.toString()":                               "2012T12:30:00",
+		"@2012T12:30:00.toString().toDateTime() = @2012T12:30:00": "true",
 		// An invalid date in the input is read as the string it is
 		"Patient.birthDate is String":     "true",
 		"Patient.birthDate = @2021-03-02": "false",

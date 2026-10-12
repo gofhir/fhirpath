@@ -313,10 +313,12 @@ func (dt DateTime) Equivalent(other Value) bool {
 func (dt DateTime) String() string {
 	result := fmt.Sprintf("%04d", dt.year)
 
-	if dt.precision >= DTMonthPrecision {
+	// A month or a day the value does not write, as @2012T12:30:00 writes a
+	// time without them, is left out: 2012-00-00 is no date to read back
+	if dt.precision >= DTMonthPrecision && dt.month != 0 {
 		result += fmt.Sprintf("-%02d", dt.month)
 	}
-	if dt.precision >= DTDayPrecision {
+	if dt.precision >= DTDayPrecision && dt.day != 0 {
 		result += fmt.Sprintf("-%02d", dt.day)
 	}
 	if dt.precision >= DTHourPrecision {
@@ -456,7 +458,7 @@ func (dt DateTime) AddDuration(value int, unit string) (DateTime, error) {
 
 	// "If the resulting year is out of range, an error is thrown"
 	if result.year < 1 || result.year > 9999 {
-		return DateTime{}, fmt.Errorf("%w: year %d", ErrInvalidTemporal, result.year)
+		return DateTime{}, fmt.Errorf("%w: date arithmetic reaches year %d, outside 1 to 9999", ErrInvalidTemporal, result.year)
 	}
 	return result, nil
 }

@@ -234,7 +234,7 @@ func (d Date) AddDuration(value int, unit string) (Date, error) {
 
 	// "If the resulting year is out of range, an error is thrown"
 	if result.year < 1 || result.year > 9999 {
-		return Date{}, fmt.Errorf("%w: year %d", ErrInvalidTemporal, result.year)
+		return Date{}, fmt.Errorf("%w: date arithmetic reaches year %d, outside 1 to 9999", ErrInvalidTemporal, result.year)
 	}
 	return result, nil
 }

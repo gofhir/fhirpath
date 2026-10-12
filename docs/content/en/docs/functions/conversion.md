@@ -388,7 +388,8 @@ result, _ := fhirpath.Evaluate(resource, "'not-a-date'.toDate()")
 
 - Returns empty collection if the input cannot be parsed as a date.
 - Returns empty collection if the input is empty.
-- For `DateTime` input, extracts the first 10 characters (the date portion).
+- For `DateTime` input, returns the date it states, to the day at most: `@2012T.toDate()` is `@2012`.
+- A string that is not a day on the calendar, such as `'2021-02-30'`, gives an empty collection.
 
 ---
 
@@ -411,7 +412,7 @@ result, _ := fhirpath.Evaluate(resource, "'2024-01-15'.convertsToDate()")
 // true
 
 result, _ := fhirpath.Evaluate(resource, "'not-a-date'.convertsToDate()")
-// true (basic check -- returns true for any string)
+// false
 
 result, _ := fhirpath.Evaluate(resource, "(42).convertsToDate()")
 // false
@@ -420,7 +421,7 @@ result, _ := fhirpath.Evaluate(resource, "(42).convertsToDate()")
 **Edge Cases / Notes:**
 
 - Returns `false` for empty input.
-- The current implementation performs a basic type check (returns `true` for any string). This may be enhanced in future versions with stricter date format validation.
+- Answers as `toDate()` does: `true` for a `Date`, a `DateTime`, or a string that names a day on the calendar; `false` for `'2021-02-30'`.
 
 ---
 

@@ -388,7 +388,8 @@ result, _ := fhirpath.Evaluate(resource, "'not-a-date'.toDate()")
 
 - Devuelve una coleccion vacia si la entrada no puede analizarse como fecha.
 - Devuelve una coleccion vacia si la entrada esta vacia.
-- Para entrada `DateTime`, extrae los primeros 10 caracteres (la porcion de fecha).
+- Para entrada `DateTime`, devuelve la fecha que indica, hasta el dia como maximo: `@2012T.toDate()` es `@2012`.
+- Una cadena que no es un dia del calendario, como `'2021-02-30'`, da una coleccion vacia.
 
 ---
 
@@ -411,7 +412,7 @@ result, _ := fhirpath.Evaluate(resource, "'2024-01-15'.convertsToDate()")
 // true
 
 result, _ := fhirpath.Evaluate(resource, "'not-a-date'.convertsToDate()")
-// true (basic check -- returns true for any string)
+// false
 
 result, _ := fhirpath.Evaluate(resource, "(42).convertsToDate()")
 // false
@@ -420,7 +421,7 @@ result, _ := fhirpath.Evaluate(resource, "(42).convertsToDate()")
 **Casos Limite / Notas:**
 
 - Devuelve `false` para entrada vacia.
-- La implementacion actual realiza una verificacion basica de tipo (devuelve `true` para cualquier cadena). Esto puede mejorarse en versiones futuras con una validacion mas estricta del formato de fecha.
+- Responde lo mismo que `toDate()`: `true` para un `Date`, un `DateTime` o una cadena que nombra un dia del calendario; `false` para `'2021-02-30'`.
 
 ---
 
