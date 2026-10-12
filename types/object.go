@@ -914,7 +914,17 @@ func elementBeside(element jsonField) *ObjectValue {
 // null, as the HL7 validator reads it. Where a value is wanted, in a Boolean
 // reading, an operator or a String function, it is empty: Patient.active or
 // false is empty on "_active": {}, not true.
-func (o *ObjectValue) Valueless() bool { return o.role == roleValueless }
+//
+// An object typed as a FHIR primitive is one too, however it was made: a
+// primitive with a value is read as its value, so an object of a primitive's
+// type is only ever the element standing for one with none. A caller that
+// builds it itself, NewObjectValueWithType of "_family" as a string, and
+// evaluates it as the root, which takes the role of root, gets the same
+// answers as navigation does: hasValue() false, and ele-1 failing on an
+// element that holds only an id.
+func (o *ObjectValue) Valueless() bool {
+	return o.role == roleValueless || fhirPrimitives[o.typeName]
+}
 
 // objectRole is what sets an object apart from the others; see
 // ObjectValue.role.

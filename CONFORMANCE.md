@@ -1086,6 +1086,13 @@ has only extensions.
 | `"contact": [{"name": {"id": "x"}}]` | `Patient.contact.name.all(hasValue() or (children().count() > id.count()))` (ele-1) | true | false |
 | `"_active": {"extension": [...]}` | `Patient.active.hasValue()` | false | false |
 
+An object typed as a FHIR primitive is a primitive with no value however it
+was made, so one a validator builds itself and evaluates as the root, a
+`"_family": {"id": "x"}` typed `string`, answers `hasValue()` false as
+navigation does, and ele-1 fails on it, as the validator reports. A complex
+value written with only an id, `"maritalStatus": {"id": "x"}`, has a value:
+ele-1 holds, and the validator accepts it (0 errors).
+
 FHIR defines it on primitives only: "Returns true if the input collection
 contains a single value which is a FHIR primitive, and it has a primitive
 value". Read that way, ele-1 failed on an element written with only an `id`,
