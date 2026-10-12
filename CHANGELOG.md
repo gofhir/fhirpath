@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.13.5](https://github.com/gofhir/fhirpath/compare/v1.13.4...v1.13.5) (2026-10-12)
+
+
+### Bug Fixes
+
+* an object typed as a FHIR primitive has no value, however it was made ([#168](https://github.com/gofhir/fhirpath/issues/168)) ([b169b0f](https://github.com/gofhir/fhirpath/commit/b169b0fd67cddc35bf0a1fdd85bb6c7655d0e017))
+* Integer arithmetic past the int64 range answers empty ([#162](https://github.com/gofhir/fhirpath/issues/162)) ([efe4101](https://github.com/gofhir/fhirpath/commit/efe41018a90bf4581161a867f077b1d565841f78))
+
 ## [1.13.4](https://github.com/gofhir/fhirpath/compare/v1.13.3...v1.13.4) (2026-10-12)
 
 
