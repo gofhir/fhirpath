@@ -120,7 +120,7 @@ result, _ := fhirpath.Evaluate(resource, "(5).avg()")
 
 ## min
 
-Devuelve el valor minimo de la coleccion de entrada. Funciona con tipos numericos, cadenas, fechas, fechas-hora y horas.
+Devuelve el valor minimo de la coleccion de entrada. Funciona con numeros, cantidades, cadenas, fechas, fechas-hora y horas.
 
 **Firma:**
 ```
@@ -145,20 +145,20 @@ result, _ := fhirpath.Evaluate(resource, "(@2024-01-01 | @2024-06-15 | @2024-03-
 **Casos Limite / Notas:**
 - Devuelve una coleccion vacia si la entrada esta vacia.
 - Devuelve una coleccion vacia si la coleccion contiene tipos no soportados.
-- Tipos soportados para comparacion:
-  - `Integer` y `Decimal` (comparacion numerica)
+- Los elementos se comparan como los compara `<`:
+  - `Integer` y `Decimal`, de forma exacta
+  - `Quantity`, incluida una Quantity FHIR, segun sus unidades
   - `String` (comparacion lexicografica)
-  - `Date` (comparacion cronologica)
-  - `DateTime` (comparacion cronologica)
-  - `Time` (comparacion cronologica)
-- Todos los elementos de la coleccion deben ser del mismo tipo para obtener resultados significativos.
+  - `Date`, `DateTime` y `Time`, componente por componente
+- Elementos que `<` se niega a comparar, como `1` y `'a'`, terminan la evaluacion con un error: "All items in the input collection SHALL be the same type".
+- Si el orden de algun par es desconocido (fechas de distinta precision, o cantidades cuyas unidades no se convierten), el minimo es el elemento que se ordena contra todos los demas y queda por debajo de todos; si ninguno lo hace, el resultado es vacio. `(@2019 | @2020-01-01T10Z | @2020-01-01T10:30Z).min()` es `@2019`.
 - Soporta cancelacion para colecciones grandes.
 
 ---
 
 ## max
 
-Devuelve el valor maximo de la coleccion de entrada. Funciona con tipos numericos, cadenas, fechas, fechas-hora y horas.
+Devuelve el valor maximo de la coleccion de entrada. Funciona con numeros, cantidades, cadenas, fechas, fechas-hora y horas.
 
 **Firma:**
 ```
@@ -183,8 +183,8 @@ result, _ := fhirpath.Evaluate(resource, "(@2024-01-01 | @2024-06-15 | @2024-03-
 **Casos Limite / Notas:**
 - Devuelve una coleccion vacia si la entrada esta vacia.
 - Devuelve una coleccion vacia si la coleccion contiene tipos no soportados.
-- Los tipos soportados son los mismos que `min()`: `Integer`, `Decimal`, `String`, `Date`, `DateTime`, `Time`.
-- Todos los elementos de la coleccion deben ser del mismo tipo para obtener resultados significativos.
+- Los elementos se comparan como en `min()`, y los que `<` se niega a comparar terminan la evaluacion con un error.
+- Si el orden de algun par es desconocido, el maximo es el elemento que se ordena contra todos los demas y queda por encima de todos; si ninguno lo hace, el resultado es vacio. `(@2019 | @2020-01-01T10Z | @2020-01-01T10:30Z).max()` es vacio, porque los dos ultimos no tienen orden.
 - Soporta cancelacion para colecciones grandes.
 
 ---
