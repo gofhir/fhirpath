@@ -93,12 +93,26 @@ func TestAnElementThatHoldsNoValueIsAnItemThatDoesNotExist(t *testing.T) {
 		{`{"resourceType":"Patient","_active":{"extension":[{"url":"u","valueString":"x"}]}}`, "Patient.active.not()", "[]"},
 		{`{"resourceType":"Patient","_active":{"extension":[{"url":"u","valueString":"x"}]}}`, "Patient.active.exists()", "[true]"},
 		{`{"resourceType":"Patient","active":true,"_active":{}}`, "Patient.active or false", "[true]"},
+		// = compares its null, which equals no value.
+		{`{"resourceType":"Patient","_active":{}}`, "Patient.active = true", "[false]"},
+		{`{"resourceType":"Patient","_active":{}}`, "Patient.active = false", "[false]"},
+		{`{"resourceType":"Patient","_active":{}}`, "Patient.active != true", "[true]"},
+		// A Boolean with no value is neither true nor false.
+		{`{"resourceType":"Patient","_active":{}}`, "Patient.active.allTrue()", "[false]"},
+		{`{"resourceType":"Patient","_active":{}}`, "Patient.active.anyTrue()", "[false]"},
+		{`{"resourceType":"Patient","_active":{}}`, "Patient.active.allFalse()", "[false]"},
+		{`{"resourceType":"Patient","_active":{}}`, "Patient.active.anyFalse()", "[false]"},
+		// join() leaves it out.
+		{`{"resourceType":"Patient","name":[{"given":[null,"a"],"_given":[{},null]}]}`, "Patient.name.given.join(',')", "[a]"},
 		// Not measured: the HL7 validator raises a NullPointerException.
-		{`{"resourceType":"Patient","_active":{}}`, "Patient.active = true", "[]"},
 		{`{"resourceType":"Patient","_birthDate":{}}`, "Patient.birthDate < @2020", "[]"},
 		{`{"resourceType":"Patient","_birthDate":{}}`, "Patient.birthDate + 1 day", "[]"},
 		{`{"resourceType":"Patient","name":[{"given":[null],"_given":[{}]}]}`, "Patient.name.given.length()", "[]"},
+		// The HL7 validator answers nullx, Java's concatenation of a null; +
+		// propagates empty, as it does for any empty operand.
 		{`{"resourceType":"Patient","name":[{"given":[null],"_given":[{}]}]}`, "Patient.name.given + 'x'", "[]"},
+		// A resourceType written with escapes is still the resource's name.
+		{`{"resourceType":"Patient","contained":[{"resource\u0054ype":"Patient"}]}`, "Patient.contained.exists()", "[false]"},
 		// ~ compares children as navigation reads them: a member written {}
 		// is a child, and an element beside a value that holds none is not.
 		{`{"resourceType":"Patient","contact":[{"gender":"male","name":{}},{"gender":"male"}]}`, "Patient.contact[0] ~ Patient.contact[1]", "[false]"},

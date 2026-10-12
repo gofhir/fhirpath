@@ -565,7 +565,10 @@ func noValue(operand types.Collection) bool {
 
 // equal is Equal with the error it can end in.
 func equal(left, right types.Collection) (types.Collection, error) {
-	if noValue(left) || noValue(right) {
+	// Empty propagation. A primitive with no value is not empty here: the HL7
+	// validator compares its null, unequal to any value, so on "_active": {}
+	// Patient.active = true is false
+	if left.Empty() || right.Empty() {
 		return types.EmptyCollection, nil
 	}
 
