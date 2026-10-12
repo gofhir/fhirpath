@@ -15,8 +15,8 @@ import (
 // compares collections, in any order.
 //
 // A child present on one side only is not equivalent, as an empty collection
-// is not equivalent to a non-empty one; an empty array or a null counts as
-// absent, as navigation reads nothing there. An element written as {} is read
+// is not equivalent to a non-empty one; a null, or an array of nothing but
+// nulls, counts as absent, as navigation reads nothing there. An element written as {} is read
 // as an item, and is a child. The element beside a primitive that holds no
 // value adds nothing to the primitive, as in the HL7 validator, and counts as
 // absent too.
@@ -70,8 +70,8 @@ type jsonObject struct {
 const indexedChildren = 16
 
 // parseJSONObject reads the children of a JSON object in the order written,
-// leaving out the ones navigation reads nothing from, a null and an empty
-// array, and the element beside a primitive that adds nothing to its values:
+// leaving out the ones navigation reads nothing from, a null and an array of
+// nothing but nulls, and the element beside a primitive that adds nothing to its values:
 // see addsNothing. A key written twice, which no valid resource has, is read
 // where it first stands, as navigation reads it.
 func parseJSONObject(data []byte) (jsonObject, bool) {
@@ -81,7 +81,7 @@ func parseJSONObject(data []byte) (jsonObject, bool) {
 			return nil
 		}
 		switch {
-		case dataType == jsonparser.Null, dataType == jsonparser.Array && isEmptyArray(value):
+		case dataType == jsonparser.Null, dataType == jsonparser.Array && nullsOnly(value):
 			return nil
 		case len(key) > 1 && key[0] == '_' && addsNothing(data, key, value, dataType):
 			return nil
@@ -163,14 +163,16 @@ func addsNothing(object, key, element []byte, dataType jsonparser.ValueType) boo
 	return beside
 }
 
-// isEmptyArray reports a JSON array with no elements.
-func isEmptyArray(data []byte) bool {
-	empty := true
+// nullsOnly reports a JSON array whose elements, if any, are all null.
+func nullsOnly(data []byte) bool {
+	nulls := true
 	//nolint:errcheck // An array that does not parse is compared as written
-	jsonparser.ArrayEach(data, func([]byte, jsonparser.ValueType, int, error) {
-		empty = false
+	jsonparser.ArrayEach(data, func(_ []byte, dataType jsonparser.ValueType, _ int, _ error) {
+		if dataType != jsonparser.Null {
+			nulls = false
+		}
 	})
-	return empty
+	return nulls
 }
 
 // equivalentChildren compares two child properties, each a single value or an

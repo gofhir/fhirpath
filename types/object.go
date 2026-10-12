@@ -557,10 +557,9 @@ func (o *ObjectValue) fieldSummary() (summary fields, resourceType string) {
 			}
 		}
 
-		// A field that holds no value, a null or an empty object, is not
-		// there to tell the type by.
+		// A field written as null or as {} is not there to tell the type by.
 		field, ok := inferenceFields[string(key)]
-		if !ok || entryType != jsonparser.Array && holdsNoValue(entry, entryType) {
+		if !ok || entryType == jsonparser.Null || entryType == jsonparser.Object && emptyObject(entry) {
 			return nil
 		}
 
@@ -920,15 +919,46 @@ func holdsNoValue(data []byte, dataType jsonparser.ValueType) bool {
 		return empty && err == nil
 
 	case jsonparser.Array:
-		empty := true
-		_, err := jsonparser.ArrayEach(data, func(value []byte, dataType jsonparser.ValueType, _ int, _ error) {
-			if empty && !holdsNoValue(value, dataType) {
-				empty = false
-			}
-		})
-		return empty && err == nil
+		return arrayHoldsNoValue(data)
 	}
 	return false
+}
+
+// arrayHoldsNoValue reports a JSON array whose items hold no value, reading
+// item by item and stopping at the first that holds one, where ArrayEach
+// would read the array through.
+func arrayHoldsNoValue(data []byte) bool {
+	offset := skipJSONSpace(data, 1) // past the [
+	for offset < len(data) && data[offset] != ']' {
+		item, itemType, end, err := jsonparser.Get(data[offset:])
+		if err != nil || !holdsNoValue(item, itemType) {
+			return false
+		}
+		offset = skipJSONSpace(data, offset+end)
+		if offset < len(data) && data[offset] == ',' {
+			offset = skipJSONSpace(data, offset+1)
+		}
+	}
+	return offset < len(data)
+}
+
+// skipJSONSpace returns the offset of the first byte from offset on that is
+// not JSON whitespace.
+func skipJSONSpace(data []byte, offset int) int {
+	for offset < len(data) && isJSONSpace(data[offset]) {
+		offset++
+	}
+	return offset
+}
+
+// emptyObject reports whether a JSON object has no members.
+func emptyObject(data []byte) bool {
+	for _, c := range data {
+		if c != '{' && c != '}' && !isJSONSpace(c) {
+			return false
+		}
+	}
+	return true
 }
 
 // placePaired records where an item of a paired field sits: in the field, at

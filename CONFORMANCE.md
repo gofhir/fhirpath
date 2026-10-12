@@ -915,6 +915,16 @@ empty". By that text a collection that counts 1 is not empty, `exists(true)` and
 `resourceType`, which ele-1 does not reach, exists. FHIR says such an element is
 invalid, not that it is absent.
 
+A root with no type written `{}`, which the validator does not read, holds no
+value either, as a resource with only its `resourceType` does: `exists()` on
+it is false and `empty()` true. Nothing else about it changes: it is still
+the input, and an expression that does not ask whether it exists reads it as
+before.
+
+Not measured, and so left as the specification text has them: `iif()`,
+`coalesce()` and the boolean reading of a collection, which see such an
+element as an item.
+
 `~` compares children as navigation reads them, so a member written `{}` is a
 child: `contact[0] ~ contact[1]` is false between a contact whose `name` is `{}`
 and one with no `name`, as in the validator. An element beside a primitive

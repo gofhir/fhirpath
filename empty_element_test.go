@@ -65,6 +65,9 @@ func TestAnElementThatHoldsNoValueIsAnItemThatDoesNotExist(t *testing.T) {
 		{`{"resourceType":"Patient","contact":[{"name":{"extension":[{}]}}]}`, "Patient.contact.name.exists()", "[false]"},
 		{`{"resourceType":"Patient","contact":[{"name":{"id":"x"}}]}`, "Patient.contact.name.exists()", "[true]"},
 		{`{"resourceType":"Patient","contact":[{"name":{"family":""}}]}`, "Patient.contact.name.exists()", "[true]"},
+		{`{"resourceType":"Patient","contact":[{"name":{"given":[{}, [], null]}}]}`, "Patient.contact.name.exists()", "[false]"},
+		{`{"resourceType":"Patient","contact":[{"name":{"given":[{}, "J", null]}}]}`, "Patient.contact.name.exists()", "[true]"},
+		{`{"resourceType":"Patient","contact":[{"name":{"given":[ ]}}]}`, "Patient.contact.name.exists()", "[false]"},
 		// ext-1, on an extension whose value is {}.
 		{extension, "Patient.extension.value.exists()", "[false]"},
 		{extension, "Patient.extension.value.count()", "[1]"},
@@ -87,6 +90,7 @@ func TestAnElementThatHoldsNoValueIsAnItemThatDoesNotExist(t *testing.T) {
 		// Not measured in the HL7 validator, which reads no such JSON: a null
 		// with no element beside it is no item, there or for ~.
 		{`{"resourceType":"Patient","name":[{"given":[null,"A"]},{"given":["A"]}]}`, "Patient.name[0] ~ Patient.name[1]", "[true]"},
+		{`{"resourceType":"Patient","contact":[{"name":[null]},{}]}`, "Patient.contact[0] ~ Patient.contact[1]", "[true]"},
 		// Nor is a field the type is told by without a model.
 		{`{"resourceType":"Basic","c":{"system":"s","code":"k","value":{}}}`, "c.type().name", "[Coding]"},
 		{`{"resourceType":"Basic","c":{"system":"s","code":"k","value":null}}`, "c.type().name", "[Coding]"},
