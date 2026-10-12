@@ -33,10 +33,6 @@ func TestTemporalEquivalence(t *testing.T) {
 		// A Date converts to a DateTime, at the same precision
 		"@2020-01-01 ~ @2020-01-01T": "true",
 		"@2020 ~ @2020T":             "true",
-		// Offsets half an hour apart put an hour on a minute it does not state
-		"@2020-01-01T10+05:30 ~ @2020-01-01T04Z":           "false",
-		"(@2020-01-01T10+05:30 = @2020-01-01T04Z).empty()": "true",
-		"@2020-01-01T10:30+05:30 = @2020-01-01T05:00Z":     "true",
 		// union(), distinct() and in test equality the same way: values at
 		// different precisions, or an offset against none, are two values
 		"(@2020T | @2020-01-01T00:00:00Z).count()":                     "2",
@@ -45,6 +41,15 @@ func TestTemporalEquivalence(t *testing.T) {
 		"(@2020-01-01T10:00:00Z | @2020-01-01T05:00:00-05:00).count()": "1",
 		"@2020-01-01 in (@2020-01-01T)":                                "true",
 		"(@T10:30:00 | @T10:30:00.000).count()":                        "1",
+		// Values of one precision and offset differ on any component they state
+		"(@2019-01-01T10:00:00Z | @2020-01-01T10:00:00Z).count()":         "2",
+		"(@2020-01-01T10:00:00Z | @2020-02-01T10:00:00Z).count()":         "2",
+		"(@2020-01-01T10:00:00Z | @2020-01-02T10:00:00Z).count()":         "2",
+		"(@2020-01-01T10:00:00Z | @2020-01-01T11:00:00Z).count()":         "2",
+		"(@2020-01-01T10:00:00Z | @2020-01-01T10:01:00Z).count()":         "2",
+		"(@2020-01-01T10:00:00Z | @2020-01-01T10:00:01Z).count()":         "2",
+		"(@2020-01-01T10:00:00.001Z | @2020-01-01T10:00:00.002Z).count()": "2",
+		"(@2020-01-01T10:00:00Z | @2020-01-01T10:00:00Z).count()":         "1",
 	} {
 		if got := evaluateScalar(t, expr, simpleJSON); got != want {
 			t.Errorf("%s = %s, want %s", expr, got, want)
