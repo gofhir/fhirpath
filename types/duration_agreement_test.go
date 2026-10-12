@@ -29,7 +29,7 @@ func TestDurationUnitsAgreeWithUCUMLibrary(t *testing.T) {
 
 	for _, code := range codes {
 		t.Run(code, func(t *testing.T) {
-			_, _, _, _, err := durationParts(1, code)
+			_, _, _, _, err := durationPartsAt(1, code, fieldMillisecond)
 			weAccept := err == nil
 			theyAccept := ucumfhir.AllowedInDateTimeArithmetic(code)
 
@@ -62,12 +62,12 @@ func TestCalendarKeywordsHaveUCUMCounterparts(t *testing.T) {
 
 	for keyword, code := range counterparts {
 		t.Run(keyword, func(t *testing.T) {
-			years, months, days, millis, err := durationParts(1, keyword)
+			years, months, days, millis, err := durationPartsAt(1, keyword, fieldMillisecond)
 			if err != nil {
 				t.Fatalf("calendar keyword %q was refused: %v", keyword, err)
 			}
 
-			ucumYears, ucumMonths, ucumDays, ucumMillis, err := durationParts(1, code)
+			ucumYears, ucumMonths, ucumDays, ucumMillis, err := durationPartsAt(1, code, fieldMillisecond)
 			if err != nil {
 				t.Fatalf("UCUM code %q was refused: %v", code, err)
 			}
@@ -85,10 +85,10 @@ func TestCalendarKeywordsHaveUCUMCounterparts(t *testing.T) {
 	// UCUM year is a fixed 365.25 days, a calendar year is not
 	for keyword, code := range map[string]string{unitNameYear: "a", unitNameMonth: "mo"} {
 		t.Run(keyword+" has no exact UCUM counterpart", func(t *testing.T) {
-			if _, _, _, _, err := durationParts(1, keyword); err != nil {
+			if _, _, _, _, err := durationPartsAt(1, keyword, fieldMillisecond); err != nil {
 				t.Errorf("calendar keyword %q was refused: %v", keyword, err)
 			}
-			if _, _, _, _, err := durationParts(1, code); !errors.Is(err, ErrCalendarConversionRequired) {
+			if _, _, _, _, err := durationPartsAt(1, code, fieldMillisecond); !errors.Is(err, ErrCalendarConversionRequired) {
 				t.Errorf("UCUM code %q was accepted, want ErrCalendarConversionRequired", code)
 			}
 		})
