@@ -178,7 +178,7 @@ result, _ := fhirpath.Evaluate(resource, "(2.345).round(1)")
 - Si la entrada es un `Integer`, se devuelve sin cambios.
 - Una precision negativa termina la evaluacion con un error, como exige FHIRPath 3.0.0: "the number of digits of precision must be >= 0".
 - Para un `Decimal`, una precision de mas de 1000 lugares excede los decimales que este motor maneja, y el resultado es vacio.
-- Redondea la mitad alejandose de cero, el redondeo tradicional que describe 3.0.0: `2.5.round()` es `3`, `(-2.5).round()` es `-3`.
+- Redondea la mitad alejandose de cero, que es como este motor lee el redondeo tradicional que describe 3.0.0: `2.5.round()` es `3`, `(-2.5).round()` es `-3`.
 - Devuelve una coleccion vacia si la entrada esta vacia o no es numerica.
 
 ---

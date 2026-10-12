@@ -233,10 +233,10 @@ func combine(leftValue decimal.Decimal, leftUnit string, rightValue decimal.Deci
 	}
 
 	// The library combines the two in float64, applying each unit's scale, an
-	// offset or a logarithm included. A value it cannot hold, past float64's
-	// range or so small it becomes zero, has no answer there
+	// offset or a logarithm included. A value past float64's range has no
+	// answer there; one too small for it is zero, as it always was
 	leftFloat, rightFloat := leftValue.InexactFloat64(), rightValue.InexactFloat64()
-	if !finiteFloat(leftFloat, leftValue) || !finiteFloat(rightFloat, rightValue) {
+	if !finite(leftFloat) || !finite(rightFloat) {
 		return decimal.Decimal{}, "", ErrNotFinite
 	}
 	left := ucumlib.Pair{Value: leftFloat, Code: leftUnit}
@@ -251,20 +251,16 @@ func combine(leftValue decimal.Decimal, leftUnit string, rightValue decimal.Deci
 	if err != nil {
 		return decimal.Decimal{}, "", err
 	}
-	if math.IsInf(result.Value, 0) || math.IsNaN(result.Value) {
+	if !finite(result.Value) {
 		return decimal.Decimal{}, "", ErrNotFinite
 	}
 
 	return decimal.NewFromFloat(result.Value), result.Code, nil
 }
 
-// finiteFloat reports a float64 that holds its decimal: finite, and zero only
-// where the decimal is.
-func finiteFloat(f float64, d decimal.Decimal) bool {
-	if math.IsInf(f, 0) || math.IsNaN(f) {
-		return false
-	}
-	return f != 0 || d.IsZero()
+// finite reports a float64 that is a number.
+func finite(f float64) bool {
+	return !math.IsInf(f, 0) && !math.IsNaN(f)
 }
 
 // ErrNotFinite reports a result that has no finite value, which no decimal

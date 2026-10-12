@@ -74,6 +74,8 @@ func TestDecimalRange(t *testing.T) {
 		"(" + ext("large") + " * " + ext("large") + ").exists()": "false",
 		widestQ + " / " + widestQ:                                "EMPTY",
 		"2 'Cel' * 1 'm'":                                        "275.15 'K.m'",
+		// A value too small for float64 is zero there, as it always was
+		"(" + ext("finest") + ".toQuantity() * 1 '1') = 0 '1'": "true",
 		// A logarithm of infinity over another is no number
 		ext("widest") + ".log(" + ext("widest") + ")": "EMPTY",
 		// A converted value is held to the range
