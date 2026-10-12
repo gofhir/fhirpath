@@ -216,3 +216,30 @@ func TestAPrimitivesValueIsNotAChild(t *testing.T) {
 		})
 	}
 }
+
+// TestDescendantsCountEachPrimitiveOnce pins the counts CONFORMANCE.md
+// records beyond the patient above, each measured in the HL7 validator
+// (6.10.2).
+func TestDescendantsCountEachPrimitiveOnce(t *testing.T) {
+	tests := []struct {
+		resource, expr, want string
+	}{
+		// The issue's Bundle: the entry written {} and the response's status.
+		{`{"resourceType":"Bundle","type":"transaction-response","entry":[{},{"response":{"status":"200"}}]}`, "Bundle.descendants().count()", "[5]"},
+		// A primitive written with only an extension: the extension, its url
+		// and its value.
+		{`{"resourceType":"Patient","_active":{"extension":[{"url":"u","valueBoolean":false}]}}`, "Patient.active.descendants().count()", "[3]"},
+		{`{"resourceType":"Patient","_active":{}}`, "Patient.active.children().count()", "[0]"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.expr, func(t *testing.T) {
+			result, err := fhirpath.Evaluate([]byte(tt.resource), tt.expr)
+			if err != nil {
+				t.Fatal(err)
+			}
+			if got := result.String(); got != tt.want {
+				t.Errorf("%s = %s, want %s", tt.expr, got, tt.want)
+			}
+		})
+	}
+}
