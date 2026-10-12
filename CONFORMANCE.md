@@ -1199,6 +1199,16 @@ has only extensions.
 | `"contact": [{"name": {"id": "x"}}]` | `Patient.contact.name.all(hasValue() or (children().count() > id.count()))` (ele-1) | true | false |
 | `"_active": {"extension": [...]}` | `Patient.active.hasValue()` | false | false |
 
+An object a caller builds typed as a FHIR primitive, as a validator builds
+`"_family": {"id": "x"}` to evaluate it as the root, is a primitive with no
+value, whether the type is written `string`, `FHIR.string` or the
+`http://hl7.org/fhirpath/System.String` R4 declares for `Resource.id`: it
+answers `hasValue()` false as navigation does, and ele-1 fails on it, as the
+validator reports. The element beside a primitive that has a value is no item,
+and is not one. A complex
+value written with only an id, `"maritalStatus": {"id": "x"}`, has a value:
+ele-1 holds, and the validator accepts it (0 errors).
+
 FHIR defines it on primitives only: "Returns true if the input collection
 contains a single value which is a FHIR primitive, and it has a primitive
 value". Read that way, ele-1 failed on an element written with only an `id`,
