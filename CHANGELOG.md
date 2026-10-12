@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.13.3](https://github.com/gofhir/fhirpath/compare/v1.13.2...v1.13.3) (2026-10-12)
+
+
+### Bug Fixes
+
+* a primitive's value is not a child, as in the HL7 validator ([#154](https://github.com/gofhir/fhirpath/issues/154)) ([1c54260](https://github.com/gofhir/fhirpath/commit/1c542604d74b49d52dbc3933b2d70739c8926417))
+* an element that holds no value is an item that does not exist, as in the HL7 validator ([#151](https://github.com/gofhir/fhirpath/issues/151)) ([386be6c](https://github.com/gofhir/fhirpath/commit/386be6c36d935775510473e8aa0968c83a210fab))
+
 ## [1.13.2](https://github.com/gofhir/fhirpath/compare/v1.13.1...v1.13.2) (2026-10-12)
 
 
