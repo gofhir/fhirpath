@@ -45,11 +45,11 @@ this order:
    reason: an answer that rests on a choice this engine made on its own
    grounds, the 64-bit Integer, or one no published constraint reaches and
    that would cost a rewrite to match.
-2. Where it does not, it follows 2.0.0: it is normative, and the release R4 and
-   R5 cite.
-3. It follows 3.0.0 where 3.0.0 fixes a plain defect of 2.0.0, or defines what
-   2.0.0 does not: `sort()`, `comparable()`, `lowBoundary()` and the rest
-   above.
+2. Where it does not, it follows 3.0.0 where 3.0.0 fixes a plain defect of
+   2.0.0, or defines what 2.0.0 does not: `sort()`, `comparable()`,
+   `lowBoundary()` and the rest above.
+3. Otherwise it follows 2.0.0: it is normative, and the release R4 and R5
+   cite.
 
 Each entry below that departs from a text names the text. Among the cases
 measured so far, the two FHIRPath versions part ways in three:
@@ -58,7 +58,7 @@ measured so far, the two FHIRPath versions part ways in three:
 |---|---|---|---|
 | `power()` on Integers | an Integer | always a Decimal | a Decimal, as the validator, R4 too |
 | `~` between quantities in different units | in "the most granular unit of either input" | "converted to the least granular unit" | the least granular, 3.0.0: converting to the finer unit made the value look more precise than it was written, the defect 3.0.0 names |
-| `~` between strings | whitespace "normalized": all whitespace characters equivalent | the same, and "Multiple whitespace characters in sequence are not collapsed", so `'a     b' ~ 'a b'` is false | case set aside, whitespace as written, as the validator: see below |
+| `~` between strings | whitespace "normalized": the characters of the Whitespace lexical category, tab, space, line feed and carriage return, equivalent | all characters of the Unicode White_Space class equivalent, a no-break space among them, and "Multiple whitespace characters in sequence are not collapsed", so `'a     b' ~ 'a b'` is false | case set aside, whitespace as written, as the validator: see below |
 
 ### What depends on the FHIR version
 
@@ -72,11 +72,13 @@ differently in two places:
 | `Patient.name.as(HumanName)`, three names | filters | an error | as the validator, by the model's version |
 | `Patient.id.is(id)` / `is(System.String)` | false / true | true / false | true / true, both versions |
 
-The second needs the FHIR type R5 names in `structuredefinition-fhir-type`,
-which no model here hands the engine: gofhir/models#84 and gofhir/fhirpath#165.
-A field the model types `System.String` reads as one here, so `Patient.id
-is(System.String)` is true, where a FHIR string, `Patient.name.family`, is not
-a System.String: see [Measured, and not followed](#measured-and-not-followed).
+The definitions name the FHIR type of such a field, `id` for `Resource.id`, in
+`structuredefinition-fhir-type`, in R4 and R5 alike; the validator reads it
+for R5 only. Following it needs that type, which no model here hands the
+engine: gofhir/models#84 and gofhir/fhirpath#165. A field the model types
+`System.String` reads as one here, so `Patient.id.is(System.String)` is true,
+where a FHIR string, `Patient.name.family`, is not a System.String: see
+[Measured, and not followed](#measured-and-not-followed).
 Every other expression measured this engine answers alike for R4 and R5, as
 the validator does. One rule the batteries did not reach also depends on the
 version here: `conformsTo()` on a profile it cannot resolve; see
@@ -615,7 +617,9 @@ through `VersionedModel`; a model that declares none is taken for pre-R5. The
 Java engine also sets a flag for case sensitivity on type names only from R5
 on, but a name in the wrong case is no type in either version there:
 `as(humanName)` is an error with `-version 4.0.1` and with `-version 5.0.0`, as
-it is here.
+it is here with a model that tells which names are types, `TypeRegistry`, as
+the generated models do; with one that does not, the name is taken at face
+value and the cast filters to nothing.
 
 HL7 came to the same conclusion, in stages. The invariant is worded differently
 in each of the three versions:
@@ -647,8 +651,10 @@ upstream and unrelated to this engine.
 
 ## A divergence taken on purpose: `and`, `or` and `implies` decide from the left
 
-Text: FHIRPath 2.0.0 and 3.0.0 alike allow either reading; the validator
-short-circuits, in R4 and R5.
+Text departed from: FHIRPath 2.0.0 and 3.0.0 alike, read strictly: both allow
+short-circuit evaluation and say "implementations must not change semantics
+with short-circuit evaluation", which an error in the right operand the left
+one decides makes this do. The validator short-circuits, in R4 and R5.
 
 When the left operand of `or` is `true`, of `and` is `false`, or of `implies`
 is `false`, this engine answers without evaluating the right one. fhirpath.js
@@ -951,8 +957,10 @@ validator release that changes one shows up when it is measured again.
 
 Only an answer can be followed. Where the validator ends in an exception, or
 gives two answers that cannot both hold — an equality that is not symmetric,
-a string that converts to a date it cannot make — the engine keeps its own,
-and the case is recorded under [Measured, and not followed](#measured-and-not-followed).
+a string that converts to a date it cannot make — the engine keeps its own.
+A coherent answer is set aside only for the reasons rule 1 under
+[When 2.0.0 and 3.0.0 disagree](#when-200-and-300-disagree) names. Either way
+the case is recorded under [Measured, and not followed](#measured-and-not-followed).
 
 Each answer was measured with `validator_cli.jar -fhirpath "<expression>"
 <file> -version 4.0.1`.
@@ -1092,7 +1100,8 @@ any count of `children()` or `descendants()` differed from the validator's.
 
 Measured in the HL7 validator 6.10.2.
 
-Text departed from: none states a rule. FHIR marks `comparator` a modifier; neither FHIRPath version nor FHIR's FHIRPath page says how a bound maps.
+Text departed from: none states a rule. FHIR marks `comparator` a modifier;
+neither FHIRPath version nor FHIR's FHIRPath page says how a bound maps.
 
 A FHIR Quantity with a `comparator` is read as its value: `< 5 'mg'` compares,
 is equivalent and is bounded as `5 'mg'`, and converts with `toQuantity()`.
@@ -1121,7 +1130,15 @@ or none, so there is no answer of its to follow there; see
 
 Measured in the HL7 validator 6.10.2.
 
-Text departed from: none for a quantity with a UCUM code, where FHIRPath 2.0.0 and 3.0.0 alike, and FHIR's FHIRPath page, agree with the validator; the engine departed from them before. A quantity in a local unit, which the page does not map, compares here by its unit: see [a FHIR Quantity maps by its code or unit](#a-divergence-taken-on-purpose-a-fhir-quantity-maps-by-its-code-or-unit).
+Text departed from: none in comparing two FHIR Quantities as quantities, which
+FHIRPath 2.0.0 and 3.0.0 alike, FHIR's FHIRPath page and the validator all do;
+the engine departed from them before. Across units the four part ways on the
+precision compared at: 2.0.0 in the most granular unit, 3.0.0 in the least,
+which this engine follows, the validator in UCUM's base unit; see
+[When 2.0.0 and 3.0.0 disagree](#when-200-and-300-disagree) and
+[Measured, and not followed](#measured-and-not-followed). A quantity in a local
+unit, which the page does not map, compares here by its unit: see
+[a FHIR Quantity maps by its code or unit](#a-divergence-taken-on-purpose-a-fhir-quantity-maps-by-its-code-or-unit).
 
 `~` between two FHIR Quantities compares them as quantities, as `=` does and as
 it did against a literal: `1 'g'` written in one is equivalent to `1000 'mg'`
@@ -1149,7 +1166,10 @@ dimensions of each quantity must be the same, but not necessarily the unit".
 
 Measured in the HL7 validator 6.10.2.
 
-Text departed from: FHIR's FHIRPath page, R4 and R5 alike, on complex values. R5 also says that anything else answers empty, where R4 says nothing; on a primitive with no value the validator answers false, for R5 too, and so does this engine.
+Text departed from: FHIR's FHIRPath page, R4 and R5 alike, on complex values,
+true where the page answers only of primitives; and R5's alone on a primitive
+with no value, false where R5 says "Otherwise, the return value is empty". The
+validator answers false there for R5 too, and so does this engine.
 
 `hasValue()` on a single complex value is true, whatever it holds; on a FHIR
 primitive it is as before, true when the primitive has a value, false when it
@@ -1187,8 +1207,11 @@ either FHIRPath version asks.
 ### Measured, and not followed
 
 Where the validator answers with an error, or two of its answers cannot both
-hold, there is no behavior to follow. These were measured in 6.10.2 and the
-engine keeps its own answer.
+hold, there is no behavior to follow. Where it answers coherently, its answer
+is set aside only for a reason given in the row: it rests on a choice this
+engine made on its own grounds, the 64-bit Integer, or no published constraint
+reaches it and matching it would cost a rewrite. These were measured in 6.10.2
+and the engine keeps its own answer.
 
 | Expression | Validator | This engine | Why not followed |
 |---|---|---|---|
