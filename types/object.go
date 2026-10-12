@@ -749,7 +749,7 @@ func (o *ObjectValue) Get(field string) (Value, bool) {
 // its length, so appending to it copies. Its values are immutable.
 func (o *ObjectValue) GetCollection(field string) Collection {
 	return o.cachedCollection(fieldKey{field: field}, func() Collection {
-		return o.fieldCollection(field, jsonValueToFHIRValue)
+		return o.fieldCollection(field, "")
 	})
 }
 
@@ -845,9 +845,9 @@ func (o *ObjectValue) cachedCollection(key fieldKey, build func() Collection) Co
 // exactly what a data-absent-reason records. It is still an item of the
 // collection, so it is kept as its element alone, and hasValue() answers false
 // for it. Positions with neither a value nor an element are dropped.
-func (o *ObjectValue) fieldCollection(field string, parse func([]byte, jsonparser.ValueType) Value) Collection {
+func (o *ObjectValue) fieldCollection(field, fhirType string) Collection {
 	value, element := o.readField(field)
-	return pairedCollection(field, value, element, parse)
+	return pairedCollection(field, value, element, fhirType)
 }
 
 // pairedCollection is the collection a field holds, from its value and the
@@ -855,7 +855,13 @@ func (o *ObjectValue) fieldCollection(field string, parse func([]byte, jsonparse
 //
 // Each item records the field it was read from and its index there, which is
 // all Location needs of it.
-func pairedCollection(field string, value, element jsonField, parse func([]byte, jsonparser.ValueType) Value) Collection {
+func pairedCollection(field string, value, element jsonField, fhirType string) Collection {
+	parse := jsonValueToFHIRValue
+	if fhirType != "" {
+		parse = typedParser(fhirType)
+	}
+	primitiveType := primitiveTypeOf(fhirType)
+
 	if value.missing() && element.missing() {
 		return Collection{}
 	}
@@ -863,7 +869,7 @@ func pairedCollection(field string, value, element jsonField, parse func([]byte,
 	// A single value, with or without its element beside it
 	if !value.isArray() && !element.isArray() {
 		elementValue := elementBeside(element)
-		result := pairValueWithElement(value, elementValue, parse)
+		result := pairValueWithElement(value, elementValue, parse, primitiveType)
 		for _, v := range result {
 			placePaired(v, elementValue, field, 0, value, element)
 		}
@@ -890,7 +896,7 @@ func pairedCollection(field string, value, element jsonField, parse func([]byte,
 			entry = values[i]
 		}
 
-		for _, v := range pairValueWithElement(entry, elementValue, parse) {
+		for _, v := range pairValueWithElement(entry, elementValue, parse, primitiveType) {
 			placePaired(v, elementValue, field, i, value, element)
 			result = append(result, v)
 		}
@@ -1281,12 +1287,21 @@ func pairValueWithElement(
 	value jsonField,
 	element *ObjectValue,
 	parse func([]byte, jsonparser.ValueType) Value,
+	primitiveType string,
 ) Collection {
 	if value.missing() || value.dataType == jsonparser.Null {
 		if element == nil {
 			return Collection{}
 		}
+		// It stands for the primitive, and is of its type, as in the HL7
+		// validator: "_active" with only a data-absent-reason is a boolean,
+		// which ofType(boolean) keeps. The type is the one the model declares
+		// for the field, or the one a choice element's name tells; without
+		// either there is none to give.
 		element.role = roleValueless
+		if primitiveType != "" {
+			element.typeName = primitiveType
+		}
 		return Collection{element}
 	}
 
@@ -1682,12 +1697,8 @@ func elementShaped(field jsonField) bool {
 // each carrying its element, or the element alone where there is no value.
 func (o *ObjectValue) appendPairedChild(result []TypedChild, f *pairedField, basePath string, res ElementTypeResolver) []TypedChild {
 	childPath, fhirType := o.childElement(basePath, f.name, res)
-	parse := jsonValueToFHIRValue
-	if fhirType != "" {
-		parse = typedParser(fhirType)
-	}
 
-	for _, v := range pairedCollection(f.name, f.value, f.element, parse) {
+	for _, v := range pairedCollection(f.name, f.value, f.element, fhirType) {
 		// A resource resolves its fields beneath its own type, so it is not
 		// placed at the element that holds it. A primitive's element is placed
 		// at the primitive's path, which its type is read from.
@@ -2180,12 +2191,13 @@ func (o *ObjectValue) GetCollectionParsedAs(field, suffix string) Collection {
 		// Built from its own reading of the field rather than from
 		// GetCollectionWithType, because the loop below writes into what it is
 		// given and that collection may be a cached one.
-		collection := o.fieldCollection(field, typedParser(suffix))
+		collection := o.fieldCollection(field, suffix)
+		typeName := lowerFirst(suffix)
 		for i, value := range collection {
 			if _, isObject := value.(*ObjectValue); isObject {
 				continue
 			}
-			collection[i] = withFHIRType(value, lowerFirst(suffix))
+			collection[i] = withFHIRType(value, typeName)
 		}
 		return collection
 	})
@@ -2316,8 +2328,32 @@ func lowerFirst(name string) string {
 // to properly parse string values as Date, DateTime, Time, etc.
 func (o *ObjectValue) GetCollectionWithType(field, fhirType string) Collection {
 	return o.cachedCollection(fieldKey{field: field, fhirType: fhirType}, func() Collection {
-		return o.fieldCollection(field, typedParser(fhirType))
+		return o.fieldCollection(field, fhirType)
 	})
+}
+
+// primitiveTypeOf is the FHIR primitive a declared type names, or the suffix
+// of a choice element's name: boolean for boolean or Boolean, dateTime for
+// DateTime, string for a System.String, as R4 types Resource.id; "" for a
+// complex type, Quantity, and for no type. R4 also names the FHIR type of a
+// System-typed element, id or uri, in an extension no model here reads, so
+// such an element is a string.
+func primitiveTypeOf(fhirType string) string {
+	if system, ok := strings.CutPrefix(fhirType, systemTypePrefix); ok {
+		return lowerFirst(system)
+	}
+	if name := lowerFirst(fhirType); fhirPrimitives[name] {
+		return name
+	}
+	return ""
+}
+
+// fhirPrimitives are FHIR's primitive types, by name.
+var fhirPrimitives = map[string]bool{
+	"base64Binary": true, "boolean": true, "canonical": true, "code": true, "date": true,
+	"dateTime": true, "decimal": true, "id": true, "instant": true, "integer": true,
+	"integer64": true, "markdown": true, "oid": true, "positiveInt": true, "string": true,
+	"time": true, "unsignedInt": true, "uri": true, "url": true, "uuid": true, "xhtml": true,
 }
 
 // typedParser reads a value as the FHIR type the model declares for it.
