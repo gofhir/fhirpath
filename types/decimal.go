@@ -311,16 +311,31 @@ func (d Decimal) Abs() Decimal {
 }
 
 // Ceiling returns the smallest integer >= d.
+//
+// It wraps past the int64 range.
+//
+// Deprecated: use IntegerFromDecimal, which reports a value past the range
+// as ErrIntegerRange.
 func (d Decimal) Ceiling() Integer {
 	return NewInteger(d.value.Ceil().IntPart())
 }
 
 // Floor returns the largest integer <= d.
+//
+// It wraps past the int64 range.
+//
+// Deprecated: use IntegerFromDecimal, which reports a value past the range
+// as ErrIntegerRange.
 func (d Decimal) Floor() Integer {
 	return NewInteger(d.value.Floor().IntPart())
 }
 
 // Truncate returns the integer part.
+//
+// It wraps past the int64 range.
+//
+// Deprecated: use IntegerFromDecimal, which reports a value past the range
+// as ErrIntegerRange.
 func (d Decimal) Truncate() Integer {
 	return NewInteger(d.value.Truncate(0).IntPart())
 }
@@ -383,10 +398,12 @@ func (d Decimal) IsInteger() bool {
 
 // ToInteger converts to Integer if it's a whole number.
 func (d Decimal) ToInteger() (Integer, bool) {
-	if d.IsInteger() {
-		return NewInteger(d.value.IntPart()), true
+	if !d.IsInteger() {
+		return Integer{}, false
 	}
-	return Integer{}, false
+	// A whole decimal past the int64 range is no Integer
+	i, err := IntegerFromDecimal(d.value)
+	return i, err == nil
 }
 
 // WithFHIRType returns a copy that reports the FHIR type it was declared with.
