@@ -3,6 +3,8 @@ package funcs
 import (
 	"errors"
 	"math"
+	"strconv"
+	"strings"
 
 	"github.com/shopspring/decimal"
 
@@ -444,6 +446,10 @@ func findExtreme(ctx *eval.Context, input types.Collection, findMin bool) (types
 	if err := ctx.CheckCancellation(); err != nil {
 		return nil, err
 	}
+	// Numbers, or strings, always order, and compare directly in one pass
+	if extremeItem, ok := totalExtreme(input, findMin); ok {
+		return types.Collection{extremeItem}, nil
+	}
 	for _, item := range input {
 		if !aggregable(item) {
 			return types.Collection{}, nil
@@ -521,7 +527,7 @@ func findExtreme(ctx *eval.Context, input types.Collection, findMin bool) (types
 				return nil, err
 			}
 		}
-		key := item.Type() + "\x00" + item.String()
+		key := triedKey(item)
 		if tried[key] {
 			continue
 		}
@@ -535,6 +541,109 @@ func findExtreme(ctx *eval.Context, input types.Collection, findMin bool) (types
 		}
 	}
 	return types.Collection{}, nil
+}
+
+// totalExtreme finds the extreme of a collection of numbers only, or strings
+// only, which always order, in one pass and without eval.Compare; the first
+// of equal items is kept. It reports false for any other collection.
+func totalExtreme(input types.Collection, findMin bool) (types.Value, bool) {
+	beyond := func(cmp int) bool {
+		if findMin {
+			return cmp < 0
+		}
+		return cmp > 0
+	}
+	switch first := input[0].(type) {
+	case types.String:
+		extremeItem := first
+		for _, item := range input[1:] {
+			s, ok := item.(types.String)
+			if !ok {
+				return nil, false
+			}
+			if beyond(strings.Compare(s.Value(), extremeItem.Value())) {
+				extremeItem = s
+			}
+		}
+		return extremeItem, true
+	case types.Integer:
+		// Integers only compare as int64s; a Decimal among them, as decimals
+		if extremeItem, ok := integerExtreme(input, beyond); ok {
+			return extremeItem, true
+		}
+		return decimalExtreme(input, beyond)
+	case types.Decimal:
+		return decimalExtreme(input, beyond)
+	}
+	return nil, false
+}
+
+// integerExtreme is totalExtreme over integers only, reporting false where any
+// item is not an Integer.
+func integerExtreme(input types.Collection, beyond func(int) bool) (types.Value, bool) {
+	extremeItem, ok := input[0].(types.Integer)
+	if !ok {
+		return nil, false
+	}
+	for _, item := range input[1:] {
+		i, isInteger := item.(types.Integer)
+		if !isInteger {
+			return nil, false
+		}
+		if beyond(cmpInt64(i.Value(), extremeItem.Value())) {
+			extremeItem = i
+		}
+	}
+	return extremeItem, true
+}
+
+// cmpInt64 orders two int64s as Cmp does.
+func cmpInt64(a, b int64) int {
+	switch {
+	case a < b:
+		return -1
+	case a > b:
+		return 1
+	}
+	return 0
+}
+
+// decimalExtreme is totalExtreme over Integers and Decimals, compared as
+// decimals, reporting false where any item is neither.
+func decimalExtreme(input types.Collection, beyond func(int) bool) (types.Value, bool) {
+	extremeItem, extremeValue := input[0], numericValue(input[0])
+	for _, item := range input[1:] {
+		switch item.(type) {
+		case types.Integer, types.Decimal:
+		default:
+			return nil, false
+		}
+		if value := numericValue(item); beyond(value.Cmp(extremeValue)) {
+			extremeItem, extremeValue = item, value
+		}
+	}
+	return extremeItem, true
+}
+
+// numericValue returns an Integer's or a Decimal's value as a decimal.
+func numericValue(item types.Value) decimal.Decimal {
+	if i, ok := item.(types.Integer); ok {
+		return decimal.NewFromInt(i.Value())
+	}
+	return item.(types.Decimal).Value()
+}
+
+// triedKey names an item as written, and for a DateTime with the offset it
+// is placed at, which a default offset sets without changing how it is
+// written: items with one key compare alike against every other.
+func triedKey(item types.Value) string {
+	key := item.Type() + "\x00" + item.String()
+	if dt, ok := item.(types.DateTime); ok {
+		if offset, placed := dt.EffectiveOffset(); placed {
+			key += "\x00" + strconv.Itoa(offset)
+		}
+	}
+	return key
 }
 
 // aggregable reports an item min() and max() order: a number, a string, a

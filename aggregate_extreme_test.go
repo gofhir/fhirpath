@@ -4,6 +4,9 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/gofhir/fhirpath/eval"
+	"github.com/gofhir/fhirpath/types"
 )
 
 // TestMinMax covers min() and max(), which compare as the comparison
@@ -121,5 +124,39 @@ func TestMinMaxUnorderedIsLinear(t *testing.T) {
 	// Checking each item against every other took tens of seconds here
 	if elapsed := time.Since(start); elapsed > 5*time.Second {
 		t.Errorf("took %s", elapsed)
+	}
+}
+
+// TestMinMaxDefaultOffsets checks that two DateTimes written alike but placed
+// at different default offsets are not taken for one: they name different
+// instants, and the extreme is found whatever the input order.
+func TestMinMaxDefaultOffsets(t *testing.T) {
+	parse := func(s string) types.DateTime {
+		dt, err := types.NewDateTime(s)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return dt
+	}
+	y := parse("2020-06-15T15-09:00")
+	early := parse("2020-06-16T00").WithDefaultOffset(time.Hour)
+	late := parse("2020-06-16T00").WithDefaultOffset(0)
+	z, err := types.NewDate("2020-06-15")
+	if err != nil {
+		t.Fatal(err)
+	}
+	expr := MustCompile("(%a.combine(%b).combine(%c).combine(%d)).max()")
+	for _, order := range [][4]types.Value{{y, early, late, z}, {late, y, early, z}, {z, early, y, late}} {
+		ctx := eval.NewContextForRoot(types.Collection{})
+		for i, name := range []string{"a", "b", "c", "d"} {
+			ctx.SetVariable(name, types.Collection{order[i]})
+		}
+		got, err := expr.EvaluateWithContext(ctx)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if len(got) != 1 {
+			t.Errorf("max() over %v = %v, want one item", order, got)
+		}
 	}
 }

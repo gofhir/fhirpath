@@ -150,7 +150,7 @@ result, _ := fhirpath.Evaluate(resource, "(@2024-01-01 | @2024-06-15 | @2024-03-
   - `Quantity`, a FHIR Quantity included, through their units
   - `String` (lexicographic comparison)
   - `Date`, `DateTime` and `Time`, component by component
-- Items that `<` refuses to compare, such as `1` and `'a'`, end the evaluation with an error: "All items in the input collection SHALL be the same type". A single item is returned as it is, a FHIR Quantity with a `comparator` included.
+- Items that `<` refuses to compare, such as `1` and `'a'`, end the evaluation with an error: "All items in the input collection SHALL be the same type". A single item is returned as it is, a FHIR Quantity with a `comparator` included; among several items, such a bound is refused as `<` refuses it.
 - Where some pair's order is unknown, temporals at different precisions, a temporal with a timezone offset against one without, or quantities whose units do not convert, the minimum is the item that orders against every other and stands below them all; if no item does, the result is empty. `(@2019 | @2020-01-01T10Z | @2020-01-01T10:30Z).min()` is `@2019`.
 - Supports cancellation for large collections.
 

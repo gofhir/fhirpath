@@ -150,7 +150,7 @@ result, _ := fhirpath.Evaluate(resource, "(@2024-01-01 | @2024-06-15 | @2024-03-
   - `Quantity`, incluida una Quantity FHIR, segun sus unidades
   - `String` (comparacion lexicografica)
   - `Date`, `DateTime` y `Time`, componente por componente
-- Elementos que `<` se niega a comparar, como `1` y `'a'`, terminan la evaluacion con un error: "All items in the input collection SHALL be the same type". Un solo elemento se devuelve tal cual, incluida una Quantity FHIR con `comparator`.
+- Elementos que `<` se niega a comparar, como `1` y `'a'`, terminan la evaluacion con un error: "All items in the input collection SHALL be the same type". Un solo elemento se devuelve tal cual, incluida una Quantity FHIR con `comparator`; entre varios elementos, esa cota se rechaza como la rechaza `<`.
 - Si el orden de algun par es desconocido (fechas de distinta precision, una fecha con offset contra una sin offset, o cantidades cuyas unidades no se convierten), el minimo es el elemento que se ordena contra todos los demas y queda por debajo de todos; si ninguno lo hace, el resultado es vacio. `(@2019 | @2020-01-01T10Z | @2020-01-01T10:30Z).min()` es `@2019`.
 - Soporta cancelacion para colecciones grandes.
 
