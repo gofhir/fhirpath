@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.12.4](https://github.com/gofhir/fhirpath/compare/v1.12.3...v1.12.4) (2026-10-12)
+
+
+### Bug Fixes
+
+* ~ between complex values compares each child with the equivalence of its type ([#131](https://github.com/gofhir/fhirpath/issues/131)) ([7bebf06](https://github.com/gofhir/fhirpath/commit/7bebf068bfd17559fed3708a12936efd76878dab))
+* ~ between quantities compares in the less granular unit, so 1 year ~ 1 'a' ([#132](https://github.com/gofhir/fhirpath/issues/132)) ([56a2743](https://github.com/gofhir/fhirpath/commit/56a2743b928507f6154707a298352f1d6e234ca4))
+
 ## [1.12.3](https://github.com/gofhir/fhirpath/compare/v1.12.2...v1.12.3) (2026-10-11)
 
 
