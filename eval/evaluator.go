@@ -967,9 +967,9 @@ func (e *Evaluator) evaluateSort(input types.Collection, criteria []sortCriterio
 		keys[i] = itemKeys
 	}
 
-	// A key of several items, and a FHIR Quantity bound, which has no place in
-	// an order, fail the sort whatever pairs the ordering compares. A single
-	// item is not ordered at all, above.
+	// A key of several items, which has no place in an order, fails the sort
+	// whatever pairs the ordering compares. A single item is not ordered at
+	// all, above.
 	if err := checkSortKeys(keys); err != nil {
 		return err
 	}
@@ -1043,19 +1043,13 @@ func (e *Evaluator) evaluateWithThis(item types.Value, index int, expr Node) int
 }
 
 // checkSortKeys refuses keys no order can hold, whichever pairs are compared:
-// a key of several items, and a FHIR Quantity bound.
+// a key of several items.
 func checkSortKeys(keys [][]types.Collection) error {
 	for _, itemKeys := range keys {
 		for _, key := range itemKeys {
 			if len(key) > 1 {
 				return NewEvalError(ErrSingletonExpected,
 					"sort() key evaluated to %d items, expected a single value", len(key))
-			}
-			if key.Empty() {
-				continue
-			}
-			if err := quantityBoundIn(key[0]); err != nil {
-				return err
 			}
 		}
 	}
@@ -1064,7 +1058,7 @@ func checkSortKeys(keys [][]types.Collection) error {
 
 // quantityKeys reads each key that is a FHIR Quantity as the System.Quantity it
 // compares as, once, rather than on every comparison it meets. A key that is
-// no quantity, and a bound, which checkSortKeys refused, stay as they are.
+// no quantity stays as it is.
 func quantityKeys(keys [][]types.Collection) {
 	for _, itemKeys := range keys {
 		for i, key := range itemKeys {
@@ -1990,7 +1984,7 @@ func applyEquality(leftCol, rightCol types.Collection, op string) interface{} {
 	case "=", "!=":
 		result, err = equal(leftCol, rightCol)
 	case "~", "!~":
-		result, err = equivalent(leftCol, rightCol)
+		result = Equivalent(leftCol, rightCol)
 	default:
 		return types.Collection{}
 	}

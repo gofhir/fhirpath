@@ -304,10 +304,10 @@ func looksTemporalBytes(data []byte) bool {
 	return true
 }
 
-// equivalentASCII compares two strings as String.Equivalent does — case,
-// leading and trailing whitespace and runs of whitespace set aside — without
-// reading them into strings. It decides only texts in ASCII without escapes,
-// where a byte is a character; for any other it reports false, undecided.
+// equivalentASCII compares two strings as String.Equivalent does, ignoring
+// case, without reading them into strings. It decides only texts in ASCII
+// without escapes, where a byte is a character; for any other it reports
+// false, undecided.
 func equivalentASCII(a, b []byte) (equivalent, decided bool) {
 	for _, text := range [][]byte{a, b} {
 		for _, c := range text {
@@ -316,55 +316,7 @@ func equivalentASCII(a, b []byte) (equivalent, decided bool) {
 			}
 		}
 	}
-	a, b = trimASCIISpace(a), trimASCIISpace(b)
-	i, j := 0, 0
-	for i < len(a) && j < len(b) {
-		ca, cb := a[i], b[j]
-		if isASCIISpace(ca) && isASCIISpace(cb) {
-			// A run of whitespace on each side is one space
-			for i < len(a) && isASCIISpace(a[i]) {
-				i++
-			}
-			for j < len(b) && isASCIISpace(b[j]) {
-				j++
-			}
-			continue
-		}
-		if lowerASCII(ca) != lowerASCII(cb) {
-			return false, true
-		}
-		i++
-		j++
-	}
-	return i == len(a) && j == len(b), true
-}
-
-// isASCIISpace reports the ASCII characters unicode.IsSpace counts as space.
-func isASCIISpace(c byte) bool {
-	switch c {
-	case ' ', '\t', '\n', '\v', '\f', '\r':
-		return true
-	}
-	return false
-}
-
-// trimASCIISpace trims ASCII whitespace from both ends.
-func trimASCIISpace(s []byte) []byte {
-	for len(s) > 0 && isASCIISpace(s[0]) {
-		s = s[1:]
-	}
-	for len(s) > 0 && isASCIISpace(s[len(s)-1]) {
-		s = s[:len(s)-1]
-	}
-	return s
-}
-
-// lowerASCII lowercases an ASCII letter.
-func lowerASCII(c byte) byte {
-	if 'A' <= c && c <= 'Z' {
-		return c + 'a' - 'A'
-	}
-	return c
+	return bytes.EqualFold(a, b), true
 }
 
 // childValue is one value of a child property, as written.

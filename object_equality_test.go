@@ -51,7 +51,8 @@ func TestObjectEqualityByContent(t *testing.T) {
 		{"a child on one side", `{"code":"a"}`, `{"code":"a","display":"A"}`, "false", "false"},
 		{"an element on one side", `{"code":"a"}`, `{"code":"a","_code":{"extension":[{"url":"u"}]}}`, "false", "false"},
 		{"a different value", `{"code":"a"}`, `{"code":"b"}`, "false", "false"},
-		{"whitespace inside a string", `{"display":"a b"}`, `{"display":"a  b"}`, "false", "true"},
+		// ~ sets case aside, and whitespace not, as the HL7 validator does
+		{"whitespace inside a string", `{"display":"a b"}`, `{"display":"a  b"}`, "false", "false"},
 		{"a number written another way", `{"code":"a","version":1}`, `{"code":"a","version":1.0}`, "false", "true"},
 		{"a string in another case", `{"code":"ABC"}`, `{"code":"abc"}`, "false", "true"},
 		{"a nested string in another case", `{"code":"a","extension":[{"url":"u","valueString":"X"}]}`, `{"code":"a","extension":[{"url":"u","valueString":"x"}]}`, "false", "true"},
@@ -64,7 +65,8 @@ func TestObjectEqualityByContent(t *testing.T) {
 		{"another key", `{"code":"a"}`, `{"display":"a"}`, "false", "false"},
 		{"a null child is absent", `{"code":"a","display":null}`, `{"code":"a"}`, "false", "true"},
 		{"an empty array is absent", `{"code":"a","extension":[]}`, `{"code":"a"}`, "false", "true"},
-		{"an escape against a space", `{"display":"a\nb"}`, `{"display":"A B"}`, "false", "true"},
+		{"an escape against a space", `{"display":"a\nb"}`, `{"display":"A B"}`, "false", "false"},
+		{"an escape against its character", `{"display":"a\u0020b"}`, `{"display":"A B"}`, "false", "true"},
 		{"a string against a number", `{"code":"a","version":"1"}`, `{"code":"a","version":1}`, "false", "false"},
 		{"repeats alike and in another case", `{"code":"a","extension":[{"url":"a"},{"url":"A"}]}`, `{"code":"a","extension":[{"url":"a"},{"url":"a"}]}`, "false", "true"},
 	} {
@@ -168,8 +170,10 @@ func TestObjectEquivalenceByChild(t *testing.T) {
 		// Two FHIR Quantities compare child by child too, as complex values: a
 		// value in another unit is not equivalent, and a code is a string, its
 		// case set aside even where UCUM tells 'ms' from 'mS'
-		"Observation.component[5].value ~ Observation.component[6].value": "false",
-		"Observation.component[7].value ~ Observation.component[8].value": "true",
+		// Two FHIR Quantities compare as quantities, as in the HL7 validator
+		// 6.10.2: 1 g ~ 1000 mg, and ms (millisecond) is not mS (millisiemens).
+		"Observation.component[5].value ~ Observation.component[6].value": "true",
+		"Observation.component[7].value ~ Observation.component[8].value": "false",
 		// A date by its value, not its text; a date at another precision is not
 		"Observation.component[2].value ~ Observation.component[3].value": "true",
 		"Observation.component[2].value ~ Observation.component[4].value": "false",

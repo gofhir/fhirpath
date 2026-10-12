@@ -14,78 +14,32 @@ import (
 // quantity operation — Range.low and Range.high are both objects, never
 // [types.Quantity] values.
 //
-// A FHIR Quantity with a comparator would convert but for it, and that is an
-// error rather than false: < 5 'mg' is not 5 'mg', and answering as if it
-// were absent would read as "unknown" where the expression itself is at fault.
-// FHIR states no rule here; fhirpath.js raises the same error, and the HL7
-// validator ignores the comparator. CONFORMANCE.md records the choice.
+// A FHIR Quantity with a comparator converts to its value, as in the HL7
+// validator; CONFORMANCE.md records the choice.
 func AsQuantity(v types.Value) (types.Quantity, bool, error) {
 	switch q := v.(type) {
 	case types.Quantity:
 		return q, true, nil
 	case *types.ObjectValue:
-		quantity, ok, err := q.AsQuantity()
-		if errors.Is(err, types.ErrDecimalRange) {
-			// An overflow, not a bound: the caller answers empty
-			return types.Quantity{}, false, err
-		}
-		if err != nil {
-			return types.Quantity{}, false, boundError(err)
-		}
-		return quantity, ok, nil
+		// A value that overflows is reported, and the caller answers empty
+		return q.AsQuantity()
 	}
 	return types.Quantity{}, false, nil
 }
 
-// boundError reports a FHIR Quantity bound as the evaluation error it ends in.
-func boundError(err error) error {
-	return NewEvalError(ErrInvalidOperation, "%s", err).WithUnderlying(err)
-}
-
-// QuantityPair converts two values that are both quantities. A bound on one
-// side is an error only when the other side is a quantity, so that it is
-// refused where it would be read as one and nowhere else: < 5 'mg' = 'x' is
-// false, as any object against a string, and two bounds compare as the
-// objects they are.
+// QuantityPair converts two values that are both quantities. A quantity whose
+// value overflows, against another quantity or another overflow, is reported
+// as ErrDecimalRange.
 func QuantityPair(left, right types.Value) (lq, rq types.Quantity, ok bool, err error) {
 	lq, lok, lerr := AsQuantity(left)
 	rq, rok, rerr := AsQuantity(right)
-	leftOverflows, rightOverflows := errors.Is(lerr, types.ErrDecimalRange), errors.Is(rerr, types.ErrDecimalRange)
 	switch {
-	// A quantity whose value overflows, against another quantity: an overflow
-	case leftOverflows && rightOverflows:
+	case lerr != nil && (rok || rerr != nil), rerr != nil && lok:
 		return types.Quantity{}, types.Quantity{}, false, types.ErrDecimalRange
-	case lerr != nil && rok:
-		return types.Quantity{}, types.Quantity{}, false, lerr
-	case rerr != nil && lok:
-		return types.Quantity{}, types.Quantity{}, false, rerr
 	case !lok || !rok:
 		return types.Quantity{}, types.Quantity{}, false, nil
 	}
 	return lq, rq, true, nil
-}
-
-// quantityBoundIn reports the first FHIR Quantity bound among values, as the
-// error an operation refuses it with.
-func quantityBoundIn(values ...types.Value) error {
-	for _, v := range values {
-		if object, ok := v.(*types.ObjectValue); ok {
-			if err := object.QuantityBound(); err != nil {
-				return boundError(err)
-			}
-		}
-	}
-	return nil
-}
-
-// refusedOperation reports why an operator does not apply to two values: a
-// FHIR Quantity bound on either side, which is no value to operate on,
-// otherwise the two types.
-func refusedOperation(op string, left, right types.Value) error {
-	if err := quantityBoundIn(left, right); err != nil {
-		return err
-	}
-	return InvalidOperationError(op, left.Type(), right.Type())
 }
 
 // quantityOperands converts both operands to quantities when at least one of
@@ -232,7 +186,7 @@ func Add(left, right types.Value) (types.Value, error) {
 			return l.Add(r)
 		}
 	}
-	return nil, refusedOperation("+", left, right)
+	return nil, InvalidOperationError("+", left.Type(), right.Type())
 }
 
 // Subtract performs subtraction on two values.
@@ -271,7 +225,7 @@ func Subtract(left, right types.Value) (types.Value, error) {
 			return l.Subtract(r)
 		}
 	}
-	return nil, refusedOperation("-", left, right)
+	return nil, InvalidOperationError("-", left.Type(), right.Type())
 }
 
 // Multiply performs multiplication on two values.
@@ -308,7 +262,7 @@ func Multiply(left, right types.Value) (types.Value, error) {
 			return l.Multiply(r), nil
 		}
 	}
-	return nil, refusedOperation("*", left, right)
+	return nil, InvalidOperationError("*", left.Type(), right.Type())
 }
 
 // Divide performs division on two values.
@@ -340,7 +294,7 @@ func Divide(left, right types.Value) (types.Value, error) {
 	case types.Decimal:
 		lDec = l
 	default:
-		return nil, refusedOperation("/", left, right)
+		return nil, InvalidOperationError("/", left.Type(), right.Type())
 	}
 
 	switch r := right.(type) {
@@ -349,7 +303,7 @@ func Divide(left, right types.Value) (types.Value, error) {
 	case types.Decimal:
 		rDec = r
 	default:
-		return nil, refusedOperation("/", left, right)
+		return nil, InvalidOperationError("/", left.Type(), right.Type())
 	}
 
 	if rDec.Value().IsZero() {
@@ -383,7 +337,7 @@ func IntegerDivide(left, right types.Value) (types.Value, error) {
 
 	l, r, ok := decimalOperands(left, right)
 	if !ok {
-		return nil, refusedOperation("div", left, right)
+		return nil, InvalidOperationError("div", left.Type(), right.Type())
 	}
 	if r.Value().IsZero() {
 		return nil, ErrDivideByZero
@@ -410,7 +364,7 @@ func Modulo(left, right types.Value) (types.Value, error) {
 
 	l, r, ok := decimalOperands(left, right)
 	if !ok {
-		return nil, refusedOperation("mod", left, right)
+		return nil, InvalidOperationError("mod", left.Type(), right.Type())
 	}
 	if r.Value().IsZero() {
 		return nil, ErrDivideByZero
@@ -469,12 +423,6 @@ func Compare(left, right types.Value) (int, error) {
 		}
 		return lq.Compare(rq)
 	}
-	// A bound has no place in an order, whatever it is ordered against: one
-	// that met no quantity, and so was not refused above, is refused here
-	if err := quantityBoundIn(left, right); err != nil {
-		return 0, err
-	}
-
 	if comp, ok := left.(types.Comparable); ok {
 		return comp.Compare(right)
 	}
@@ -525,30 +473,14 @@ func GreaterOrEqual(left, right types.Value) (types.Collection, error) {
 
 // Equality operators
 
-// literalQuantityOperands converts a FHIR quantity object compared against a
-// Quantity literal under ~, so that `Observation.valueQuantity ~ 10 'mg'`
-// compares as quantities rather than object-against-primitive.
-//
-// Two quantity objects are deliberately not converted here: comparing complex
-// types with ~ compares their children. Equality converts them, through
-// QuantityPair.
-func literalQuantityOperands(left, right types.Value) (lq, rq types.Quantity, ok bool, err error) {
-	_, leftIsLiteral := left.(types.Quantity)
-	_, rightIsLiteral := right.(types.Quantity)
-	if leftIsLiteral == rightIsLiteral {
-		return types.Quantity{}, types.Quantity{}, false, nil
-	}
-	return QuantityPair(left, right)
-}
-
 // Equal returns true if left = right.
 //
 // Per the spec, an empty operand yields empty; collections of the same length
 // are compared item by item in order; and collections of different lengths are
 // not equal — which is false, not empty.
 //
-// A comparison the evaluation refuses, a FHIR Quantity bound against a
-// quantity, is empty here; the evaluator reports it as the error it is.
+// A comparison the evaluation ends with an error, between temporals, is empty
+// here; the evaluator reports it as the error it is.
 func Equal(left, right types.Collection) types.Collection {
 	result, err := equal(left, right)
 	if err != nil {
@@ -659,77 +591,48 @@ func negated(result types.Collection) types.Collection {
 // equivalent, and a length mismatch is false. For collections of more than one
 // item the comparison is not order dependent, so each item on the left must have
 // a distinct equivalent partner on the right.
-//
-// A comparison the evaluation refuses, a FHIR Quantity bound against a
-// quantity, is false here, and its negation true; the evaluator reports it as
-// the error it is.
 func Equivalent(left, right types.Collection) types.Collection {
-	result, err := equivalent(left, right)
-	if err != nil {
-		return types.FalseCollection
-	}
-	return result
-}
-
-// equivalent is Equivalent with the error it can end in.
-func equivalent(left, right types.Collection) (types.Collection, error) {
 	// For equivalence, empty collections are equivalent to each other
 	if left.Empty() && right.Empty() {
-		return types.TrueCollection, nil
+		return types.TrueCollection
 	}
 	if left.Empty() || right.Empty() || len(left) != len(right) {
-		return types.FalseCollection, nil
+		return types.FalseCollection
 	}
 
 	// Order-independent: pair each left item with an unused equivalent right
-	// one. A refused comparison does not decide a pairing found without it;
-	// where none is found, it is the answer rather than false, whichever side
-	// the refused item is on.
+	// one
 	used := make([]bool, len(right))
-	var refused error
 	for _, item := range left {
 		matched := false
 		for j, candidate := range right {
-			if used[j] {
-				continue
+			if !used[j] && valuesEquivalent(item, candidate) {
+				used[j] = true
+				matched = true
+				break
 			}
-			same, err := valuesEquivalent(item, candidate)
-			if err != nil {
-				if refused == nil {
-					refused = err
-				}
-				continue
-			}
-			if !same {
-				continue
-			}
-			used[j] = true
-			matched = true
-			break
 		}
 		if !matched {
-			if refused != nil {
-				return nil, refused
-			}
-			return types.FalseCollection, nil
+			return types.FalseCollection
 		}
 	}
-	return types.TrueCollection, nil
+	return types.TrueCollection
 }
 
 // valuesEquivalent compares two single values for equivalence. A FHIR quantity
-// object compared with a literal compares as a quantity, and a bound there is
-// refused, as under =; two objects compare as complex types.
-func valuesEquivalent(left, right types.Value) (bool, error) {
-	lq, rq, ok, err := literalQuantityOperands(left, right)
-	if errors.Is(err, types.ErrDecimalRange) {
-		// A value that overflows is equivalent to nothing
-		return false, nil
+// object compares as a quantity, against a literal or another FHIR quantity, as
+// under = and as in the HL7 validator: 1 'mg' ~ 1000 'ug' whichever way each
+// is written. A value that overflows is equivalent to nothing. Other objects
+// compare as complex types.
+func valuesEquivalent(left, right types.Value) bool {
+	lq, rq, ok, err := quantityOperands(left, right)
+	if err != nil {
+		return false
 	}
-	if err != nil || ok {
-		return err == nil && lq.Equivalent(rq), err
+	if ok {
+		return lq.Equivalent(rq)
 	}
-	return left.Equivalent(right), nil
+	return left.Equivalent(right)
 }
 
 // overflowEmpty answers empty for a value that overflows the decimals this

@@ -1,8 +1,6 @@
 package types
 
 import (
-	"errors"
-	"strings"
 	"testing"
 )
 
@@ -70,8 +68,9 @@ func TestString(t *testing.T) {
 		if !s1.Equivalent(s2) {
 			t.Error("expected HELLO ~ hello")
 		}
-		if !s2.Equivalent(s3) {
-			t.Error("expected hello ~ '  hello  '")
+		// Whitespace is compared as written, as in the HL7 validator
+		if s2.Equivalent(s3) {
+			t.Error("expected hello !~ '  hello  '")
 		}
 	})
 
@@ -412,7 +411,12 @@ func TestObjectValue(t *testing.T) {
 	})
 
 	t.Run("toQuantity without unit", func(t *testing.T) {
+		// A value alone, of no known type, converts; one typed as another
+		// type, an adjudication's BackboneElement, does not.
 		json := []byte(`{"value": 42}`)
+		if _, ok := NewObjectValueWithType(json, "BackboneElement").ToQuantity(); ok {
+			t.Error("a BackboneElement with a value converted to a quantity")
+		}
 		obj := NewObjectValue(json)
 
 		q, ok := obj.ToQuantity()
@@ -916,33 +920,25 @@ func TestQuantityConversionRefusals(t *testing.T) {
 		`{"value": 10.5, "currency": "USD"}`,
 		`{"value": 10.5, "currency": "USD", "comparator": "<"}`,
 	} {
-		o := NewObjectValue([]byte(json))
-		if _, ok, err := o.AsQuantity(); ok || err != nil {
+		if _, ok, err := NewObjectValue([]byte(json)).AsQuantity(); ok || err != nil {
 			t.Errorf("%s: AsQuantity() = %v, %v; want false, nil", json, ok, err)
-		}
-		if err := o.QuantityBound(); err != nil {
-			t.Errorf("%s: QuantityBound() = %v, want nil", json, err)
 		}
 	}
 
-	// A comparator is a bound, whatever the unit, and an empty one is none
-	for json, bound := range map[string]bool{
-		`{"value": 5, "comparator": "<", ` + ucum + `}`:     true,
-		`{"value": 5, "comparator": "<", "unit": "tablet"}`: true,
-		`{"value": 5, "comparator": "<"}`:                   true,
-		`{"value": 5, "comparator": "", ` + ucum + `}`:      false,
-		`{"value": 5, ` + ucum + `}`:                        false,
+	// A comparator is not read: a quantity converts to its value, as in the
+	// HL7 validator, whatever its unit
+	for _, json := range []string{
+		`{"value": 5, "comparator": "<", ` + ucum + `}`,
+		`{"value": 5, "comparator": "<", "unit": "tablet"}`,
+		`{"value": 5, "comparator": "<"}`,
+		`{"value": 5, "comparator": "", ` + ucum + `}`,
 	} {
 		o := NewObjectValue([]byte(json))
-		_, ok, err := o.AsQuantity()
-		if errors.Is(err, ErrQuantityBound) != bound || ok == bound {
-			t.Errorf("%s: AsQuantity() = %v, %v; want bound %v", json, ok, err, bound)
+		if q, ok, err := o.AsQuantity(); !ok || err != nil || q.Value().String() != "5" {
+			t.Errorf("%s: AsQuantity() = %v, %v, %v; want 5", json, q, ok, err)
 		}
-		if errors.Is(o.QuantityBound(), ErrQuantityBound) != bound {
-			t.Errorf("%s: QuantityBound() disagrees with AsQuantity()", json)
-		}
-		if bound && !strings.Contains(err.Error(), "'<'") {
-			t.Errorf("%s: error %v does not name the comparator", json, err)
+		if err := o.QuantityBound(); err != nil {
+			t.Errorf("%s: QuantityBound() = %v, want nil", json, err)
 		}
 	}
 }

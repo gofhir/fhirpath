@@ -217,6 +217,17 @@ func fnHasValue(_ *eval.Context, input types.Collection, _ []interface{}) (types
 	// FHIR primitive, and it has a primitive value (e.g. as opposed to not
 	// having a value and just having extensions)." A primitive with only
 	// extensions is read as its element, an object, so it has none.
+	//
+	// A single complex value has one too, as in the HL7 validator, though
+	// the text speaks of primitives only: ele-1, hasValue() or
+	// (children().count() > id.count()), holds there on an element written
+	// with only an id, which the validator accepts. CONFORMANCE.md records
+	// the choice.
+	if len(input) == 1 {
+		if obj, ok := input[0].(*types.ObjectValue); ok && !obj.StandsForValuelessPrimitive() {
+			return types.TrueCollection, nil
+		}
+	}
 	_, has := primitiveValue(input)
 	return types.Collection{types.NewBoolean(has)}, nil
 }
