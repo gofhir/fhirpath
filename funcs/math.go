@@ -122,11 +122,13 @@ func fnAbs(_ *eval.Context, input types.Collection, _ []interface{}) (types.Coll
 
 	switch v := input[0].(type) {
 	case types.Integer:
-		val := v.Value()
-		if val < 0 {
-			val = -val
+		// The least int64 has no absolute value within the range: an
+		// overflow, which is empty
+		abs, err := v.AbsExact()
+		if err != nil {
+			return types.Collection{}, nil
 		}
-		return types.Collection{types.NewInteger(val)}, nil
+		return types.Collection{abs}, nil
 	case types.Decimal:
 		// Through the decimal's own absolute value rather than a float, which
 		// would round: abs() must not change the number it is given
@@ -149,8 +151,7 @@ func fnCeiling(_ *eval.Context, input types.Collection, _ []interface{}) (types.
 	case types.Integer:
 		return types.Collection{v}, nil
 	case types.Decimal:
-		ceil := math.Ceil(v.Value().InexactFloat64())
-		return types.Collection{types.NewInteger(int64(ceil))}, nil
+		return wholeInteger(v.Value().Ceil())
 	default:
 		return types.Collection{}, nil
 	}
@@ -185,8 +186,7 @@ func fnFloor(_ *eval.Context, input types.Collection, _ []interface{}) (types.Co
 	case types.Integer:
 		return types.Collection{v}, nil
 	case types.Decimal:
-		floor := math.Floor(v.Value().InexactFloat64())
-		return types.Collection{types.NewInteger(int64(floor))}, nil
+		return wholeInteger(v.Value().Floor())
 	default:
 		return types.Collection{}, nil
 	}
@@ -355,11 +355,22 @@ func fnTruncate(_ *eval.Context, input types.Collection, _ []interface{}) (types
 	case types.Integer:
 		return types.Collection{v}, nil
 	case types.Decimal:
-		trunc := math.Trunc(v.Value().InexactFloat64())
-		return types.Collection{types.NewInteger(int64(trunc))}, nil
+		return wholeInteger(v.Value().Truncate(0))
 	default:
 		return types.Collection{}, nil
 	}
+}
+
+// wholeInteger answers a whole decimal as the Integer ceiling(), floor() and
+// truncate() give, read from the decimal itself rather than through a float,
+// which held 9007199254740993 as 9007199254740994. One past the int64 range
+// is an overflow, and empty.
+func wholeInteger(whole decimal.Decimal) (types.Collection, error) {
+	i, err := types.IntegerFromDecimal(whole)
+	if err != nil {
+		return types.Collection{}, nil
+	}
+	return types.Collection{i}, nil
 }
 
 // toFloat converts an argument to float64.
@@ -421,7 +432,8 @@ func fnSum(ctx *eval.Context, input types.Collection, _ []interface{}) (types.Co
 		}
 		return types.Collection{d}, nil
 	}
-	return types.Collection{types.NewInteger(sum.IntPart())}, nil
+	// A sum past the int64 range is an overflow, and empty
+	return wholeInteger(sum)
 }
 
 // findExtreme finds the minimum or, when findMin is false, the maximum of a
@@ -455,9 +467,9 @@ func findExtreme(ctx *eval.Context, input types.Collection, findMin bool) (types
 			return types.Collection{}, nil
 		}
 	}
-	// One item is its own extreme, compared with nothing: a FHIR Quantity
-	// bound, < 5 'mg', is no value to order against another, but it is the
-	// only one there is
+	// One item is its own extreme, compared with nothing: an item that orders
+	// against no other, a quantity in a unit no other converts to, is still
+	// the only one there is
 	if len(input) == 1 {
 		return input, nil
 	}

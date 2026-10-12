@@ -1737,6 +1737,11 @@ func applyPolarity(col types.Collection, negate bool) interface{} {
 
 	if negate {
 		negated, err := Negate(col[0])
+		if isOverflow(err) {
+			// "Operations that cause arithmetic overflow or underflow will
+			// result in empty": -(-9223372036854775807 - 1)
+			return types.Collection{}
+		}
 		if err != nil {
 			return err
 		}
@@ -1792,7 +1797,7 @@ func applyMultiplicative(leftCol, rightCol types.Collection, op string) interfac
 	if err != nil {
 		// A zero divisor is not an error: "12 / 0 // empty ({ })", and the same
 		// for div and mod
-		if errors.Is(err, ErrDivideByZero) || errors.Is(err, types.ErrDecimalRange) {
+		if errors.Is(err, ErrDivideByZero) || isOverflow(err) {
 			return types.Collection{}
 		}
 		return err
@@ -1861,7 +1866,7 @@ func applyAdditive(leftCol, rightCol types.Collection, op string) interface{} {
 
 	if err != nil {
 		// Quantities with incommensurable units evaluate to empty, per spec
-		if errors.Is(err, types.ErrIncompatibleUnits) || errors.Is(err, types.ErrDecimalRange) {
+		if errors.Is(err, types.ErrIncompatibleUnits) || isOverflow(err) {
 			return types.Collection{}
 		}
 		return err

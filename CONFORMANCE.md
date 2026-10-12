@@ -932,17 +932,35 @@ against a 64-bit Integer they would be `toInteger` and `convertsToInteger` under
 another name, and `45L` does not parse. The divergence is the range of `Integer`,
 recorded here rather than left for someone to discover from a surprising answer.
 
-One thing that follows from it is a genuine gap rather than a decision.
-Arithmetic wraps silently at the end of the range:
+Arithmetic that crosses either end of that range answers empty, as the
+specification says it does: "Operations that cause arithmetic overflow or
+underflow will result in empty (`{ }`)".
 
-    9223372036854775807 + 1           // -9223372036854775808
+    9223372036854775807 + 1           // { }
+    -(-9223372036854775807 - 1)       // { }
+    (-9223372036854775807 - 1).abs()  // { }
+    (9223372036854775807 | 1).sum()   // { }
+    -9223372036854775807 - 1          // -9223372036854775808
 
-That is Go's `int64` overflow reaching the surface. A literal too large for
-`int64` is read as a `Decimal`, which is why `9223372036854775808` answers with
-itself, but a sum that crosses the boundary does not get that treatment. Whether
-it should signal an error or return empty is a question the specification does
-not settle for Integer either, and it is worth answering deliberately rather
-than by widening the type.
+The same holds for `-`, `*`, `div`, unary `-`, `abs()`, `sum()` and
+`aggregate()` over `+`, and for `toInteger()` on a decimal past the range; the
+ends of the range are values. `div` and `mod` over decimals truncate the
+decimal itself: `100000000000000000000.0 div 1.0` is
+`100000000000000000000`, where it wrapped to `7766279631452241920`, and
+exactly, where a quotient rounded to 16 places first made
+`0.99999999999999999 div 1.0` 1 and its `mod` negative. The least Integer has
+no literal: a literal has no sign, `9223372036854775808` past the range is read
+as a Decimal, and `-` negates it, so `-9223372036854775808` is a Decimal;
+`-9223372036854775807 - 1` is the Integer. Up to 1.13.4 the sum
+wrapped, as Go's `int64` does, to `-9223372036854775808`. `ceiling()`,
+`floor()` and `truncate()` read a decimal as itself, where a float held
+`9007199254740993.5` as `9007199254740994`, and answer empty past the range. A
+literal too large for `int64` is read as a `Decimal`, which is why
+`9223372036854775808` answers with itself.
+
+The HL7 validator holds an Integer in 32 bits and wraps: `2147483647 + 1` is
+`-2147483648` there. That is not followed; see
+[Measured, and not followed](#measured-and-not-followed).
 
 ## Where this engine follows the HL7 validator over the specification text
 

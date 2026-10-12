@@ -354,14 +354,19 @@ func NewInteger(v int64) Integer
 |--------|-----------|-------------|
 | `Value` | `func (i Integer) Value() int64` | Returns the underlying `int64` |
 | `ToDecimal` | `func (i Integer) ToDecimal() Decimal` | Converts to `Decimal` |
-| `Add` | `func (i Integer) Add(other Integer) Integer` | Addition |
-| `Subtract` | `func (i Integer) Subtract(other Integer) Integer` | Subtraction |
-| `Multiply` | `func (i Integer) Multiply(other Integer) Integer` | Multiplication |
+| `Add` | `func (i Integer) Add(other Integer) Integer` | Addition; wraps past the `int64` range. Deprecated: use `AddExact` |
+| `AddExact` | `func (i Integer) AddExact(other Integer) (Integer, error)` | Addition, or `ErrIntegerRange` past the `int64` range |
+| `Subtract` | `func (i Integer) Subtract(other Integer) Integer` | Subtraction; wraps past the `int64` range. Deprecated: use `SubtractExact` |
+| `SubtractExact` | `func (i Integer) SubtractExact(other Integer) (Integer, error)` | Subtraction, or `ErrIntegerRange` past the `int64` range |
+| `Multiply` | `func (i Integer) Multiply(other Integer) Integer` | Multiplication; wraps past the `int64` range. Deprecated: use `MultiplyExact` |
+| `MultiplyExact` | `func (i Integer) MultiplyExact(other Integer) (Integer, error)` | Multiplication, or `ErrIntegerRange` past the `int64` range |
 | `Divide` | `func (i Integer) Divide(other Integer) (Decimal, error)` | Division (returns `Decimal`) |
-| `Div` | `func (i Integer) Div(other Integer) (Integer, error)` | Integer division |
+| `Div` | `func (i Integer) Div(other Integer) (Integer, error)` | Integer division; `ErrIntegerRange` for the least `int64` divided by -1 |
 | `Mod` | `func (i Integer) Mod(other Integer) (Integer, error)` | Modulo |
-| `Negate` | `func (i Integer) Negate() Integer` | Negation |
-| `Abs` | `func (i Integer) Abs() Integer` | Absolute value |
+| `Negate` | `func (i Integer) Negate() Integer` | Negation; wraps for the least `int64`. Deprecated: use `NegateExact` |
+| `NegateExact` | `func (i Integer) NegateExact() (Integer, error)` | Negation, or `ErrIntegerRange` for the least `int64` |
+| `Abs` | `func (i Integer) Abs() Integer` | Absolute value; wraps for the least `int64`. Deprecated: use `AbsExact` |
+| `AbsExact` | `func (i Integer) AbsExact() (Integer, error)` | Absolute value, or `ErrIntegerRange` for the least `int64` |
 | `Power` | `func (i Integer) Power(exp Integer) Decimal` | Exponentiation (returns `Decimal`) |
 | `Sqrt` | `func (i Integer) Sqrt() (Decimal, error)` | Square root (returns `Decimal`) |
 | `Compare` | `func (i Integer) Compare(other Value) (int, error)` | Comparison (works with `Integer` and `Decimal`) |
@@ -410,6 +415,8 @@ type Decimal struct {
 | `InRange` | `func InRange(v Value) bool` | Reports a `Decimal` or `Quantity` whose value is in range; any other value is |
 | `WithinRange` | `func WithinRange(v Value) (Value, bool)` | Returns a computed value as the engine holds it, a zero past the bound taken to the nearest scale within it, and false where it overflows |
 | `ErrDecimalRange` | `var ErrDecimalRange error` | The error for a decimal beyond `DecimalDigits` |
+| `ErrIntegerRange` | `var ErrIntegerRange error` | The error for an Integer result past the `int64` range; the engine answers it empty |
+| `IntegerFromDecimal` | `func IntegerFromDecimal(d decimal.Decimal) (Integer, error)` | Reads a decimal as an Integer, dropping a fraction toward zero, or `ErrIntegerRange` past the `int64` range |
 | `DecimalDigits` | `const DecimalDigits = 1000` | The engine's bound: at most 1000 digits before the point, none further than 1000 places after it. Beyond it a value overflows, and reads as empty |
 | `NewDecimalFromInt` | `func NewDecimalFromInt(v int64) Decimal` | Creates from an `int64` |
 | `NewDecimalFromFloat` | `func NewDecimalFromFloat(v float64) Decimal` | Creates from a `float64` |
@@ -427,9 +434,9 @@ type Decimal struct {
 | `Divide` | `func (d Decimal) Divide(other Decimal) (Decimal, error)` | Division (16-digit precision) |
 | `Negate` | `func (d Decimal) Negate() Decimal` | Negation |
 | `Abs` | `func (d Decimal) Abs() Decimal` | Absolute value |
-| `Ceiling` | `func (d Decimal) Ceiling() Integer` | Smallest integer >= d |
-| `Floor` | `func (d Decimal) Floor() Integer` | Largest integer <= d |
-| `Truncate` | `func (d Decimal) Truncate() Integer` | Integer part |
+| `Ceiling` | `func (d Decimal) Ceiling() Integer` | Smallest integer >= d; wraps past the `int64` range. Deprecated: use `IntegerFromDecimal` |
+| `Floor` | `func (d Decimal) Floor() Integer` | Largest integer <= d; wraps past the `int64` range. Deprecated: use `IntegerFromDecimal` |
+| `Truncate` | `func (d Decimal) Truncate() Integer` | Integer part; wraps past the `int64` range. Deprecated: use `IntegerFromDecimal` |
 | `Round` | `func (d Decimal) Round(precision int32) Decimal` | Round to precision |
 | `Power` | `func (d Decimal) Power(exp Decimal) Decimal` | Exponentiation |
 | `Sqrt` | `func (d Decimal) Sqrt() (Decimal, error)` | Square root |
@@ -437,7 +444,7 @@ type Decimal struct {
 | `Ln` | `func (d Decimal) Ln() (Decimal, error)` | Natural logarithm |
 | `Log` | `func (d Decimal) Log(base Decimal) (Decimal, error)` | Logarithm with custom base |
 | `IsInteger` | `func (d Decimal) IsInteger() bool` | True if no fractional part |
-| `ToInteger` | `func (d Decimal) ToInteger() (Integer, bool)` | Convert to Integer if whole number |
+| `ToInteger` | `func (d Decimal) ToInteger() (Integer, bool)` | Convert to Integer if a whole number within the `int64` range; `false` otherwise |
 | `Compare` | `func (d Decimal) Compare(other Value) (int, error)` | Comparison (works with `Integer` and `Decimal`) |
 
 **Example:**
