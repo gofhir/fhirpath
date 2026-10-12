@@ -193,15 +193,92 @@ func (dt DateTime) Type() string {
 	return TypeNameDateTime
 }
 
-// Equal checks equality with another value.
+// Equal reports two temporals = finds equal, component by component, with
+// seconds and milliseconds one precision: what union(), distinct(), in and
+// contains test. A comparison = has no answer for, values at different
+// precisions or an offset against none, is not equal: @2020T and
+// @2020-01-01T00:00:00Z are two values, not one. A Date compares with a
+// DateTime, as it converts to one; a Time with neither.
 func (dt DateTime) Equal(other Value) bool {
-	if o, ok := other.(DateTime); ok {
-		return dt.ToTime().Equal(o.ToTime())
+	// Two written to one precision against one offset, as one document's
+	// values mostly are, compare field by field: the components are the
+	// values' own, with nothing to convert
+	if o, ok := other.(DateTime); ok && dt.precision == o.precision {
+		offset, hasOffset := dt.EffectiveOffset()
+		otherOffset, otherHasOffset := o.EffectiveOffset()
+		switch {
+		case hasOffset == otherHasOffset && offset == otherOffset:
+			return dt.sameComponents(o)
+		case hasOffset && otherHasOffset && dt.precision >= DTMinutePrecision:
+			// Two at different offsets, to the minute or finer: the same
+			// instant, the offsets taken off in whole minutes
+			return dt.utcMinute(offset) == o.utcMinute(otherOffset) &&
+				(dt.precision < DTSecondPrecision || dt.second == o.second) &&
+				(dt.precision < DTMillisPrecision || dt.millis == o.millis)
+		}
 	}
-	return false
+	return equalTemporal(dt, other)
 }
 
-// Equivalent checks equivalence with another value.
+// utcMinute returns the value's minute counted from the civil epoch, at UTC.
+func (dt DateTime) utcMinute(offset int) int64 {
+	return daysFromCivil(dt.year, dt.month, dt.day)*24*60 + int64(dt.hour*60+dt.minute-offset)
+}
+
+// daysFromCivil counts days from 1970-01-01 to a proleptic Gregorian date, by
+// Howard Hinnant's algorithm, without a time.Time.
+func daysFromCivil(year, month, day int) int64 {
+	y := int64(year)
+	if month <= 2 {
+		y--
+	}
+	era := y / 400
+	if y < 0 && y%400 != 0 {
+		era--
+	}
+	yearOfEra := y - era*400
+	m := int64(month)
+	if m > 2 {
+		m -= 3
+	} else {
+		m += 9
+	}
+	dayOfYear := (153*m+2)/5 + int64(day) - 1
+	dayOfEra := yearOfEra*365 + yearOfEra/4 - yearOfEra/100 + dayOfYear
+	return era*146097 + dayOfEra - 719468
+}
+
+// sameComponents compares two DateTimes of one precision on the components
+// that precision states, and no further.
+func (dt DateTime) sameComponents(o DateTime) bool {
+	same := dt.year == o.year
+	if dt.precision >= DTMonthPrecision {
+		same = same && dt.month == o.month
+	}
+	if dt.precision >= DTDayPrecision {
+		same = same && dt.day == o.day
+	}
+	if dt.precision >= DTHourPrecision {
+		same = same && dt.hour == o.hour
+	}
+	if dt.precision >= DTMinutePrecision {
+		same = same && dt.minute == o.minute
+	}
+	if dt.precision >= DTSecondPrecision {
+		same = same && dt.second == o.second
+	}
+	if dt.precision >= DTMillisPrecision {
+		same = same && dt.millis == o.millis
+	}
+	return same
+}
+
+// Equivalent is Equal: "the comparison is the same as for equality, with the
+// exception that if the input values have different levels of precision, the
+// result is false, rather than empty", and false is what Equal answers there,
+// as for an offset against none. Seconds and milliseconds compare as = compares
+// them, as the specification's examples do: @2012-01-01T10:30:31.1 ~
+// @2012-01-01T10:30:31 is false.
 func (dt DateTime) Equivalent(other Value) bool {
 	return dt.Equal(other)
 }

@@ -299,6 +299,13 @@ func EqualTemporal(left, right Value) (bool, error) {
 	return cmp == 0, nil
 }
 
+// equalTemporal is EqualTemporal, an answer it has none for being false: what
+// the temporals' Equal falls back to past their own fast paths.
+func equalTemporal(left, right Value) bool {
+	equal, err := EqualTemporal(left, right)
+	return err == nil && equal
+}
+
 // IsTemporal reports whether a value is a Date, DateTime or Time.
 func IsTemporal(v Value) bool {
 	switch v.(type) {

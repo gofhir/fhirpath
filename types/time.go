@@ -113,30 +113,38 @@ func (t Time) Type() string {
 	return TypeNameTime
 }
 
-// Equal checks equality with another value.
+// Equal reports two temporals = finds equal, component by component, with
+// seconds and milliseconds one precision: what union(), distinct(), in and
+// contains test. A comparison = has no answer for, values at different
+// precisions or an offset against none, is not equal: @2020T and
+// @2020-01-01T00:00:00Z are two values, not one. A Date compares with a
+// DateTime, as it converts to one; a Time with neither.
 func (t Time) Equal(other Value) bool {
-	if o, ok := other.(Time); ok {
-		if t.precision != o.precision {
-			return false
-		}
-		if t.hour != o.hour {
-			return false
-		}
-		if t.precision >= MinutePrecision && t.minute != o.minute {
-			return false
-		}
-		if t.precision >= SecondPrecision && t.second != o.second {
-			return false
-		}
-		if t.precision >= MillisPrecision && t.millis != o.millis {
-			return false
-		}
-		return true
+	// Two of one precision, seconds and milliseconds being one, compare on
+	// the components it states, the seconds as thousandths
+	if o, ok := other.(Time); ok && t.clockPrecision() == o.clockPrecision() {
+		return t.hour == o.hour &&
+			(t.precision < MinutePrecision || t.minute == o.minute) &&
+			(t.precision < SecondPrecision || t.second*1000+t.millis == o.second*1000+o.millis)
 	}
-	return false
+	return equalTemporal(t, other)
 }
 
-// Equivalent checks equivalence with another value.
+// clockPrecision is the precision comparison reads, seconds and milliseconds
+// being one.
+func (t Time) clockPrecision() TimePrecision {
+	if t.precision == MillisPrecision {
+		return SecondPrecision
+	}
+	return t.precision
+}
+
+// Equivalent is Equal: "the comparison is the same as for equality, with the
+// exception that if the input values have different levels of precision, the
+// result is false, rather than empty", and false is what Equal answers there,
+// as for an offset against none. Seconds and milliseconds compare as = compares
+// them, as the specification's examples do: @2012-01-01T10:30:31.1 ~
+// @2012-01-01T10:30:31 is false.
 func (t Time) Equivalent(other Value) bool {
 	return t.Equal(other)
 }
