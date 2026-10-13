@@ -107,13 +107,13 @@ func shiftTemporal(left, right types.Value, subtract bool) (types.Value, bool, e
 		return nil, false, nil
 	}
 
-	amount := int(quantity.Value().IntPart())
-	unit := quantity.Unit()
-
-	// A duration in seconds keeps its fractional part, as milliseconds; every
-	// coarser unit drops it, since the shift is by whole calendar periods
-	if millis, ok := types.SecondUnitMilliseconds(quantity.Value(), unit); ok {
-		amount, unit = millis, "millisecond"
+	// Whole calendar periods, seconds keeping their fraction as milliseconds,
+	// read as a decimal so that no amount wraps on the way: on a time of day
+	// taken modulo a day, on a date one longer than the calendar an error
+	_, onClock := left.(types.Time)
+	amount, unit, err := types.ShiftAmount(quantity.Value(), quantity.Unit(), onClock)
+	if err != nil {
+		return nil, true, err
 	}
 
 	switch temporal := left.(type) {
