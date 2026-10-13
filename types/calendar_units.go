@@ -87,7 +87,7 @@ func CalendarUnitForUCUMCode(code string) (string, bool) {
 func SecondUnitMilliseconds(value decimal.Decimal, unit string) (int, bool) {
 	switch unit {
 	case unitNameSecond, unitNameSecond + "s", "s":
-		return int(value.Mul(decimal.NewFromInt(1000)).IntPart()), true
+		return clampToInt(value.Mul(decimal.NewFromInt(1000)).Truncate(0)), true
 	}
 	return 0, false
 }

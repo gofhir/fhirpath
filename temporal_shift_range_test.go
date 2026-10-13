@@ -45,7 +45,13 @@ func TestATemporalShiftDoesNotWrap(t *testing.T) {
 		"@2000-01-01T00:00:00 - 1 'ms'": "[1999-12-31T23:59:59]",
 		"@T23:30:00 + 1 hour":           "[00:30:00]",
 		"@T01:00:00 + 48 hours":         "[01:00:00]",
-		"@T10:00 + 0 days":              "[10:00]",
+		// Past what a time.Duration holds, about 292 years, within the
+		// calendar: the clock amount's whole days shift the calendar
+		"@2020-01-01T10:00:00Z + 3000000 hours":       "[2362-03-29T10:00:00Z]",
+		"@2020-01-01T10:00:00Z - 3000000 hours":       "[1677-10-05T10:00:00Z]",
+		"@2020-01-01T10:00:00Z + 10000000000000 'ms'": "[2336-11-21T03:46:40Z]",
+		"@2020-01-01T10:00:00Z + 9300000000 seconds":  "[2314-09-16T07:20:00Z]",
+		"@2020-01-01 + 3000000 hours":                 "[2362-03-29]",
 		// A time of day takes a clock amount modulo a day
 		"@T10:00 + 9223372036854775807 hours":       "[17:00]",
 		"@T10:00 - 9223372036854775807 hours":       "[03:00]",
@@ -61,8 +67,10 @@ func TestATemporalShiftDoesNotWrap(t *testing.T) {
 		}
 	}
 
-	// A date component still cannot shift a time, whatever its amount
-	for _, expr := range []string{"@T10:00 + 1 day", "@T10:00 - 1 week", "@T10:00 + 9223372036854775808000 days"} {
+	// A date component cannot shift a time, whatever its amount, none or a
+	// fraction of one included: "This includes attempting to add date
+	// components to a Time"
+	for _, expr := range []string{"@T10:00 + 1 day", "@T10:00 - 1 week", "@T10:00 + 9223372036854775808000 days", "@T10:00 + 0 days", "@T10:00 + 0.5 days"} {
 		if _, err := fhirpath.Evaluate(patient, expr); !errors.Is(err, types.ErrDateComponentOnTime) {
 			t.Errorf("%s: error %v, want a date component refused on a time", expr, err)
 		}

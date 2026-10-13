@@ -200,6 +200,9 @@ func (d Date) Compare(other Value) (int, error) {
 // Hours and finer units are converted to days first, truncating, since a
 // date has no time of day: @2000-01-01 - 25 hours is @1999-12-31.
 func (d Date) AddDuration(value int, unit string) (Date, error) {
+	if err := checkCalendarAmount(value, unit); err != nil {
+		return Date{}, err
+	}
 	// A date is at most day precision, so no sub-day shift is left over
 	years, months, days, _, err := durationPartsAt(value, unit, durationField(d.precision))
 	if err != nil {
