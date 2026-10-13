@@ -9,8 +9,8 @@ import (
 // equivalentJSON reports whether two JSON objects are equivalent: "For complex
 // types, equivalence requires all child properties to be equivalent,
 // recursively." Each child is read as navigation reads it and compared with
-// the equivalence of its type — a string ignoring case and leading and
-// trailing whitespace, with whitespace normalized, a decimal as decimals are
+// the equivalence of its type — a string ignoring case, any whitespace
+// character for any other, no run collapsed, a decimal as decimals are
 // equivalent, a date as dates are — and a child that repeats is compared as ~
 // compares collections, in any order.
 //
@@ -336,27 +336,11 @@ func equivalentASCII(a, b []byte) (equivalent, decided bool) {
 		return false, true
 	}
 	for i := range a {
-		ca, cb := a[i], b[i]
-		if ca == cb || isASCIIWhiteSpace(ca) && isASCIIWhiteSpace(cb) || lowerASCII(ca) == lowerASCII(cb) {
-			continue
+		if !asciiEquivalent(a[i], b[i]) {
+			return false, true
 		}
-		return false, true
 	}
 	return true, true
-}
-
-// isASCIIWhiteSpace reports the ASCII characters of Unicode's White_Space
-// class: tab, line feed, vertical tab, form feed, carriage return and space.
-func isASCIIWhiteSpace(c byte) bool {
-	return c == ' ' || c >= '\t' && c <= '\r'
-}
-
-// lowerASCII lowercases an ASCII letter.
-func lowerASCII(c byte) byte {
-	if 'A' <= c && c <= 'Z' {
-		return c + 'a' - 'A'
-	}
-	return c
 }
 
 // childValue is one value of a child property, as written.

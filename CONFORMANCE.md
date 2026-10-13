@@ -42,8 +42,15 @@ the libraries, part ways, it decides in this order:
 1. Where the two libraries give the same coherent answer, it gives that one.
    Where they part ways, it gives the answer of the one the text bears out:
    `hasValue()` on a complex value is false, as the text and fhirpath.js have
-   it, where the Java engine answers true. Where the text says nothing, it
-   gives the Java engine's, the validator's; see
+   it, where the Java engine answers true. Two cases give the Java engine's
+   answer, the validator's, instead: where the text says nothing, and where
+   the validator reaches a published constraint's verdict through that
+   answer, so that following the text would accept or reject a resource the
+   validator does not. pat-1 and bdl-4 fail in the validator through
+   `exists()` on an element written `{}`, which fhirpath.js and the text
+   answer true; `hasValue()` on a complex value decides no such verdict, since
+   the validator accepts `"maritalStatus": {"id": "x"}` whatever it answers
+   there (#161). See
    [Where this engine follows the HL7 validator](#where-this-engine-follows-the-hl7-validator-over-the-specification-text).
    A coherent answer is set aside only for a reason recorded under
    [Measured, and not followed](#measured-and-not-followed): one that rests on
@@ -62,7 +69,7 @@ measured so far, the two FHIRPath versions part ways in three:
 |---|---|---|---|
 | `power()` on Integers | an Integer | always a Decimal | a Decimal, as the validator, R4 too |
 | `~` between quantities in different units | in "the most granular unit of either input" | "converted to the least granular unit" | the least granular, 3.0.0: converting to the finer unit made the value look more precise than it was written, the defect 3.0.0 names |
-| `~` between strings | whitespace "normalized": the characters of the Whitespace lexical category, tab, space, line feed and carriage return, equivalent | all characters of the Unicode White_Space class equivalent, a no-break space among them, and "Multiple whitespace characters in sequence are not collapsed", so `'a     b' ~ 'a b'` is false | 3.0.0, as fhirpath.js answers: case set aside, any whitespace character for another, no run collapsed and no end trimmed. The Java engine tells a tab from a space; see [Measured, and not followed](#measured-and-not-followed) |
+| `~` between strings | whitespace "normalized": the characters of the Whitespace lexical category, tab, space, line feed and carriage return, equivalent | all characters of the Unicode White_Space class equivalent, a no-break space among them, and "Multiple whitespace characters in sequence are not collapsed", so `'a     b' ~ 'a b'` is false | 3.0.0, as fhirpath.js answers: any whitespace character for another, no run collapsed and no end trimmed. 2.0.0's Whitespace lexical category is the grammar's, for the expression's own text; 3.0.0 names the set for a string's content, the defect it fixes. The Java engine tells a tab from a space; see [Measured, and not followed](#measured-and-not-followed). Case is set aside one character for another, by Unicode's simple folding: fhirpath.js, comparing upper case, also takes `ß` for `SS` and `ﬁ` for `FI`, and tells the Kelvin sign from `K`, where this engine does not |
 
 ### What depends on the FHIR version
 
@@ -986,8 +993,10 @@ gives that answer, as rule 1 under
 answer is set aside only for the reasons that rule names. Either way the case
 is recorded under [Measured, and not followed](#measured-and-not-followed).
 The entries below are those where the text says nothing the libraries'
-answers can be checked against, or where fhirpath.js answers as the validator
-does.
+answers can be checked against, where fhirpath.js answers as the validator
+does, or where the validator reaches a published constraint's verdict through
+its answer: an element written `{}`, through which pat-1 and bdl-4 fail there,
+where fhirpath.js answers `exists()` true as the text does.
 
 Each answer was measured with `validator_cli.jar -fhirpath "<expression>"
 <file> -version 4.0.1`.
@@ -1201,7 +1210,7 @@ keeps its own answer.
 
 | Expression | Validator | This engine | Why not followed |
 |---|---|---|---|
-| `hasValue()` on a single complex value: `"maritalStatus": {"id": "x"}` | true, for a BackboneElement too, so ele-1 holds on an element written with only an id | false, as fhirpath.js answers, and ele-1 fails there | FHIR's FHIRPath page, R4 and R5 alike: "Returns true if the input collection contains a single value which is a FHIR primitive". 1.13.4 followed the validator; the validator accepting such an element shows nothing of `hasValue()`, since ele-1 holds there by it either way (#161) |
+| `hasValue()` on a single complex value: `"maritalStatus": {"id": "x"}` | true, for a BackboneElement too | false, as fhirpath.js answers | FHIR's FHIRPath page, R4 and R5 alike: "Returns true if the input collection contains a single value which is a FHIR primitive". 1.13.4 followed the validator. The validator accepting such an element is no evidence for it: with `hasValue()` true, ele-1 holds on every complex element, so it holds there whether or not the validator evaluates it. Here ele-1 fails on it (#161) |
 | `'a b' ~ 'a\tb'`, whitespace characters of different kinds | false, a tab is not a space | true, as fhirpath.js answers | FHIRPath 2.0.0 and 3.0.0 alike: whitespace is "normalized", every whitespace character equivalent. 1.13.4 followed the validator. A run of whitespace is not collapsed, `'a b' ~ 'a  b'` false, nor an end trimmed, `' a' ~ 'a'` false, in the three |
 | `a = b` between complex values, `b` with a child more | `a = b` true, `b = a` false | false, false | Equality that is not symmetric |
 | `~` between quantities in different units: `2.4 'm' ~ 200 'cm'` | true; `1.501 'kg' ~ 1500 'g'` false | false; false | Coherent: both sides in the UCUM base unit, rounded to the less precise. Matching it means rewriting quantity equivalence, and no published constraint compares quantities in different units with `~` |
