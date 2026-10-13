@@ -400,11 +400,19 @@ func (dt DateTime) Millisecond() int { return dt.millis }
 // AddDuration adds a duration (as Quantity with temporal unit) to the datetime.
 // Supported units: year(s), month(s), week(s), day(s), hour(s), minute(s), second(s), millisecond(s)
 func (dt DateTime) AddDuration(value int, unit string) (DateTime, error) {
+	if err := checkCalendarAmount(value, unit); err != nil {
+		return DateTime{}, err
+	}
 	// The precisions run year to millisecond, as the duration fields do
 	years, months, days, millis, err := durationPartsAt(value, unit, durationField(dt.precision))
 	if err != nil {
 		return DateTime{}, err
 	}
+	// Whole days of a clock amount shift the calendar, and only the rest the
+	// clock: a time.Duration holds no more than about 292 years, and
+	// @2020-01-01T10:00:00Z + 3000000 hours wrapped to 1777
+	days += millis / millisIn(fieldDay)
+	millis %= millisIn(fieldDay)
 
 	// Years and months move the calendar components and clamp the day, which
 	// AddDate would instead roll into the next month

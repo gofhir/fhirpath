@@ -222,14 +222,18 @@ const millisecondsPerDay = 24 * 60 * 60 * 1000
 // of day names no value, and the specification says so: "This includes
 // attempting to add date components to a Time."
 func (t Time) AddDuration(value int, unit string) (Time, error) {
+	// A date component is refused by its unit, whatever its amount: + 0 days
+	// adds a date component as + 1 day does
+	if field, _, err := resolveDurationUnit(unit); err == nil && field < fieldHour {
+		return Time{}, dateComponentOnTime(unit)
+	}
 	// A time's precisions run hour to millisecond, the last four duration fields
 	years, months, days, millis, err := durationPartsAt(value, unit, fieldHour+durationField(t.precision))
 	if err != nil {
 		return Time{}, err
 	}
 	if years != 0 || months != 0 || days != 0 {
-		return Time{}, fmt.Errorf("%w: %q shifts a date, and a time has none",
-			ErrDateComponentOnTime, unit)
+		return Time{}, dateComponentOnTime(unit)
 	}
 
 	shifted := t.millisecondsOfDay() + millis
@@ -260,4 +264,9 @@ func (t Time) SubtractDuration(value int, unit string) (Time, error) {
 // the wrap a remainder rather than a carry through four components.
 func (t Time) millisecondsOfDay() int {
 	return ((t.hour*60+t.minute)*60+t.second)*1000 + t.millis
+}
+
+// dateComponentOnTime is the error for a date component added to a time.
+func dateComponentOnTime(unit string) error {
+	return fmt.Errorf("%w: %q shifts a date, and a time has none", ErrDateComponentOnTime, unit)
 }

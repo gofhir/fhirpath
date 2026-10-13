@@ -3,7 +3,10 @@ package types
 import (
 	"errors"
 	"fmt"
+	"math"
 	"time"
+
+	"github.com/shopspring/decimal"
 )
 
 // ErrDateComponentOnTime reports an attempt to shift a time of day by a unit
@@ -151,7 +154,10 @@ func durationPartsAt(value int, unit string, precision durationField) (years, mo
 	if err != nil {
 		return 0, 0, 0, 0, err
 	}
-	amount := value * multiplier
+	amount, ok := multiplyInt(value, multiplier)
+	if !ok {
+		return 0, 0, 0, 0, pastTheCalendar(value, unit)
+	}
 	// Seconds and milliseconds are one precision, as comparison has them: the
 	// millisecond shifts and is then dropped, so @2000-01-01T00:00:00 - 1 'ms'
 	// is @1999-12-31T23:59:59
@@ -173,8 +179,134 @@ func durationPartsAt(value int, unit string, precision durationField) (years, mo
 		}
 		field = precision
 	}
+	if field > fieldDay {
+		// A clock amount becomes milliseconds, which must fit an int too
+		if _, ok := multiplyInt(amount, millisIn(field)); !ok {
+			return 0, 0, 0, 0, pastTheCalendar(value, unit)
+		}
+	}
 	years, months, days, millis = partsOfField(field, amount)
 	return years, months, days, millis, nil
+}
+
+// multiplyInt multiplies two ints, reporting false where the product lies past
+// the int range.
+func multiplyInt(a, b int) (int, bool) {
+	if a == 0 || b == 0 {
+		return 0, true
+	}
+	product := a * b
+	if product/b != a || (b == -1 && a == math.MinInt) {
+		return 0, false
+	}
+	return product, true
+}
+
+// pastTheCalendar is the error for a shift by an amount that reaches past the
+// years 1 to 9999 from any date: "If the resulting year is out of range, an
+// error is thrown".
+func pastTheCalendar(value any, unit string) error {
+	return fmt.Errorf("%w: date arithmetic by %v %s reaches past the years 1 to 9999", ErrInvalidTemporal, value, unit)
+}
+
+// checkCalendarAmount reports an amount of a unit longer than the calendar,
+// which reaches past the years 1 to 9999 from any date. A unit that is no
+// duration is left for the shift to refuse.
+func checkCalendarAmount(value int, unit string) error {
+	field, multiplier, err := resolveDurationUnit(unit)
+	if err != nil {
+		return nil
+	}
+	amount, ok := multiplyInt(value, multiplier)
+	if !ok || decimal.NewFromInt(int64(amount)).Abs().GreaterThan(calendarSpan[field]) {
+		return pastTheCalendar(value, unit)
+	}
+	return nil
+}
+
+// ShiftAmount converts a time-valued quantity into the whole amount, and the
+// unit, that AddDuration and SubtractDuration take, reading the value as a
+// decimal, so that no amount wraps past the int range on the way: a value is
+// whole periods of its unit, but seconds keep their fraction as milliseconds,
+// and a week is seven days.
+//
+// On a time of day, which is cyclic, a clock unit's amount is taken modulo a
+// day: @T10:00 + 9223372036854775807 hours is @T17:00. On a date or a
+// date-time, an amount longer than the calendar, ten thousand years in its
+// unit, reaches past the years 1 to 9999 from any start, and is reported as
+// the error "If the resulting year is out of range, an error is thrown" asks
+// for. A unit that is no duration is passed through, for the shift to refuse
+// as it does.
+func ShiftAmount(value decimal.Decimal, unit string, onClock bool) (amount int, shiftUnit string, err error) {
+	field, multiplier, err := resolveDurationUnit(unit)
+	if err != nil {
+		return 0, "", err
+	}
+
+	var total decimal.Decimal
+	if field == fieldSecond {
+		// Seconds keep their fraction, as milliseconds
+		total = value.Mul(decimal.NewFromInt(1000)).Truncate(0)
+		field = fieldMillisecond
+	} else {
+		total = value.Truncate(0).Mul(decimal.NewFromInt(int64(multiplier)))
+	}
+
+	if onClock {
+		if field < fieldHour {
+			// A date component cannot shift a time, whatever its amount, a
+			// fraction or none included
+			return 0, "", dateComponentOnTime(unit)
+		}
+		perDay := decimal.NewFromInt(int64(millisIn(fieldDay) / millisIn(field)))
+		total = total.Mod(perDay)
+	} else if total.Abs().GreaterThan(calendarSpan[field]) {
+		return 0, "", pastTheCalendar(value, unit)
+	}
+	// On a platform whose int is 32 bits, an amount within the calendar may
+	// still not fit one: it is past what this engine can shift by
+	if total.GreaterThan(maxIntDecimal) || total.LessThan(minIntDecimal) {
+		return 0, "", pastTheCalendar(value, unit)
+	}
+	return int(total.IntPart()), fieldUnitNames[field], nil
+}
+
+// clampToInt reads a whole decimal as an int, held at the ends of the int
+// range rather than wrapped past them.
+func clampToInt(d decimal.Decimal) int {
+	switch {
+	case d.GreaterThan(maxIntDecimal):
+		return math.MaxInt
+	case d.LessThan(minIntDecimal):
+		return math.MinInt
+	}
+	return int(d.IntPart())
+}
+
+// The ends of the int range as decimals, made once.
+var (
+	minIntDecimal = decimal.NewFromInt(math.MinInt)
+	maxIntDecimal = decimal.NewFromInt(math.MaxInt)
+)
+
+// fieldUnitNames names the unit of each duration field, as the shift reads it.
+var fieldUnitNames = map[durationField]string{
+	fieldYear: unitNameYear, fieldMonth: unitNameMonth, fieldDay: unitNameDay,
+	fieldHour: unitNameHour, fieldMinute: unitNameMinute, fieldSecond: unitNameSecond,
+	fieldMillisecond: unitNameMillisecond,
+}
+
+// calendarSpan is ten thousand years, the whole calendar from year 1 to 9999
+// and more, in each duration field: a shift longer than it lands outside the
+// calendar from any date.
+var calendarSpan = map[durationField]decimal.Decimal{
+	fieldYear:        decimal.NewFromInt(10000),
+	fieldMonth:       decimal.NewFromInt(10000 * 12),
+	fieldDay:         decimal.NewFromInt(10000 * 366),
+	fieldHour:        decimal.NewFromInt(10000 * 366 * 24),
+	fieldMinute:      decimal.NewFromInt(10000 * 366 * 24 * 60),
+	fieldSecond:      decimal.NewFromInt(10000 * 366 * 24 * 3600),
+	fieldMillisecond: decimal.NewFromInt(10000 * 366 * 24 * 3600 * 1000),
 }
 
 // millisIn returns the milliseconds in one unit of a field of a day or finer.
