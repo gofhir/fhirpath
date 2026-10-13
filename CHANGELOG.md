@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.14.0](https://github.com/gofhir/fhirpath/compare/v1.13.6...v1.14.0) (2026-10-13)
+
+
+### Features
+
+* **difftest:** compare a battery across this engine, fhirpath.js and HL7's Java engine ([#173](https://github.com/gofhir/fhirpath/issues/173)) ([de05b21](https://github.com/gofhir/fhirpath/commit/de05b214f3bbb0e2b217032380c8aee23f44ce87))
+
+
+### Bug Fixes
+
+* = between complex values finds each child by its key, as fhirpath.js and HL7's Java engine do ([#174](https://github.com/gofhir/fhirpath/issues/174)) ([81a2168](https://github.com/gofhir/fhirpath/commit/81a216869eb03df2ef4f1e0107c2fe6e2d216101))
+
 ## [1.13.6](https://github.com/gofhir/fhirpath/compare/v1.13.5...v1.13.6) (2026-10-13)
 
 
