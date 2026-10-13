@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.13.6](https://github.com/gofhir/fhirpath/compare/v1.13.5...v1.13.6) (2026-10-13)
+
+
+### Bug Fixes
+
+* date and time arithmetic reads its amount as a decimal, and does not wrap ([#170](https://github.com/gofhir/fhirpath/issues/170)) ([403a0fd](https://github.com/gofhir/fhirpath/commit/403a0fd7e1fa6fd2500c77a93b009a67e13a42b5))
+* where the two reference libraries part ways, follow the one the text bears out ([#171](https://github.com/gofhir/fhirpath/issues/171)) ([01581ca](https://github.com/gofhir/fhirpath/commit/01581ca32bebc565ae8d0f534996d8dd4378b610))
+
 ## [1.13.5](https://github.com/gofhir/fhirpath/compare/v1.13.4...v1.13.5) (2026-10-12)
 
 
