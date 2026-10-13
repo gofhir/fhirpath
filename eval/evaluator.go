@@ -2505,8 +2505,10 @@ func matchesSystemType(actualType, systemType string) bool {
 
 // TypeMatchesWithModel checks type matching using the model if available,
 // falling back to the built-in TypeMatches when model is nil.
-// When a model is present, it is authoritative for type hierarchy — only
-// spec-stable FHIRPath type mappings are applied, version-specific heuristics are skipped.
+// When a model is present, it is authoritative for type hierarchy: a FHIR type
+// matches what it derives from and the System types its own name spells, and
+// no FHIR type stands for the System type its value converts to, or the
+// reverse.
 func TypeMatchesWithModel(actualType, typeName string, model Model) bool {
 	if actualType == typeName {
 		return true

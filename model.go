@@ -130,12 +130,14 @@ type ElementOrder interface {
 // primitive, "FHIR.string is a different type to System.String".
 //
 // A model that does not implement it has such an element read as the System
-// type, which is the behavior every existing caller has today. So is one whose
-// FHIR type is string: R4's Patient.id and Element.id are System.String in the
-// HL7 validator and in fhirpath.js alike.
+// type, and so is one whose FHIR type is string: R4's Patient.id and
+// Element.id are System.String in the HL7 validator and in fhirpath.js alike.
+// A System.String is none of the FHIR types that convert to it, so with such
+// a model Patient.id.is(id) is false, where up to 1.14.0 it was true.
 type FHIRTypes interface {
 	// FHIRTypeOf returns the FHIR type of the element at path, as TypeOf takes
-	// it, or "" where the model names none.
+	// it, or "" where the model names none. A primitive's value, string.value,
+	// is the System value the primitive is read as, and is not listed.
 	FHIRTypeOf(path string) string
 }
 
