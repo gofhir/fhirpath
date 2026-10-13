@@ -305,7 +305,7 @@ result, _ = compiled.EvaluateWithOptions(resource,
 
 ## hasValue
 
-Returns `true` if the input is a single FHIR primitive that has a value, or a single complex value.
+Returns `true` if the input is a single FHIR primitive that has a value.
 
 **Signature:**
 ```
@@ -321,7 +321,7 @@ result, _ := fhirpath.Evaluate(patient, "Patient.active.hasValue()")
 // true (active is a boolean primitive)
 
 result, _ := fhirpath.Evaluate(patient, "Patient.name.first().hasValue()")
-// true (a single complex value, as in the HL7 validator)
+// false (a complex value is no FHIR primitive)
 
 result, _ := fhirpath.Evaluate(patient, "Patient.birthDate.hasValue()")
 // true (birthDate is a date primitive)
@@ -331,7 +331,7 @@ result, _ := fhirpath.Evaluate(patient, "Patient.birthDate.hasValue()")
 - Returns `false` for empty input.
 - Returns `false` for more than one item.
 - A primitive written with extensions but no value has none: `false`.
-- A single complex value has one, as in the HL7 validator, though FHIR defines the function on primitives only. See [CONFORMANCE.md](https://github.com/gofhir/fhirpath/blob/main/CONFORMANCE.md#hasvalue-is-true-on-a-complex-value).
+- A complex value has none: `false`, as FHIR defines the function and fhirpath.js answers, where HL7's Java engine answers `true`. See [CONFORMANCE.md](https://github.com/gofhir/fhirpath/blob/main/CONFORMANCE.md#measured-and-not-followed).
 
 ---
 

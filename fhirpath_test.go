@@ -931,8 +931,26 @@ func TestStringEquivalent(t *testing.T) {
 		assertBooleanResult(t, result, true)
 	})
 
-	// Whitespace is compared as written, as the HL7 validator 6.10.2 does.
-	t.Run("whitespace is not normalized", func(t *testing.T) {
+	// "Multiple whitespace characters in sequence are not collapsed", nor are
+	// the ends trimmed (FHIRPath 3.0.0); any whitespace character is
+	// equivalent to any other.
+	t.Run("whitespace characters are equivalent to each other", func(t *testing.T) {
+		for _, expr := range []string{"'a b' ~ 'a\tb'", "'a b' ~ 'a\nb'", "'a\u00a0b' ~ 'A B'", "'a\u2003b' ~ 'a b'"} {
+			result, err := Evaluate(simpleJSON, expr)
+			if err != nil {
+				t.Fatalf("%s: %v", expr, err)
+			}
+			assertBooleanResult(t, result, true)
+		}
+		result, err := Evaluate(simpleJSON, "'a\u200bb' ~ 'a b'")
+		if err != nil {
+			t.Fatal(err)
+		}
+		// A zero-width space is no whitespace character
+		assertBooleanResult(t, result, false)
+	})
+
+	t.Run("whitespace is not collapsed", func(t *testing.T) {
 		result, err := Evaluate(simpleJSON, "'hello   world' ~ 'hello world'")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
@@ -940,7 +958,7 @@ func TestStringEquivalent(t *testing.T) {
 		assertBooleanResult(t, result, false)
 	})
 
-	t.Run("leading and trailing whitespace is not ignored", func(t *testing.T) {
+	t.Run("leading and trailing whitespace is not trimmed", func(t *testing.T) {
 		result, err := Evaluate(simpleJSON, "'  hello  ' ~ 'hello'")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)

@@ -35,7 +35,7 @@ type Value interface {
     Equal(other Value) bool
 
     // Equivalent compares equivalence (the ~ operator).
-    // For strings: case-insensitive, whitespace as written.
+    // For strings: case-insensitive, any whitespace for any other.
     Equivalent(other Value) bool
 
     // String returns a human-readable string representation.
@@ -46,7 +46,7 @@ type Value interface {
 }
 ```
 
-La distinción entre `Equal` y `Equivalent` es importante. La igualdad (`=`) es una comparación estricta: `'Hello'` no es igual a `'hello'`. La equivalencia (`~`) es una comparación más flexible: para cadenas de texto es insensible a mayúsculas, y compara los espacios en blanco tal como están escritos, como el validador HL7; para cantidades utiliza la normalización UCUM de modo que `1000 'mg'` es equivalente a `1 'g'`.
+La distinción entre `Equal` y `Equivalent` es importante. La igualdad (`=`) es una comparación estricta: `'Hello'` no es igual a `'hello'`. La equivalencia (`~`) es una comparación más flexible: para cadenas de texto es insensible a mayúsculas, con cualquier carácter de espacio equivalente a cualquier otro y sin colapsar espacios repetidos (FHIRPath 3.0.0); para cantidades utiliza la normalización UCUM de modo que `1000 'mg'` es equivalente a `1 'g'`.
 
 ## La Interfaz Comparable
 
@@ -139,7 +139,7 @@ fmt.Println(s.Lower())           // fhirpath
 fmt.Println(s.Contains("Path"))  // true
 ```
 
-La equivalencia para cadenas de texto es insensible a mayúsculas, y compara los espacios en blanco tal como están escritos, como el validador HL7:
+La equivalencia para cadenas de texto es insensible a mayúsculas, y toma cualquier carácter de espacio por cualquier otro, sin colapsar espacios repetidos (FHIRPath 3.0.0):
 
 ```go
 a := types.NewString("Hello World")

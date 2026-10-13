@@ -51,7 +51,8 @@ func TestObjectEqualityByContent(t *testing.T) {
 		{"a child on one side", `{"code":"a"}`, `{"code":"a","display":"A"}`, "false", "false"},
 		{"an element on one side", `{"code":"a"}`, `{"code":"a","_code":{"extension":[{"url":"u"}]}}`, "false", "false"},
 		{"a different value", `{"code":"a"}`, `{"code":"b"}`, "false", "false"},
-		// ~ sets case aside, and whitespace not, as the HL7 validator does
+		// ~ sets case aside and takes any whitespace character for another,
+		// collapsing no run of them, as FHIRPath 3.0.0 and fhirpath.js have it
 		{"whitespace inside a string", `{"display":"a b"}`, `{"display":"a  b"}`, "false", "false"},
 		{"a number written another way", `{"code":"a","version":1}`, `{"code":"a","version":1.0}`, "false", "true"},
 		{"a string in another case", `{"code":"ABC"}`, `{"code":"abc"}`, "false", "true"},
@@ -65,7 +66,7 @@ func TestObjectEqualityByContent(t *testing.T) {
 		{"another key", `{"code":"a"}`, `{"display":"a"}`, "false", "false"},
 		{"a null child is absent", `{"code":"a","display":null}`, `{"code":"a"}`, "false", "true"},
 		{"an empty array is absent", `{"code":"a","extension":[]}`, `{"code":"a"}`, "false", "true"},
-		{"an escape against a space", `{"display":"a\nb"}`, `{"display":"A B"}`, "false", "false"},
+		{"an escape against a space", `{"display":"a\nb"}`, `{"display":"A B"}`, "false", "true"},
 		{"an escape against its character", `{"display":"a\u0020b"}`, `{"display":"A B"}`, "false", "true"},
 		{"a string against a number", `{"code":"a","version":"1"}`, `{"code":"a","version":1}`, "false", "false"},
 		{"repeats alike and in another case", `{"code":"a","extension":[{"url":"a"},{"url":"A"}]}`, `{"code":"a","extension":[{"url":"a"},{"url":"a"}]}`, "false", "true"},

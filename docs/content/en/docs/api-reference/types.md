@@ -29,7 +29,7 @@ type Value interface {
     Equal(other Value) bool
 
     // Equivalent compares equivalence (the ~ operator in FHIRPath).
-    // For strings: case-insensitive, whitespace as written.
+    // For strings: case-insensitive, any whitespace for any other.
     Equivalent(other Value) bool
 
     // String returns a human-readable string representation of the value.
@@ -502,7 +502,7 @@ func NewString(v string) String
 | `ToChars` | `func (s String) ToChars() Collection` | Split into single-character strings |
 | `Compare` | `func (s String) Compare(other Value) (int, error)` | Lexicographic comparison |
 
-**Equivalence behavior:** `Equivalent()` for strings is case-insensitive and compares whitespace as written, as the HL7 validator does: `'a b'` is not equivalent to `'a  b'`. See [CONFORMANCE.md](https://github.com/gofhir/fhirpath/blob/main/CONFORMANCE.md#strings-are-equivalent-ignoring-case-not-whitespace).
+**Equivalence behavior:** `Equivalent()` for strings is case-insensitive and takes any whitespace character, of the Unicode White_Space class, for any other, as FHIRPath 3.0.0 says and fhirpath.js answers: `'a b'` is equivalent to `'a	b'`, but not to `'a  b'` or `' a b'`, since no run of whitespace is collapsed and no end trimmed. See [CONFORMANCE.md](https://github.com/gofhir/fhirpath/blob/main/CONFORMANCE.md#when-200-and-300-disagree).
 
 **Example:**
 
@@ -518,8 +518,8 @@ fmt.Println(s.IndexOf("World"))          // 7
 fmt.Println(s.Substring(0, 5))           // Hello
 fmt.Println(s.Replace("World", "Go"))    // Hello, Go!
 
-// Equivalence is case-insensitive
-a := types.NewString("  hello  world  ")
+// Equivalence is case-insensitive, and takes any whitespace for any other
+a := types.NewString("hello\tworld")
 b := types.NewString("Hello World")
 fmt.Println(a.Equivalent(b))             // true
 fmt.Println(a.Equal(b))                  // false

@@ -9,8 +9,8 @@ import (
 // equivalentJSON reports whether two JSON objects are equivalent: "For complex
 // types, equivalence requires all child properties to be equivalent,
 // recursively." Each child is read as navigation reads it and compared with
-// the equivalence of its type — a string ignoring case and leading and
-// trailing whitespace, with whitespace normalized, a decimal as decimals are
+// the equivalence of its type — a string ignoring case, any whitespace
+// character for any other, no run collapsed, a decimal as decimals are
 // equivalent, a date as dates are — and a child that repeats is compared as ~
 // compares collections, in any order.
 //
@@ -320,10 +320,10 @@ func looksTemporalBytes(data []byte) bool {
 	return true
 }
 
-// equivalentASCII compares two strings as String.Equivalent does, ignoring
-// case, without reading them into strings. It decides only texts in ASCII
-// without escapes, where a byte is a character; for any other it reports
-// false, undecided.
+// equivalentASCII compares two strings as String.Equivalent does, a letter in
+// either case and any whitespace for any other, without reading them into
+// strings. It decides only texts in ASCII without escapes, where a byte is a
+// character; for any other it reports false, undecided.
 func equivalentASCII(a, b []byte) (equivalent, decided bool) {
 	for _, text := range [][]byte{a, b} {
 		for _, c := range text {
@@ -332,7 +332,15 @@ func equivalentASCII(a, b []byte) (equivalent, decided bool) {
 			}
 		}
 	}
-	return bytes.EqualFold(a, b), true
+	if len(a) != len(b) {
+		return false, true
+	}
+	for i := range a {
+		if !asciiEquivalent(a[i], b[i]) {
+			return false, true
+		}
+	}
+	return true, true
 }
 
 // childValue is one value of a child property, as written.
