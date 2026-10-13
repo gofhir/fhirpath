@@ -324,6 +324,7 @@ through fhirpath.js by hand at the time.
     make difftest                          # both corpora
     make difftest DIFFTEST_ARGS="-v"       # every divergence, not a sample
 
+
 It reports four kinds, and the order is the order worth reading them in: cases
 this engine gets wrong by the suite's reckoning, cases where both engines agree
 against the suite, cases fhirpath.js gets wrong, and cases the suite states no
@@ -336,6 +337,29 @@ the result of date arithmetic in the process's timezone:
 `@1973-12-25T00:00:00.000+10:00 + 0.1 's'` came back as `-03:00` on one machine
 and `-00:00` on another. Answers are still compared as written rather than as
 instants, since an offset one engine drops is a difference worth seeing.
+
+A battery of one's own, outside any suite, is put to three engines: this one,
+fhirpath.js, and HL7's Java engine, the one the validator runs, through the
+validator's jar. It reports, first, where this engine alone differs from the
+other two, the cases rule 1 under
+[When 2.0.0 and 3.0.0 disagree](#when-200-and-300-disagree) puts on this
+engine to change or justify (#167):
+
+    HL7_VALIDATOR_JAR=~/tools/validator_cli.jar make three-engine
+    make three-engine BATTERY=batteries/hl7-divergences/r5.tsv DIFFTEST_ARGS="-v -jobs 6"
+
+A battery is `resource<TAB>expression<TAB>version` a line, the resource a JSON
+file beside it, the version 4.0.1 or 5.0.0. `difftest/batteries/hl7-divergences`
+holds the expressions measured for #151, #153 and #155. The Java engine takes
+seconds a case, nearly all of it loading packages, and runs `-jobs` at a time.
+Objects are compared only as objects, since the Java engine names them by type
+and the others write their JSON. The Java engine writes a result as one line,
+its items joined by commas, so a Java answer is compared as that line: an item
+holding a comma reads alike on both sides, but the single string `'a,b'` and
+the two items `'a'` and `'b'` cannot be told apart, nor an empty collection
+from a single empty string. A run of the validator that writes no result, a
+wrong jar or too little memory, stops the battery rather than passing for an
+answer.
 
 Against fhirpath.js 5.2.0, with each engine given its model:
 

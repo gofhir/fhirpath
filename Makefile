@@ -3,7 +3,7 @@ ANTLR_JAR     := build/antlr-$(ANTLR_VERSION)-complete.jar
 ANTLR_URL     := https://www.antlr.org/download/antlr-$(ANTLR_VERSION)-complete.jar
 GRAMMAR       := grammar/fhirpath.g4
 
-.PHONY: help generate generate-check test test-race bench bench-compare bench-corpus lint conformance spec-sources difftest corpusdiff clean
+.PHONY: help generate generate-check test test-race bench bench-compare bench-corpus lint conformance spec-sources difftest three-engine corpusdiff clean
 
 help:
 	@echo "generate        Regenerate the parser from $(GRAMMAR)"
@@ -17,6 +17,7 @@ help:
 	@echo "conformance     Report conformance against the official FHIRPath suite and the spec cases"
 	@echo "spec-sources    Fetch the pinned specification texts the spec cases quote"
 	@echo "difftest        Compare this engine's answers against fhirpath.js"
+	@echo "three-engine    Compare a BATTERY across this engine, fhirpath.js and HL7's Java engine (HL7_VALIDATOR_JAR)"
 	@echo "corpusdiff      Compare this tree's answers over the FHIR examples against BASE"
 	@echo "conformance-update  Re-baseline the conformance known-failures lists"
 	@echo "clean           Remove build artifacts"
@@ -125,6 +126,14 @@ difftest/node_modules/.package-lock.json: difftest/package-lock.json
 
 difftest: difftest/node_modules/.package-lock.json
 	@cd difftest && go run . $(DIFFTEST_ARGS)
+
+# Compares a battery of one's own, resource<TAB>expression<TAB>version a line,
+# across this engine, fhirpath.js and HL7's Java FHIRPath engine. The Java
+# engine runs through the HL7 validator's jar, named by HL7_VALIDATOR_JAR;
+# without it the battery is compared against fhirpath.js only.
+BATTERY ?= batteries/hl7-divergences/r4.tsv
+three-engine: difftest/node_modules/.package-lock.json
+	@cd difftest && go run . -battery $(BATTERY) $(DIFFTEST_ARGS)
 
 # What two revisions answer for every element path and constraint over the
 # official FHIR examples, with the version's model. The suite and difftest both
