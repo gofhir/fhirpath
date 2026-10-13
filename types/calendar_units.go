@@ -81,6 +81,9 @@ func CalendarUnitForUCUMCode(code string) (string, bool) {
 // precisions; for all other precisions, the decimal portion is ignored, since
 // date/time arithmetic is performed with calendar duration semantics." So
 // 0.1 's' shifts by 100 milliseconds, while 7.9 days shifts by seven.
+//
+// Deprecated: use ShiftAmount, which reads the value without wrapping past
+// the int range.
 func SecondUnitMilliseconds(value decimal.Decimal, unit string) (int, bool) {
 	switch unit {
 	case unitNameSecond, unitNameSecond + "s", "s":

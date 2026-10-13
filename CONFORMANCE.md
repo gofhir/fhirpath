@@ -1253,6 +1253,7 @@ and the engine keeps its own answer.
 | `~` between FHIR Quantities in units no conversion knows, `"unit": "Tablet"` and `"unit": "tablet"` | NullPointerException | false | An exception |
 | Arithmetic with a FHIR Quantity: `Observation.value + 1 'mg'` | an exception | the sum | An exception |
 | `2147483647 + 1` | `-2147483648` | `2147483648` | 32-bit overflow |
+| Date and time arithmetic by an amount past the calendar or the int range: `@2020-01-01 + 18446744073709551617 days`, `@2020-01-01 + 7980 years`, `@T10:00 + 9223372036854775807 hours` | wraps, `@2020-01-02`; no bound on the year, `10000-01-01`; `@T09:00`. fhirpath.js answers `NaN-NaN-NaN` and `10000-01-01` | an error, "If the resulting year is out of range, an error is thrown"; `@T17:00`, the amount modulo a day | Wraps past the range |
 | `min()`, `max()`, `toDate()` | not known functions | | Not implemented there |
 
 ## Decisions taken where the specification is silent
