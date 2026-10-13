@@ -114,7 +114,7 @@ FHIRPath distinguishes between **equality** and **equivalence**.
 Equivalence differs from equality in several important ways:
 
 1. **Empty handling:** Two empty collections are **equivalent** (`{} ~ {}` returns `true`). An empty and a non-empty collection are not equivalent (`{} ~ 5` returns `false`). Equivalence never returns empty.
-2. **String comparison:** Case-insensitive, with whitespace compared as written, as in the HL7 validator. `'Hello World' ~ 'hello world'` is `true`; `'Hello World' ~ 'hello  world'` is `false`.
+2. **String comparison:** Case-insensitive, with any whitespace character equivalent to any other, no run collapsed and no end trimmed (FHIRPath 3.0.0). `'Hello World' ~ 'hello\tworld'` is `true`; `'Hello World' ~ 'hello  world'` is `false`.
 3. **Quantity comparison:** Uses UCUM normalization. `1000 'mg' ~ 1 'g'` is `true`, whether each is a literal or a FHIR Quantity.
 
 ```text

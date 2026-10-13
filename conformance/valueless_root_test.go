@@ -13,16 +13,17 @@ import (
 // root, and builds a primitive with no value, its "_family" sibling, as an
 // object typed as the primitive. It answers as navigation does, as the HL7
 // validator 6.10.2 does: hasValue() is false, so ele-1 fails on an element
-// that holds only an id, and holds of a complex value. (#161)
+// that holds only an id. A complex value has no value either. (#161)
 func TestAPrimitiveWithNoValueBuiltAsTheRootHasNoValue(t *testing.T) {
 	tests := []struct{ json, typeName, expr, want string }{
 		{`{"id":"x"}`, "string", "hasValue()", "[false]"},
 		{`{"id":"x"}`, "string", "hasValue() or (children().count() > id.count())", "[false]"},
 		{`{"extension":[{"url":"http://x","valueString":"y"}]}`, "date", "$this.hasValue().not()", "[true]"},
 		{`{"extension":[{"url":"http://x","valueString":"y"}]}`, "date", "hasValue() or (children().count() > id.count())", "[true]"},
-		// A complex value has one, as in the validator, which accepts
-		// "maritalStatus": {"id": "x"}
-		{`{"id":"x"}`, "CodeableConcept", "hasValue()", "[true]"},
+		// A complex value is no FHIR primitive, and has none, as the text
+		// and fhirpath.js have it
+		{`{"id":"x"}`, "CodeableConcept", "hasValue()", "[false]"},
+		{`{"id":"x"}`, "CodeableConcept", "hasValue() or (children().count() > id.count())", "[false]"},
 		// The type as the R4 model gives it for Resource.id, and as others
 		// spell a primitive
 		{`{"id":"x"}`, "http://hl7.org/fhirpath/System.String", "hasValue()", "[false]"},

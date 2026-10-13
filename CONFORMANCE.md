@@ -35,16 +35,20 @@ FHIR R4 and R5 both say "The FHIR Specification uses FHIRPath (release 2)",
 2.0.0, and no published FHIR version adopts 3.0.0. Neither reference engine has
 a switch between the two: fhirpath.js 5.2.0 answers alike with its R4 and R5
 models, and the HL7 validator switches by FHIR version, not by FHIRPath
-version. Where the texts, or the validator, part ways, this engine decides in
-this order:
+version. This engine is measured against both reference libraries, fhirpath.js
+and HL7's Java engine, the one the validator runs (#167). Where the texts, or
+the libraries, part ways, it decides in this order:
 
-1. Where the HL7 validator gives a coherent answer, it gives that one; see
+1. Where the two libraries give the same coherent answer, it gives that one.
+   Where they part ways, it gives the answer of the one the text bears out:
+   `hasValue()` on a complex value is false, as the text and fhirpath.js have
+   it, where the Java engine answers true. Where the text says nothing, it
+   gives the Java engine's, the validator's; see
    [Where this engine follows the HL7 validator](#where-this-engine-follows-the-hl7-validator-over-the-specification-text).
-   The exceptions are recorded under
-   [Measured, and not followed](#measured-and-not-followed), each with its
-   reason: an answer that rests on a choice this engine made on its own
-   grounds, the 64-bit Integer, or one no published constraint reaches and
-   that would cost a rewrite to match.
+   A coherent answer is set aside only for a reason recorded under
+   [Measured, and not followed](#measured-and-not-followed): one that rests on
+   a choice this engine made on its own grounds, the 64-bit Integer, or one no
+   published constraint reaches and that would cost a rewrite to match.
 2. Where it does not, it follows 3.0.0 where 3.0.0 fixes a plain defect of
    2.0.0, or defines what 2.0.0 does not: `sort()`, `comparable()`,
    `lowBoundary()` and the rest above.
@@ -58,7 +62,7 @@ measured so far, the two FHIRPath versions part ways in three:
 |---|---|---|---|
 | `power()` on Integers | an Integer | always a Decimal | a Decimal, as the validator, R4 too |
 | `~` between quantities in different units | in "the most granular unit of either input" | "converted to the least granular unit" | the least granular, 3.0.0: converting to the finer unit made the value look more precise than it was written, the defect 3.0.0 names |
-| `~` between strings | whitespace "normalized": the characters of the Whitespace lexical category, tab, space, line feed and carriage return, equivalent | all characters of the Unicode White_Space class equivalent, a no-break space among them, and "Multiple whitespace characters in sequence are not collapsed", so `'a     b' ~ 'a b'` is false | case set aside, whitespace as written, as the validator: see below |
+| `~` between strings | whitespace "normalized": the characters of the Whitespace lexical category, tab, space, line feed and carriage return, equivalent | all characters of the Unicode White_Space class equivalent, a no-break space among them, and "Multiple whitespace characters in sequence are not collapsed", so `'a     b' ~ 'a b'` is false | 3.0.0, as fhirpath.js answers: case set aside, any whitespace character for another, no run collapsed and no end trimmed. The Java engine tells a tab from a space; see [Measured, and not followed](#measured-and-not-followed) |
 
 ### What depends on the FHIR version
 
@@ -976,9 +980,14 @@ validator release that changes one shows up when it is measured again.
 Only an answer can be followed. Where the validator ends in an exception, or
 gives two answers that cannot both hold — an equality that is not symmetric,
 a string that converts to a date it cannot make — the engine keeps its own.
-A coherent answer is set aside only for the reasons rule 1 under
-[When 2.0.0 and 3.0.0 disagree](#when-200-and-300-disagree) names. Either way
-the case is recorded under [Measured, and not followed](#measured-and-not-followed).
+Where fhirpath.js answers otherwise and the text bears it out, the engine
+gives that answer, as rule 1 under
+[When 2.0.0 and 3.0.0 disagree](#when-200-and-300-disagree) has it; a coherent
+answer is set aside only for the reasons that rule names. Either way the case
+is recorded under [Measured, and not followed](#measured-and-not-followed).
+The entries below are those where the text says nothing the libraries'
+answers can be checked against, or where fhirpath.js answers as the validator
+does.
 
 Each answer was measured with `validator_cli.jar -fhirpath "<expression>"
 <file> -version 4.0.1`.
@@ -1180,69 +1189,20 @@ nested in a complex value compares as the object it is.
 FHIRPath's text agrees: a FHIR Quantity maps to a System.Quantity, and "the
 dimensions of each quantity must be the same, but not necessarily the unit".
 
-### `hasValue()` is true on a complex value
-
-Measured in the HL7 validator 6.10.2.
-
-Text departed from: FHIR's FHIRPath page, R4 and R5 alike, on complex values,
-true where the page answers only of primitives; and R5's alone on a primitive
-with no value, false where R5 says "Otherwise, the return value is empty". The
-validator answers false there for R5 too, and so does this engine.
-
-`hasValue()` on a single complex value is true, whatever it holds; on a FHIR
-primitive it is as before, true when the primitive has a value, false when it
-has only extensions.
-
-| On | Expression | Validator and this engine | Before |
-|---|---|---|---|
-| `"name": [{"family": "F"}]` | `Patient.name.first().hasValue()` | true | false |
-| `"contact": [{"name": {"id": "x"}}]` | `Patient.contact.name.all(hasValue() or (children().count() > id.count()))` (ele-1) | true | false |
-| `"_active": {"extension": [...]}` | `Patient.active.hasValue()` | false | false |
-
-An object a caller builds typed as a FHIR primitive, as a validator builds
-`"_family": {"id": "x"}` to evaluate it as the root, is a primitive with no
-value, whether the type is written `string`, `FHIR.string` or the
-`http://hl7.org/fhirpath/System.String` R4 declares for `Resource.id`: it
-answers `hasValue()` false as navigation does, and ele-1 fails on it, as the
-validator reports. The element beside a primitive that has a value is no item,
-and is not one. A complex
-value written with only an id, `"maritalStatus": {"id": "x"}`, has a value:
-ele-1 holds, and the validator accepts it (0 errors).
-
-FHIR defines it on primitives only: "Returns true if the input collection
-contains a single value which is a FHIR primitive, and it has a primitive
-value". Read that way, ele-1 failed on an element written with only an `id`,
-which the validator accepts. ele-1 then holds on an element written `{}` too,
-as in the validator, which reports that one as it parses it: "Object must have
-some content". A validator built on this engine has to report it the same way.
-
-### Strings are equivalent ignoring case, not whitespace
-
-Measured in the HL7 validator 6.10.2.
-
-Text departed from: FHIRPath 2.0.0 and 3.0.0 alike, on one point only: both
-treat all whitespace characters as equivalent, `'a b' ~ 'a\tb'` true, where the
-validator, and this engine, tell a tab from a space. Not collapsing a run of
-whitespace, and not trimming, is what 3.0.0 says: "Multiple whitespace
-characters in sequence are not collapsed".
-
-`~` between strings sets case aside and compares whitespace as written:
-`'abc' ~ 'ABC'` is true; `'a b' ~ 'a  b'`, `' a' ~ 'a'` and `'a\tb' ~ 'a b'`
-are false. The same holds for strings inside complex values. Up to 1.13.3 this
-engine trimmed the ends and folded runs of whitespace to one space, more than
-either FHIRPath version asks.
-
 ### Measured, and not followed
 
 Where the validator answers with an error, or two of its answers cannot both
 hold, there is no behavior to follow. Where it answers coherently, its answer
-is set aside only for a reason given in the row: it rests on a choice this
-engine made on its own grounds, the 64-bit Integer, or no published constraint
-reaches it and matching it would cost a rewrite. These were measured in 6.10.2
-and the engine keeps its own answer.
+is set aside only for a reason given in the row: fhirpath.js answers
+otherwise and the text bears it out, it rests on a choice this engine made on
+its own grounds, the 64-bit Integer, or no published constraint reaches it and
+matching it would cost a rewrite. These were measured in 6.10.2 and the engine
+keeps its own answer.
 
 | Expression | Validator | This engine | Why not followed |
 |---|---|---|---|
+| `hasValue()` on a single complex value: `"maritalStatus": {"id": "x"}` | true, for a BackboneElement too, so ele-1 holds on an element written with only an id | false, as fhirpath.js answers, and ele-1 fails there | FHIR's FHIRPath page, R4 and R5 alike: "Returns true if the input collection contains a single value which is a FHIR primitive". 1.13.4 followed the validator; the validator accepting such an element shows nothing of `hasValue()`, since ele-1 holds there by it either way (#161) |
+| `'a b' ~ 'a\tb'`, whitespace characters of different kinds | false, a tab is not a space | true, as fhirpath.js answers | FHIRPath 2.0.0 and 3.0.0 alike: whitespace is "normalized", every whitespace character equivalent. 1.13.4 followed the validator. A run of whitespace is not collapsed, `'a b' ~ 'a  b'` false, nor an end trimmed, `' a' ~ 'a'` false, in the three |
 | `a = b` between complex values, `b` with a child more | `a = b` true, `b = a` false | false, false | Equality that is not symmetric |
 | `~` between quantities in different units: `2.4 'm' ~ 200 'cm'` | true; `1.501 'kg' ~ 1500 'g'` false | false; false | Coherent: both sides in the UCUM base unit, rounded to the less precise. Matching it means rewriting quantity equivalence, and no published constraint compares quantities in different units with `~` |
 | `comparable()` on quantities in a local unit, `Range.low` and `high` in tablets | false, though `low < high` is true | true | Not comparable, yet compared. rng-2 holds in both |
@@ -1277,13 +1237,13 @@ was reasoned or accidental.
 | `ofType()` on profiled subtypes without a Model | Keep structural inference | Nothing in the JSON distinguishes an `Age` from a `Quantity`; the information is in the model, not the document |
 | `~` between two quantities | In the less granular unit, rounded to the precision of the less precise value, trailing zeroes carrying none: `4 'g' ~ 4040 'mg'` and `4040 'mg' ~ 4 'g'` are both true, `1 year ~ 11 months` true. A converted value keeps the precision it was written with in its own unit: `200 'cm'` is given to the centimeter, two places in meters, so `2.4 'm' ~ 200 'cm'` is false. Where the conversion factor is 1, the left operand's unit, so `1.5 'Cel' ~ 274.6 'K'` is true and `274.6 'K' ~ 1.5 'Cel'` false. A calendar year or month against UCUM takes `'a'` or `'mo'`, so `1 year ~ 1 'a'` is true where `=` is empty | 3.0.0: "the quantity values must be converted to the least granular unit", and "If the conversion factors are 1 (the units are equal), then choose the unit of the operator's left argument"; its worked examples all hold either way round. 2.0.0 said the most granular unit, which fhirpath.js follows, so it answers `1 year ~ 6 'mo'` differently, and three of 3.0.0's examples, `4 'g' ~ 4040 'mg'`, `21 'mm' ~ 2 'cm'` and `1 year ~ 11 months`, false. The engine converted into the left operand's unit and counted trailing zeroes, which made `4040 'mg' ~ 4 'g'` false while `4 'g' ~ 4040 'mg'` was true. A step, not a point, measures a unit on a scale with an offset: a degree Fahrenheit is 5/9 of a kelvin, though 1 '[degF]' is 255.9 'K'. What it costs: a factor, or a temperature's step, is found once per pair of units and reused. `4 'g' ~ 4040 'mg'` runs about 15% faster than before, `4040 'mg' ~ 4 'g'` about 1.45 times slower, where the old code needed no rounding there; a temperature runs about as fast as before, and two calendar units about 1.7 times slower. A scale on which a step has no constant size, a logarithm or an angle, has no unit more granular than another, and keeps the left unit, as on a tie |
 | `=` and `~` between two quantity objects | Both compare them as quantities, when their type is Quantity or one of its profiles | Where the HL7 validator answers over the specification text: see [Two FHIR Quantities are equivalent as quantities](#two-fhir-quantities-are-equivalent-as-quantities) |
-| `=` and `~` between two complex values | Their content as written, apart from the whitespace between tokens: arrays in order, keys in the order written, a string or number as written, so keys in another order, `1` and `1.0`, or an escaped character and the character itself stay apart under `=`. `~` compares each child with the equivalence of its type, recursively: keys and repeats in any order, a string ignoring case, its whitespace as written (see [Strings are equivalent ignoring case, not whitespace](#strings-are-equivalent-ignoring-case-not-whitespace)), a decimal as decimals are equivalent, a date as dates are equivalent, so one at another precision or with an offset against none is not; a child on one side only is not equivalent. Two FHIR Quantities compare as quantities, as the row below says | "For complex types, equality requires all child properties to be equal, recursively." Comparing the bytes made two identical Codings unequal at two depths of an indented document, and in a union kept both. fhirpath.js and the HL7 validator compare content, and also read keys in another order, `1` and `1.0` alike. Within a document one serializer writes a value the same way wherever it stands, its keys in FHIR's order, so what differs between two equal values is their indentation. Reading the rest as written keeps the comparison one pass up to the first difference, with no walk and nothing kept per object; a walk that read keys in any order made `intersect()` and `repeat()` up to 40 times slower on items whose first keys differ. What it costs: comparing bytes told two objects of different lengths apart unread, and layout takes that away. A pair is read a word at a time over its first 64 bytes, where most pairs that differ do — resources at their id, codings at their code — and a pair of different lengths that agrees that far is read from its end, where two objects that differ in a trailing field show it. Unions, `distinct()`, `intersect()` and `repeat()` over many objects run two to four times slower than before; objects of different lengths that agree at both ends cost what reading their shared prefix does, up to 24 times slower for 100 objects of 10 KB that differ only in a long trailing note. Measuring each object once to win the rest back was tried and dropped: no threshold paid for itself on every collection, and the worst cases ran a thousand times slower. Layout separates tokens, so `1 2` is not `12`. `FuzzSameJSON` holds the comparison to a reference on any input, and to `encoding/json` on valid JSON. For `~`, "equivalence requires all child properties to be equivalent, recursively": fhirpath.js and the HL7 validator apply string equivalence to each child too, so two Codings that differ in the case of a code are equivalent. fhirpath.js compares repeats in order and trims no whitespace; here each child takes this engine's own equivalence of its type, under which collections compare in any order. Two limits. A child is typed as navigation without a model types it, so with a model `a ~ b` can differ from `a.x ~ b.x` where the model calls a date-like value a string. And repeats pair greedily, those written alike first, so with decimals, whose equivalence rounds and is not transitive, the answer can depend on order, and can differ from `~` between the same values as collections: `{"v":[1, 1.4]}` is equivalent to `{"v":[1.4, 0.6]}`, while `(1 | 1.4) ~ (1.4 | 0.6)` is false, as in fhirpath.js. JSON no valid resource holds is compared as written rather than as navigation reads it: a `null` inside an array is a place of its own, a nested array is not flattened, and of a key written twice, the first that is not `null` counts. Comparing Quantities as quantities was first tried on any object with a numeric `value`, an adjudication among them, and dropped; it is done now for objects whose type is Quantity or one of its profiles, as the HL7 validator does. What it costs: a child written alike on both sides pairs unread, and a string that is no date compares as written, but each pair reads the keys of both objects. Each object in a repeating child is read once however many it is compared with, and found by key through an index once it has more than 16. Against comparing as `=` did, `~` between 40 names runs about 1.5 times slower, two objects of 200 keys that differ in the last about 3 times (19 µs against 53 µs), 100 Codings in reversed order about 5 times (15 µs against 75 µs), and 40 objects of 40 strings that differ in case, both levels reversed, about 5 times (128 µs against 640 µs); in the last two `=`'s reading answered false |
+| `=` and `~` between two complex values | Their content as written, apart from the whitespace between tokens: arrays in order, keys in the order written, a string or number as written, so keys in another order, `1` and `1.0`, or an escaped character and the character itself stay apart under `=`. `~` compares each child with the equivalence of its type, recursively: keys and repeats in any order, a string ignoring case, any whitespace character for another, no run collapsed (see [When 2.0.0 and 3.0.0 disagree](#when-200-and-300-disagree)), a decimal as decimals are equivalent, a date as dates are equivalent, so one at another precision or with an offset against none is not; a child on one side only is not equivalent. Two FHIR Quantities compare as quantities, as the row below says | "For complex types, equality requires all child properties to be equal, recursively." Comparing the bytes made two identical Codings unequal at two depths of an indented document, and in a union kept both. fhirpath.js and the HL7 validator compare content, and also read keys in another order, `1` and `1.0` alike. Within a document one serializer writes a value the same way wherever it stands, its keys in FHIR's order, so what differs between two equal values is their indentation. Reading the rest as written keeps the comparison one pass up to the first difference, with no walk and nothing kept per object; a walk that read keys in any order made `intersect()` and `repeat()` up to 40 times slower on items whose first keys differ. What it costs: comparing bytes told two objects of different lengths apart unread, and layout takes that away. A pair is read a word at a time over its first 64 bytes, where most pairs that differ do — resources at their id, codings at their code — and a pair of different lengths that agrees that far is read from its end, where two objects that differ in a trailing field show it. Unions, `distinct()`, `intersect()` and `repeat()` over many objects run two to four times slower than before; objects of different lengths that agree at both ends cost what reading their shared prefix does, up to 24 times slower for 100 objects of 10 KB that differ only in a long trailing note. Measuring each object once to win the rest back was tried and dropped: no threshold paid for itself on every collection, and the worst cases ran a thousand times slower. Layout separates tokens, so `1 2` is not `12`. `FuzzSameJSON` holds the comparison to a reference on any input, and to `encoding/json` on valid JSON. For `~`, "equivalence requires all child properties to be equivalent, recursively": fhirpath.js and the HL7 validator apply string equivalence to each child too, so two Codings that differ in the case of a code are equivalent. fhirpath.js compares repeats in order and trims no whitespace; here each child takes this engine's own equivalence of its type, under which collections compare in any order. Two limits. A child is typed as navigation without a model types it, so with a model `a ~ b` can differ from `a.x ~ b.x` where the model calls a date-like value a string. And repeats pair greedily, those written alike first, so with decimals, whose equivalence rounds and is not transitive, the answer can depend on order, and can differ from `~` between the same values as collections: `{"v":[1, 1.4]}` is equivalent to `{"v":[1.4, 0.6]}`, while `(1 | 1.4) ~ (1.4 | 0.6)` is false, as in fhirpath.js. JSON no valid resource holds is compared as written rather than as navigation reads it: a `null` inside an array is a place of its own, a nested array is not flattened, and of a key written twice, the first that is not `null` counts. Comparing Quantities as quantities was first tried on any object with a numeric `value`, an adjudication among them, and dropped; it is done now for objects whose type is Quantity or one of its profiles, as the HL7 validator does. What it costs: a child written alike on both sides pairs unread, and a string that is no date compares as written, but each pair reads the keys of both objects. Each object in a repeating child is read once however many it is compared with, and found by key through an index once it has more than 16. Against comparing as `=` did, `~` between 40 names runs about 1.5 times slower, two objects of 200 keys that differ in the last about 3 times (19 µs against 53 µs), 100 Codings in reversed order about 5 times (15 µs against 75 µs), and 40 objects of 40 strings that differ in case, both levels reversed, about 5 times (128 µs against 640 µs); in the last two `=`'s reading answered false |
 | A FHIR Quantity with a `comparator` (`<`, `<=`, `>=`, `>`, `ad`) | Read as its value | Where the HL7 validator answers over the specification text: see [A quantity's comparator is not read](#a-quantitys-comparator-is-not-read) |
 | `as()`/`ofType()` on a primitive | Requires the declared type; `is()` keeps hierarchy matching | FHIR: "all primitives are considered to be independent types (so markdown is not a subclass of string)" |
 | Telling `FHIR.boolean` from `System.Boolean` | By case: FHIR names primitives in lower camel case, FHIRPath capitalizes its own | The suite requires `active.is(boolean)` true and `active.is(Boolean)` false. Complex types such as `Quantity` are spelled alike in both namespaces, so the rule applies to primitives only |
 | Type of a polymorphic element without a model | Taken from the field name, corrected to FHIR's casing | `valueOid` states the element is an `oid`; that is information in the document, not a guess. The value itself says whether the type is primitive or complex |
 | An element written as an empty object, `"name": {}` or an item `{}` of an array | An item of its collection that `exists()` and `empty()` answer as though it were not there | Where the HL7 validator answers over the specification text: see [An element that holds no value](#an-element-that-holds-no-value) |
-| A FHIR primitive's `value`, and `hasValue()`/`getValue()` | The System value the primitive holds, without its FHIR type or element. `hasValue()` on a single complex value is true | FHIR: "FHIR.string … has the properties id, extension, and also the implicit value property that is actually of type of System.String", so `birthDate.value is System.Date`. The HL7 validator answers `value` with a FHIR `string` of the text whatever the primitive's type; that is not what the text says. `hasValue()` on a complex value follows the validator: see [`hasValue()` is true on a complex value](#hasvalue-is-true-on-a-complex-value) |
+| A FHIR primitive's `value`, and `hasValue()`/`getValue()` | The System value the primitive holds, without its FHIR type or element. `hasValue()` is true only of a single FHIR primitive with a value: a complex value, or a primitive with only an id or extensions, has none, however the object was made. An object typed as a FHIR primitive, as a validator builds `"_family"` to evaluate it as the root, written `string`, `FHIR.string` or R4's `http://hl7.org/fhirpath/System.String`, is a primitive with no value; the element beside a primitive that has one is not | FHIR: "FHIR.string … has the properties id, extension, and also the implicit value property that is actually of type of System.String", so `birthDate.value is System.Date`. The HL7 validator answers `value` with a FHIR `string` of the text whatever the primitive's type; that is not what the text says. `hasValue()` on a complex value: see [Measured, and not followed](#measured-and-not-followed) |
 | What is a FHIR primitive, as opposed to a System value | By where the value came from: one read from the resource is a FHIR primitive, with or without a model, and even where the model types it a System one; a literal or a function's result is a System value | `'abc'.value` is empty and `'abc'.hasValue()` false with or without a model, as the text says, and so for `active.toBoolean()`. A primitive at a path the model does not know is still a FHIR primitive, so ele-1 holds on it. R4 gives `Resource.id`, `Element.id` and `Extension.url` the type code `System.String` and names their FHIR type, `id`, `string` and `uri`, in `structuredefinition-fhir-type`; the two parts of the definition disagree, and we follow the one that names the FHIR type, as the HL7 validator does, so `Patient.id.hasValue()` is true. Their `type()` stays what the model gives |
 | A primitive's value in `children()` and `descendants()` | Not a child | Where the HL7 validator answers over the specification text: see [A primitive's value is not a child](#a-primitives-value-is-not-a-child) |
 | `is()`, `as()` and `ofType()` on a System value | Only System types match, with a model or without one | A literal, a function's result or a primitive's value is a System value: `'abc'.is(String)` and `'abc'.is(System.string)` are true, `'abc'.is(string)` and `'abc'.is(FHIR.string)` false. Without a model only a value read from the resource is taken for what its type name might be in FHIR, so a literal or a function's result is never a FHIR string. `ofType(System.string)` still finds FHIR strings too: "ofType() does not have such restrictions" |

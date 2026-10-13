@@ -114,7 +114,7 @@ FHIRPath distingue entre **igualdad** y **equivalencia**.
 La equivalencia difiere de la igualdad en varios aspectos importantes:
 
 1. **Manejo de vacío:** Dos colecciones vacías son **equivalentes** (`{} ~ {}` retorna `true`). Una colección vacía y una no vacía no son equivalentes (`{} ~ 5` retorna `false`). La equivalencia nunca retorna vacío.
-2. **Comparación de cadenas:** Insensible a mayúsculas, con los espacios en blanco comparados tal como están escritos, como en el validador HL7. `'Hello World' ~ 'hello world'` es `true`; `'Hello World' ~ 'hello  world'` es `false`.
+2. **Comparación de cadenas:** Insensible a mayúsculas, con cualquier carácter de espacio equivalente a cualquier otro, sin colapsar espacios repetidos ni recortar extremos (FHIRPath 3.0.0). `'Hello World' ~ 'hello\tworld'` es `true`; `'Hello World' ~ 'hello  world'` es `false`.
 3. **Comparación de cantidades:** Utiliza normalización UCUM. `1000 'mg' ~ 1 'g'` es `true`, sea cada una un literal o una Quantity FHIR.
 
 ```text

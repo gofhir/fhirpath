@@ -320,10 +320,10 @@ func looksTemporalBytes(data []byte) bool {
 	return true
 }
 
-// equivalentASCII compares two strings as String.Equivalent does, ignoring
-// case, without reading them into strings. It decides only texts in ASCII
-// without escapes, where a byte is a character; for any other it reports
-// false, undecided.
+// equivalentASCII compares two strings as String.Equivalent does, a letter in
+// either case and any whitespace for any other, without reading them into
+// strings. It decides only texts in ASCII without escapes, where a byte is a
+// character; for any other it reports false, undecided.
 func equivalentASCII(a, b []byte) (equivalent, decided bool) {
 	for _, text := range [][]byte{a, b} {
 		for _, c := range text {
@@ -332,7 +332,31 @@ func equivalentASCII(a, b []byte) (equivalent, decided bool) {
 			}
 		}
 	}
-	return bytes.EqualFold(a, b), true
+	if len(a) != len(b) {
+		return false, true
+	}
+	for i := range a {
+		ca, cb := a[i], b[i]
+		if ca == cb || isASCIIWhiteSpace(ca) && isASCIIWhiteSpace(cb) || lowerASCII(ca) == lowerASCII(cb) {
+			continue
+		}
+		return false, true
+	}
+	return true, true
+}
+
+// isASCIIWhiteSpace reports the ASCII characters of Unicode's White_Space
+// class: tab, line feed, vertical tab, form feed, carriage return and space.
+func isASCIIWhiteSpace(c byte) bool {
+	return c == ' ' || c >= '\t' && c <= '\r'
+}
+
+// lowerASCII lowercases an ASCII letter.
+func lowerASCII(c byte) byte {
+	if 'A' <= c && c <= 'Z' {
+		return c + 'a' - 'A'
+	}
+	return c
 }
 
 // childValue is one value of a child property, as written.

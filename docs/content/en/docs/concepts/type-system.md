@@ -35,7 +35,7 @@ type Value interface {
     Equal(other Value) bool
 
     // Equivalent compares equivalence (the ~ operator).
-    // For strings: case-insensitive, whitespace as written.
+    // For strings: case-insensitive, any whitespace for any other.
     Equivalent(other Value) bool
 
     // String returns a human-readable string representation.
@@ -46,7 +46,7 @@ type Value interface {
 }
 ```
 
-The distinction between `Equal` and `Equivalent` is important. Equality (`=`) is a strict comparison: `'Hello'` is not equal to `'hello'`. Equivalence (`~`) is a more lenient comparison: for strings it is case-insensitive, with whitespace compared as written, as in the HL7 validator; for quantities it uses UCUM normalization so that `1000 'mg'` is equivalent to `1 'g'`.
+The distinction between `Equal` and `Equivalent` is important. Equality (`=`) is a strict comparison: `'Hello'` is not equal to `'hello'`. Equivalence (`~`) is a more lenient comparison: for strings it is case-insensitive, with any whitespace character equivalent to any other and no run of them collapsed (FHIRPath 3.0.0); for quantities it uses UCUM normalization so that `1000 'mg'` is equivalent to `1 'g'`.
 
 ## The Comparable Interface
 
@@ -139,7 +139,7 @@ fmt.Println(s.Lower())           // fhirpath
 fmt.Println(s.Contains("Path"))  // true
 ```
 
-Equivalence for strings is case-insensitive, and compares whitespace as written, as the HL7 validator does:
+Equivalence for strings is case-insensitive, and takes any whitespace character for any other, collapsing no run of them (FHIRPath 3.0.0):
 
 ```go
 a := types.NewString("Hello World")

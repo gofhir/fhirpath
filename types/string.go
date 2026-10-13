@@ -2,6 +2,8 @@ package types
 
 import (
 	"strings"
+	"unicode"
+	"unicode/utf8"
 )
 
 // String represents a FHIRPath string value.
@@ -47,13 +49,45 @@ func (s String) Equal(other Value) bool {
 	return false
 }
 
-// Equivalent compares strings ignoring case, and whitespace as written, as
-// the HL7 validator does: 'abc' ~ 'ABC', but 'a b' is not 'a  b' and ' a' is
-// not 'a'. FHIRPath has whitespace normalized too; CONFORMANCE.md records the
-// choice.
+// Equivalent compares strings "ignoring case and locale, and normalizing
+// whitespace": character by character, a letter in either case, and any
+// whitespace character, of the Unicode White_Space class FHIRPath 3.0.0
+// names, for any other. "Multiple whitespace characters in sequence are not
+// collapsed", nor are the ends trimmed: 'a b' ~ 'a\tb' is true, 'a b' ~ 'a  b'
+// and ' a' ~ 'a' false, as fhirpath.js answers.
 func (s String) Equivalent(other Value) bool {
 	if o, ok := other.(String); ok {
-		return strings.EqualFold(s.value, o.value)
+		return stringsEquivalent(s.value, o.value)
+	}
+	return false
+}
+
+// stringsEquivalent compares two strings as String.Equivalent does.
+func stringsEquivalent(a, b string) bool {
+	for a != "" && b != "" {
+		ra, na := utf8.DecodeRuneInString(a)
+		rb, nb := utf8.DecodeRuneInString(b)
+		if !runesEquivalent(ra, rb) {
+			return false
+		}
+		a, b = a[na:], b[nb:]
+	}
+	return a == "" && b == ""
+}
+
+// runesEquivalent reports two characters equal, the same letter in another
+// case, or both whitespace.
+func runesEquivalent(a, b rune) bool {
+	if a == b {
+		return true
+	}
+	if unicode.Is(unicode.White_Space, a) && unicode.Is(unicode.White_Space, b) {
+		return true
+	}
+	for folded := unicode.SimpleFold(a); folded != a; folded = unicode.SimpleFold(folded) {
+		if folded == b {
+			return true
+		}
 	}
 	return false
 }
