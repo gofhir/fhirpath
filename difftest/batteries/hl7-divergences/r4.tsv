@@ -1,0 +1,205 @@
+# The expressions measured while working #151, #153 and #155, against HL7's
+# Java engine (validator 6.10.2) and fhirpath.js 5.2.0: resource<TAB>expression<TAB>version.
+bundle.json	Bundle.entry.count()	4.0.1
+bundle.json	Bundle.entry.all(response.exists())	4.0.1
+bundle.json	Bundle.entry[0].exists()	4.0.1
+bundle.json	Bundle.entry[0].response.exists()	4.0.1
+bundle.json	Bundle.entry[0].empty()	4.0.1
+bundle.json	Bundle.entry[0].count()	4.0.1
+bundle.json	Bundle.entry.empty()	4.0.1
+bundle.json	Bundle.entry.exists()	4.0.1
+bundle.json	Bundle.entry.first().exists()	4.0.1
+bundle.json	Bundle.entry.where(response.empty()).count()	4.0.1
+bundle.json	Bundle.entry.exists(response.empty())	4.0.1
+bundle.json	Bundle.entry.children().count()	4.0.1
+bundle.json	Bundle.descendants().count()	4.0.1
+bundle.json	Bundle.entry.select($this).count()	4.0.1
+bundle.json	Bundle.entry.distinct().count()	4.0.1
+bundle.json	Bundle.entry.isDistinct()	4.0.1
+bundle.json	Bundle.entry[0].hasValue()	4.0.1
+bundle.json	Bundle.entry[0].allTrue()	4.0.1
+contact.json	Patient.contact.name.exists()	4.0.1
+contact.json	Patient.contact.name.empty()	4.0.1
+contact.json	Patient.contact.name.count()	4.0.1
+contact.json	Patient.contact.children().count()	4.0.1
+contact.json	Patient.contact.descendants().count()	4.0.1
+contact.json	Patient.contact.name.ofType(HumanName).count()	4.0.1
+contact.json	Patient.contact.name.exists(true)	4.0.1
+contact.json	Patient.contact.name.where(true).exists()	4.0.1
+contact.json	Patient.contact.select(name).exists()	4.0.1
+contact.json	Patient.contact.name.first().exists()	4.0.1
+contact.json	Patient.contact.name.single().exists()	4.0.1
+contact.json	Patient.contact.all(name.exists() or telecom.exists() or address.exists() or organization.exists())	4.0.1
+contact.json	(Patient.contact.name | Patient.contact.name).count()	4.0.1
+contact.json	Patient.contact.name.type().name	4.0.1
+ext.json	Patient.extension.value.exists()	4.0.1
+ext.json	Patient.extension.value.count()	4.0.1
+ext.json	Patient.extension.all(extension.exists() != value.exists())	4.0.1
+ext.json	Patient.extension('u').value.count()	4.0.1
+names.json	Patient.name.count()	4.0.1
+names.json	Patient.name[1].family	4.0.1
+names.json	Patient.name.exists()	4.0.1
+names.json	Patient.name.empty()	4.0.1
+names.json	Patient.children().count()	4.0.1
+names.json	Patient.name.where(family.exists()).count()	4.0.1
+names.json	Patient.name.where(family.empty()).count()	4.0.1
+names.json	Patient.name.where(family.empty()).exists()	4.0.1
+prim.json	Patient.active.exists()	4.0.1
+prim.json	Patient.active.count()	4.0.1
+prim.json	Patient.birthDate.children().count()	4.0.1
+prim.json	Patient.name.given.count()	4.0.1
+prim.json	Patient.name.given	4.0.1
+contact.json	Patient.contact.exists()	4.0.1
+contact.json	Patient.contact.count()	4.0.1
+contact.json	Patient.exists()	4.0.1
+rec.json	Patient.contact[0].name.exists()	4.0.1
+rec.json	Patient.contact[1].name.exists()	4.0.1
+rec.json	Patient.contact[2].name.exists()	4.0.1
+rec.json	Patient.contact[3].name.exists()	4.0.1
+rec.json	Patient.contact[3].name.family.exists()	4.0.1
+rec.json	Patient.contact[3].name.family.count()	4.0.1
+rec.json	Patient.contact.name.count()	4.0.1
+eq.json	Patient.contact[0] ~ Patient.contact[1]	4.0.1
+eq.json	Patient.contact[0] = Patient.contact[1]	4.0.1
+eq.json	Patient.name[0] ~ Patient.name[1]	4.0.1
+eq.json	Patient.name[0] = Patient.name[1]	4.0.1
+eq.json	Patient.contact[0].name ~ Patient.contact[1].name	4.0.1
+res.json	Bundle.entry.resource.exists()	4.0.1
+res.json	Bundle.entry.resource.count()	4.0.1
+res.json	Bundle.entry.exists()	4.0.1
+bare.json	Patient.exists()	4.0.1
+bare.json	%resource.exists()	4.0.1
+prim.json	Patient.name.given.exists()	4.0.1
+prim.json	Patient.name.given.first().exists()	4.0.1
+prim.json	Patient.name.given.empty()	4.0.1
+eq1.json	Patient.contact[0] ~ Patient.contact[1]	4.0.1
+eq2.json	Patient.name[0] ~ Patient.name[1]	4.0.1
+eq2.json	Patient.name[0].given.count()	4.0.1
+eq3.json	Patient.name[0] ~ Patient.name[1]	4.0.1
+eq4.json	Patient.birthDate.children().count()	4.0.1
+eq4.json	Patient.name.given.children().count()	4.0.1
+eq4.json	Patient.name.given.exists()	4.0.1
+contact.json	Patient.contact.name.descendants().count()	4.0.1
+contact.json	Patient.contact.name.children().exists()	4.0.1
+pat.json	Patient.name.as(HumanName).count()	4.0.1
+pat.json	Patient.name.as(humanName).count()	4.0.1
+pat.json	Patient.name.ofType(HumanName).count()	4.0.1
+pat.json	true or Patient.name.given.startsWith('A')	4.0.1
+pat.json	false and Patient.name.given.startsWith('A')	4.0.1
+pat.json	false implies Patient.name.given.startsWith('A')	4.0.1
+range.json	Observation.value.low.lowBoundary().comparable(Observation.value.high.highBoundary())	4.0.1
+range.json	Observation.value.low.lowBoundary() <= Observation.value.high.highBoundary()	4.0.1
+range.json	Observation.value.low < Observation.value.high	4.0.1
+range.json	Observation.value.low = Observation.value.low	4.0.1
+claim.json	Claim.total.comparable(10 'mg')	4.0.1
+claim.json	Claim.total = 30 'USD'	4.0.1
+contact.json	iif(Patient.contact.name, 'y', 'n')	4.0.1
+contact.json	iif(Patient.contact.name.exists(), 'y', 'n')	4.0.1
+contact.json	coalesce(Patient.contact.name, 'x')	4.0.1
+contact.json	Patient.contact.name.not()	4.0.1
+contact.json	Patient.contact.where(name).count()	4.0.1
+contact.json	Patient.contact.name.hasValue()	4.0.1
+contact.json	Patient.contact.name.select($this).exists()	4.0.1
+contact.json	Patient.contact.name.ofType(HumanName).exists()	4.0.1
+contact.json	Patient.contact.name.repeat($this).exists()	4.0.1
+contact.json	Patient.contact.name.distinct().exists()	4.0.1
+contact.json	Patient.contact.name.isDistinct()	4.0.1
+contact.json	Patient.contact.name.allTrue()	4.0.1
+pat.json	Patient.name.descendants().ofType(System.String).count()	4.0.1
+pat.json	Patient.name.given.ofType(System.String).count()	4.0.1
+pat.json	Patient.name.given.ofType(FHIR.string).count()	4.0.1
+pat.json	Patient.name.given.ofType(string).count()	4.0.1
+pat.json	Patient.name.family.first().is(System.String)	4.0.1
+pat.json	Patient.name.family.first().is(string)	4.0.1
+pat.json	Patient.name.family.first().is(String)	4.0.1
+pat.json	Patient.name.family.first().as(System.String).count()	4.0.1
+pat.json	'abc'.is(String)	4.0.1
+pat.json	'abc'.is(string)	4.0.1
+pat.json	'abc'.is(System.String)	4.0.1
+pat.json	'abc'.is(FHIR.string)	4.0.1
+pat.json	Patient.gender.is(code)	4.0.1
+pat.json	Patient.gender.is(string)	4.0.1
+pat.json	Patient.gender.as(string).count()	4.0.1
+pat.json	Patient.gender.ofType(string).count()	4.0.1
+pat.json	Patient.active.is(Boolean)	4.0.1
+pat.json	Patient.active.is(boolean)	4.0.1
+pat.json	Patient.active.is(System.Boolean)	4.0.1
+pat.json	Patient.id.is(System.String)	4.0.1
+pat.json	Patient.id.is(string)	4.0.1
+pat.json	Patient.id.is(id)	4.0.1
+pat.json	Patient.birthDate.value.is(System.Date)	4.0.1
+pat.json	Patient.birthDate.value.is(date)	4.0.1
+pat.json	Patient.birthDate.value.children().count()	4.0.1
+pat.json	Patient.active.value	4.0.1
+extonly.json	Patient.active.hasValue()	4.0.1
+extonly.json	Patient.active.value.exists()	4.0.1
+pat.json	Patient.name[0] = Patient.name[1]	4.0.1
+pat.json	Patient.name[0] ~ Patient.name[1]	4.0.1
+pat.json	Patient.name[0] ~ Patient.name[2]	4.0.1
+pat.json	Patient.name[0] = Patient.name[2]	4.0.1
+qty.json	Observation.value = Observation.component[0].value	4.0.1
+qty.json	Observation.value ~ Observation.component[0].value	4.0.1
+qty.json	Observation.value = Observation.component[1].value	4.0.1
+qty.json	Observation.value ~ Observation.component[1].value	4.0.1
+qty.json	Observation.component[2].value < 5 'mg'	4.0.1
+qty.json	Observation.component[2].value = Observation.component[2].value	4.0.1
+qty.json	Observation.component[2].value.toQuantity().exists()	4.0.1
+qty.json	Observation.value < 5 'mg'	4.0.1
+qty.json	Observation.value = 1 'mg'	4.0.1
+qty.json	Observation.value ~ 1 'mg'	4.0.1
+pat.json	4 'g' ~ 4040 'mg'	4.0.1
+pat.json	4040 'mg' ~ 4 'g'	4.0.1
+pat.json	1 year ~ 11 months	4.0.1
+pat.json	2.4 'm' ~ 200 'cm'	4.0.1
+pat.json	1.5 'Cel' ~ 274.6 'K'	4.0.1
+pat.json	274.6 'K' ~ 1.5 'Cel'	4.0.1
+pat.json	1 year = 1 'a'	4.0.1
+pat.json	1 year ~ 1 'a'	4.0.1
+pat.json	@2020-01-01T10:00:00+05:30 = @2020-01-01T11:00:00+06:30	4.0.1
+pat.json	@2020-01-01T10+05:30 > @2020-01-01T04:29Z	4.0.1
+pat.json	@2020-01-01T10+05:30 > @2020-01-01T04Z	4.0.1
+pat.json	@2020-01-01T10:00:00Z = @2020-01-01T10:00:00	4.0.1
+pat.json	@2020-01-01T10:00:00Z ~ @2020-01-01T10:00:00	4.0.1
+pat.json	@2020-01-01 ~ @2020-01-01T	4.0.1
+pat.json	@2020-01-01 = @2020-01-01T	4.0.1
+pat.json	@2020-01 = @2020-01-01	4.0.1
+pat.json	@2020-01 < @2020-02-15	4.0.1
+pat.json	@2020-01-01T10:00 = @2020-01-01T10:00:00	4.0.1
+pat.json	'2021-02-30'.toDate().exists()	4.0.1
+pat.json	'2021-02-30'.convertsToDate()	4.0.1
+pat.json	@2021-02-30.exists()	4.0.1
+pat.json	'2016-12-31T23:59:60Z'.convertsToDateTime()	4.0.1
+pat.json	2147483647 + 1	4.0.1
+pat.json	9223372036854775807 + 1	4.0.1
+pat.json	Patient.name.type().name	4.0.1
+pat.json	Patient.name.given.type().name	4.0.1
+h155_dar.json	Patient.active is boolean	4.0.1
+h155_dar.json	Patient.active is FHIR.boolean	4.0.1
+h155_dar.json	Patient.active is Boolean	4.0.1
+h155_dar.json	Patient.active is System.Boolean	4.0.1
+h155_dar.json	Patient.active.type().name	4.0.1
+h155_dar.json	Patient.active.type().namespace	4.0.1
+h155_dar.json	Patient.active.ofType(boolean).count()	4.0.1
+h155_dar.json	Patient.active.as(boolean).count()	4.0.1
+h155_dar.json	Patient.birthDate is date	4.0.1
+h155_dar.json	Patient.birthDate.type().name	4.0.1
+h155_dar.json	Patient.gender is code	4.0.1
+h155_dar.json	Patient.gender is string	4.0.1
+h155_dar.json	Patient.gender.type().name	4.0.1
+h155_dar.json	Patient.active.extension.count()	4.0.1
+h155_dar.json	Patient.active.hasValue()	4.0.1
+h155_dar.json	Patient.children().ofType(boolean).count()	4.0.1
+h155_dar.json	Patient.descendants().ofType(date).count()	4.0.1
+h155_empty.json	Patient.active is boolean	4.0.1
+h155_empty.json	Patient.active.type().name	4.0.1
+h155_arr.json	Patient.name.given.first() is string	4.0.1
+h155_arr.json	Patient.name.given.ofType(string).count()	4.0.1
+h155_arr.json	Patient.name.given.first().type().name	4.0.1
+h155_poly.json	Observation.value is string	4.0.1
+h155_poly.json	Observation.value.type().name	4.0.1
+h155_poly.json	Observation.value.ofType(string).count()	4.0.1
+h155_poly.json	Observation.value.ofType(Quantity).count()	4.0.1
+h155_polybool.json	Observation.value is boolean	4.0.1
+h155_polybool.json	Observation.value.type().name	4.0.1
+h155_extval.json	Patient.extension.value is date	4.0.1
+h155_extval.json	Patient.extension.value.type().name	4.0.1

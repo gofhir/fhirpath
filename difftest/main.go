@@ -10,9 +10,12 @@
 // Usage:
 //
 //	go run . [-corpus r4|r5|both|spec|all] [-model] [-v]
+//	go run . -battery file.tsv [-java validator_cli.jar] [-jobs 4] [-v]
 //
 // both is the two official suites, spec is this project's own spec cases, and
-// all is everything.
+// all is everything. -battery compares a list of expressions of one's own
+// across this engine, fhirpath.js and, given the validator's jar (-java, or
+// HL7_VALIDATOR_JAR), HL7's Java engine: see battery.go.
 package main
 
 import (
@@ -35,7 +38,18 @@ func main() {
 	corpusName := flag.String("corpus", "both", "which cases to run: r4, r5, both (the official suites), spec (this project's spec cases) or all")
 	withModel := flag.Bool("model", true, "supply each engine its FHIR model")
 	verbose := flag.Bool("v", false, "list every divergence rather than a summary")
+	battery := flag.String("battery", "", "compare a battery, resource<TAB>expression<TAB>version a line, across the engines")
+	jar := flag.String("java", os.Getenv("HL7_VALIDATOR_JAR"), "the HL7 validator's jar, to compare a battery against HL7's Java engine too")
+	jobs := flag.Int("jobs", 4, "how many Java runs at a time")
 	flag.Parse()
+
+	if *battery != "" {
+		if err := runBattery(*battery, *jar, *jobs, *verbose); err != nil {
+			fmt.Fprintln(os.Stderr, "difftest:", err)
+			os.Exit(1)
+		}
+		return
+	}
 
 	if err := run(*corpusName, *withModel, *verbose); err != nil {
 		fmt.Fprintln(os.Stderr, "difftest:", err)

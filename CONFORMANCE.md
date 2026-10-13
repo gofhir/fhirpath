@@ -324,6 +324,24 @@ through fhirpath.js by hand at the time.
     make difftest                          # both corpora
     make difftest DIFFTEST_ARGS="-v"       # every divergence, not a sample
 
+A battery of one's own, outside any suite, is put to three engines: this one,
+fhirpath.js, and HL7's Java engine, the one the validator runs, through the
+validator's jar. It reports, first, where this engine alone differs from the
+other two, the cases rule 1 under
+[When 2.0.0 and 3.0.0 disagree](#when-200-and-300-disagree) puts on this
+engine to change or justify (#167):
+
+    HL7_VALIDATOR_JAR=~/tools/validator_cli.jar make three-engine
+    make three-engine BATTERY=batteries/hl7-divergences/r5.tsv DIFFTEST_ARGS="-v -jobs 6"
+
+A battery is `resource<TAB>expression<TAB>version` a line, the resource a JSON
+file beside it, the version 4.0.1 or 5.0.0. `difftest/batteries/hl7-divergences`
+holds the expressions measured for #151, #153 and #155. The Java engine takes
+seconds a case, nearly all of it loading packages, and runs `-jobs` at a time.
+Objects are compared only as objects, since the Java engine names them by type
+and the others write their JSON, and an item holding a comma reads as two from
+the Java engine, which joins its items with commas.
+
 It reports four kinds, and the order is the order worth reading them in: cases
 this engine gets wrong by the suite's reckoning, cases where both engines agree
 against the suite, cases fhirpath.js gets wrong, and cases the suite states no
