@@ -127,6 +127,12 @@ type answer struct {
 	ID      string   `json:"id"`
 	Results []string `json:"results"`
 	Error   string   `json:"error"`
+
+	// javaLine is the line HL7's Java engine wrote its result on, the items
+	// joined by commas, which cannot be split back where an item holds one:
+	// a Java answer is compared as that line. See sameThreeWay.
+	javaLine string
+	isJava   bool
 }
 
 func (a answer) failed() bool { return a.Error != "" }
