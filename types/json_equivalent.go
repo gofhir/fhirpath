@@ -403,18 +403,120 @@ func equalJSON(a, b []byte) bool {
 	return ok && equalObjects(&left, &right)
 }
 
-// equalObjects compares two parsed objects child by child, by key.
+// equalObjects compares two parsed objects child by child, by name. A
+// primitive and the element FHIR writes beside it, given and _given, are one
+// child: each value is compared with the element at its own position, so
+// that an extension on the second given is not one on the first.
 func equalObjects(left, right *jsonObject) bool {
-	if len(left.children) != len(right.children) {
-		return false
+	for _, l := range left.children {
+		name, isElement := childName(l.key)
+		if isElement && left.has(name) {
+			continue // compared with its primitive
+		}
+		if !equalNamed(left, right, name) {
+			return false
+		}
 	}
-	for i, l := range left.children {
-		r, found := right.find(l.key, i)
-		if !found || !equalChildren(l, r) {
+	for _, r := range right.children {
+		name, isElement := childName(r.key)
+		if isElement && right.has(name) {
+			continue
+		}
+		if !left.has(name) && !left.has("_"+name) {
 			return false
 		}
 	}
 	return true
+}
+
+// childName is the name a key stands for: given for given and for _given,
+// which is its element.
+func childName(key []byte) (name string, isElement bool) {
+	if len(key) > 1 && key[0] == '_' {
+		return string(key[1:]), true
+	}
+	return string(key), false
+}
+
+// has reports a child of an object by its key.
+func (o *jsonObject) has(key string) bool {
+	_, found := o.find([]byte(key), len(o.children))
+	return found
+}
+
+// equalNamed compares the child a name stands for on each side: its values,
+// and the elements beside them where either side writes any.
+func equalNamed(left, right *jsonObject, name string) bool {
+	key, elementKey := []byte(name), []byte("_"+name)
+	lv, lok := left.find(key, len(left.children))
+	rv, rok := right.find(key, len(right.children))
+	le, leok := left.find(elementKey, len(left.children))
+	re, reok := right.find(elementKey, len(right.children))
+	if !leok && !reok {
+		return lok && rok && equalChildren(lv, rv)
+	}
+	l, r := pairedItems(lv, lok, le, leok), pairedItems(rv, rok, re, reok)
+	if len(l) != len(r) {
+		return false
+	}
+	for i := range l {
+		if !equalOptional(l[i].value, r[i].value) || !equalOptional(l[i].element, r[i].element) {
+			return false
+		}
+	}
+	return true
+}
+
+// pairedItem is a primitive's value and the element beside it at one
+// position, either nil where none is written.
+type pairedItem struct {
+	value, element *childValue
+}
+
+// pairedItems lists a primitive's items, each value with the element at its
+// position; a position with neither, a null beside a null or an element that
+// holds no value, is no item, as navigation reads it.
+func pairedItems(value jsonChild, valueFound bool, element jsonChild, elementFound bool) []pairedItem {
+	values, elements := positionalValues(value, valueFound), positionalValues(element, elementFound)
+	var items []pairedItem
+	for i := range max(len(values), len(elements)) {
+		var item pairedItem
+		if i < len(values) && values[i].dataType != jsonparser.Null {
+			item.value = &values[i]
+		}
+		if i < len(elements) && !holdsNoValue(elements[i].data, elements[i].dataType) {
+			item.element = &elements[i]
+		}
+		if item.value != nil || item.element != nil {
+			items = append(items, item)
+		}
+	}
+	return items
+}
+
+// positionalValues lists a child's values by position, nulls kept, a single
+// value as one.
+func positionalValues(child jsonChild, found bool) []childValue {
+	switch {
+	case !found:
+		return nil
+	case child.dataType != jsonparser.Array:
+		return []childValue{{child.data, child.dataType}}
+	}
+	var values []childValue
+	//nolint:errcheck // An array that does not parse lists what it read
+	jsonparser.ArrayEach(child.data, func(value []byte, dataType jsonparser.ValueType, _ int, _ error) {
+		values = append(values, childValue{value, dataType})
+	})
+	return values
+}
+
+// equalOptional compares two values either of which may be absent.
+func equalOptional(left, right *childValue) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return equalValues(*left, *right)
 }
 
 // equalChildren compares a child's values on each side, in order.

@@ -74,6 +74,18 @@ func TestObjectEqualityByContent(t *testing.T) {
 		{"an escape against its character", `{"display":"a\u0020b"}`, `{"display":"A B"}`, "false", "true"},
 		{"a string against a number", `{"code":"a","version":"1"}`, `{"code":"a","version":1}`, "false", "false"},
 		{"repeats alike and in another case", `{"code":"a","extension":[{"url":"a"},{"url":"A"}]}`, `{"code":"a","extension":[{"url":"a"},{"url":"a"}]}`, "false", "true"},
+		// a key written twice, which no valid resource has, is read where it
+		// first stands with a value
+		{"a key written twice", `{"code":"a","code":"b"}`, `{"code":"a"}`, "true", "true"},
+		{"a key written twice after a null", `{"code":null,"code":"b"}`, `{"code":"b"}`, "true", "true"},
+		// a primitive's value and the element beside it pair by position under
+		// =. ~ compares the values and the elements apart, each in any order,
+		// so it does not tell the last two apart, where fhirpath.js does; left
+		// unasserted here
+		{"an element beside the same value", `{"given":["x","y"],"_given":[null,{"id":"e"}]}`, `{"_given":[null,{"id":"e"}],"given":["x","y"]}`, "true", "true"},
+		{"an element beside another value", `{"given":["x","y"],"_given":[null,{"id":"e"}]}`, `{"given":["x","y"],"_given":[{"id":"e"},null]}`, "false", ""},
+		{"an element that holds no value", `{"given":["x"],"_given":[{}]}`, `{"given":["x"]}`, "true", "true"},
+		{"an element where the value is null", `{"given":[null,"y"],"_given":[{"id":"e"},null]}`, `{"given":["y"],"_given":[{"id":"e"}]}`, "false", ""},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			data := codingsAt(tc.first, tc.second)
@@ -83,6 +95,9 @@ func TestObjectEqualityByContent(t *testing.T) {
 				"Basic.code.coding ~ Basic.extension.value": tc.equivalent,
 				"Basic.extension.value ~ Basic.code.coding": tc.equivalent,
 			} {
+				if want == "" {
+					continue
+				}
 				if got := evaluateScalar(t, expr, data); got != want {
 					t.Errorf("%s = %s, want %s", expr, got, want)
 				}

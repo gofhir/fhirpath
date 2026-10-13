@@ -328,18 +328,14 @@ func literalEnd(data []byte, i int) int {
 // orderedEqualFromDifference is orderedEqual started at the token where the
 // two texts first differ, everything before it being the same bytes: the
 // common prefix is found a word at a time, which is what keeps a pair of large
-// objects that differ late as cheap to tell apart as comparing bytes was. A
-// prefix holding an escape, whose quotes cannot be counted, is undecided.
+// objects that differ late as cheap to tell apart as comparing bytes was.
 func orderedEqualFromDifference(a, b []byte) (equal, decided bool) {
 	d := firstDifference(a, b)
 	prefix := a[:d]
-	if bytes.IndexByte(prefix, '\\') >= 0 {
-		return false, false
-	}
 	start := d
-	if bytes.Count(prefix, []byte{'"'})%2 == 1 {
+	if inString, opening := stringAt(prefix); inString {
 		// Inside a string: from its opening quote
-		start = bytes.LastIndexByte(prefix, '"')
+		start = opening
 	} else {
 		// Inside a number or a literal: from its first character
 		for start > 0 && strings.IndexByte("+-0123456789.eEabcdefghijklmnopqrstuvwxyz", a[start-1]) >= 0 {
@@ -363,4 +359,27 @@ func firstDifference(a, b []byte) int {
 	for ; i < n && a[i] == b[i]; i++ {
 	}
 	return i
+}
+
+// stringAt reports whether the end of a JSON text stands inside a string, and
+// where that string opens. It reads only the quotes and backslashes, an
+// escaped quote, \", no quote: a resource's narrative is full of them.
+func stringAt(text []byte) (inString bool, opening int) {
+	for i := 0; i < len(text); {
+		k := bytes.IndexAny(text[i:], "\"\\")
+		if k < 0 {
+			break
+		}
+		i += k
+		if text[i] == '\\' {
+			i += 2
+			continue
+		}
+		if !inString {
+			opening = i
+		}
+		inString = !inString
+		i++
+	}
+	return inString, opening
 }
