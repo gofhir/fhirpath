@@ -655,11 +655,11 @@ func (f fields) namedPartyType() string {
 	return ""
 }
 
-// Equal reports two objects with the same content, apart from the whitespace
-// between tokens. See sameJSON.
+// Equal reports two objects whose children are equal, recursively, found by
+// key wherever each object writes them: see equalJSON.
 func (o *ObjectValue) Equal(other Value) bool {
 	if ov, ok := other.(*ObjectValue); ok {
-		return sameJSON(o.data, ov.data)
+		return equalJSON(o.data, ov.data)
 	}
 	return false
 }
