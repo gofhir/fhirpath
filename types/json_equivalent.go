@@ -372,3 +372,91 @@ func childValues(child jsonChild) ([]childValue, bool) {
 func valueEquivalent(left, right Value) bool {
 	return left != nil && right != nil && left.Equivalent(right)
 }
+
+// equalJSON compares two JSON objects as = does: "For complex types,
+// equality requires all child properties to be equal, recursively." A child is
+// found by its key, wherever the object writes it, as fhirpath.js and HL7's
+// Java engine both find it; a child that repeats is compared in order, "Comparison
+// is order dependent"; a number is compared as a decimal, "trailing zeroes
+// after the decimal are ignored", so 1 and 1.0 are equal, as fhirpath.js has
+// it; a string is compared as it reads, an escaped character as the character
+// itself. The children navigation reads nothing from are left out, as ~
+// leaves them: see parseJSONObject.
+//
+// Texts alike apart from their layout are equal unread, which is how most
+// pairs that are equal compare, and a pair whose keys stand in one order and
+// that differs in a value is unequal unread, which is how most pairs that
+// differ compare: see orderedEqual. Only the rest, keys in another order among
+// them, are read child by child.
+func equalJSON(a, b []byte) bool {
+	if sameJSON(a, b) {
+		return true
+	}
+	if equal, decided := orderedEqualFromDifference(a, b); decided {
+		return equal
+	}
+	left, ok := parseJSONObject(a)
+	if !ok {
+		return false
+	}
+	right, ok := parseJSONObject(b)
+	return ok && equalObjects(&left, &right)
+}
+
+// equalObjects compares two parsed objects child by child, by key.
+func equalObjects(left, right *jsonObject) bool {
+	if len(left.children) != len(right.children) {
+		return false
+	}
+	for i, l := range left.children {
+		r, found := right.find(l.key, i)
+		if !found || !equalChildren(l, r) {
+			return false
+		}
+	}
+	return true
+}
+
+// equalChildren compares a child's values on each side, in order.
+func equalChildren(left, right jsonChild) bool {
+	if writtenAlike(left.data, left.dataType, right.data, right.dataType) {
+		return true
+	}
+	l, ok := childValues(left)
+	if !ok {
+		return false
+	}
+	r, ok := childValues(right)
+	if !ok || len(l) != len(r) {
+		return false
+	}
+	for i := range l {
+		if !equalValues(l[i], r[i]) {
+			return false
+		}
+	}
+	return true
+}
+
+// equalValues compares two values of a child as = does.
+func equalValues(left, right childValue) bool {
+	if left.dataType != right.dataType {
+		return false
+	}
+	switch left.dataType {
+	case jsonparser.Object:
+		return equalJSON(left.data, right.data)
+	case jsonparser.Number:
+		l, lerr := ParseDecimal(string(left.data))
+		r, rerr := ParseDecimal(string(right.data))
+		return lerr == nil && rerr == nil && l.Equal(r)
+	case jsonparser.String:
+		if bytes.Equal(left.data, right.data) {
+			return true
+		}
+		l, lerr := jsonparser.ParseString(left.data)
+		r, rerr := jsonparser.ParseString(right.data)
+		return lerr == nil && rerr == nil && l == r
+	}
+	return sameJSON(left.data, right.data)
+}
