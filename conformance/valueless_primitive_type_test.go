@@ -36,15 +36,17 @@ func TestAValuelessPrimitiveIsOfItsTypeWithTheGeneratedModels(t *testing.T) {
 		{"Patient.active.extension.count()", "[1]"},
 	}
 
-	// R4 types Resource.id and Extension.url System.String. Written with no
-	// value, such a field is a string, as the validator has it for is, except
-	// that the validator also takes url for a uri.
+	// Resource.id and Extension.url have System.String as their type code and
+	// name their FHIR type in structuredefinition-fhir-type, which the model
+	// hands the engine: Resource.id a string in R4 and an id from R4B, whose
+	// definitions say so, Extension.url a uri. Written with no value, such a
+	// field is of that type, as the validator has it.
 	systemTyped := `{"resourceType":"Patient","_id":` + dar + `,"extension":[{"_url":` + dar + `,"valueString":"x"}]}`
-	systemTests := []struct{ expr, want string }{
-		{"Patient.id is string", "[true]"},
-		{"Patient.id is id", "[false]"},
-		{"Patient.id is String", "[false]"},
-		{"Patient.extension.url is uri", "[false]"},
+	systemTests := []struct{ expr, r4, later string }{
+		{"Patient.id is string", "[true]", "[true]"},
+		{"Patient.id is id", "[false]", "[true]"},
+		{"Patient.id is String", "[false]", "[false]"},
+		{"Patient.extension.url is uri", "[true]", "[true]"},
 	}
 
 	for _, model := range []struct {
@@ -68,8 +70,12 @@ func TestAValuelessPrimitiveIsOfItsTypeWithTheGeneratedModels(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if got := result.String(); got != tt.want {
-					t.Errorf("%s = %s, want %s", tt.expr, got, tt.want)
+				want := tt.later
+				if model.name == "r4" {
+					want = tt.r4
+				}
+				if got := result.String(); got != want {
+					t.Errorf("%s = %s, want %s", tt.expr, got, want)
 				}
 			})
 		}

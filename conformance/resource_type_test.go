@@ -11,8 +11,11 @@ import (
 
 // With the generated R4, R4B and R5 models, a resource in an element declared Resource —
 // Bundle.entry.resource, contained — takes the type its resourceType names, and
-// an id the model declares as System.String is a String. bdl-11 depends on the
-// first: type = 'document' implies entry.first().resource.is(Composition).
+// its id the type the definitions give Resource.id: System.String in R4, which
+// names it a string, and an id from R4B. Either way it is read as a string
+// however it looks: "2020" is no date.
+// bdl-11 depends on the first: type = 'document' implies
+// entry.first().resource.is(Composition).
 func TestAResourceTakesTheTypeItNamesWithTheGeneratedModels(t *testing.T) {
 	document := `{"resourceType":"Bundle","type":"document","entry":[` +
 		`{"resource":{"resourceType":"Composition","id":"c","status":"final"}},` +
@@ -24,14 +27,17 @@ func TestAResourceTakesTheTypeItNamesWithTheGeneratedModels(t *testing.T) {
 		resource string
 		expr     string
 		want     string
+		// fromR4B is the answer from R4B, where it differs from R4's
+		fromR4B string
 	}{
-		{document, "type = 'document' implies entry.first().resource.is(Composition)", "[true]"},
-		{document, "entry.resource.type().name", "[Composition, Patient]"},
-		{document, "entry.resource.ofType(Patient).birthDate.type().name", "[date]"},
-		{observation, "contained.type().name", "[Patient]"},
-		{observation, "contained.ofType(Patient).count()", "[1]"},
-		{observation, "contained.id.type().name", "[String]"},
-		{observation, "contained.id.type().namespace", "[System]"},
+		{document, "type = 'document' implies entry.first().resource.is(Composition)", "[true]", ""},
+		{document, "entry.resource.type().name", "[Composition, Patient]", ""},
+		{document, "entry.resource.ofType(Patient).birthDate.type().name", "[date]", ""},
+		{observation, "contained.type().name", "[Patient]", ""},
+		{observation, "contained.ofType(Patient).count()", "[1]", ""},
+		{observation, "contained.id.type().name", "[String]", "[id]"},
+		{observation, "contained.id.type().namespace", "[System]", "[FHIR]"},
+		{observation, "contained.id = '2020'", "[true]", ""},
 	}
 
 	for _, model := range []struct {
@@ -44,8 +50,12 @@ func TestAResourceTakesTheTypeItNamesWithTheGeneratedModels(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				if got := result.String(); got != tt.want {
-					t.Errorf("%s = %s, want %s", tt.expr, got, tt.want)
+				want := tt.want
+				if tt.fromR4B != "" && model.name != "r4" {
+					want = tt.fromR4B
+				}
+				if got := result.String(); got != want {
+					t.Errorf("%s = %s, want %s", tt.expr, got, want)
 				}
 			})
 		}

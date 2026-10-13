@@ -190,3 +190,45 @@ func TestAnalyzeDoesNotAffectEvaluation(t *testing.T) {
 		t.Errorf("got %v, want lbs", result)
 	}
 }
+
+// systemTypedAnalysisModel types Patient.id with a System type, as the
+// definitions do.
+type systemTypedAnalysisModel struct{ testModel }
+
+func (systemTypedAnalysisModel) TypeOf(path string) string {
+	switch path {
+	case "Patient.id", "id.id":
+		return "http://hl7.org/fhirpath/System.String"
+	case "id.extension", "Patient.extension":
+		return "Extension"
+	}
+	return ""
+}
+
+func (systemTypedAnalysisModel) IsResource(name string) bool { return name == "Patient" }
+
+// namingAnalysisModel also names Patient.id's FHIR type, as FHIRTypes says.
+type namingAnalysisModel struct{ systemTypedAnalysisModel }
+
+func (namingAnalysisModel) FHIRTypeOf(path string) string {
+	if path == "Patient.id" {
+		return "id"
+	}
+	return ""
+}
+
+// The analysis types an element as evaluation does: with a model that names
+// Patient.id's FHIR type, id, it can prove an element id does not have, and
+// without one, Patient.id is a System.String it has nothing to say about.
+func TestAnalyzeTypesASystemTypedElementByItsFHIRType(t *testing.T) {
+	expr := MustCompile("Patient.id.nonexistent")
+	if err := expr.Analyze(namingAnalysisModel{}, "Patient"); err == nil {
+		t.Error("expected a fault with a model that names Patient.id an id")
+	}
+	if err := expr.Analyze(systemTypedAnalysisModel{}, "Patient"); err != nil {
+		t.Errorf("expected no fault with a model that does not, got %v", err)
+	}
+	if err := MustCompile("Patient.id.extension").Analyze(namingAnalysisModel{}, "Patient"); err != nil {
+		t.Errorf("expected no fault for an element id has, got %v", err)
+	}
+}

@@ -1851,10 +1851,16 @@ func TestTypeMatchesWithModel(t *testing.T) {
 		{"HumanName doesn't match Resource with model", "HumanName", "Resource", model, false},
 		{"BackboneElement doesn't match Resource with model", "BackboneElement", "Resource", model, false},
 
-		// Spec-stable maps always work with model
-		{"code matches String with model (spec map)", "String", "code", model, true},
-		{"instant matches DateTime with model (spec map)", "DateTime", "instant", model, true},
-		{"uri matches String with model (spec map)", "String", "uri", model, true},
+		// With a model, a System value is none of the FHIR types that convert
+		// to it, and a FHIR type none of the others that share its System type:
+		// R4's Patient.id, a System.String, is no id, and a uri no string, as
+		// the HL7 validator and fhirpath.js both answer
+		{"String does not match code with model", "String", "code", model, false},
+		{"DateTime does not match instant with model", "DateTime", "instant", model, false},
+		{"String does not match uri with model", "String", "uri", model, false},
+		{"uri does not match string with model", "uri", "string", model, false},
+		{"String matches string with model", "String", "string", model, true},
+		{"uri matches System.String with model", "uri", "System.String", model, false},
 
 		// Namespace handling works with model
 		{"System.Boolean matches with model", "Boolean", "System.Boolean", model, true},

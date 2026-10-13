@@ -179,26 +179,33 @@ func (a *resolverAdapter) Resolve(ctx context.Context, reference string) ([]byte
 
 // modelAdapter adapts fhirpath.Model to eval.Model
 type modelAdapter struct {
-	model Model
+	model     Model
+	fhirTypes FHIRTypes
 }
 
 // newModelAdapter wraps a model for the evaluator. A model that orders
 // children gets an adapter that does too; one that does not gets one without
 // the method, since having it at all is what tells the evaluator to order.
 func newModelAdapter(m Model) eval.Model {
+	fhirTypes, _ := m.(FHIRTypes)
 	if ordered, ok := m.(ElementOrder); ok {
-		return &orderingModelAdapter{modelAdapter: modelAdapter{model: m}, order: ordered}
+		return &orderingModelAdapter{modelAdapter: modelAdapter{model: m, fhirTypes: fhirTypes}, order: ordered}
 	}
-	return &modelAdapter{model: m}
+	return &modelAdapter{model: m, fhirTypes: fhirTypes}
 }
 
 func (a *modelAdapter) ChoiceTypes(path string) []string      { return a.model.ChoiceTypes(path) }
-func (a *modelAdapter) TypeOf(path string) string             { return a.model.TypeOf(path) }
 func (a *modelAdapter) ReferenceTargets(path string) []string { return a.model.ReferenceTargets(path) }
 func (a *modelAdapter) ParentType(typeName string) string     { return a.model.ParentType(typeName) }
 func (a *modelAdapter) IsSubtype(child, parent string) bool   { return a.model.IsSubtype(child, parent) }
 func (a *modelAdapter) ResolvePath(path string) string        { return a.model.ResolvePath(path) }
 func (a *modelAdapter) IsResource(typeName string) bool       { return a.model.IsResource(typeName) }
+
+// TypeOf gives an element whose type code is a System type the FHIR type the
+// model names for it, where it names one: see FHIRTypes.
+func (a *modelAdapter) TypeOf(path string) string {
+	return declaredType(a.model, a.fhirTypes, path)
+}
 
 // FHIRVersion forwards the version when the wrapped model declares one, and
 // returns "" otherwise, which the evaluator reads as pre-R5.

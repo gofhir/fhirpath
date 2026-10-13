@@ -1792,16 +1792,7 @@ func (o *ObjectValue) unpairedChildren(basePath string, res ElementTypeResolver)
 // the model can still answer for. fhirType is "" when there is no resolver or
 // the model knows neither form, leaving the caller on structural inference.
 func (o *ObjectValue) childElement(basePath, name string, res ElementTypeResolver) (childPath, fhirType string) {
-	candidates := make([]string, 0, 2)
-
-	// The object's own type covers complex types and contained resources, whose
-	// type comes from resourceType.
-	if t := o.Type(); t != "" && t != typeObject {
-		candidates = append(candidates, t+"."+name)
-	}
-	if basePath != "" {
-		candidates = append(candidates, basePath+"."+name)
-	}
+	candidates := o.childCandidates(basePath, name, res)
 
 	if res != nil {
 		for _, candidate := range candidates {
@@ -1832,6 +1823,39 @@ func (o *ObjectValue) childElement(basePath, name string, res ElementTypeResolve
 		return candidates[0], ""
 	}
 	return name, ""
+}
+
+// childCandidates lists the paths a named child may be defined at, in the
+// order they are asked. The object's own type covers complex types and
+// contained resources, whose type comes from resourceType; the path it was
+// reached by covers backbone elements. A path defined elsewhere, R4's
+// PlanDefinition.action.action by PlanDefinition.action, is asked as the
+// model resolves it, so that a walk keeps typing what lies beneath it.
+//
+// A backbone element is defined where it was reached, and BackboneElement
+// says only what every one has, so its path comes first: R5 makes
+// BackboneElement.id an id, and Patient.contact.id a string.
+func (o *ObjectValue) childCandidates(basePath, name string, res ElementTypeResolver) []string {
+	candidates := make([]string, 0, 2)
+	var reached string
+	if basePath != "" {
+		reached = basePath + "." + name
+		if resolver, ok := res.(interface{ ResolvePath(string) string }); ok {
+			reached = resolver.ResolvePath(reached)
+		}
+	}
+	t := o.Type()
+	backbone := t == "BackboneElement"
+	if reached != "" && backbone {
+		candidates = append(candidates, reached)
+	}
+	if t != "" && t != typeObject {
+		candidates = append(candidates, t+"."+name)
+	}
+	if reached != "" && !backbone {
+		candidates = append(candidates, reached)
+	}
+	return candidates
 }
 
 // primitiveChildElement resolves a field of the element FHIR writes beside a

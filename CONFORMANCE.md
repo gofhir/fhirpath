@@ -81,15 +81,13 @@ differently in two places:
 | Expression | Validator R4 | Validator R5 | This engine |
 |---|---|---|---|
 | `Patient.name.as(HumanName)`, three names | filters | an error | as the validator, by the model's version |
-| `Patient.id.is(id)` / `is(System.String)` | false / true | true / false | true / true, both versions |
+| `Patient.id.is(id)` / `is(System.String)` | false / true | true / false | as the validator, by what the model's definitions name |
 
-The definitions name the FHIR type of such a field, `id` for `Resource.id`, in
-`structuredefinition-fhir-type`, in R4 and R5 alike; the validator reads it
-for R5 only. Following it needs that type, which no model here hands the
-engine: gofhir/models#84 and gofhir/fhirpath#165. A field the model types
-`System.String` reads as one here, so `Patient.id.is(System.String)` is true,
-where a FHIR string, `Patient.name.family`, is not a System.String: see
-[Measured, and not followed](#measured-and-not-followed).
+The second is no rule of the version. The definitions name the FHIR type of
+`Resource.id` in `structuredefinition-fhir-type`, and R4's name a string where
+R4B's and R5's name an id; the validator reads the extension in every version.
+A model that implements `FHIRTypes` hands the engine that type: see
+[Where this engine follows the HL7 validator](#where-this-engine-follows-the-hl7-validator-over-the-specification-text).
 Every other expression measured this engine answers alike for R4 and R5, as
 the validator does. One rule the batteries did not reach also depends on the
 version here: `conformsTo()` on a profile it cannot resolve; see
@@ -1094,14 +1092,49 @@ FHIR.boolean`: see [Measured, and not followed](#measured-and-not-followed).
 Having no value, it is no System value: `ofType(Boolean)` leaves it out, where
 it keeps a `boolean` with one, and the validator raises an exception on both.
 
-R4 types `Resource.id`, `Element.id` and `Extension.url` `System.String`, and
-names their FHIR type, `id` or `uri`, in an extension no model here reads. With
-a value, such a field is a System.String this engine also takes for the FHIR
-type names: `Patient.id is id` and `is String` are true, where the validator
-answers false to both. Written with no value it is a `string`, as the validator
-has it for `is`: `Patient.id is string` true, `is id` and `is String` false.
-`Extension.url is uri` is the one it misses there: false, where the validator
-answers true with a value and without one.
+`Resource.id`, `Element.id` and `Extension.url` have `System.String` as their
+type code, and name their FHIR type in `structuredefinition-fhir-type`, which
+"specifies the applicable FHIR type": `Extension.url` a uri in every version,
+`Resource.id` and a datatype's id a string in R4 and an id from R4B, a
+primitive's id and a backbone element's a string, and `Element.id` a string
+but in R4B, which makes it an id. Each path is its own: R5 makes
+`BackboneElement.id` an id and `Patient.contact.id` a string. The validator
+types each field by what its version's definitions name, measured with
+`-version 4.0.1`, `4.3.0` and `5.0.0` (6.10.2), and so does this engine with a
+model that implements `FHIRTypes`, as gofhir/models' generated ones do:
+
+| Expression | Validator | fhirpath.js | This engine |
+|---|---|---|---|
+| R5 `Patient.id.is(id)`, `.as(id)`, `.ofType(id)` | true, the id | false, empty | as the validator |
+| R5 `Patient.id.is(System.String)` | false | true | as the validator |
+| `Extension.url.is(uri)` | true | false | as the validator |
+| R4 `Patient.id.is(System.String)`, `type()` | true, `System.String` | true, `System.String` | as both |
+| R4 `Patient.id.is(id)`, `is(uri)`; `Extension.url.is(string)` | false | false | as both |
+| R4 `Patient.id.is(string)` | true | false | as the validator |
+
+So a field its definitions name a uri or an id is that FHIR type, and one they
+name a string stays a System.String, as both engines read it. A System.String
+is none of the FHIR types that convert to it, and with a model a FHIR type is
+none of the others that share its System type: a uri is no string. Over 76
+expressions on R4 and R5, this engine differs from both engines at once in one:
+the `type().namespace` of R5's `Patient.id`, `System` in the validator, which
+names it `Id`, and in fhirpath.js, which names it `String`; see the `type()`
+row of [Measured, and not followed](#measured-and-not-followed).
+
+Up to 1.14.0 no model named those types, and a System.String from the model
+was taken for every FHIR type that converts to it: `Patient.id.is(id)`,
+`is(uri)` and `is(code)` true in every version. That reading hid a walk that
+lost its types beneath a path defined elsewhere: `descendants()` beneath R4's
+`PlanDefinition.action.action` read `definitionCanonical` as a System.String,
+which dom-3's `descendants().as(canonical)` found only by that reading. The
+walk now types it a canonical, and dom-3 answers as it did over the R4, R4B
+and R5 examples. A model that does not implement `FHIRTypes` has such a field
+read as a System.String.
+
+Written with no value, such a field is still a FHIR primitive, of the type its
+definitions name: `Patient.id is string` true, `is id` false in R4 and true
+from R4B, `is String` false, and `Extension.url is uri` true, as the validator
+answers with a value and without one.
 
 | On | Expression | Validator and this engine |
 |---|---|---|
@@ -1278,7 +1311,7 @@ was reasoned or accidental.
 | Type of a polymorphic element without a model | Taken from the field name, corrected to FHIR's casing | `valueOid` states the element is an `oid`; that is information in the document, not a guess. The value itself says whether the type is primitive or complex |
 | An element written as an empty object, `"name": {}` or an item `{}` of an array | An item of its collection that `exists()` and `empty()` answer as though it were not there | Where the HL7 validator answers over the specification text: see [An element that holds no value](#an-element-that-holds-no-value) |
 | A FHIR primitive's `value`, and `hasValue()`/`getValue()` | The System value the primitive holds, without its FHIR type or element. `hasValue()` is true only of a single FHIR primitive with a value: a complex value, or a primitive with only an id or extensions, has none, however the object was made. An object typed as a FHIR primitive, as a validator builds `"_family"` to evaluate it as the root, written `string`, `FHIR.string` or R4's `http://hl7.org/fhirpath/System.String`, is a primitive with no value; the element beside a primitive that has one is not | FHIR: "FHIR.string … has the properties id, extension, and also the implicit value property that is actually of type of System.String", so `birthDate.value is System.Date`. The HL7 validator answers `value` with a FHIR `string` of the text whatever the primitive's type; that is not what the text says. `hasValue()` on a complex value: see [Measured, and not followed](#measured-and-not-followed) |
-| What is a FHIR primitive, as opposed to a System value | By where the value came from: one read from the resource is a FHIR primitive, with or without a model, and even where the model types it a System one; a literal or a function's result is a System value | `'abc'.value` is empty and `'abc'.hasValue()` false with or without a model, as the text says, and so for `active.toBoolean()`. A primitive at a path the model does not know is still a FHIR primitive, so ele-1 holds on it. R4 gives `Resource.id`, `Element.id` and `Extension.url` the type code `System.String` and names their FHIR type, `id`, `string` and `uri`, in `structuredefinition-fhir-type`; the two parts of the definition disagree, and we follow the one that names the FHIR type, as the HL7 validator does, so `Patient.id.hasValue()` is true. Their `type()` stays what the model gives |
+| What is a FHIR primitive, as opposed to a System value | By where the value came from: one read from the resource is a FHIR primitive, with or without a model, and even where the model types it a System one; a literal or a function's result is a System value | `'abc'.value` is empty and `'abc'.hasValue()` false with or without a model, as the text says, and so for `active.toBoolean()`. A primitive at a path the model does not know is still a FHIR primitive, so ele-1 holds on it. R4 gives `Resource.id`, `Element.id` and `Extension.url` the type code `System.String` and names their FHIR type, `id`, `string` and `uri`, in `structuredefinition-fhir-type`; the two parts of the definition disagree, and we follow the one that names the FHIR type, as the HL7 validator does, so `Patient.id.hasValue()` is true. Their type is the one the definitions name, where the model hands it: see [Where this engine follows the HL7 validator](#where-this-engine-follows-the-hl7-validator-over-the-specification-text) |
 | A primitive's value in `children()` and `descendants()` | Not a child | Where the HL7 validator answers over the specification text: see [A primitive's value is not a child](#a-primitives-value-is-not-a-child) |
 | `is()`, `as()` and `ofType()` on a System value | Only System types match, with a model or without one | A literal, a function's result or a primitive's value is a System value: `'abc'.is(String)` and `'abc'.is(System.string)` are true, `'abc'.is(string)` and `'abc'.is(FHIR.string)` false. Without a model only a value read from the resource is taken for what its type name might be in FHIR, so a literal or a function's result is never a FHIR string. `ofType(System.string)` still finds FHIR strings too: "ofType() does not have such restrictions" |
 | Order of `children()` and `descendants()` | With a model that implements `ElementOrder`, the order the element's definition lists its children in; otherwise as the JSON writes them | The text leaves it undefined — "using functions like first() on the result may return different results on different platforms" — and allows "the logical order implied by the object model", which is the order the HL7 validator's parser builds. JSON keys are unordered, so without it one instance written two ways answers `children().first()` two ways. A field the definition does not list comes last, as written, where HL7 rejects it; an array keeps its order; an object the model does not know, or whose type is only guessed from its fields, stays as written. A primitive's element, `_birthDate`, is ordered and its fields typed by its primitive's type, `date`: id, then extension; and every element's `extension` is an `Extension`, as `Element` defines it, where a model does not list a primitive type's elements. An instance already in the definition's order, as HL7 and HAPI write, costs no allocation |

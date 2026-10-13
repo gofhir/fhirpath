@@ -2549,8 +2549,16 @@ func TypeMatchesWithModel(actualType, typeName string, model Model) bool {
 		if bare != typeName {
 			return false
 		}
-		// Only use spec-stable mappings (skip version-specific profiled types)
-		return typeMatchesSpecMaps(actualType, typeName, actualLower, typeNameLower, fhirPathSpecMap)
+		// The model's hierarchy answers for FHIR types, and a FHIR type is
+		// none of the System types its value converts to: uri is no string,
+		// though both convert to System.String. Nor is a System value any of
+		// the FHIR types that convert to it: Resource.id, which R4 types
+		// System.String, is not an id there, as the HL7 validator and
+		// fhirpath.js both answer. What is left is the System namespace.
+		if strings.HasPrefix(typeNameLower, "system.") {
+			return matchesSystemType(actualType, typeName[len("system."):])
+		}
+		return false
 	}
 
 	// No model: full heuristic (backward compatible)
@@ -2695,13 +2703,25 @@ func (e *Evaluator) buildElementPath(objType, name string) string {
 // fhirType is "" when there is no model or it knows neither form, in which case
 // the caller falls back to untyped field access.
 func (e *Evaluator) resolveElement(obj *types.ObjectValue, name string) (elementPath, fhirType string) {
-	elementPath = e.buildElementPath(obj.Type(), name)
-
+	objType := obj.Type()
 	m := e.ctx.model
 	if m == nil {
-		return elementPath, ""
+		return e.buildElementPath(objType, name), ""
 	}
 
+	// A backbone element is defined where it was reached, and BackboneElement
+	// says only what every one has: R5 makes BackboneElement.id an id, and
+	// Patient.contact.id a string. So its path is asked first.
+	backbone := objType == "BackboneElement"
+	if backbone {
+		if nested := e.nestedElementPath(obj, name); nested != "" {
+			if t := m.TypeOf(nested); t != "" {
+				return nested, t
+			}
+		}
+	}
+
+	elementPath = e.buildElementPath(objType, name)
 	if elementPath != "" {
 		if t := m.TypeOf(elementPath); t != "" {
 			return elementPath, t
@@ -2710,8 +2730,8 @@ func (e *Evaluator) resolveElement(obj *types.ObjectValue, name string) (element
 
 	// Fall back to the path the object was reached as, which is the only form
 	// that resolves elements of anonymous backbone types.
-	if base := e.ctx.PathOf(obj); base != "" && base != obj.Type() {
-		if nested := e.buildElementPath(base, name); nested != "" {
+	if !backbone {
+		if nested := e.nestedElementPath(obj, name); nested != "" {
 			if t := m.TypeOf(nested); t != "" {
 				return nested, t
 			}
@@ -2725,6 +2745,15 @@ func (e *Evaluator) resolveElement(obj *types.ObjectValue, name string) (element
 	}
 
 	return elementPath, ""
+}
+
+// nestedElementPath is the path of a named member beneath the path obj was
+// reached as, or "" where that is only its type.
+func (e *Evaluator) nestedElementPath(obj *types.ObjectValue, name string) string {
+	if base := e.ctx.PathOf(obj); base != "" && base != obj.Type() {
+		return e.buildElementPath(base, name)
+	}
+	return ""
 }
 
 // navigateMember navigates to a member of objects in the collection.
