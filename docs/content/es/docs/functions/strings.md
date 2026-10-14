@@ -589,7 +589,7 @@ result, _ := fhirpath.Evaluate(resource, "'nospace'.trim()")
 
 **Casos Limite / Notas:**
 
-- Utiliza `strings.TrimSpace` de Go, que elimina todos los caracteres de espacio en blanco Unicode (espacios, tabulaciones, saltos de linea, etc.).
+- Elimina tabulacion, salto de linea, tabulacion vertical, salto de pagina, retorno de carro y espacio. Los demas espacios Unicode, como el espacio no separable, se conservan. La especificacion nombra cuatro caracteres de espacio en blanco; la tabulacion vertical y el salto de pagina tambien se eliminan, como lo hacen fhirpath.js y el validador de HL7.
 - No elimina los espacios en blanco del medio de la cadena.
 - Devuelve una coleccion vacia si la entrada esta vacia.
 
@@ -667,7 +667,7 @@ result, _ := fhirpath.Evaluate(resource, "'a,b,c'.split(',').join()")
 
 **Casos Limite / Notas:**
 
-- Si la coleccion de entrada esta vacia, devuelve una cadena vacia (`""`), no una coleccion vacia.
+- Si la coleccion de entrada esta vacia, el resultado es vacio, como dice la especificacion.
 - Los elementos que no son cadenas en la coleccion se convierten a su representacion de cadena usando `.String()`.
 - Si no se proporciona argumento separador, los elementos se concatenan directamente.
 
@@ -675,20 +675,39 @@ result, _ := fhirpath.Evaluate(resource, "'a,b,c'.split(',').join()")
 
 ## encode / decode
 
-{{< callout type="warning" >}}
-**No Implementado:** Las funciones `encode(encoding)` y `decode(encoding)` para codificacion/decodificacion base64 estan definidas en la especificacion FHIRPath pero **aun no estan implementadas** en esta biblioteca. Llamar a estas funciones resultara en un error.
-{{< /callout >}}
+Codifica la cadena de entrada en un formato, o la decodifica desde uno.
 
 **Firma:**
 
 ```text
-encode(encoding : String) : String
-decode(encoding : String) : String
+encode(format : String) : String
+decode(format : String) : String
 ```
 
-**Descripcion:**
+**Formatos:**
 
-- `encode('base64')` -- Codifica la cadena de entrada a base64.
-- `decode('base64')` -- Decodifica una cadena codificada en base64.
+| Formato     | encode                                                          | decode |
+|-------------|-----------------------------------------------------------------|--------|
+| `hex`       | los bytes UTF-8 en hexadecimal en minusculas                    | si     |
+| `base64`    | base64 estandar de los bytes UTF-8                              | si     |
+| `urlbase64` | base64 apto para URL de los bytes UTF-8                         | si     |
+| `ascii`     | cada caracter sobre el codigo 127 se reemplaza por `?` (con perdida) | no |
 
-Estas funciones estan planificadas para una version futura.
+**Ejemplos:**
+
+```go
+result, _ := fhirpath.Evaluate(resource, "'abc'.encode('hex')")
+// "616263"
+
+result, _ := fhirpath.Evaluate(resource, "'616263'.decode('hex')")
+// "abc"
+
+result, _ := fhirpath.Evaluate(resource, "'café'.encode('ascii')")
+// "caf?"
+```
+
+**Casos Limite / Notas:**
+
+- Una entrada vacia, un formato vacio o un formato desconocido dan un resultado vacio.
+- `decode` da un resultado vacio para contenido que no es valido en el formato, o cuyos bytes no son UTF-8 valido.
+- Un argumento de formato con mas de un elemento es un error.

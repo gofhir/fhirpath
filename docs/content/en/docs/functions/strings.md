@@ -589,7 +589,7 @@ result, _ := fhirpath.Evaluate(resource, "'nospace'.trim()")
 
 **Edge Cases / Notes:**
 
-- Uses Go's `strings.TrimSpace`, which removes all Unicode whitespace characters (spaces, tabs, newlines, etc.).
+- Removes tab, line feed, vertical tab, form feed, carriage return and space. Other Unicode spaces, such as the no-break space, are kept. The specification names four whitespace characters; the vertical tab and form feed are removed too, as fhirpath.js and the HL7 validator remove them.
 - Does not remove whitespace from the middle of the string.
 - Returns empty collection if the input is empty.
 
@@ -667,7 +667,7 @@ result, _ := fhirpath.Evaluate(resource, "'a,b,c'.split(',').join()")
 
 **Edge Cases / Notes:**
 
-- If the input collection is empty, returns an empty string (`""`), not an empty collection.
+- If the input collection is empty, the result is empty, as the specification says.
 - Non-string elements in the collection are converted to their string representation using `.String()`.
 - If no separator argument is provided, elements are concatenated directly.
 
@@ -675,20 +675,39 @@ result, _ := fhirpath.Evaluate(resource, "'a,b,c'.split(',').join()")
 
 ## encode / decode
 
-{{< callout type="warning" >}}
-**Not Implemented:** The `encode(encoding)` and `decode(encoding)` functions for base64 encoding/decoding are defined in the FHIRPath specification but are **not yet implemented** in this library. Calling these functions will result in an error.
-{{< /callout >}}
+Encodes the input string in a format, or decodes it from one.
 
 **Signature:**
 
 ```text
-encode(encoding : String) : String
-decode(encoding : String) : String
+encode(format : String) : String
+decode(format : String) : String
 ```
 
-**Description:**
+**Formats:**
 
-- `encode('base64')` -- Encodes the input string to base64.
-- `decode('base64')` -- Decodes a base64-encoded string.
+| Format      | encode                                                         | decode |
+|-------------|----------------------------------------------------------------|--------|
+| `hex`       | the UTF-8 bytes in lower-case hexadecimal                      | yes    |
+| `base64`    | standard base64 of the UTF-8 bytes                             | yes    |
+| `urlbase64` | URL-safe base64 of the UTF-8 bytes                             | yes    |
+| `ascii`     | each character above code 127 replaced with `?` (lossy)        | no     |
 
-These functions are planned for a future release.
+**Examples:**
+
+```go
+result, _ := fhirpath.Evaluate(resource, "'abc'.encode('hex')")
+// "616263"
+
+result, _ := fhirpath.Evaluate(resource, "'616263'.decode('hex')")
+// "abc"
+
+result, _ := fhirpath.Evaluate(resource, "'café'.encode('ascii')")
+// "caf?"
+```
+
+**Edge Cases / Notes:**
+
+- An empty input, an empty format or an unknown format gives an empty result.
+- `decode` gives an empty result for content that is not valid in the format, or whose bytes are not valid UTF-8.
+- A format argument of more than one item is an error.

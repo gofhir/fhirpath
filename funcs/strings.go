@@ -13,70 +13,70 @@ func init() {
 		Name:    "startsWith",
 		MinArgs: 1,
 		MaxArgs: 1,
-		Fn:      fnStartsWith,
+		Fn:      singleArgs("startsWith", fnStartsWith),
 	})
 
 	Register(FuncDef{
 		Name:    "endsWith",
 		MinArgs: 1,
 		MaxArgs: 1,
-		Fn:      fnEndsWith,
+		Fn:      singleArgs("endsWith", fnEndsWith),
 	})
 
 	Register(FuncDef{
 		Name:    "contains",
 		MinArgs: 1,
 		MaxArgs: 1,
-		Fn:      fnContains,
+		Fn:      singleArgs("contains", fnContains),
 	})
 
 	Register(FuncDef{
 		Name:    "replace",
 		MinArgs: 2,
 		MaxArgs: 2,
-		Fn:      fnReplace,
+		Fn:      singleArgs("replace", fnReplace),
 	})
 
 	Register(FuncDef{
 		Name:    "matches",
 		MinArgs: 1,
 		MaxArgs: 2,
-		Fn:      fnMatches,
+		Fn:      singleArgs("matches", fnMatches),
 	})
 
 	Register(FuncDef{
 		Name:    "lastIndexOf",
 		MinArgs: 1,
 		MaxArgs: 1,
-		Fn:      fnLastIndexOf,
+		Fn:      singleArgs("lastIndexOf", fnLastIndexOf),
 	})
 
 	Register(FuncDef{
 		Name:    "matchesFull",
 		MinArgs: 1,
 		MaxArgs: 2,
-		Fn:      fnMatchesFull,
+		Fn:      singleArgs("matchesFull", fnMatchesFull),
 	})
 
 	Register(FuncDef{
 		Name:    "replaceMatches",
 		MinArgs: 2,
 		MaxArgs: 3,
-		Fn:      fnReplaceMatches,
+		Fn:      singleArgs("replaceMatches", fnReplaceMatches),
 	})
 
 	Register(FuncDef{
 		Name:    "indexOf",
 		MinArgs: 1,
 		MaxArgs: 1,
-		Fn:      fnIndexOf,
+		Fn:      singleArgs("indexOf", fnIndexOf),
 	})
 
 	Register(FuncDef{
 		Name:    "substring",
 		MinArgs: 1,
 		MaxArgs: 2,
-		Fn:      fnSubstring,
+		Fn:      singleArgs("substring", fnSubstring),
 	})
 
 	Register(FuncDef{
@@ -104,14 +104,14 @@ func init() {
 		Name:    "split",
 		MinArgs: 1,
 		MaxArgs: 1,
-		Fn:      fnSplit,
+		Fn:      singleArgs("split", fnSplit),
 	})
 
 	Register(FuncDef{
 		Name:    "join",
 		MinArgs: 0,
 		MaxArgs: 1,
-		Fn:      fnJoin,
+		Fn:      singleArgs("join", fnJoin),
 	})
 
 	Register(FuncDef{
@@ -554,8 +554,9 @@ func fnSplit(_ *eval.Context, input types.Collection, args []interface{}) (types
 
 // fnJoin joins a collection of strings with an optional separator.
 func fnJoin(_ *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
+	// "If the input is empty, the result is empty", as fhirpath.js answers
 	if input.Empty() {
-		return types.Collection{types.NewString("")}, nil
+		return types.Collection{}, nil
 	}
 
 	separator := ""
@@ -595,7 +596,12 @@ func fnTrim(_ *eval.Context, input types.Collection, _ []interface{}) (types.Col
 		return types.Collection{}, nil
 	}
 
-	return types.Collection{types.NewString(strings.TrimSpace(str))}, nil
+	// Tab, line feed, vertical tab, form feed, carriage return and space: the
+	// whitespace fhirpath.js and the HL7 validator both trim, past the text's
+	// four. Where they part, the text's reading stays: a control character
+	// below space, which the validator trims, and a no-break or other Unicode
+	// space, which fhirpath.js trims, are kept
+	return types.Collection{types.NewString(strings.Trim(str, " \t\n\v\f\r"))}, nil
 }
 
 // fnLength returns the length of the string.

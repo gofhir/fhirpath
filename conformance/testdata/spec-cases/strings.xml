@@ -1,0 +1,870 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tests name="strings" description="The String Manipulation functions (indexOf, lastIndexOf, substring, startsWith, endsWith, contains, upper, lower, replace, matches, matchesFull, replaceMatches, length, toChars), the Additional String Functions (encode, decode, escape, unescape, trim, split, join), + on strings and the &amp; operator, Unicode characters as the text counts them, and the FHIR primitive types that reach these functions as System.String. Leaves out what the text does not settle: an empty regular expression, the syntax of a match group and of a substitution's reference to it, named or numbered (including the worked date example of replaceMatches, whose output the text does not state), how . and character classes treat characters outside the BMP, the m flag in matchesFull, invalid flags or an invalid regular expression in replaceMatches, overlapping instances in replace, an empty pattern on an empty string, an empty separator or a separator at either end in split, an empty separator in join, non-String items in join and &amp;, more than one input item, or a non-String input item, to the Additional String Functions, a call to encode, decode, escape or unescape that omits its required format or target, unknown formats and malformed input to encode and decode, which HTML entities escape writes, JSON escapes other than the double quote, the backslash and the line feed, language-specific case mappings, Unicode normalization in comparisons, a non-String argument that 2.0.0 could convert explicitly, and a lone surrogate escape.">
+
+  <!-- The String Manipulation preamble -->
+
+  <group name="REQ-STRINGS-001" description="Every String Manipulation function signals an error when its input has more than one item">
+    <source spec="fhirpath-2.0.0" section="String Manipulation" strength="DEFINITION">The functions in this section operate on collections with a single item. If there is more than one item, or an item that is not a String, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-3.0.0" section="String Manipulation" strength="DEFINITION">The functions in this section operate on collections with a single item. If there is more than one item, or an item that is not a String, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <test name="REQ-STRINGS-001-a"><expression invalid="execution">('a' | 'b').indexOf('a')</expression></test>
+    <test name="REQ-STRINGS-001-b"><expression invalid="execution">('a' | 'b').substring(0)</expression></test>
+    <test name="REQ-STRINGS-001-c"><expression invalid="execution">('a' | 'b').startsWith('a')</expression></test>
+    <test name="REQ-STRINGS-001-d"><expression invalid="execution">('a' | 'b').endsWith('a')</expression></test>
+    <test name="REQ-STRINGS-001-e"><expression invalid="execution">('a' | 'b').contains('a')</expression></test>
+    <test name="REQ-STRINGS-001-f"><expression invalid="execution">('a' | 'b').upper()</expression></test>
+    <test name="REQ-STRINGS-001-g"><expression invalid="execution">('a' | 'b').lower()</expression></test>
+    <test name="REQ-STRINGS-001-h"><expression invalid="execution">('a' | 'b').replace('a', 'c')</expression></test>
+    <test name="REQ-STRINGS-001-i"><expression invalid="execution">('a' | 'b').matches('a')</expression></test>
+    <test name="REQ-STRINGS-001-j"><expression invalid="execution">('a' | 'b').replaceMatches('a', 'c')</expression></test>
+    <test name="REQ-STRINGS-001-k"><expression invalid="execution">('a' | 'b').length()</expression></test>
+    <test name="REQ-STRINGS-001-l"><expression invalid="execution">('a' | 'b').toChars()</expression></test>
+    <test name="REQ-STRINGS-001-m" inputfile="patient-example.xml"><expression invalid="execution">Patient.name.given.startsWith('P')</expression></test>
+  </group>
+
+  <group name="REQ-STRINGS-002" description="Every String Manipulation function signals an error when its input item is not a String">
+    <source spec="fhirpath-2.0.0" section="String Manipulation" strength="DEFINITION">The functions in this section operate on collections with a single item. If there is more than one item, or an item that is not a String, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-3.0.0" section="String Manipulation" strength="DEFINITION">The functions in this section operate on collections with a single item. If there is more than one item, or an item that is not a String, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <test name="REQ-STRINGS-002-a"><expression invalid="execution">1.indexOf('1')</expression></test>
+    <test name="REQ-STRINGS-002-b"><expression invalid="execution">1.substring(0)</expression></test>
+    <test name="REQ-STRINGS-002-c"><expression invalid="execution">1.startsWith('1')</expression></test>
+    <test name="REQ-STRINGS-002-d"><expression invalid="execution">1.endsWith('1')</expression></test>
+    <test name="REQ-STRINGS-002-e"><expression invalid="execution">1.contains('1')</expression></test>
+    <test name="REQ-STRINGS-002-f"><expression invalid="execution">true.upper()</expression></test>
+    <test name="REQ-STRINGS-002-g"><expression invalid="execution">true.lower()</expression></test>
+    <test name="REQ-STRINGS-002-h"><expression invalid="execution">1.replace('1', '2')</expression></test>
+    <test name="REQ-STRINGS-002-i"><expression invalid="execution">1.matches('1')</expression></test>
+    <test name="REQ-STRINGS-002-j"><expression invalid="execution">1.replaceMatches('1', '2')</expression></test>
+    <test name="REQ-STRINGS-002-k"><expression invalid="execution">1.length()</expression></test>
+    <test name="REQ-STRINGS-002-l"><expression invalid="execution">1.5.toChars()</expression></test>
+    <test name="REQ-STRINGS-002-m"><expression invalid="execution">@2014-01-01.length()</expression></test>
+  </group>
+
+  <group name="REQ-STRINGS-003" description="FHIR primitives that map to System.String (string, code, ...) are Strings to the string functions">
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.string, FHIR.uri, FHIR.code, FHIR.oid, FHIR.id, FHIR.uuid, FHIR.sid, FHIR.markdown, FHIR.base64Binary</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.string, FHIR.uri, FHIR.code, FHIR.oid, FHIR.id, FHIR.uuid, FHIR.markdown, FHIR.base64Binary</source>
+    <test name="REQ-STRINGS-003-a" inputfile="patient-example.xml"><expression>Patient.gender.startsWith('ma')</expression><output type="boolean">true</output></test>
+    <test name="REQ-STRINGS-003-b" inputfile="patient-example.xml"><expression>Patient.gender.upper()</expression><output type="string">MALE</output></test>
+    <test name="REQ-STRINGS-003-c" inputfile="patient-example.xml"><expression>Patient.name.given.first().length()</expression><output type="integer">5</output></test>
+    <test name="REQ-STRINGS-003-d" inputfile="patient-example.xml"><expression>Patient.name.given.first() &amp; '!'</expression><output type="string">Peter!</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-004" description="A FHIR date maps to a date/time type, not System.String, so a String Manipulation function on it signals an error">
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.date, FHIR.dateTime, FHIR.instant</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.date, FHIR.dateTime, FHIR.instant</source>
+    <source spec="fhirpath-2.0.0" section="String Manipulation" strength="DEFINITION">If there is more than one item, or an item that is not a String, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <test name="REQ-STRINGS-004-a" inputfile="patient-example.xml"><expression invalid="execution">Patient.birthDate.startsWith('1974')</expression></test>
+    <test name="REQ-STRINGS-004-b" inputfile="patient-example.xml"><expression invalid="execution">Patient.birthDate.length()</expression></test>
+  </group>
+
+  <group name="REQ-STRINGS-005" description="The 3.0.0 worked example: select() applies substring(0, 1) to each given name in turn (2.0.0's version of the example writes substring(0), which does not return the first character its prose promises)">
+    <source spec="fhirpath-2.0.0" section="String Manipulation" strength="DEFINITION">To use these functions over a collection with multiple items, one may use filters like `where()` and `select()`:</source>
+    <source spec="fhirpath-3.0.0" section="String Manipulation" strength="EXAMPLE">Patient.name.given.select(substring(0, 1)) // returns a collection containing the first character of all the given names for a patient</source>
+    <test name="REQ-STRINGS-005-a" inputfile="patient-example.xml"><expression>Patient.name.given.select(substring(0, 1))</expression><output type="string">P</output><output type="string">J</output><output type="string">J</output><output type="string">P</output><output type="string">J</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-006" description="A collection of more than one item given as an argument that expects a single value signals an error, in every string function (lastIndexOf and matchesFull are 3.0.0 only)">
+    <source spec="fhirpath-2.0.0" section="Functions" strength="DEFINITION">If the function expects the argument passed to a parameter to be a single value (e.g. `startsWith(prefix: String)`) and it is passed an argument that evaluates to a collection with multiple items, or to a collection with an item that is not of the required type (or cannot be converted to the required type), the evaluation of the expression will end and an error will be signaled to the calling environment.</source>
+    <source spec="fhirpath-3.0.0" section="Functions" strength="DEFINITION">If a function expects the argument passed to a parameter to be a single value (e.g. `startsWith(prefix: String)`) and it is passed an argument that evaluates to a collection with multiple items, or to a collection with an item that is not of the required type (or cannot be converted to the required type), the evaluation of the expression will end and an error will be signaled to the calling environment.</source>
+    <source spec="fhirpath-2.0.0" section="Singleton Evaluation of Collections" strength="DEFINITION">In general, when a collection is passed as an argument to a function or operator that expects a single item as input, the collection is implicitly converted to a singleton as follows:</source>
+    <source spec="fhirpath-2.0.0" section="Singleton Evaluation of Collections" strength="DEFINITION">The evaluation will end and signal an error to the calling environment</source>
+    <test name="REQ-STRINGS-006-a"><expression invalid="execution">'abc'.startsWith(('a' | 'b'))</expression></test>
+    <test name="REQ-STRINGS-006-b"><expression invalid="execution">'abc'.indexOf(('a' | 'b'))</expression></test>
+    <test name="REQ-STRINGS-006-c"><expression invalid="execution">'abc'.substring((0 | 1))</expression></test>
+    <test name="REQ-STRINGS-006-d"><expression invalid="execution">'abc'.replace(('a' | 'b'), 'x')</expression></test>
+    <test name="REQ-STRINGS-006-e"><expression invalid="execution">'abc'.matches(('a' | 'b'))</expression></test>
+    <test name="REQ-STRINGS-006-f"><expression invalid="execution">'abc'.contains(('a' | 'b'))</expression></test>
+    <test name="REQ-STRINGS-006-g"><expression invalid="execution">'abc'.endsWith(('b' | 'c'))</expression></test>
+    <test name="REQ-STRINGS-006-h"><expression invalid="execution">'abc'.lastIndexOf(('a' | 'b'))</expression></test>
+    <test name="REQ-STRINGS-006-i"><expression invalid="execution">'abc'.matchesFull(('abc' | 'b'))</expression></test>
+    <test name="REQ-STRINGS-006-j"><expression invalid="execution">'a,b;c'.split((',' | ';'))</expression></test>
+    <test name="REQ-STRINGS-006-k"><expression invalid="execution">'abc'.encode(('hex' | 'base64'))</expression></test>
+    <test name="REQ-STRINGS-006-l"><expression invalid="execution">'616263'.decode(('hex' | 'base64'))</expression></test>
+    <test name="REQ-STRINGS-006-m"><expression invalid="execution">'a&lt;b'.escape(('html' | 'json'))</expression></test>
+    <test name="REQ-STRINGS-006-n"><expression invalid="execution">'a&amp;lt;b'.unescape(('html' | 'json'))</expression></test>
+    <test name="REQ-STRINGS-006-o"><expression invalid="execution">'a,b'.split(',').join((',' | ';'))</expression></test>
+    <test name="REQ-STRINGS-006-p"><expression invalid="execution">'abc'.replaceMatches('a', ('x' | 'y'))</expression></test>
+    <test name="REQ-STRINGS-006-q"><expression invalid="execution">'abc'.substring(0, (1 | 2))</expression></test>
+  </group>
+
+  <!-- indexOf -->
+
+  <group name="REQ-STRINGS-007" description="indexOf returns the 0-based index of the first position of the substring, or -1 if it is not found">
+    <source spec="fhirpath-2.0.0" section="indexOf(substring : String) : Integer" strength="DEFINITION">Returns the 0-based index of the first position `substring` is found in the input string, or -1 if it is not found.</source>
+    <source spec="fhirpath-3.0.0" section="indexOf(substring : String) : Integer" strength="DEFINITION">Returns the 0-based index of the first position `substring` is found in the input string, or -1 if it is not found.</source>
+    <source spec="fhirpath-2.0.0" section="indexOf(substring : String) : Integer" strength="EXAMPLE">'abcdefg'.indexOf('bc') // 1</source>
+    <source spec="fhirpath-2.0.0" section="indexOf(substring : String) : Integer" strength="EXAMPLE">'abcdefg'.indexOf('x') // -1</source>
+    <source spec="fhirpath-2.0.0" section="indexOf(substring : String) : Integer" strength="EXAMPLE">'abcdefg'.indexOf('abcdefg') // 0</source>
+    <test name="REQ-STRINGS-007-a"><expression>'abcdefg'.indexOf('bc')</expression><output type="integer">1</output></test>
+    <test name="REQ-STRINGS-007-b"><expression>'abcdefg'.indexOf('x')</expression><output type="integer">-1</output></test>
+    <test name="REQ-STRINGS-007-c"><expression>'abcdefg'.indexOf('abcdefg')</expression><output type="integer">0</output></test>
+    <test name="REQ-STRINGS-007-d"><expression>'abcabc'.indexOf('c')</expression><output type="integer">2</output></test>
+    <test name="REQ-STRINGS-007-e"><expression>'abc'.indexOf('abcd')</expression><output type="integer">-1</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-008" description="indexOf of an empty substring is 0">
+    <source spec="fhirpath-2.0.0" section="indexOf(substring : String) : Integer" strength="DEFINITION">If `substring` is an empty string (`''`), the function returns 0.</source>
+    <source spec="fhirpath-3.0.0" section="indexOf(substring : String) : Integer" strength="DEFINITION">If `substring` is an empty string (`''`), the function returns 0.</source>
+    <test name="REQ-STRINGS-008-a"><expression>'abc'.indexOf('')</expression><output type="integer">0</output></test>
+    <test name="REQ-STRINGS-008-b"><expression>''.indexOf('')</expression><output type="integer">0</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-009" description="indexOf is empty when the input or the substring is empty">
+    <source spec="fhirpath-2.0.0" section="indexOf(substring : String) : Integer" strength="DEFINITION">If the input or `substring` is empty (`{ }`), the result is empty (`{ }`).</source>
+    <source spec="fhirpath-3.0.0" section="indexOf(substring : String) : Integer" strength="DEFINITION">If the input or `substring` is empty (`{ }`), the result is empty (`{ }`).</source>
+    <test name="REQ-STRINGS-009-a"><expression>{}.indexOf('a')</expression></test>
+    <test name="REQ-STRINGS-009-b"><expression>'abc'.indexOf({})</expression></test>
+    <test name="REQ-STRINGS-009-c"><expression>{}.indexOf({})</expression></test>
+  </group>
+
+  <group name="REQ-STRINGS-010" description="indexOf counts characters as Unicode scalar values, so a character outside the BMP counts once, however it was written (3.0.0; 2.0.0 does not say what a character is)">
+    <source spec="fhirpath-3.0.0" section="indexOf(substring : String) : Integer" strength="DEFINITION">The returned index is measured in characters (Unicode scalar values).</source>
+    <source spec="fhirpath-3.0.0" section="indexOf(substring : String) : Integer" strength="EXAMPLE">'a🔥b'.indexOf('🔥') // 1</source>
+    <source spec="fhirpath-3.0.0" section="indexOf(substring : String) : Integer" strength="EXAMPLE">'a🔥b'.indexOf('b')  // 2  (not 3, because 🔥 is 1 character)</source>
+    <source spec="fhirpath-3.0.0" section="indexOf(substring : String) : Integer" strength="EXAMPLE">'a&#92;uD83D&#92;uDD25b'.indexOf('b')  // 2  (not 3, because the surrogate pair is 1 character)</source>
+    <test name="REQ-STRINGS-010-a"><expression>'a🔥b'.indexOf('🔥')</expression><output type="integer">1</output></test>
+    <test name="REQ-STRINGS-010-b"><expression>'a🔥b'.indexOf('b')</expression><output type="integer">2</output></test>
+    <test name="REQ-STRINGS-010-c"><expression>'a&#92;uD83D&#92;uDD25b'.indexOf('b')</expression><output type="integer">2</output></test>
+  </group>
+
+  <!-- lastIndexOf (3.0.0 only) -->
+
+  <group name="REQ-STRINGS-011" description="lastIndexOf returns the 0-based index of the last position of the substring, or -1 if it is not found, counted in Unicode scalar values (3.0.0 only, STU)">
+    <source spec="fhirpath-3.0.0" section="lastIndexOf(substring : String) : Integer" strength="DEFINITION">Returns the 0-based index of the last position `substring` is found in the input string, or -1 if it is not found.</source>
+    <source spec="fhirpath-3.0.0" section="lastIndexOf(substring : String) : Integer" strength="DEFINITION">The returned index is measured in characters (Unicode scalar values).</source>
+    <source spec="fhirpath-3.0.0" section="lastIndexOf(substring : String) : Integer" strength="EXAMPLE">'abcdefg'.lastIndexOf('bc') // 1</source>
+    <source spec="fhirpath-3.0.0" section="lastIndexOf(substring : String) : Integer" strength="EXAMPLE">'abcdefg'.lastIndexOf('x') // -1</source>
+    <source spec="fhirpath-3.0.0" section="lastIndexOf(substring : String) : Integer" strength="EXAMPLE">'abcdefg'.lastIndexOf('abcdefg') // 0</source>
+    <source spec="fhirpath-3.0.0" section="lastIndexOf(substring : String) : Integer" strength="EXAMPLE">'abc abc'.lastIndexOf('a') // 4</source>
+    <test name="REQ-STRINGS-011-a"><expression>'abcdefg'.lastIndexOf('bc')</expression><output type="integer">1</output></test>
+    <test name="REQ-STRINGS-011-b"><expression>'abcdefg'.lastIndexOf('x')</expression><output type="integer">-1</output></test>
+    <test name="REQ-STRINGS-011-c"><expression>'abcdefg'.lastIndexOf('abcdefg')</expression><output type="integer">0</output></test>
+    <test name="REQ-STRINGS-011-d"><expression>'abc abc'.lastIndexOf('a')</expression><output type="integer">4</output></test>
+    <test name="REQ-STRINGS-011-e"><expression>'a🔥b🔥'.lastIndexOf('🔥')</expression><output type="integer">3</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-012" description="lastIndexOf of an empty substring is the length of the input string (3.0.0 only, STU)">
+    <source spec="fhirpath-3.0.0" section="lastIndexOf(substring : String) : Integer" strength="DEFINITION">If `substring` is an empty string (`''`), the function returns the length of the string.</source>
+    <source spec="fhirpath-3.0.0" section="lastIndexOf(substring : String) : Integer" strength="EXAMPLE">'0123'.lastIndexOf('') // 4</source>
+    <source spec="fhirpath-3.0.0" section="lastIndexOf(substring : String) : Integer" strength="EXAMPLE">'0'.lastIndexOf('') // 1</source>
+    <source spec="fhirpath-3.0.0" section="lastIndexOf(substring : String) : Integer" strength="EXAMPLE">''.lastIndexOf('') // 0</source>
+    <test name="REQ-STRINGS-012-a"><expression>'0123'.lastIndexOf('')</expression><output type="integer">4</output></test>
+    <test name="REQ-STRINGS-012-b"><expression>'0'.lastIndexOf('')</expression><output type="integer">1</output></test>
+    <test name="REQ-STRINGS-012-c"><expression>''.lastIndexOf('')</expression><output type="integer">0</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-013" description="lastIndexOf is empty when the input or the substring is empty, and signals an error on more than one input item (3.0.0 only, STU)">
+    <source spec="fhirpath-3.0.0" section="lastIndexOf(substring : String) : Integer" strength="DEFINITION">If the input or `substring` is empty (`{ }`), the result is empty (`{ }`).</source>
+    <source spec="fhirpath-3.0.0" section="lastIndexOf(substring : String) : Integer" strength="DEFINITION">If the input collection contains multiple items, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <test name="REQ-STRINGS-013-a"><expression>{}.lastIndexOf('a')</expression></test>
+    <test name="REQ-STRINGS-013-b"><expression>'abc'.lastIndexOf({})</expression></test>
+    <test name="REQ-STRINGS-013-c"><expression invalid="execution">('a' | 'b').lastIndexOf('a')</expression></test>
+  </group>
+
+  <!-- substring -->
+
+  <group name="REQ-STRINGS-014" description="substring returns the part of the string from a 0-based start, at most length characters if length is given, and only the remaining characters if fewer remain">
+    <source spec="fhirpath-2.0.0" section="substring(start : Integer [, length : Integer]) : String" strength="DEFINITION">Returns the part of the string starting at position `start` (zero-based). If `length` is given, will return at most `length` number of characters from the input string.</source>
+    <source spec="fhirpath-2.0.0" section="substring(start : Integer [, length : Integer]) : String" strength="DEFINITION">If there are less remaining characters in the string than indicated by `length`, the function returns just the remaining characters.</source>
+    <source spec="fhirpath-3.0.0" section="substring(start : Integer [, length : Integer]) : String" strength="DEFINITION">Returns the part of the string starting at position `start` (zero-based). If `length` is given, will return at most `length` number of characters from the input string.</source>
+    <source spec="fhirpath-2.0.0" section="substring(start : Integer [, length : Integer]) : String" strength="EXAMPLE">'abcdefg'.substring(3) // 'defg'</source>
+    <source spec="fhirpath-2.0.0" section="substring(start : Integer [, length : Integer]) : String" strength="EXAMPLE">'abcdefg'.substring(1, 2) // 'bc'</source>
+    <source spec="fhirpath-2.0.0" section="substring(start : Integer [, length : Integer]) : String" strength="EXAMPLE">'abcdefg'.substring(6, 2) // 'g'</source>
+    <test name="REQ-STRINGS-014-a"><expression>'abcdefg'.substring(3)</expression><output type="string">defg</output></test>
+    <test name="REQ-STRINGS-014-b"><expression>'abcdefg'.substring(1, 2)</expression><output type="string">bc</output></test>
+    <test name="REQ-STRINGS-014-c"><expression>'abcdefg'.substring(6, 2)</expression><output type="string">g</output></test>
+    <test name="REQ-STRINGS-014-d"><expression>'abcdefg'.substring(0)</expression><output type="string">abcdefg</output></test>
+    <test name="REQ-STRINGS-014-e"><expression>'abcdefg'.substring(2, 100)</expression><output type="string">cdefg</output></test>
+    <test name="REQ-STRINGS-014-f"><expression>'abcdefg'.substring(6)</expression><output type="string">g</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-015" description="substring is empty when start lies outside the string: at or past its length, or negative">
+    <source spec="fhirpath-2.0.0" section="substring(start : Integer [, length : Integer]) : String" strength="DEFINITION">If `start` lies outside the length of the string, the function returns empty (`{ }`).</source>
+    <source spec="fhirpath-2.0.0" section="substring(start : Integer [, length : Integer]) : String" strength="EXAMPLE">'abcdefg'.substring(7, 1) // { }</source>
+    <source spec="fhirpath-3.0.0" section="substring(start : Integer [, length : Integer]) : String" strength="DEFINITION">If `start` lies outside, or equal to, the length of the string, the function returns empty (`{ }`).</source>
+    <source spec="fhirpath-3.0.0" section="substring(start : Integer [, length : Integer]) : String" strength="EXAMPLE">'abcdefg'.substring(-1, 1) // { } (start position is outside the string,</source>
+    <source spec="fhirpath-3.0.0" section="substring(start : Integer [, length : Integer]) : String" strength="EXAMPLE">'abcdefg'.substring(-1, -1) // { } (start position is outside the string)</source>
+    <source spec="fhirpath-3.0.0" section="substring(start : Integer [, length : Integer]) : String" strength="EXAMPLE">''.substring(0) // { } (start position is outside the string)</source>
+    <test name="REQ-STRINGS-015-a"><expression>'abcdefg'.substring(7, 1)</expression></test>
+    <test name="REQ-STRINGS-015-b"><expression>'abcdefg'.substring(7)</expression></test>
+    <test name="REQ-STRINGS-015-c"><expression>'abcdefg'.substring(25)</expression></test>
+    <test name="REQ-STRINGS-015-d"><expression>'abcdefg'.substring(-1, 1)</expression></test>
+    <test name="REQ-STRINGS-015-e"><expression>'abcdefg'.substring(-1, -1)</expression></test>
+    <test name="REQ-STRINGS-015-f"><expression>''.substring(0)</expression></test>
+    <test name="REQ-STRINGS-015-g"><expression>'abcdefg'.substring(-1)</expression></test>
+  </group>
+
+  <group name="REQ-STRINGS-016" description="substring is empty when the input or start is empty">
+    <source spec="fhirpath-2.0.0" section="substring(start : Integer [, length : Integer]) : String" strength="DEFINITION">If the input or `start` is empty, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="substring(start : Integer [, length : Integer]) : String" strength="DEFINITION">If the input or `start` is empty, the result is empty.</source>
+    <test name="REQ-STRINGS-016-a"><expression>{}.substring(0)</expression></test>
+    <test name="REQ-STRINGS-016-b"><expression>'abc'.substring({})</expression></test>
+    <test name="REQ-STRINGS-016-c"><expression>'abc'.substring({}, 1)</expression></test>
+  </group>
+
+  <group name="REQ-STRINGS-017" description="substring with an empty length behaves as if length were not given">
+    <source spec="fhirpath-2.0.0" section="substring(start : Integer [, length : Integer]) : String" strength="DEFINITION">If an empty `length` is provided, the behavior is the same as if `length` had not been provided.</source>
+    <source spec="fhirpath-3.0.0" section="substring(start : Integer [, length : Integer]) : String" strength="DEFINITION">If an empty `length` is provided, the behavior is the same as if `length` had not been provided.</source>
+    <test name="REQ-STRINGS-017-a"><expression>'abcdefg'.substring(3, {})</expression><output type="string">defg</output></test>
+    <test name="REQ-STRINGS-017-b"><expression>'abcdefg'.substring(7, {})</expression></test>
+  </group>
+
+  <group name="REQ-STRINGS-018" description="substring with a zero or negative length returns the empty string (zero follows from 'at most length' in both versions; a negative length is defined only by 3.0.0)">
+    <source spec="fhirpath-2.0.0" section="substring(start : Integer [, length : Integer]) : String" strength="DEFINITION">If `length` is given, will return at most `length` number of characters from the input string.</source>
+    <source spec="fhirpath-3.0.0" section="substring(start : Integer [, length : Integer]) : String" strength="DEFINITION">If a negative or zero `length` is provided, the function returns an empty string (`''`).</source>
+    <source spec="fhirpath-3.0.0" section="substring(start : Integer [, length : Integer]) : String" strength="EXAMPLE">'abcdefg'.substring(3, 0) // '' (empty string)</source>
+    <source spec="fhirpath-3.0.0" section="substring(start : Integer [, length : Integer]) : String" strength="EXAMPLE">'abcdefg'.substring(3, -1) // '' (empty string)</source>
+    <test name="REQ-STRINGS-018-a"><expression>'abcdefg'.substring(3, 0) = ''</expression><output type="boolean">true</output></test>
+    <test name="REQ-STRINGS-018-b"><expression>'abcdefg'.substring(3, -1) = ''</expression><output type="boolean">true</output></test>
+    <test name="REQ-STRINGS-018-c"><expression>'abcdefg'.substring(0, 0) = ''</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-019" description="substring measures start and length in Unicode scalar values (3.0.0; 2.0.0 does not say what a character is)">
+    <source spec="fhirpath-3.0.0" section="substring(start : Integer [, length : Integer]) : String" strength="DEFINITION">Both `start` and `length` are measured in characters (Unicode scalar values).</source>
+    <test name="REQ-STRINGS-019-a"><expression>'a🔥bc'.substring(1, 1)</expression><output type="string">🔥</output></test>
+    <test name="REQ-STRINGS-019-b"><expression>'a🔥b'.substring(2)</expression><output type="string">b</output></test>
+    <test name="REQ-STRINGS-019-c"><expression>'a🔥b'.substring(0, 2)</expression><output type="string">a🔥</output></test>
+  </group>
+
+  <!-- startsWith, endsWith, contains -->
+
+  <group name="REQ-STRINGS-020" description="startsWith is true when the input string starts with the prefix and false otherwise">
+    <source spec="fhirpath-2.0.0" section="startsWith(prefix : String) : Boolean" strength="DEFINITION">Returns `true` when the input string starts with the given `prefix`.</source>
+    <source spec="fhirpath-3.0.0" section="startsWith(prefix : String) : Boolean" strength="DEFINITION">Returns `true` when the input string starts with the given `prefix`.</source>
+    <source spec="fhirpath-2.0.0" section="startsWith(prefix : String) : Boolean" strength="EXAMPLE">'abcdefg'.startsWith('abc') // true</source>
+    <source spec="fhirpath-2.0.0" section="startsWith(prefix : String) : Boolean" strength="EXAMPLE">'abcdefg'.startsWith('xyz') // false</source>
+    <test name="REQ-STRINGS-020-a"><expression>'abcdefg'.startsWith('abc')</expression><output type="boolean">true</output></test>
+    <test name="REQ-STRINGS-020-b"><expression>'abcdefg'.startsWith('xyz')</expression><output type="boolean">false</output></test>
+    <test name="REQ-STRINGS-020-c"><expression>'abc'.startsWith('abcd')</expression><output type="boolean">false</output></test>
+    <test name="REQ-STRINGS-020-d"><expression>'abc'.startsWith('bc')</expression><output type="boolean">false</output></test>
+    <test name="REQ-STRINGS-020-e"><expression>'abc'.startsWith('abc')</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-021" description="startsWith an empty prefix is true">
+    <source spec="fhirpath-2.0.0" section="startsWith(prefix : String) : Boolean" strength="DEFINITION">If `prefix` is the empty string (`''`), the result is `true`.</source>
+    <source spec="fhirpath-3.0.0" section="startsWith(prefix : String) : Boolean" strength="DEFINITION">If `prefix` is the empty string (`''`), the result is `true`.</source>
+    <test name="REQ-STRINGS-021-a"><expression>'abc'.startsWith('')</expression><output type="boolean">true</output></test>
+    <test name="REQ-STRINGS-021-b"><expression>''.startsWith('')</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-022" description="startsWith is empty when the input is empty, or when the prefix is empty by the general rule for single-input functions">
+    <source spec="fhirpath-2.0.0" section="startsWith(prefix : String) : Boolean" strength="DEFINITION">If the input collection is empty, the result is empty.</source>
+    <source spec="fhirpath-2.0.0" section="Propagation of empty results in expressions" strength="DEFINITION">If a single-input operator or function is passed an empty collection as an argument, the result is an empty collection</source>
+    <source spec="fhirpath-3.0.0" section="Propagation of empty results in expressions" strength="DEFINITION">If a single-input operator or function is passed an empty collection as an argument, the result is an empty collection</source>
+    <test name="REQ-STRINGS-022-a"><expression>{}.startsWith('a')</expression></test>
+    <test name="REQ-STRINGS-022-b"><expression>{}.startsWith('')</expression></test>
+    <test name="REQ-STRINGS-022-c"><expression>'abc'.startsWith({})</expression></test>
+  </group>
+
+  <group name="REQ-STRINGS-023" description="endsWith is true when the input string ends with the suffix and false otherwise (the false example is cited from 3.0.0: 2.0.0 misspells it ednsWith)">
+    <source spec="fhirpath-2.0.0" section="endsWith(suffix : String) : Boolean" strength="DEFINITION">Returns `true` when the input string ends with the given `suffix`.</source>
+    <source spec="fhirpath-3.0.0" section="endsWith(suffix : String) : Boolean" strength="DEFINITION">Returns `true` when the input string ends with the given `suffix`.</source>
+    <source spec="fhirpath-2.0.0" section="endsWith(suffix : String) : Boolean" strength="EXAMPLE">'abcdefg'.endsWith('efg') // true</source>
+    <source spec="fhirpath-3.0.0" section="endsWith(suffix : String) : Boolean" strength="EXAMPLE">'abcdefg'.endsWith('abc') // false</source>
+    <test name="REQ-STRINGS-023-a"><expression>'abcdefg'.endsWith('efg')</expression><output type="boolean">true</output></test>
+    <test name="REQ-STRINGS-023-b"><expression>'abcdefg'.endsWith('abc')</expression><output type="boolean">false</output></test>
+    <test name="REQ-STRINGS-023-c"><expression>'abc'.endsWith('xabc')</expression><output type="boolean">false</output></test>
+    <test name="REQ-STRINGS-023-d"><expression>'abc'.endsWith('abc')</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-024" description="endsWith an empty suffix is true">
+    <source spec="fhirpath-2.0.0" section="endsWith(suffix : String) : Boolean" strength="DEFINITION">If `suffix` is the empty string (`''`), the result is `true`.</source>
+    <source spec="fhirpath-3.0.0" section="endsWith(suffix : String) : Boolean" strength="DEFINITION">If `suffix` is the empty string (`''`), the result is `true`.</source>
+    <test name="REQ-STRINGS-024-a"><expression>'abc'.endsWith('')</expression><output type="boolean">true</output></test>
+    <test name="REQ-STRINGS-024-b"><expression>''.endsWith('')</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-025" description="endsWith is empty when the input is empty, or when the suffix is empty by the general rule for single-input functions">
+    <source spec="fhirpath-2.0.0" section="endsWith(suffix : String) : Boolean" strength="DEFINITION">If the input collection is empty, the result is empty.</source>
+    <source spec="fhirpath-2.0.0" section="Propagation of empty results in expressions" strength="DEFINITION">If a single-input operator or function is passed an empty collection as an argument, the result is an empty collection</source>
+    <test name="REQ-STRINGS-025-a"><expression>{}.endsWith('a')</expression></test>
+    <test name="REQ-STRINGS-025-b"><expression>'abc'.endsWith({})</expression></test>
+  </group>
+
+  <group name="REQ-STRINGS-026" description="contains (the function) is true when the argument is a substring of the input string and false otherwise">
+    <source spec="fhirpath-2.0.0" section="contains(substring : String) : Boolean" strength="DEFINITION">Returns `true` when the given `substring` is a substring of the input string.</source>
+    <source spec="fhirpath-3.0.0" section="contains(substring : String) : Boolean" strength="DEFINITION">Returns `true` when the given `substring` is a substring of the input string.</source>
+    <source spec="fhirpath-2.0.0" section="contains(substring : String) : Boolean" strength="EXAMPLE">'abc'.contains('b') // true</source>
+    <source spec="fhirpath-2.0.0" section="contains(substring : String) : Boolean" strength="EXAMPLE">'abc'.contains('bc') // true</source>
+    <source spec="fhirpath-2.0.0" section="contains(substring : String) : Boolean" strength="EXAMPLE">'abc'.contains('d') // false</source>
+    <test name="REQ-STRINGS-026-a"><expression>'abc'.contains('b')</expression><output type="boolean">true</output></test>
+    <test name="REQ-STRINGS-026-b"><expression>'abc'.contains('bc')</expression><output type="boolean">true</output></test>
+    <test name="REQ-STRINGS-026-c"><expression>'abc'.contains('d')</expression><output type="boolean">false</output></test>
+    <test name="REQ-STRINGS-026-d"><expression>'abc'.contains('ac')</expression><output type="boolean">false</output></test>
+    <test name="REQ-STRINGS-026-e"><expression>'abc'.contains('abcd')</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-027" description="contains an empty substring is true">
+    <source spec="fhirpath-2.0.0" section="contains(substring : String) : Boolean" strength="DEFINITION">If `substring` is the empty string (`''`), the result is `true`.</source>
+    <source spec="fhirpath-3.0.0" section="contains(substring : String) : Boolean" strength="DEFINITION">If `substring` is the empty string (`''`), the result is `true`.</source>
+    <test name="REQ-STRINGS-027-a"><expression>'abc'.contains('')</expression><output type="boolean">true</output></test>
+    <test name="REQ-STRINGS-027-b"><expression>''.contains('')</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-028" description="contains is empty when the input is empty, or when the substring is empty by the general rule for single-input functions">
+    <source spec="fhirpath-2.0.0" section="contains(substring : String) : Boolean" strength="DEFINITION">If the input collection is empty, the result is empty.</source>
+    <source spec="fhirpath-2.0.0" section="Propagation of empty results in expressions" strength="DEFINITION">If a single-input operator or function is passed an empty collection as an argument, the result is an empty collection</source>
+    <test name="REQ-STRINGS-028-a"><expression>{}.contains('a')</expression></test>
+    <test name="REQ-STRINGS-028-b"><expression>'abc'.contains({})</expression></test>
+  </group>
+
+  <group name="REQ-STRINGS-029" description="The contains function looks for a substring; the contains operator looks for an item in a list, so the two answer differently on the same strings">
+    <source spec="fhirpath-2.0.0" section="contains(substring : String) : Boolean" strength="DEFINITION">Note: The `.contains()` function described here is a string function that looks for a substring in a string. This is different than the `contains` operator, which is a list operator that looks for an element in a list.</source>
+    <source spec="fhirpath-2.0.0" section="contains (containership)" strength="DEFINITION">If the right operand is a collection with a single item, this operator returns true if the item is in the left operand using equality semantics.</source>
+    <test name="REQ-STRINGS-029-a"><expression>'abc'.contains('b')</expression><output type="boolean">true</output></test>
+    <test name="REQ-STRINGS-029-b"><expression>'abc' contains 'b'</expression><output type="boolean">false</output></test>
+    <test name="REQ-STRINGS-029-c"><expression>('abc' | 'b') contains 'b'</expression><output type="boolean">true</output></test>
+  </group>
+
+  <!-- upper, lower -->
+
+  <group name="REQ-STRINGS-030" description="upper converts every character to upper case and leaves characters without case as they are">
+    <source spec="fhirpath-2.0.0" section="upper() : String" strength="DEFINITION">Returns the input string with all characters converted to upper case.</source>
+    <source spec="fhirpath-3.0.0" section="upper() : String" strength="DEFINITION">Returns the input string with all characters converted to upper case.</source>
+    <source spec="fhirpath-2.0.0" section="upper() : String" strength="EXAMPLE">'abcdefg'.upper() // 'ABCDEFG'</source>
+    <source spec="fhirpath-2.0.0" section="upper() : String" strength="EXAMPLE">'AbCdefg'.upper() // 'ABCDEFG'</source>
+    <test name="REQ-STRINGS-030-a"><expression>'abcdefg'.upper()</expression><output type="string">ABCDEFG</output></test>
+    <test name="REQ-STRINGS-030-b"><expression>'AbCdefg'.upper()</expression><output type="string">ABCDEFG</output></test>
+    <test name="REQ-STRINGS-030-c"><expression>'a1-b'.upper()</expression><output type="string">A1-B</output></test>
+    <test name="REQ-STRINGS-030-d"><expression>'é'.upper()</expression><output type="string">É</output></test>
+    <test name="REQ-STRINGS-030-e"><expression>''.upper() = ''</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-031" description="lower converts every character to lower case and leaves characters without case as they are">
+    <source spec="fhirpath-2.0.0" section="lower() : String" strength="DEFINITION">Returns the input string with all characters converted to lower case.</source>
+    <source spec="fhirpath-3.0.0" section="lower() : String" strength="DEFINITION">Returns the input string with all characters converted to lower case.</source>
+    <source spec="fhirpath-2.0.0" section="lower() : String" strength="EXAMPLE">'ABCDEFG'.lower() // 'abcdefg'</source>
+    <source spec="fhirpath-2.0.0" section="lower() : String" strength="EXAMPLE">'aBcDEFG'.lower() // 'abcdefg'</source>
+    <test name="REQ-STRINGS-031-a"><expression>'ABCDEFG'.lower()</expression><output type="string">abcdefg</output></test>
+    <test name="REQ-STRINGS-031-b"><expression>'aBcDEFG'.lower()</expression><output type="string">abcdefg</output></test>
+    <test name="REQ-STRINGS-031-c"><expression>'A1-B'.lower()</expression><output type="string">a1-b</output></test>
+    <test name="REQ-STRINGS-031-d"><expression>'É'.lower()</expression><output type="string">é</output></test>
+    <test name="REQ-STRINGS-031-e"><expression>''.lower() = ''</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-032" description="upper and lower are empty when the input is empty">
+    <source spec="fhirpath-2.0.0" section="upper() : String" strength="DEFINITION">If the input collection is empty, the result is empty.</source>
+    <source spec="fhirpath-2.0.0" section="lower() : String" strength="DEFINITION">If the input collection is empty, the result is empty.</source>
+    <test name="REQ-STRINGS-032-a"><expression>{}.upper()</expression></test>
+    <test name="REQ-STRINGS-032-b"><expression>{}.lower()</expression></test>
+  </group>
+
+  <!-- replace -->
+
+  <group name="REQ-STRINGS-033" description="replace substitutes every instance of the pattern, and leaves the string unchanged when the pattern does not occur">
+    <source spec="fhirpath-2.0.0" section="replace(pattern : String, substitution : String) : String" strength="DEFINITION">Returns the input string with all instances of `pattern` replaced with `substitution`.</source>
+    <source spec="fhirpath-3.0.0" section="replace(pattern : String, substitution : String) : String" strength="DEFINITION">Returns the input string with all instances of `pattern` replaced with `substitution`.</source>
+    <source spec="fhirpath-2.0.0" section="replace(pattern : String, substitution : String) : String" strength="EXAMPLE">'abcdefg'.replace('cde', '123') // 'ab123fg'</source>
+    <test name="REQ-STRINGS-033-a"><expression>'abcdefg'.replace('cde', '123')</expression><output type="string">ab123fg</output></test>
+    <test name="REQ-STRINGS-033-b"><expression>'abab'.replace('ab', 'x')</expression><output type="string">xx</output></test>
+    <test name="REQ-STRINGS-033-c"><expression>'abc'.replace('x', 'y')</expression><output type="string">abc</output></test>
+    <test name="REQ-STRINGS-033-d"><expression>'abc'.replace('b', 'bb')</expression><output type="string">abbc</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-034" description="replace with an empty substitution removes every instance of the pattern">
+    <source spec="fhirpath-3.0.0" section="replace(pattern : String, substitution : String) : String" strength="DEFINITION">If the substitution is the empty string (`''`), instances of `pattern` are removed from the result.</source>
+    <source spec="fhirpath-2.0.0" section="replace(pattern : String, substitution : String) : String" strength="EXAMPLE">'abcdefg'.replace('cde', '') // 'abfg'</source>
+    <test name="REQ-STRINGS-034-a"><expression>'abcdefg'.replace('cde', '')</expression><output type="string">abfg</output></test>
+    <test name="REQ-STRINGS-034-b"><expression>'abab'.replace('b', '')</expression><output type="string">aa</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-035" description="replace with an empty pattern surrounds every character of the input with the substitution">
+    <source spec="fhirpath-3.0.0" section="replace(pattern : String, substitution : String) : String" strength="DEFINITION">If `pattern` is the empty string (`''`), every character in the input string is surrounded by the substitution, e.g. `'abc'.replace('','x')`{:.fhirpath} becomes `'xaxbxcx'`.</source>
+    <source spec="fhirpath-2.0.0" section="replace(pattern : String, substitution : String) : String" strength="EXAMPLE">'abc'.replace('', 'x') // 'xaxbxcx'</source>
+    <test name="REQ-STRINGS-035-a"><expression>'abc'.replace('', 'x')</expression><output type="string">xaxbxcx</output></test>
+    <test name="REQ-STRINGS-035-b"><expression>'a'.replace('', '-')</expression><output type="string">-a-</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-036" description="replace takes the pattern as a plain string, not a regular expression (that is replaceMatches)">
+    <source spec="fhirpath-2.0.0" section="replace(pattern : String, substitution : String) : String" strength="DEFINITION">Returns the input string with all instances of `pattern` replaced with `substitution`.</source>
+    <source spec="fhirpath-2.0.0" section="replaceMatches(regex : String, substitution: String) : String" strength="DEFINITION">Matches the input using the regular expression in `regex` and replaces each match with the `substitution` string.</source>
+    <test name="REQ-STRINGS-036-a"><expression>'a.c'.replace('.', 'x')</expression><output type="string">axc</output></test>
+    <test name="REQ-STRINGS-036-b"><expression>'abc'.replace('.', 'x')</expression><output type="string">abc</output></test>
+    <test name="REQ-STRINGS-036-c"><expression>'a[0-9]'.replace('[0-9]', '!')</expression><output type="string">a!</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-037" description="replace is empty when the input, the pattern or the substitution is empty">
+    <source spec="fhirpath-2.0.0" section="replace(pattern : String, substitution : String) : String" strength="DEFINITION">If the input collection, `pattern`, or `substitution` are empty, the result is empty (`{ }`).</source>
+    <source spec="fhirpath-3.0.0" section="replace(pattern : String, substitution : String) : String" strength="DEFINITION">If the input collection, `pattern`, or `substitution` are empty, the result is empty (`{ }`).</source>
+    <test name="REQ-STRINGS-037-a"><expression>{}.replace('a', 'b')</expression></test>
+    <test name="REQ-STRINGS-037-b"><expression>'abc'.replace({}, 'b')</expression></test>
+    <test name="REQ-STRINGS-037-c"><expression>'abc'.replace('a', {})</expression></test>
+  </group>
+
+  <group name="REQ-STRINGS-038" description="replace with an empty pattern keeps a character outside the BMP whole, however it was written (3.0.0 examples)">
+    <source spec="fhirpath-3.0.0" section="replace(pattern : String, substitution : String) : String" strength="EXAMPLE">'a&#92;uD83D&#92;uDD25c'.replace('', 'x') // 'xax🔥xcx' ; the unicode character should remain in tact (even if it was constructed via surrogates)</source>
+    <source spec="fhirpath-3.0.0" section="replace(pattern : String, substitution : String) : String" strength="EXAMPLE">'a🔥c'.replace('', 'x') // 'xax🔥xcx'</source>
+    <test name="REQ-STRINGS-038-a"><expression>'a&#92;uD83D&#92;uDD25c'.replace('', 'x')</expression><output type="string">xax🔥xcx</output></test>
+    <test name="REQ-STRINGS-038-b"><expression>'a🔥c'.replace('', 'x')</expression><output type="string">xax🔥xcx</output></test>
+  </group>
+
+  <!-- matches -->
+
+  <group name="REQ-STRINGS-039" description="matches is true when the regular expression matches some part of the input, not necessarily all of it (3.0.0 examples; 2.0.0 does not say)">
+    <source spec="fhirpath-2.0.0" section="matches(regex : String) : Boolean" strength="DEFINITION">Returns `true` when the value matches the given regular expression.</source>
+    <source spec="fhirpath-3.0.0" section="matches(regex : String, [flags : String]) : Boolean" strength="DEFINITION">Returns `true` when the value matches the given regular expression.</source>
+    <source spec="fhirpath-3.0.0" section="matches(regex : String, [flags : String]) : Boolean" strength="EXAMPLE">'http://fhir.org/guides/cqf/common/Library/FHIR-ModelInfo|4.0.1'.matches('Library') // returns true</source>
+    <source spec="fhirpath-3.0.0" section="matches(regex : String, [flags : String]) : Boolean" strength="EXAMPLE">'N8000123123'.matches('N[0-9]{8}')   // returns true as the string has an 8 number sequence in it starting with `N`</source>
+    <test name="REQ-STRINGS-039-a"><expression>'http://fhir.org/guides/cqf/common/Library/FHIR-ModelInfo|4.0.1'.matches('Library')</expression><output type="boolean">true</output></test>
+    <test name="REQ-STRINGS-039-b"><expression>'N8000123123'.matches('N[0-9]{8}')</expression><output type="boolean">true</output></test>
+    <test name="REQ-STRINGS-039-c"><expression>'abc'.matches('b')</expression><output type="boolean">true</output></test>
+    <test name="REQ-STRINGS-039-d"><expression>'abc'.matches('x')</expression><output type="boolean">false</output></test>
+    <test name="REQ-STRINGS-039-e"><expression>'abc'.matches('[0-9]')</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-040" description="In matches, ^ and $ anchor the regular expression to the whole string (3.0.0)">
+    <source spec="fhirpath-3.0.0" section="matches(regex : String, [flags : String]) : Boolean" strength="DEFINITION">The start/end of line markers `^`, `$` can be used to match the entire string.</source>
+    <source spec="fhirpath-3.0.0" section="matches(regex : String, [flags : String]) : Boolean" strength="EXAMPLE">'N8000123123'.matches('^N[0-9]{8}$') // returns false as the string is not an 8 char number (it has 10)</source>
+    <test name="REQ-STRINGS-040-a"><expression>'N8000123123'.matches('^N[0-9]{8}$')</expression><output type="boolean">false</output></test>
+    <test name="REQ-STRINGS-040-b"><expression>'N8000123123'.matches('^N[0-9]{10}$')</expression><output type="boolean">true</output></test>
+    <test name="REQ-STRINGS-040-c"><expression>'abc'.matches('^b')</expression><output type="boolean">false</output></test>
+    <test name="REQ-STRINGS-040-d"><expression>'abc'.matches('b$')</expression><output type="boolean">false</output></test>
+    <test name="REQ-STRINGS-040-e"><expression>'abc'.matches('^abc$')</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-041" description="matches should be case-sensitive">
+    <source spec="fhirpath-2.0.0" section="matches(regex : String) : Boolean" strength="SHOULD">Regular expressions should function consistently, regardless of any culture- and locale-specific settings in the environment, should be case-sensitive, use 'single line' mode and allow Unicode characters.</source>
+    <source spec="fhirpath-3.0.0" section="matches(regex : String, [flags : String]) : Boolean" strength="SHOULD">Regular expressions should function consistently, regardless of any culture- and locale-specific settings in the environment, should be case-sensitive, use 'single line' mode and allow Unicode characters.</source>
+    <test name="REQ-STRINGS-041-a"><expression>'FHIR'.matches('fhir')</expression><output type="boolean">false</output></test>
+    <test name="REQ-STRINGS-041-b"><expression>'FHIR'.matches('FHIR')</expression><output type="boolean">true</output></test>
+    <test name="REQ-STRINGS-041-c"><expression>'http://fhir.org/guides/cqf/common/Library/FHIR-ModelInfo|4.0.1'.matches('library')</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-042" description="matches should use 'single line' mode, in which . also matches a line feed">
+    <source spec="fhirpath-2.0.0" section="matches(regex : String) : Boolean" strength="SHOULD">Regular expressions should function consistently, regardless of any culture- and locale-specific settings in the environment, should be case-sensitive, use 'single line' mode and allow Unicode characters.</source>
+    <source spec="fhirpath-3.0.0" section="matches(regex : String, [flags : String]) : Boolean" strength="SHOULD">Regular expressions should function consistently, regardless of any culture- and locale-specific settings in the environment, should be case-sensitive, use 'single line' mode and allow Unicode characters.</source>
+    <test name="REQ-STRINGS-042-a"><expression>'A\nB'.matches('A.B')</expression><output type="boolean">true</output></test>
+    <test name="REQ-STRINGS-042-b"><expression>'A\r\nB'.matches('^A.*B$')</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-043" description="matches is empty when the input or the regular expression is empty">
+    <source spec="fhirpath-2.0.0" section="matches(regex : String) : Boolean" strength="DEFINITION">If the input collection or `regex` are empty, the result is empty (`{ }`).</source>
+    <source spec="fhirpath-3.0.0" section="matches(regex : String, [flags : String]) : Boolean" strength="DEFINITION">If the input collection or `regex` are empty, the result is empty (`{ }`).</source>
+    <test name="REQ-STRINGS-043-a"><expression>{}.matches('a')</expression></test>
+    <test name="REQ-STRINGS-043-b"><expression>'abc'.matches({})</expression></test>
+  </group>
+
+  <group name="REQ-STRINGS-044" description="The m flag makes ^ and $ match at each line; without it they match only at the start and end of the string (3.0.0 only, STU)">
+    <source spec="fhirpath-3.0.0" section="matches(regex : String, [flags : String]) : Boolean" strength="DEFINITION">`m` - Matches the start and end of each line using ^ and $ (multi-line)&lt;br/&gt;(not only begin/end of string)</source>
+    <source spec="fhirpath-3.0.0" section="matches(regex : String, [flags : String]) : Boolean" strength="EXAMPLE">'first line\nsecond line'.matches('^second', 'm')   // true</source>
+    <source spec="fhirpath-3.0.0" section="matches(regex : String, [flags : String]) : Boolean" strength="EXAMPLE">'first line\nsecond line'.matches('^second', '')    // false</source>
+    <test name="REQ-STRINGS-044-a"><expression>'first line\nsecond line'.matches('^second', 'm')</expression><output type="boolean">true</output></test>
+    <test name="REQ-STRINGS-044-b"><expression>'first line\nsecond line'.matches('^second', '')</expression><output type="boolean">false</output></test>
+    <test name="REQ-STRINGS-044-c"><expression>'first line\nsecond line'.matches('^second')</expression><output type="boolean">false</output></test>
+    <test name="REQ-STRINGS-044-d"><expression>'first line\nsecond line'.matches('first line$', 'm')</expression><output type="boolean">true</output></test>
+    <test name="REQ-STRINGS-044-e"><expression>'first line\nsecond line'.matches('first line$')</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-045" description="The i flag makes the match case-insensitive, and flags combine (3.0.0 only, STU)">
+    <source spec="fhirpath-3.0.0" section="matches(regex : String, [flags : String]) : Boolean" strength="DEFINITION">`i` to perform a case-insensitive search (otherwise is case-sensitive)</source>
+    <source spec="fhirpath-3.0.0" section="matches(regex : String, [flags : String]) : Boolean" strength="EXAMPLE">'first line\nsecond line'.matches('^SECOND', 'im')  // true ; combine flags</source>
+    <test name="REQ-STRINGS-045-a"><expression>'FHIR'.matches('fhir', 'i')</expression><output type="boolean">true</output></test>
+    <test name="REQ-STRINGS-045-b"><expression>'first line\nsecond line'.matches('^SECOND', 'im')</expression><output type="boolean">true</output></test>
+    <test name="REQ-STRINGS-045-c"><expression>'first line\nsecond line'.matches('^SECOND', 'm')</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-046" description="matches and matchesFull signal an error when the flags contain a value other than i and m (3.0.0 only, STU)">
+    <source spec="fhirpath-3.0.0" section="matches(regex : String, [flags : String]) : Boolean" strength="DEFINITION">If the input collection contains multiple items, or the flags parameter contains invalid values, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-3.0.0" section="matchesFull(regex : String, [flags : String]) : Boolean" strength="DEFINITION">If the input collection contains multiple items, or the flags parameter contains invalid values, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <test name="REQ-STRINGS-046-a"><expression invalid="execution">'abc'.matches('a', 'q')</expression></test>
+    <test name="REQ-STRINGS-046-b"><expression invalid="execution">'abc'.matchesFull('abc', 'q')</expression></test>
+  </group>
+
+  <!-- matchesFull (3.0.0 only) -->
+
+  <group name="REQ-STRINGS-047" description="matchesFull is true only when the regular expression matches the whole input, as if surrounded by ^ and $ (3.0.0 only, STU)">
+    <source spec="fhirpath-3.0.0" section="matchesFull(regex : String, [flags : String]) : Boolean" strength="DEFINITION">Returns `true` when the value completely matches the given regular expression (implying that the start/end of line markers `^`, `$` are always surrounding the regex expression provided).</source>
+    <source spec="fhirpath-3.0.0" section="matchesFull(regex : String, [flags : String]) : Boolean" strength="EXAMPLE">'http://fhir.org/guides/cqf/common/Library/FHIR-ModelInfo|4.0.1'.matchesFull('Library') // returns false</source>
+    <source spec="fhirpath-3.0.0" section="matchesFull(regex : String, [flags : String]) : Boolean" strength="EXAMPLE">'N8000123123'.matchesFull('N[0-9]{8}') // returns false as the string is not an 8 char number (it has 10)</source>
+    <source spec="fhirpath-3.0.0" section="matchesFull(regex : String, [flags : String]) : Boolean" strength="EXAMPLE">'N8000123123'.matchesFull('N[0-9]{10}') // returns true as the string has an 10 number sequence in it starting with `N`</source>
+    <test name="REQ-STRINGS-047-a"><expression>'http://fhir.org/guides/cqf/common/Library/FHIR-ModelInfo|4.0.1'.matchesFull('Library')</expression><output type="boolean">false</output></test>
+    <test name="REQ-STRINGS-047-b"><expression>'N8000123123'.matchesFull('N[0-9]{8}')</expression><output type="boolean">false</output></test>
+    <test name="REQ-STRINGS-047-c"><expression>'N8000123123'.matchesFull('N[0-9]{10}')</expression><output type="boolean">true</output></test>
+    <test name="REQ-STRINGS-047-d"><expression>'abc'.matchesFull('b')</expression><output type="boolean">false</output></test>
+    <test name="REQ-STRINGS-047-e"><expression>'abc'.matchesFull('abc')</expression><output type="boolean">true</output></test>
+    <test name="REQ-STRINGS-047-f"><expression>'abc'.matchesFull('a.c')</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-048" description="matchesFull is empty when the input or the regular expression is empty, and signals an error on more than one input item (3.0.0 only, STU)">
+    <source spec="fhirpath-3.0.0" section="matchesFull(regex : String, [flags : String]) : Boolean" strength="DEFINITION">If the input collection or `regex` are empty, the result is empty (`{ }`).</source>
+    <source spec="fhirpath-3.0.0" section="matchesFull(regex : String, [flags : String]) : Boolean" strength="DEFINITION">If the input collection contains multiple items, or the flags parameter contains invalid values, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <test name="REQ-STRINGS-048-a"><expression>{}.matchesFull('a')</expression></test>
+    <test name="REQ-STRINGS-048-b"><expression>'abc'.matchesFull({})</expression></test>
+    <test name="REQ-STRINGS-048-c"><expression invalid="execution">('a' | 'b').matchesFull('a')</expression></test>
+  </group>
+
+  <group name="REQ-STRINGS-049" description="matchesFull should be case-sensitive unless the i flag is given (3.0.0 only, STU)">
+    <source spec="fhirpath-3.0.0" section="matchesFull(regex : String, [flags : String]) : Boolean" strength="SHOULD">Regular expressions should function consistently, regardless of any culture- and locale-specific settings in the environment, should be case-sensitive, use 'single line' mode and allow Unicode characters.</source>
+    <source spec="fhirpath-3.0.0" section="matchesFull(regex : String, [flags : String]) : Boolean" strength="DEFINITION">`i` to perform a case-insensitive search (otherwise is case-sensitive)</source>
+    <test name="REQ-STRINGS-049-a"><expression>'ABC'.matchesFull('abc')</expression><output type="boolean">false</output></test>
+    <test name="REQ-STRINGS-049-b"><expression>'ABC'.matchesFull('abc', 'i')</expression><output type="boolean">true</output></test>
+  </group>
+
+  <!-- replaceMatches -->
+
+  <group name="REQ-STRINGS-050" description="replaceMatches replaces each match of the regular expression with the substitution, and leaves the input unchanged when nothing matches">
+    <source spec="fhirpath-2.0.0" section="replaceMatches(regex : String, substitution: String) : String" strength="DEFINITION">Matches the input using the regular expression in `regex` and replaces each match with the `substitution` string.</source>
+    <source spec="fhirpath-3.0.0" section="replaceMatches(regex : String, substitution: String, [flags : String]) : String" strength="EXAMPLE">This example locates all the instances of `aa` and surrounds them with double quotes:</source>
+    <source spec="fhirpath-3.0.0" section="replaceMatches(regex : String, substitution: String, [flags : String]) : String" strength="EXAMPLE">'aaabaa'.replaceMatches('aa', '"aa"') // returns "aa"ab"aa"</source>
+    <test name="REQ-STRINGS-050-a"><expression>'aaabaa'.replaceMatches('aa', '"aa"')</expression><output type="string">"aa"ab"aa"</output></test>
+    <test name="REQ-STRINGS-050-b"><expression>'a1b22'.replaceMatches('[0-9]+', '#')</expression><output type="string">a#b#</output></test>
+    <test name="REQ-STRINGS-050-c"><expression>'abc'.replaceMatches('x', 'y')</expression><output type="string">abc</output></test>
+    <test name="REQ-STRINGS-050-d"><expression>'a.c'.replaceMatches('.', '-')</expression><output type="string">---</output></test>
+    <test name="REQ-STRINGS-050-e"><expression>'abc'.replaceMatches('b', '')</expression><output type="string">ac</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-052" description="replaceMatches is empty when the input, the regular expression or the substitution is empty">
+    <source spec="fhirpath-2.0.0" section="replaceMatches(regex : String, substitution: String) : String" strength="DEFINITION">If the input collection, `regex`, or `substitution` are empty, the result is empty (`{ }`).</source>
+    <source spec="fhirpath-3.0.0" section="replaceMatches(regex : String, substitution: String, [flags : String]) : String" strength="DEFINITION">If the input collection, `regex`, or `substitution` are empty, the result is empty (`{ }`).</source>
+    <test name="REQ-STRINGS-052-a"><expression>{}.replaceMatches('a', 'b')</expression></test>
+    <test name="REQ-STRINGS-052-b"><expression>'abc'.replaceMatches({}, 'b')</expression></test>
+    <test name="REQ-STRINGS-052-c"><expression>'abc'.replaceMatches('a', {})</expression></test>
+  </group>
+
+  <group name="REQ-STRINGS-053" description="replaceMatches is case-sensitive by default and takes the i and m flags (3.0.0 only, STU)">
+    <source spec="fhirpath-3.0.0" section="replaceMatches(regex : String, substitution: String, [flags : String]) : String" strength="DEFINITION">`i` to perform a case-insensitive search (otherwise is case-sensitive)</source>
+    <source spec="fhirpath-3.0.0" section="replaceMatches(regex : String, substitution: String, [flags : String]) : String" strength="DEFINITION">`m` - Matches the start and end of each line using ^ and $ (multi-line)&lt;br/&gt;(not only begin/end of string)</source>
+    <test name="REQ-STRINGS-053-a"><expression>'aAa'.replaceMatches('a', 'x')</expression><output type="string">xAx</output></test>
+    <test name="REQ-STRINGS-053-b"><expression>'aAa'.replaceMatches('a', 'x', 'i')</expression><output type="string">xxx</output></test>
+    <test name="REQ-STRINGS-053-c"><expression>'a\nb'.replaceMatches('^b', 'x', 'm') = 'a\nx'</expression><output type="boolean">true</output></test>
+    <test name="REQ-STRINGS-053-d"><expression>'a\nb'.replaceMatches('^b', 'x') = 'a\nb'</expression><output type="boolean">true</output></test>
+  </group>
+
+  <!-- length, toChars, Unicode -->
+
+  <group name="REQ-STRINGS-054" description="length returns the number of characters in the input string, and is empty for an empty input">
+    <source spec="fhirpath-2.0.0" section="length() : Integer" strength="DEFINITION">Returns the length of the input string. If the input collection is empty (`{ }`), the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="length() : Integer" strength="DEFINITION">Returns the number of characters (Unicode scalar values) in the input string. If the input collection is empty (`{ }`), the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="length() : Integer" strength="EXAMPLE">'abc'.length() // 3</source>
+    <source spec="fhirpath-3.0.0" section="length() : Integer" strength="EXAMPLE">''.length() // 0</source>
+    <test name="REQ-STRINGS-054-a"><expression>'abc'.length()</expression><output type="integer">3</output></test>
+    <test name="REQ-STRINGS-054-b"><expression>''.length()</expression><output type="integer">0</output></test>
+    <test name="REQ-STRINGS-054-c"><expression>{}.length()</expression></test>
+    <test name="REQ-STRINGS-054-d"><expression>'a b'.length()</expression><output type="integer">3</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-055" description="length counts Unicode scalar values: a combining sequence counts each scalar value, a surrogate pair counts once (3.0.0; 2.0.0 does not say what a character is)">
+    <source spec="fhirpath-3.0.0" section="length() : Integer" strength="DEFINITION">Returns the number of characters (Unicode scalar values) in the input string.</source>
+    <source spec="fhirpath-3.0.0" section="length() : Integer" strength="EXAMPLE">'&#92;u0065&#92;u0301'.length() // 2 characters (Unicode scalar values)</source>
+    <source spec="fhirpath-3.0.0" section="length() : Integer" strength="EXAMPLE">'&#92;uD83D&#92;uDD25'.length() // 1 character (single Unicode scalar value encoded using a UTF-16 surrogate pair)</source>
+    <source spec="fhirpath-3.0.0" section="Unicode and String Operations" strength="DEFINITION">String functions such as [`length()`](#length--integer), [`indexOf()`](#indexofsubstring--string--integer), [`substring()`](#substringstart--integer--length--integer--string), and [`toChars()`](#tochars--collection) operate on characters (Unicode scalar values), not on visual characters (grapheme clusters).</source>
+    <source spec="fhirpath-3.0.0" section="Unicode and String Operations" strength="DEFINITION">| `é` (precomposed) | `'&#92;u00E9'` | U+00E9 | 1 | Single character |</source>
+    <test name="REQ-STRINGS-055-a"><expression>'&#92;u0065&#92;u0301'.length()</expression><output type="integer">2</output></test>
+    <test name="REQ-STRINGS-055-b"><expression>'&#92;uD83D&#92;uDD25'.length()</expression><output type="integer">1</output></test>
+    <test name="REQ-STRINGS-055-c"><expression>'&#92;u00E9'.length()</expression><output type="integer">1</output></test>
+    <test name="REQ-STRINGS-055-d"><expression>'🔥'.length()</expression><output type="integer">1</output></test>
+    <test name="REQ-STRINGS-055-e"><expression>'a🔥b'.length()</expression><output type="integer">3</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-056" description="toChars returns the characters of the input string in order as single-character strings, none for an empty string, and is empty for an empty input">
+    <source spec="fhirpath-2.0.0" section="toChars() : collection" strength="DEFINITION">Returns the list of characters in the input string. If the input collection is empty (`{ }`), the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="toChars() : collection" strength="DEFINITION">Returns the list of characters in the input string as individual single-character strings. If the input collection is empty (`{ }`), the result is empty.</source>
+    <source spec="fhirpath-2.0.0" section="toChars() : collection" strength="EXAMPLE">'abc'.toChars() // { 'a', 'b', 'c' }</source>
+    <test name="REQ-STRINGS-056-a"><expression>'abc'.toChars()</expression><output type="string">a</output><output type="string">b</output><output type="string">c</output></test>
+    <test name="REQ-STRINGS-056-b"><expression>'aa'.toChars()</expression><output type="string">a</output><output type="string">a</output></test>
+    <test name="REQ-STRINGS-056-c"><expression>''.toChars()</expression></test>
+    <test name="REQ-STRINGS-056-d"><expression>{}.toChars()</expression></test>
+  </group>
+
+  <group name="REQ-STRINGS-057" description="toChars splits into Unicode scalar values: a combining mark is its own character, a surrogate pair is one character (3.0.0)">
+    <source spec="fhirpath-3.0.0" section="toChars() : collection" strength="EXAMPLE">'&#92;u0065&#92;u0301'.toChars() // { 'e', '&#92;u0301' } ; the combining form of 'é' returns two characters</source>
+    <source spec="fhirpath-3.0.0" section="toChars() : collection" strength="EXAMPLE">'a&#92;uD83D&#92;uDD25b'.toChars()        // { 'a', '🔥', 'b' } ; note that the surrogate pair is a single character in the output collection (don't split the surrogate pairs as separate characters)</source>
+    <test name="REQ-STRINGS-057-a"><expression>'&#92;u0065&#92;u0301'.toChars()</expression><output type="string">e</output><output type="string">&#x301;</output></test>
+    <test name="REQ-STRINGS-057-b"><expression>'a&#92;uD83D&#92;uDD25b'.toChars()</expression><output type="string">a</output><output type="string">🔥</output><output type="string">b</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-058" description="A \uXXXX escape writes one UTF-16 code unit, and a valid surrogate pair written as two escapes is the single character it encodes (the pair rule is 3.0.0's)">
+    <source spec="fhirpath-2.0.0" section="String" strength="DEFINITION">Unicode character, where XXXX is the hexadecimal representation of the character</source>
+    <source spec="fhirpath-3.0.0" section="String" strength="DEFINITION">When parsing string literals, `\uXXXX` escape sequences represent [UTF-16](https://www.unicode.org/versions/Unicode16.0.0/core-spec/chapter-3/#G31699) code units; valid surrogate pairs are combined to form a single Unicode scalar value.</source>
+    <source spec="fhirpath-3.0.0" section="String" strength="DEFINITION">After processing escapes, a FHIRPath string is defined as a sequence of Unicode scalar values, which are referred to elsewhere in this specification as `characters` (for example, in [toChars()](#tochars--collection)).</source>
+    <test name="REQ-STRINGS-058-a"><expression>'&#92;u00E9' = 'é'</expression><output type="boolean">true</output></test>
+    <test name="REQ-STRINGS-058-b"><expression>'&#92;uD83D&#92;uDD25' = '🔥'</expression><output type="boolean">true</output></test>
+    <test name="REQ-STRINGS-058-c"><expression>'a&#92;uD83D&#92;uDD25b'.indexOf('🔥')</expression><output type="integer">1</output></test>
+  </group>
+
+  <!-- encode, decode -->
+
+  <group name="REQ-STRINGS-059" description="encode('base64') uses the standard alphabet with + and / and pads with =">
+    <source spec="fhirpath-2.0.0" section="encode(format : String) : String" strength="DEFINITION">The encode function takes a singleton string and returns the result of encoding that string in the given format.</source>
+    <source spec="fhirpath-2.0.0" section="encode(format : String) : String" strength="DEFINITION">The string is encoded using standard base64 encoding, using A-Z, a-z, 0-9, +, and /, output padded with =</source>
+    <source spec="fhirpath-3.0.0" section="encode(format : String) : String" strength="DEFINITION">The string is encoded using standard base64 encoding, using A-Z, a-z, 0-9, +, and /, output padded with =</source>
+    <source spec="fhirpath-3.0.0" section="encode(format : String) : String" strength="EXAMPLE">'test'.encode('base64') // returns 'dGVzdA==' (testEncodeBase64A)</source>
+    <test name="REQ-STRINGS-059-a"><expression>'test'.encode('base64')</expression><output type="string">dGVzdA==</output></test>
+    <test name="REQ-STRINGS-059-b"><expression>'a'.encode('base64')</expression><output type="string">YQ==</output></test>
+    <test name="REQ-STRINGS-059-c"><expression>'ab'.encode('base64')</expression><output type="string">YWI=</output></test>
+    <test name="REQ-STRINGS-059-d"><expression>'??&gt;'.encode('base64')</expression><output type="string">Pz8+</output></test>
+    <test name="REQ-STRINGS-059-e"><expression>'???'.encode('base64')</expression><output type="string">Pz8/</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-060" description="encode('urlbase64') uses - and _ in place of + and / and pads with =">
+    <source spec="fhirpath-2.0.0" section="encode(format : String) : String" strength="DEFINITION">The string is encoded using url base 64 encoding, using A-Z, a-z, 0-9, -, and _, output padded with =</source>
+    <source spec="fhirpath-3.0.0" section="encode(format : String) : String" strength="DEFINITION">The string is encoded using url base 64 encoding, using A-Z, a-z, 0-9, -, and _, output padded with =</source>
+    <test name="REQ-STRINGS-060-a"><expression>'??&gt;'.encode('urlbase64')</expression><output type="string">Pz8-</output></test>
+    <test name="REQ-STRINGS-060-b"><expression>'???'.encode('urlbase64')</expression><output type="string">Pz8_</output></test>
+    <test name="REQ-STRINGS-060-c"><expression>'a'.encode('urlbase64')</expression><output type="string">YQ==</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-061" description="encode('hex') writes base 16 digits, in lower case (lower case is 3.0.0's; 2.0.0 does not say)">
+    <source spec="fhirpath-2.0.0" section="encode(format : String) : String" strength="DEFINITION">The string is encoded using hexadecimal characters (base 16)</source>
+    <source spec="fhirpath-3.0.0" section="encode(format : String) : String" strength="DEFINITION">The string is encoded using hexadecimal characters (base 16) in lowercase</source>
+    <source spec="fhirpath-3.0.0" section="encode(format : String) : String" strength="EXAMPLE">'test'.encode('hex') // returns '74657374' (testEncodeHex)</source>
+    <test name="REQ-STRINGS-061-a"><expression>'test'.encode('hex')</expression><output type="string">74657374</output></test>
+    <test name="REQ-STRINGS-061-b"><expression>'z?'.encode('hex')</expression><output type="string">7a3f</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-062" description="encode('ascii') replaces every character above code 127 with ? (3.0.0 only, STU)">
+    <source spec="fhirpath-3.0.0" section="encode(format : String) : String" strength="DEFINITION">The string has any character above character code 127 replaced with `?`.</source>
+    <source spec="fhirpath-3.0.0" section="String" strength="DEFINITION">After processing escapes, a FHIRPath string is defined as a sequence of Unicode scalar values, which are referred to elsewhere in this specification as `characters` (for example, in [toChars()](#tochars--collection)).</source>
+    <test name="REQ-STRINGS-062-a"><expression>'abc'.encode('ascii')</expression><output type="string">abc</output></test>
+    <test name="REQ-STRINGS-062-b"><expression>'aé'.encode('ascii')</expression><output type="string">a?</output></test>
+    <test name="REQ-STRINGS-062-c"><expression>'a🔥b'.encode('ascii')</expression><output type="string">a?b</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-063" description="encode is empty when the input is empty or the format argument evaluates to empty">
+    <source spec="fhirpath-2.0.0" section="encode(format : String) : String" strength="DEFINITION">If the input is empty, the result is empty.</source>
+    <source spec="fhirpath-2.0.0" section="encode(format : String) : String" strength="DEFINITION">If no format is specified, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="encode(format : String) : String" strength="DEFINITION">If no format is specified, the result is empty.</source>
+    <test name="REQ-STRINGS-063-a"><expression>{}.encode('hex')</expression></test>
+    <test name="REQ-STRINGS-063-b"><expression>'test'.encode({})</expression></test>
+  </group>
+
+  <group name="REQ-STRINGS-064" description="encode and decode work on the UTF-8 bytes of the string (3.0.0: the String type is UTF-8 encoded and decode expects UTF-8)">
+    <source spec="fhirpath-3.0.0" section="String" strength="DEFINITION">The `String` type represents string values up to 2&lt;sup&gt;31&lt;/sup&gt;-1 characters in length and is UTF-8 encoded.</source>
+    <source spec="fhirpath-3.0.0" section="decode(format : String) : String" strength="DEFINITION">If the content being decoded is not a valid UTF-8 value, the result will be empty.</source>
+    <test name="REQ-STRINGS-064-a"><expression>'é'.encode('hex')</expression><output type="string">c3a9</output></test>
+    <test name="REQ-STRINGS-064-b"><expression>'c3a9'.decode('hex')</expression><output type="string">é</output></test>
+    <test name="REQ-STRINGS-064-c"><expression>'é'.encode('base64')</expression><output type="string">w6k=</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-065" description="decode reverses encode for hex, base64 and urlbase64">
+    <source spec="fhirpath-2.0.0" section="decode(format : String) : String" strength="DEFINITION">The decode function takes a singleton encoded string and returns the result of decoding that string according to the given format.</source>
+    <source spec="fhirpath-3.0.0" section="decode(format : String) : String" strength="DEFINITION">The decode function takes a singleton encoded string and returns the result of decoding that string according to the given format.</source>
+    <source spec="fhirpath-3.0.0" section="decode(format : String) : String" strength="EXAMPLE">'dGVzdA=='.decode('base64') // returns 'test' (testDecodeBase64A)</source>
+    <source spec="fhirpath-3.0.0" section="decode(format : String) : String" strength="EXAMPLE">'74657374'.decode('hex') // returns 'test' (testDecodeHex)</source>
+    <test name="REQ-STRINGS-065-a"><expression>'dGVzdA=='.decode('base64')</expression><output type="string">test</output></test>
+    <test name="REQ-STRINGS-065-b"><expression>'74657374'.decode('hex')</expression><output type="string">test</output></test>
+    <test name="REQ-STRINGS-065-c"><expression>'Pz8+'.decode('base64')</expression><output type="string">??&gt;</output></test>
+    <test name="REQ-STRINGS-065-d"><expression>'Pz8-'.decode('urlbase64')</expression><output type="string">??&gt;</output></test>
+    <test name="REQ-STRINGS-065-e"><expression>'7a3f'.decode('hex')</expression><output type="string">z?</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-066" description="decode is empty when the decoded bytes are not valid UTF-8 (3.0.0 only, STU)">
+    <source spec="fhirpath-3.0.0" section="decode(format : String) : String" strength="DEFINITION">If the content being decoded is not a valid UTF-8 value, the result will be empty.</source>
+    <test name="REQ-STRINGS-066-a"><expression>'ff'.decode('hex')</expression></test>
+    <test name="REQ-STRINGS-066-b"><expression>'c328'.decode('hex')</expression></test>
+    <test name="REQ-STRINGS-066-c"><expression>'/w=='.decode('base64')</expression></test>
+  </group>
+
+  <group name="REQ-STRINGS-067" description="decode is empty when the input is empty or the format argument evaluates to empty">
+    <source spec="fhirpath-2.0.0" section="decode(format : String) : String" strength="DEFINITION">If the input is empty, the result is empty.</source>
+    <source spec="fhirpath-2.0.0" section="decode(format : String) : String" strength="DEFINITION">If no format is specified, the result is empty.</source>
+    <test name="REQ-STRINGS-067-a"><expression>{}.decode('hex')</expression></test>
+    <test name="REQ-STRINGS-067-b"><expression>'74657374'.decode({})</expression></test>
+  </group>
+
+  <!-- escape, unescape -->
+
+  <group name="REQ-STRINGS-068" description="escape('html') escapes an ampersand as &amp;amp; and leaves no raw open bracket or double quote">
+    <source spec="fhirpath-2.0.0" section="escape(target : String) : String" strength="DEFINITION">The escape function takes a singleton string and escapes it for a given target, as specified in the following table:</source>
+    <source spec="fhirpath-3.0.0" section="escape(target : String) : String" strength="DEFINITION">The string is escaped such that it can appear as valid HTML content (at least open bracket (`&lt;`), ampersand (`&amp;`), and quotes (`"`), but ideally anything with a character encoding above 127)</source>
+    <source spec="fhirpath-3.0.0" section="escape(target : String) : String" strength="EXAMPLE">'A&amp;B'.escape('html') // returns 'A&amp;amp;B' (testEscapeHtmlAmpersand)</source>
+    <test name="REQ-STRINGS-068-a"><expression>'A&amp;B'.escape('html')</expression><output type="string">A&amp;amp;B</output></test>
+    <test name="REQ-STRINGS-068-b"><expression>'1&lt;2'.escape('html').contains('&lt;')</expression><output type="boolean">false</output></test>
+    <test name="REQ-STRINGS-068-c"><expression>'a"b'.escape('html').contains('"')</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-069" description="escape('json') escapes a double quote as backslash-quote">
+    <source spec="fhirpath-2.0.0" section="escape(target : String) : String" strength="DEFINITION">The string is escaped such that it can appear as a valid JSON string (quotes (`"`) are escaped as (`\"`))</source>
+    <source spec="fhirpath-3.0.0" section="escape(target : String) : String" strength="DEFINITION">The string is escaped such that it can appear as a valid JSON string (quotes (`"`) are escaped as (`\"`))</source>
+    <source spec="fhirpath-3.0.0" section="escape(target : String) : String" strength="EXAMPLE">'"1&lt;2"'.escape('json') // returns '\"1&lt;2\"' (testEscapeJson)</source>
+    <test name="REQ-STRINGS-069-a"><expression>'"1&lt;2"'.escape('json')</expression><output type="string">\"1&lt;2\"</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-070" description="escape is empty when the input is empty or the target argument evaluates to empty">
+    <source spec="fhirpath-2.0.0" section="escape(target : String) : String" strength="DEFINITION">If the input is empty, the result is empty.</source>
+    <source spec="fhirpath-2.0.0" section="escape(target : String) : String" strength="DEFINITION">If no target is specified, the result is empty.</source>
+    <test name="REQ-STRINGS-070-a"><expression>{}.escape('html')</expression></test>
+    <test name="REQ-STRINGS-070-b"><expression>'a'.escape({})</expression></test>
+  </group>
+
+  <group name="REQ-STRINGS-071" description="unescape reverses escape for the html and json targets">
+    <source spec="fhirpath-2.0.0" section="unescape(target : String) : String" strength="DEFINITION">The unescape function takes a singleton string and unescapes it for a given target. The available targets are specified in the escape function description.</source>
+    <source spec="fhirpath-3.0.0" section="unescape(target : String) : String" strength="EXAMPLE">'&amp;quot;1&amp;lt;2&amp;quot;'.unescape('html') // returns '"1&lt;2"' (testUnescapeHtml)</source>
+    <source spec="fhirpath-2.0.0" section="escape(target : String) : String" strength="DEFINITION">The string is escaped such that it can appear as a valid JSON string (quotes (`"`) are escaped as (`\"`))</source>
+    <test name="REQ-STRINGS-071-a"><expression>'&amp;quot;1&amp;lt;2&amp;quot;'.unescape('html')</expression><output type="string">"1&lt;2"</output></test>
+    <test name="REQ-STRINGS-071-b"><expression>'A&amp;amp;B'.unescape('html')</expression><output type="string">A&amp;B</output></test>
+    <test name="REQ-STRINGS-071-c"><expression>'\\"a\\"'.unescape('json')</expression><output type="string">"a"</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-072" description="unescape is empty when the input is empty or the target argument evaluates to empty">
+    <source spec="fhirpath-2.0.0" section="unescape(target : String) : String" strength="DEFINITION">If the input is empty, the result is empty.</source>
+    <source spec="fhirpath-2.0.0" section="unescape(target : String) : String" strength="DEFINITION">If no target is specified, the result is empty.</source>
+    <test name="REQ-STRINGS-072-a"><expression>{}.unescape('html')</expression></test>
+    <test name="REQ-STRINGS-072-b"><expression>'a'.unescape({})</expression></test>
+  </group>
+
+  <group name="REQ-STRINGS-089" description="escape('json') also escapes a backslash as two backslashes and a line feed as backslash-n, the escapes of the String section, and unescape('json') reverses them">
+    <source spec="fhirpath-2.0.0" section="escape(target : String) : String" strength="DEFINITION">The string is escaped such that it can appear as a valid JSON string (quotes (`"`) are escaped as (`&#92;"`)); additional escape characters are described in the &lt;&lt;string, String&gt;&gt; escape section</source>
+    <source spec="fhirpath-3.0.0" section="escape(target : String) : String" strength="DEFINITION">The string is escaped such that it can appear as a valid JSON string (quotes (`"`) are escaped as (`&#92;"`)); additional escape characters are described in the [String](#string) escape section</source>
+    <source spec="fhirpath-2.0.0" section="String" strength="DEFINITION">|`&#92;n`|Line Feed</source>
+    <source spec="fhirpath-2.0.0" section="String" strength="DEFINITION">|`&#92;&#92;`|Backslash</source>
+    <source spec="fhirpath-3.0.0" section="String" strength="DEFINITION">| `&#92;n` | Line Feed |</source>
+    <source spec="fhirpath-3.0.0" section="String" strength="DEFINITION">| `&#92;&#92;` | Backslash |</source>
+    <source spec="fhirpath-2.0.0" section="unescape(target : String) : String" strength="DEFINITION">The unescape function takes a singleton string and unescapes it for a given target. The available targets are specified in the escape function description.</source>
+    <test name="REQ-STRINGS-089-a"><expression>'a&#92;&#92;b'.escape('json')</expression><output type="string">a&#92;&#92;b</output></test>
+    <test name="REQ-STRINGS-089-b"><expression>'a&#92;nb'.escape('json')</expression><output type="string">a&#92;nb</output></test>
+    <test name="REQ-STRINGS-089-c"><expression>'a&#92;&#92;&#92;&#92;b'.unescape('json')</expression><output type="string">a&#92;b</output></test>
+    <test name="REQ-STRINGS-089-d"><expression>'a&#92;&#92;nb'.unescape('json') = 'a&#92;nb'</expression><output type="boolean">true</output></test>
+    <test name="REQ-STRINGS-089-e"><expression>'a&#92;&#92;b&#92;nc'.escape('json').unescape('json') = 'a&#92;&#92;b&#92;nc'</expression><output type="boolean">true</output></test>
+  </group>
+
+  <!-- trim, split, join -->
+
+  <group name="REQ-STRINGS-073" description="trim removes whitespace (tab, space, line feed, carriage return) from both ends and keeps the whitespace inside">
+    <source spec="fhirpath-2.0.0" section="trim() : String" strength="DEFINITION">The trim function trims whitespace characters from the beginning and ending of the input string, with whitespace characters as defined in the &lt;&lt;whitespace, Whitespace&gt;&gt; lexical category.</source>
+    <source spec="fhirpath-3.0.0" section="trim() : String" strength="DEFINITION">The trim function trims whitespace characters from the beginning and ending of the input string, with whitespace characters as defined in the [Whitespace](#whitespace) lexical category.</source>
+    <source spec="fhirpath-2.0.0" section="Whitespace" strength="DEFINITION">FHIRPath defines _tab_ (`\t`), _space_ (`` ``), _line feed_ (`\n`) and _carriage return_ (`\r`) as _whitespace_, meaning they are only used to separate other tokens within the language.</source>
+    <source spec="fhirpath-3.0.0" section="trim() : String" strength="EXAMPLE">' 123456 '.trim() // '123456'</source>
+    <source spec="fhirpath-3.0.0" section="trim() : String" strength="EXAMPLE">'  '.trim() // ''</source>
+    <test name="REQ-STRINGS-073-a"><expression>' 123456 '.trim()</expression><output type="string">123456</output></test>
+    <test name="REQ-STRINGS-073-b"><expression>'  '.trim() = ''</expression><output type="boolean">true</output></test>
+    <test name="REQ-STRINGS-073-c"><expression>' a b '.trim()</expression><output type="string">a b</output></test>
+    <test name="REQ-STRINGS-073-d"><expression>'\t\r\n abc \n\t'.trim()</expression><output type="string">abc</output></test>
+    <test name="REQ-STRINGS-073-e"><expression>'abc'.trim()</expression><output type="string">abc</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-074" description="trim removes only the four whitespace characters of the lexical category: form feed and no-break space stay">
+    <source spec="fhirpath-2.0.0" section="trim() : String" strength="DEFINITION">The trim function trims whitespace characters from the beginning and ending of the input string, with whitespace characters as defined in the &lt;&lt;whitespace, Whitespace&gt;&gt; lexical category.</source>
+    <source spec="fhirpath-2.0.0" section="Whitespace" strength="DEFINITION">FHIRPath defines _tab_ (`\t`), _space_ (`` ``), _line feed_ (`\n`) and _carriage return_ (`\r`) as _whitespace_, meaning they are only used to separate other tokens within the language.</source>
+    <source spec="fhirpath-3.0.0" section="Whitespace" strength="DEFINITION">FHIRPath defines _tab_ (`\t`), _space_ (`` ``), _line feed_ (`\n`) and _carriage return_ (`\r`) as _whitespace_, meaning they are only used to separate other tokens within the language.</source>
+    <test name="REQ-STRINGS-074-a"><expression>'\fa'.trim().length()</expression><output type="integer">2</output></test>
+    <test name="REQ-STRINGS-074-b"><expression>' a '.trim().length()</expression><output type="integer">3</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-075" description="trim is empty when the input is empty">
+    <source spec="fhirpath-2.0.0" section="trim() : String" strength="DEFINITION">If the input is empty, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="trim() : String" strength="DEFINITION">If the input is empty, the result is empty.</source>
+    <test name="REQ-STRINGS-075-a"><expression>{}.trim()</expression></test>
+  </group>
+
+  <group name="REQ-STRINGS-076" description="split cuts the input at every appearance of the separator, keeping the pieces in order, empty pieces between adjacent separators included">
+    <source spec="fhirpath-2.0.0" section="split(separator: String) : collection" strength="DEFINITION">The split function splits a singleton input string into a list of strings, using the given separator.</source>
+    <source spec="fhirpath-3.0.0" section="split(separator: String) : collection" strength="DEFINITION">The split function splits a singleton input string into a list of strings, using the given separator.</source>
+    <source spec="fhirpath-2.0.0" section="split(separator: String) : collection" strength="EXAMPLE">('A,B,C').split(',') // { 'A', 'B', 'C' }</source>
+    <source spec="fhirpath-3.0.0" section="split(separator: String) : collection" strength="EXAMPLE">'A,,C'.split(',') // { 'A', '', 'C' }</source>
+    <test name="REQ-STRINGS-076-a"><expression>('A,B,C').split(',')</expression><output type="string">A</output><output type="string">B</output><output type="string">C</output></test>
+    <test name="REQ-STRINGS-076-b"><expression>'A,,C'.split(',').count()</expression><output type="integer">3</output></test>
+    <test name="REQ-STRINGS-076-c"><expression>'A,,C'.split(',').select(length())</expression><output type="integer">1</output><output type="integer">0</output><output type="integer">1</output></test>
+    <test name="REQ-STRINGS-076-d"><expression>'B,A,B'.split(',')</expression><output type="string">B</output><output type="string">A</output><output type="string">B</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-077" description="split returns the input string itself when the separator does not appear in it">
+    <source spec="fhirpath-2.0.0" section="split(separator: String) : collection" strength="DEFINITION">If the input string does not contain any appearances of the separator, the result is the input string.</source>
+    <source spec="fhirpath-3.0.0" section="split(separator: String) : collection" strength="DEFINITION">If the input string does not contain any appearances of the separator, the result is the input string.</source>
+    <source spec="fhirpath-2.0.0" section="split(separator: String) : collection" strength="EXAMPLE">('ABC').split(',') // { 'ABC' }</source>
+    <test name="REQ-STRINGS-077-a"><expression>('ABC').split(',')</expression><output type="string">ABC</output></test>
+    <test name="REQ-STRINGS-077-b"><expression>''.split(',').count()</expression><output type="integer">1</output></test>
+    <test name="REQ-STRINGS-077-c"><expression>''.split(',') = ''</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-078" description="split takes the separator as a plain string of any length, not a regular expression">
+    <source spec="fhirpath-2.0.0" section="split(separator: String) : collection" strength="DEFINITION">The split function splits a singleton input string into a list of strings, using the given separator.</source>
+    <test name="REQ-STRINGS-078-a"><expression>'a.b.c'.split('.')</expression><output type="string">a</output><output type="string">b</output><output type="string">c</output></test>
+    <test name="REQ-STRINGS-078-b"><expression>'a[x]b'.split('[x]')</expression><output type="string">a</output><output type="string">b</output></test>
+    <test name="REQ-STRINGS-078-c"><expression>'axb'.split('[x]')</expression><output type="string">axb</output></test>
+    <test name="REQ-STRINGS-078-d"><expression>'one--two--three'.split('--')</expression><output type="string">one</output><output type="string">two</output><output type="string">three</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-079" description="split is empty when the input is empty, or when the separator is empty by the general rule for single-input functions">
+    <source spec="fhirpath-2.0.0" section="split(separator: String) : collection" strength="DEFINITION">If the input is empty, the result is empty.</source>
+    <source spec="fhirpath-2.0.0" section="Propagation of empty results in expressions" strength="DEFINITION">If a single-input operator or function is passed an empty collection as an argument, the result is an empty collection</source>
+    <test name="REQ-STRINGS-079-a"><expression>{}.split(',')</expression></test>
+    <test name="REQ-STRINGS-079-b"><expression>'a,b'.split({})</expression></test>
+  </group>
+
+  <group name="REQ-STRINGS-080" description="join concatenates the strings of the input collection in order with the separator between them (the text's examples join a union of literals, whose order the text does not promise, so the collections here come from split and from the model)">
+    <source spec="fhirpath-2.0.0" section="join([separator: String]) : String" strength="DEFINITION">The join function takes a collection of strings and _joins_ them into a single string, optionally using the given separator.</source>
+    <source spec="fhirpath-3.0.0" section="join([separator: String]) : String" strength="DEFINITION">The join function takes a collection of strings and _joins_ them into a single string, optionally using the given separator.</source>
+    <source spec="fhirpath-2.0.0" section="join([separator: String]) : String" strength="EXAMPLE">('A' | 'B' | 'C').join(',') // 'A,B,C'</source>
+    <test name="REQ-STRINGS-080-a"><expression>'A,B,C'.split(',').join(',')</expression><output type="string">A,B,C</output></test>
+    <test name="REQ-STRINGS-080-b"><expression>'A,B,C'.split(',').join(' - ')</expression><output type="string">A - B - C</output></test>
+    <test name="REQ-STRINGS-080-c" inputfile="patient-example.xml"><expression>Patient.name.given.join(',')</expression><output type="string">Peter,James,Jim,Peter,James</output></test>
+    <test name="REQ-STRINGS-080-d"><expression>'A'.join(',')</expression><output type="string">A</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-081" description="join without a separator concatenates the strings directly">
+    <source spec="fhirpath-2.0.0" section="join([separator: String]) : String" strength="DEFINITION">If no separator is specified, the strings are directly concatenated.</source>
+    <source spec="fhirpath-3.0.0" section="join([separator: String]) : String" strength="DEFINITION">If no separator is specified, the strings are directly concatenated.</source>
+    <source spec="fhirpath-2.0.0" section="join([separator: String]) : String" strength="EXAMPLE">('A' | 'B' | 'C').join() // 'ABC'</source>
+    <test name="REQ-STRINGS-081-a"><expression>'A,B,C'.split(',').join()</expression><output type="string">ABC</output></test>
+    <test name="REQ-STRINGS-081-b" inputfile="patient-example.xml"><expression>Patient.name.given.join()</expression><output type="string">PeterJamesJimPeterJames</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-082" description="join is empty when the input is empty">
+    <source spec="fhirpath-2.0.0" section="join([separator: String]) : String" strength="DEFINITION">If the input is empty, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="join([separator: String]) : String" strength="DEFINITION">If the input is empty, the result is empty.</source>
+    <test name="REQ-STRINGS-082-a"><expression>{}.join(',')</expression></test>
+    <test name="REQ-STRINGS-082-b"><expression>{}.join()</expression></test>
+  </group>
+
+  <!-- + and & on strings -->
+
+  <group name="REQ-STRINGS-083" description="+ on two strings concatenates the right operand to the end of the left one">
+    <source spec="fhirpath-2.0.0" section="+ (addition)" strength="DEFINITION">For strings, concatenates the right operand to the left operand.</source>
+    <source spec="fhirpath-3.0.0" section="+ (addition)" strength="DEFINITION">For strings, concatenates the right operand to the end of the left operand.</source>
+    <source spec="fhirpath-2.0.0" section="&amp;amp; (String concatenation)" strength="EXAMPLE">'ABC' + 'DEF' // 'ABCDEF'</source>
+    <test name="REQ-STRINGS-083-a"><expression>'ABC' + 'DEF'</expression><output type="string">ABCDEF</output></test>
+    <test name="REQ-STRINGS-083-b"><expression>'b' + 'a'</expression><output type="string">ba</output></test>
+    <test name="REQ-STRINGS-083-c"><expression>'' + 'a'</expression><output type="string">a</output></test>
+    <test name="REQ-STRINGS-083-d"><expression>'a' + 'b' + 'c'</expression><output type="string">abc</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-084" description="+ on strings is empty when either operand is empty">
+    <source spec="fhirpath-2.0.0" section="Math" strength="DEFINITION">As with the other operators, the math operators will return an empty collection if one or both of the operands are empty.</source>
+    <source spec="fhirpath-2.0.0" section="&amp;amp; (String concatenation)" strength="DEFINITION">This differs from `+` on two strings, which will result in an empty collection when one of the operands is empty.</source>
+    <source spec="fhirpath-2.0.0" section="&amp;amp; (String concatenation)" strength="EXAMPLE">'ABC' + { } + 'DEF' // { }</source>
+    <test name="REQ-STRINGS-084-a"><expression>'ABC' + { } + 'DEF'</expression></test>
+    <test name="REQ-STRINGS-084-b"><expression>'a' + {}</expression></test>
+    <test name="REQ-STRINGS-084-c"><expression>{} + 'a'</expression></test>
+  </group>
+
+  <group name="REQ-STRINGS-085" description="+ between a string and a number signals an error: neither converts implicitly to the other">
+    <source spec="fhirpath-2.0.0" section="Math" strength="DEFINITION">The math operators require each operand to be a single element. Both operands must be of the same type, or of compatible types according to the rules for implicit conversion. Each operator below specifies which types are supported.</source>
+    <source spec="fhirpath-2.0.0" section="Math" strength="DEFINITION">If there is more than one item, or an incompatible item, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-3.0.0" section="Math" strength="DEFINITION">If there is more than one item, or incompatible items, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <test name="REQ-STRINGS-085-a"><expression invalid="execution">'a' + 1</expression></test>
+    <test name="REQ-STRINGS-085-b"><expression invalid="execution">1 + 'a'</expression></test>
+  </group>
+
+  <group name="REQ-STRINGS-086" description="+ on strings signals an error when an operand has more than one item, as the worked example of singleton evaluation shows">
+    <source spec="fhirpath-2.0.0" section="Math" strength="DEFINITION">If there is more than one item, or an incompatible item, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-2.0.0" section="Singleton Evaluation of Collections" strength="EXAMPLE">Patient.name.family + ', ' + Patient.name.given</source>
+    <source spec="fhirpath-2.0.0" section="Singleton Evaluation of Collections" strength="EXAMPLE">However, if the `Patient` has multiple `name` elements, or the single name has multiple `given` elements, then it's ambiguous which of the elements should be used as the input to the `+` operator, and the result is an error.</source>
+    <test name="REQ-STRINGS-086-a"><expression invalid="execution">('a' | 'b') + 'c'</expression></test>
+    <test name="REQ-STRINGS-086-b" inputfile="patient-example.xml"><expression invalid="execution">Patient.name.family + ', ' + Patient.name.given</expression></test>
+    <test name="REQ-STRINGS-086-c" inputfile="patient-example.xml"><expression>Patient.name.first().family + ', ' + Patient.name.first().given.first()</expression><output type="string">Chalmers, Peter</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-087" description="&amp; concatenates strings and takes an empty operand as the empty string">
+    <source spec="fhirpath-2.0.0" section="&amp;amp; (String concatenation)" strength="DEFINITION">For strings, will concatenate the strings, where an empty operand is taken to be the empty string.</source>
+    <source spec="fhirpath-3.0.0" section="&amp;amp; (String concatenation)" strength="DEFINITION">For strings, will concatenate the strings, where an empty operand is taken to be the empty string.</source>
+    <source spec="fhirpath-2.0.0" section="&amp;amp; (String concatenation)" strength="EXAMPLE">'ABC' &amp; 'DEF' // 'ABCDEF'</source>
+    <source spec="fhirpath-2.0.0" section="&amp;amp; (String concatenation)" strength="EXAMPLE">'ABC' &amp; { } &amp; 'DEF' // 'ABCDEF'</source>
+    <test name="REQ-STRINGS-087-a"><expression>'ABC' &amp; 'DEF'</expression><output type="string">ABCDEF</output></test>
+    <test name="REQ-STRINGS-087-b"><expression>'ABC' &amp; { } &amp; 'DEF'</expression><output type="string">ABCDEF</output></test>
+    <test name="REQ-STRINGS-087-c"><expression>{} &amp; 'b'</expression><output type="string">b</output></test>
+    <test name="REQ-STRINGS-087-d"><expression>'a' &amp; {}</expression><output type="string">a</output></test>
+    <test name="REQ-STRINGS-087-e"><expression>({} &amp; {}) = ''</expression><output type="boolean">true</output></test>
+    <test name="REQ-STRINGS-087-f"><expression>'b' &amp; 'a'</expression><output type="string">ba</output></test>
+  </group>
+
+  <group name="REQ-STRINGS-088" description="&amp;, one of the math operators, signals an error when an operand has more than one item">
+    <source spec="fhirpath-2.0.0" section="Math" strength="DEFINITION">If there is more than one item, or an incompatible item, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-3.0.0" section="Math" strength="DEFINITION">If there is more than one item, or incompatible items, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <test name="REQ-STRINGS-088-a"><expression invalid="execution">('a' | 'b') &amp; 'c'</expression></test>
+    <test name="REQ-STRINGS-088-b"><expression invalid="execution">'c' &amp; ('a' | 'b')</expression></test>
+  </group>
+
+</tests>

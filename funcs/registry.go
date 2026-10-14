@@ -108,3 +108,21 @@ func singleInput(name string, fn eval.FuncImpl) eval.FuncImpl {
 		return fn(ctx, input, args)
 	}
 }
+
+// singleArgs refuses an argument of more than one item, for functions whose
+// parameters each take a single value: "If the function expects the argument
+// passed to a parameter to be a single value (e.g. startsWith(prefix: String))
+// and it is passed an argument that evaluates to a collection with multiple
+// items, ... the evaluation of the expression will end and an error will be
+// signaled to the calling environment" (2.0.0).
+func singleArgs(name string, fn eval.FuncImpl) eval.FuncImpl {
+	return func(ctx *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
+		for _, arg := range args {
+			if c, ok := arg.(types.Collection); ok && len(c) > 1 {
+				return nil, eval.NewEvalError(eval.ErrSingletonExpected,
+					"%s() requires a single value for each argument, got %d items", name, len(c))
+			}
+		}
+		return fn(ctx, input, args)
+	}
+}
