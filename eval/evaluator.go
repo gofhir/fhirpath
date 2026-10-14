@@ -2448,7 +2448,7 @@ func (e *Evaluator) checkTypeSpecifier(function, typeName string) error {
 			return nil
 		}
 	}
-	if types.IsSystemTypeName(name) {
+	if types.IsSystemTypeName(name) || isAnyType(typeName) {
 		return nil
 	}
 
@@ -2471,6 +2471,9 @@ func (e *Evaluator) checkTypeSpecifier(function, typeName string) error {
 // Structured values keep hierarchy matching, so ofType(Quantity) still selects
 // an Age, and ofType(HumanName) a name.
 func castMatches(item types.Value, actualType, typeName string, model Model) bool {
+	if isAnyType(typeName) {
+		return true
+	}
 	if isSystemPrimitive(item) {
 		return systemTypeMatches(actualType, typeName)
 	}
@@ -2493,10 +2496,24 @@ func castMatches(item types.Value, actualType, typeName string, model Model) boo
 // FHIR.string, with a model or without one. A value read from the resource is
 // matched by its type name as TypeMatchesWithModel matches it.
 func ValueTypeMatches(item types.Value, typeName string, model Model) bool {
+	if isAnyType(typeName) {
+		return true
+	}
 	if isSystemPrimitive(item) {
 		return systemTypeMatches(item.Type(), typeName)
 	}
 	return TypeMatchesWithModel(item.Type(), typeName, model)
+}
+
+// isAnyType reports System.Any, which every value is: both versions call it
+// "an ultimate root type" of the System types, and type() names it the base
+// of System.String. So ofType(System.Any) keeps every item. Unqualified, Any
+// names no FHIR type, so it is the System one, as String is.
+func isAnyType(typeName string) bool {
+	if name, ok := strings.CutPrefix(typeName, "System."); ok {
+		return strings.EqualFold(name, "Any")
+	}
+	return typeName == "Any"
 }
 
 // isSystemPrimitive reports whether a value is a primitive that was not read

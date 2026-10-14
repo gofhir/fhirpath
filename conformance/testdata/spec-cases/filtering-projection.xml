@@ -1,0 +1,389 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tests name="filtering-projection" description="The Filtering and projection functions: where(criteria), select(projection), repeat(projection), repeatAll(projection) (3.0.0 STU only) and ofType(type), with $this and $index inside criteria and projections, and what FHIR's FHIRPath page says about ofType() on FHIR types and choice elements. Leaves out what the text does not settle: a criteria that yields a single non-Boolean item, ofType() with a name that does not resolve or with an abstract or profiled FHIR type, whether ofType() keeps a FHIR type's specialisation (an Age for ofType(Quantity)), ofType() with a System type on FHIR primitives, whether System.Integer is a subclass of System.Decimal, unqualified System type names in a FHIR context, $index inside repeat(), infinite repetition, and the order repeat() and repeatAll() return. Also left out: the note contrasting repeat(item) with descendants().select(item), which rests on descendants() (another area), and the 3.0.0 Scoped Functions example Patient.name.select(given.join(' ').combine($this.family, true).join(', ')), which rests on join() and the STU combine(other, preserveOrder). The multi-item criteria error of where() is in the existence area. sort(), coalesce() and the instance selector, which 3.0.0 places in this section, are not covered.">
+
+  <group name="REQ-FILTERINGPROJECTION-001" description="where(criteria) returns the input items for which the criteria is true, evaluating the criteria with respect to each item">
+    <source spec="fhirpath-2.0.0" section="where(criteria : expression) : collection" strength="DEFINITION">Returns a collection containing only those elements in the input collection for which the stated `criteria` expression evaluates to `true`.</source>
+    <source spec="fhirpath-3.0.0" section="where(criteria : ($this, $index) => Boolean) : collection" strength="DEFINITION">Returns a collection containing only those items in the input collection for which the stated `criteria` expression evaluates to `true`.</source>
+    <source spec="fhirpath-2.0.0" section="Functions" strength="DEFINITION">If the function takes an `expression` as a parameter, the function will evaluate the expression passed for the parameter with respect to each of the items in the input collection.</source>
+    <source spec="fhirpath-3.0.0" section="where(criteria : ($this, $index) => Boolean) : collection" strength="DEFINITION">The `criteria` argument is evaluated for each item (setting `$this` and `$index` before each iteration); those that return `true` are included in the output collection.</source>
+    <source spec="fhirpath-2.0.0" section="| (union collections)" strength="DEFINITION">Merge the two collections into a single collection, eliminating any duplicate values (using &lt;&lt;equals&gt;&gt; (`=`)) to determine equality). There is no expectation of order in the resulting collection.</source>
+    <test name="REQ-FILTERINGPROJECTION-001-a" inputfile="patient-example.xml"><expression>Patient.name.where(use = 'official').given</expression><output type="string">Peter</output><output type="string">James</output></test>
+    <test name="REQ-FILTERINGPROJECTION-001-b" inputfile="patient-example.xml"><expression>Patient.name.where(use = 'maiden').family</expression><output type="string">Windsor</output></test>
+    <test name="REQ-FILTERINGPROJECTION-001-c"><expression>(1 | 2 | 3).where(true).count()</expression><output type="integer">3</output></test>
+    <test name="REQ-FILTERINGPROJECTION-001-d"><expression>(1 | 2 | 3).where($this &gt; 2)</expression><output type="integer">3</output></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-002" description="where() leaves out every item for which the criteria is false or empty">
+    <source spec="fhirpath-2.0.0" section="where(criteria : expression) : collection" strength="DEFINITION">Elements for which the expression evaluates to `false` or empty (`{ }`) are not included in the result.</source>
+    <source spec="fhirpath-3.0.0" section="where(criteria : ($this, $index) => Boolean) : collection" strength="DEFINITION">Items for which the expression evaluates to `false` or empty (`{ }`) are not included in the result.</source>
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">If one or both of the operands is the empty collection, this operation returns an empty collection.</source>
+    <test name="REQ-FILTERINGPROJECTION-002-a"><expression>(1 | 2 | 3).where(false)</expression></test>
+    <test name="REQ-FILTERINGPROJECTION-002-b"><expression>(1 | 2 | 3).where({})</expression></test>
+    <test name="REQ-FILTERINGPROJECTION-002-c"><expression>(1 | 2 | 3).where($this = {})</expression></test>
+    <test name="REQ-FILTERINGPROJECTION-002-d" inputfile="patient-example.xml"><expression>Patient.telecom.where(system = 'phone').count()</expression><output type="integer">3</output></test>
+    <test name="REQ-FILTERINGPROJECTION-002-e" inputfile="patient-example.xml"><expression>Patient.name.where(family = 'Chalmers').count()</expression><output type="integer">1</output></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-003" description="where() of an empty input is empty, whatever the criteria">
+    <source spec="fhirpath-2.0.0" section="where(criteria : expression) : collection" strength="DEFINITION">If the input collection is empty (`{ }`), the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="where(criteria : ($this, $index) => Boolean) : collection" strength="DEFINITION">If the input collection is empty (`{ }`), the result is empty.</source>
+    <test name="REQ-FILTERINGPROJECTION-003-a"><expression>{}.where(true)</expression></test>
+    <test name="REQ-FILTERINGPROJECTION-003-b"><expression>{}.where($this &gt; 0)</expression></test>
+    <test name="REQ-FILTERINGPROJECTION-003-c" inputfile="patient-example.xml"><expression>Patient.link.where(true)</expression></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-004" description="where() keeps the items it selects in input order and does not remove duplicates">
+    <source spec="fhirpath-2.0.0" section="Collections" strength="DEFINITION">Ordered - The order of items in the collection is important and is preserved through operations as much as possible. Operators and functions that do not preserve order will note that in their documentation.</source>
+    <source spec="fhirpath-3.0.0" section="Collections" strength="DEFINITION">Ordered - The order of items in the collection is important and is preserved through operations as much as possible. Operators and functions that do not preserve order will note that in their documentation.</source>
+    <source spec="fhirpath-2.0.0" section="where(criteria : expression) : collection" strength="DEFINITION">Returns a collection containing only those elements in the input collection for which the stated `criteria` expression evaluates to `true`.</source>
+    <source spec="fhirpath-2.0.0" section="combine(other : collection) : collection" strength="DEFINITION">Merge the input and other collections into a single collection without eliminating duplicate values.</source>
+    <test name="REQ-FILTERINGPROJECTION-004-a" inputfile="patient-example.xml"><expression>Patient.name.where(family.exists()).family</expression><output type="string">Chalmers</output><output type="string">Windsor</output></test>
+    <test name="REQ-FILTERINGPROJECTION-004-b" inputfile="patient-example.xml"><expression>Patient.name.given.where($this = 'James').count()</expression><output type="integer">2</output></test>
+    <test name="REQ-FILTERINGPROJECTION-004-c"><expression>true.combine(false).combine(true).where($this).count()</expression><output type="integer">2</output></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-005" description="Inside the criteria of where(), $this is the item under evaluation; the 2.0.0 example name.given.where($this &gt; 'ba' and $this &lt; 'bc') is empty on the example Patient, whose given names all begin with a capital letter">
+    <source spec="fhirpath-2.0.0" section="Functions" strength="DEFINITION">These expressions may refer to the special `$this` and `$index` elements, which represent the item from the input collection currently under evaluation, and its index in the collection, respectively.</source>
+    <source spec="fhirpath-2.0.0" section="Functions" strength="EXAMPLE">For example, in `name.given.where($this &gt; 'ba' and $this &lt; 'bc')` the `where()` function will iterate over each item in the input collection (elements named `given`) and `$this` will be set to each item when the expression passed to `where()` is evaluated.</source>
+    <source spec="fhirpath-2.0.0" section="Comparison" strength="DEFINITION">String ordering is strictly lexical and is based on the Unicode value of the individual characters.</source>
+    <source spec="fhirpath-2.0.0" section="and" strength="DEFINITION">Returns `true` if both operands evaluate to `true`, `false` if either operand evaluates to `false`, and the empty collection (`{ }`) otherwise.</source>
+    <source spec="fhirpath-2.0.0" section="Collections" strength="DEFINITION">Ordered - The order of items in the collection is important and is preserved through operations as much as possible.</source>
+    <test name="REQ-FILTERINGPROJECTION-005-a" inputfile="patient-example.xml"><expression>name.given.where($this &gt; 'ba' and $this &lt; 'bc')</expression></test>
+    <test name="REQ-FILTERINGPROJECTION-005-b" inputfile="patient-example.xml"><expression>Patient.name.given.where($this &gt; 'J' and $this &lt; 'K')</expression><output type="string">James</output><output type="string">Jim</output><output type="string">James</output></test>
+    <test name="REQ-FILTERINGPROJECTION-005-c"><expression>5.where($this = 5)</expression><output type="integer">5</output></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-006" description="Inside the criteria of where(), $index is the 0-based position of the item in the input of that where(); the 3.0.0 example where($index mod 2 = 0) keeps the items at even positions">
+    <source spec="fhirpath-2.0.0" section="Functions" strength="DEFINITION">These expressions may refer to the special `$this` and `$index` elements, which represent the item from the input collection currently under evaluation, and its index in the collection, respectively.</source>
+    <source spec="fhirpath-2.0.0" section="Collections" strength="DEFINITION">Unless specified otherwise by the underlying Object Model, the first item in a collection has index 0.</source>
+    <source spec="fhirpath-3.0.0" section="where(criteria : ($this, $index) => Boolean) : collection" strength="DEFINITION">The `criteria` argument is evaluated for each item (setting `$this` and `$index` before each iteration); those that return `true` are included in the output collection.</source>
+    <source spec="fhirpath-3.0.0" section="Functions" strength="EXAMPLE">When you actually use it, you would write something like `rules.where($index mod 2 = 0)` (which will filter out every second rule from the collection).</source>
+    <source spec="fhirpath-2.0.0" section="mod" strength="DEFINITION">Computes the remainder of the truncated division of its arguments (supported for Integer and Decimal).</source>
+    <test name="REQ-FILTERINGPROJECTION-006-a" inputfile="patient-example.xml"><expression>Patient.name.where($index = 1).given</expression><output type="string">Jim</output></test>
+    <test name="REQ-FILTERINGPROJECTION-006-b" inputfile="patient-example.xml"><expression>Patient.telecom.where($index mod 2 = 0).use</expression><output type="code">home</output><output type="code">mobile</output></test>
+    <test name="REQ-FILTERINGPROJECTION-006-c" inputfile="patient-example.xml"><expression>Patient.name.where(family.exists()).where($index = 1).family</expression><output type="string">Windsor</output></test>
+    <test name="REQ-FILTERINGPROJECTION-006-d" inputfile="patient-example.xml"><expression>Patient.name.where($index = 3)</expression></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-007" description="The worked example Patient.telecom.where(use = 'official') is empty on the example Patient, none of whose telecoms has use official">
+    <source spec="fhirpath-2.0.0" section="where(criteria : expression) : collection" strength="EXAMPLE">The following example returns the list of `telecom` elements that have a `use` element with the value of `'official'`:</source>
+    <source spec="fhirpath-2.0.0" section="where(criteria : expression) : collection" strength="EXAMPLE">Patient.telecom.where(use = 'official')</source>
+    <source spec="fhirpath-3.0.0" section="where(criteria : ($this, $index) => Boolean) : collection" strength="EXAMPLE">Patient.telecom.where(use = 'official')</source>
+    <test name="REQ-FILTERINGPROJECTION-007-a" inputfile="patient-example.xml"><expression>Patient.telecom.where(use = 'official')</expression></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-008" description="The worked example Patient.telecom.where(system = 'phone') returns, in order, the three telecoms with system phone, leaving out the one without a system">
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="EXAMPLE">Typically, you'd want `Patient.telecom.where(system = 'phone')`</source>
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">If one or both of the operands is the empty collection, this operation returns an empty collection.</source>
+    <source spec="fhirpath-2.0.0" section="where(criteria : expression) : collection" strength="DEFINITION">Elements for which the expression evaluates to `false` or empty (`{ }`) are not included in the result.</source>
+    <source spec="fhirpath-2.0.0" section="Collections" strength="DEFINITION">Ordered - The order of items in the collection is important and is preserved through operations as much as possible.</source>
+    <test name="REQ-FILTERINGPROJECTION-008-a" inputfile="patient-example.xml"><expression>Patient.telecom.where(system = 'phone').use</expression><output type="code">work</output><output type="code">mobile</output><output type="code">old</output></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-009" description="The 3.0.0 worked example (1 | 2 | 3 | 4 | 5).where($this &gt; 3) keeps the two values greater than 3 (example only in 3.0.0)">
+    <source spec="fhirpath-3.0.0" section="Scoped Functions" strength="EXAMPLE">(1 | 2 | 3 | 4 | 5).where($this &gt; 3) // filter the input collection to values that are greater than 3</source>
+    <source spec="fhirpath-2.0.0" section="| (union collections)" strength="DEFINITION">Merge the two collections into a single collection, eliminating any duplicate values (using &lt;&lt;equals&gt;&gt; (`=`)) to determine equality). There is no expectation of order in the resulting collection.</source>
+    <test name="REQ-FILTERINGPROJECTION-009-a"><expression>(1 | 2 | 3 | 4 | 5).where($this &gt; 3).count()</expression><output type="integer">2</output></test>
+    <test name="REQ-FILTERINGPROJECTION-009-b"><expression>(1 | 2 | 3 | 4 | 5).where($this &gt; 3).where($this = 3).empty()</expression><output type="boolean">true</output></test>
+    <test name="REQ-FILTERINGPROJECTION-009-c"><expression>(1 | 2 | 3 | 4 | 5).where($this &gt; 4)</expression><output type="integer">5</output></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-010" description="The worked example Patient.name.where(given = 'Wouter').exists() is false on the example Patient: no name has the single given name Wouter">
+    <source spec="fhirpath-2.0.0" section="Type safety and strict evaluation" strength="EXAMPLE">Patient.name.where(given = 'Wouter').exists()</source>
+    <source spec="fhirpath-3.0.0" section="Type safety and strict evaluation" strength="EXAMPLE">Patient.name.where(given = 'Wouter').exists()</source>
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">Note that this implies that if the collections have a different number of items to compare, the result will be `false`.</source>
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">`String`: comparison is based on Unicode values</source>
+    <source spec="fhirpath-2.0.0" section="exists([criteria : expression]) : Boolean" strength="DEFINITION">Returns `true` if the collection has any elements, and `false` otherwise.</source>
+    <test name="REQ-FILTERINGPROJECTION-010-a" inputfile="patient-example.xml"><expression>Patient.name.where(given = 'Wouter').exists()</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-011" description="select(projection) evaluates the projection for each input item and adds every item of each result, in order, to one flat output collection">
+    <source spec="fhirpath-2.0.0" section="select(projection: expression) : collection" strength="DEFINITION">Evaluates the `projection` expression for each item in the input collection. The result of each evaluation is added to the output collection. If the evaluation results in a collection with multiple items, all items are added to the output collection (collections resulting from evaluation of `projection` are _flattened_).</source>
+    <source spec="fhirpath-3.0.0" section="select(projection: ($this, $index) => any) : collection" strength="DEFINITION">Evaluates the `projection` expression for each item in the input collection. The result of each evaluation is added to the output collection. If the evaluation results in a collection with multiple items, all items are added to the output collection (collections resulting from evaluation of `projection` are _flattened_).</source>
+    <source spec="fhirpath-2.0.0" section="Collections" strength="DEFINITION">Ordered - The order of items in the collection is important and is preserved through operations as much as possible. Operators and functions that do not preserve order will note that in their documentation.</source>
+    <test name="REQ-FILTERINGPROJECTION-011-a" inputfile="patient-example.xml"><expression>Patient.name.select(given)</expression><output type="string">Peter</output><output type="string">James</output><output type="string">Jim</output><output type="string">Peter</output><output type="string">James</output></test>
+    <test name="REQ-FILTERINGPROJECTION-011-b" inputfile="patient-example.xml"><expression>Patient.name.select(use)</expression><output type="code">official</output><output type="code">usual</output><output type="code">maiden</output></test>
+    <test name="REQ-FILTERINGPROJECTION-011-c" inputfile="patient-example.xml"><expression>Patient.select(telecom).count()</expression><output type="integer">4</output></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-012" description="select() adds nothing for an item whose projection is empty, and returns empty for an empty input">
+    <source spec="fhirpath-2.0.0" section="select(projection: expression) : collection" strength="DEFINITION">This means that if the evaluation for an element results in the empty collection (`{ }`), no element is added to the result, and that if the input collection is empty (`{ }`), the result is empty as well.</source>
+    <source spec="fhirpath-3.0.0" section="select(projection: ($this, $index) => any) : collection" strength="DEFINITION">This means that if the evaluation for an item results in the empty collection (`{ }`), no item is added to the result, and that if the input collection is empty (`{ }`), the result is empty as well.</source>
+    <test name="REQ-FILTERINGPROJECTION-012-a" inputfile="patient-example.xml"><expression>Patient.name.select(family)</expression><output type="string">Chalmers</output><output type="string">Windsor</output></test>
+    <test name="REQ-FILTERINGPROJECTION-012-b" inputfile="patient-example.xml"><expression>Patient.name.select({})</expression></test>
+    <test name="REQ-FILTERINGPROJECTION-012-c"><expression>{}.select(1)</expression></test>
+    <test name="REQ-FILTERINGPROJECTION-012-d" inputfile="patient-example.xml"><expression>Patient.link.select(true)</expression></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-013" description="select() adds the result of every evaluation: equal results are all kept and false results are kept, unlike where()">
+    <source spec="fhirpath-2.0.0" section="select(projection: expression) : collection" strength="DEFINITION">Evaluates the `projection` expression for each item in the input collection. The result of each evaluation is added to the output collection.</source>
+    <source spec="fhirpath-3.0.0" section="select(projection: ($this, $index) => any) : collection" strength="DEFINITION">The `projection` argument is evaluated for each item (setting `$this` and `$index` before each iteration); and the results are included in the output collection.</source>
+    <source spec="fhirpath-2.0.0" section="Collections" strength="DEFINITION">Non-Unique - Duplicate elements are allowed within a collection. Some operations and functions, such as `distinct()` and the union operator `|` produce collections of unique elements, but in general, duplicate elements are allowed.</source>
+    <test name="REQ-FILTERINGPROJECTION-013-a" inputfile="patient-example.xml"><expression>Patient.name.select(1)</expression><output type="integer">1</output><output type="integer">1</output><output type="integer">1</output></test>
+    <test name="REQ-FILTERINGPROJECTION-013-b" inputfile="patient-example.xml"><expression>Patient.name.select(family.exists())</expression><output type="boolean">true</output><output type="boolean">false</output><output type="boolean">true</output></test>
+    <test name="REQ-FILTERINGPROJECTION-013-c" inputfile="patient-example.xml"><expression>Patient.name.select(given).count()</expression><output type="integer">5</output></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-014" description="Inside the projection of select(), $this is the item under evaluation and $index its 0-based position">
+    <source spec="fhirpath-2.0.0" section="Functions" strength="DEFINITION">These expressions may refer to the special `$this` and `$index` elements, which represent the item from the input collection currently under evaluation, and its index in the collection, respectively.</source>
+    <source spec="fhirpath-2.0.0" section="Collections" strength="DEFINITION">Unless specified otherwise by the underlying Object Model, the first item in a collection has index 0.</source>
+    <source spec="fhirpath-3.0.0" section="select(projection: ($this, $index) => any) : collection" strength="DEFINITION">The `projection` argument is evaluated for each item (setting `$this` and `$index` before each iteration); and the results are included in the output collection.</source>
+    <test name="REQ-FILTERINGPROJECTION-014-a" inputfile="patient-example.xml"><expression>Patient.name.select($index)</expression><output type="integer">0</output><output type="integer">1</output><output type="integer">2</output></test>
+    <test name="REQ-FILTERINGPROJECTION-014-b" inputfile="patient-example.xml"><expression>Patient.name.select($this.family)</expression><output type="string">Chalmers</output><output type="string">Windsor</output></test>
+    <test name="REQ-FILTERINGPROJECTION-014-c"><expression>5.select($this * 2)</expression><output type="integer">10</output></test>
+    <test name="REQ-FILTERINGPROJECTION-014-d" inputfile="patient-example.xml"><expression>Patient.telecom.select($index).count()</expression><output type="integer">4</output></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-015" description="The 2.0.0 worked example Patient.name.where(use = 'usual').select(given.first() + ' ' + family) is empty on the example Patient: its usual name has no family, and + on strings with an empty operand is empty">
+    <source spec="fhirpath-2.0.0" section="select(projection: expression) : collection" strength="EXAMPLE">Patient.name.where(use = 'usual').select(given.first() + ' ' + family)</source>
+    <source spec="fhirpath-2.0.0" section="select(projection: expression) : collection" strength="EXAMPLE">This example returns a collection containing, for each "usual" name for the Patient, the concatenation of the first given and family names.</source>
+    <source spec="fhirpath-2.0.0" section="&amp; (String concatenation)" strength="DEFINITION">This differs from `+` on two strings, which will result in an empty collection when one of the operands is empty.</source>
+    <source spec="fhirpath-2.0.0" section="select(projection: expression) : collection" strength="DEFINITION">This means that if the evaluation for an element results in the empty collection (`{ }`), no element is added to the result, and that if the input collection is empty (`{ }`), the result is empty as well.</source>
+    <test name="REQ-FILTERINGPROJECTION-015-a" inputfile="patient-example.xml"><expression>Patient.name.where(use = 'usual').select(given.first() + ' ' + family)</expression></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-016" description="The 3.0.0 worked example Patient.name.where(use = 'usual').select(given.first() &amp; ' ' &amp; family) gives 'Jim ' on the example Patient: &amp; takes the missing family as an empty string (example only in 3.0.0)">
+    <source spec="fhirpath-3.0.0" section="select(projection: ($this, $index) => any) : collection" strength="EXAMPLE">The following example returns a collection containing the concatenation of the first given and family names for each of the Patient's "usual" names:</source>
+    <source spec="fhirpath-3.0.0" section="select(projection: ($this, $index) => any) : collection" strength="EXAMPLE">Patient.name.where(use = 'usual').select(given.first() &amp; ' ' &amp; family)</source>
+    <source spec="fhirpath-3.0.0" section="&amp; (String concatenation)" strength="DEFINITION">For strings, will concatenate the strings, where an empty operand is taken to be the empty string.</source>
+    <test name="REQ-FILTERINGPROJECTION-016-a" inputfile="patient-example.xml"><expression>Patient.name.where(use = 'usual').select(given.first() &amp; ' ' &amp; family) = 'Jim '</expression><output type="boolean">true</output></test>
+    <test name="REQ-FILTERINGPROJECTION-016-b" inputfile="patient-example.xml"><expression>Patient.name.where(use = 'usual').select(given.first() &amp; ' ' &amp; family).count()</expression><output type="integer">1</output></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-017" description="The type-safety worked examples: Patient.name.select(given + ' ' + family) fails on a Patient with a name of two given names, and Patient.name.first().select(given.first() + ' ' + family.first()) gives 'Peter Chalmers'">
+    <source spec="fhirpath-2.0.0" section="Type safety and strict evaluation" strength="EXAMPLE">Patient.name.select(given + ' ' + family)</source>
+    <source spec="fhirpath-2.0.0" section="Type safety and strict evaluation" strength="EXAMPLE">Of course, if the patient turns out to have multiple given names, even this statement will fail and the author would need to choose the first name in each collection explicitly:</source>
+    <source spec="fhirpath-2.0.0" section="Type safety and strict evaluation" strength="EXAMPLE">Patient.name.first().select(given.first() + ' ' + family.first())</source>
+    <source spec="fhirpath-3.0.0" section="Type safety and strict evaluation" strength="EXAMPLE">Of course, if the patient turns out to have multiple given names, even this statement will fail and the author would need to choose the first name in each collection explicitly:</source>
+    <source spec="fhirpath-2.0.0" section="Singleton Evaluation of Collections" strength="DEFINITION">However, if the `Patient` has multiple `name` elements, or the single name has multiple `given` elements, then it's ambiguous which of the elements should be used as the input to the `+` operator, and the result is an error.</source>
+    <source spec="fhirpath-2.0.0" section="+ (addition)" strength="DEFINITION">For Integer, Decimal, and quantity, adds the operands. For strings, concatenates the right operand to the left operand.</source>
+    <test name="REQ-FILTERINGPROJECTION-017-a" inputfile="patient-example.xml"><expression invalid="execution">Patient.name.select(given + ' ' + family)</expression></test>
+    <test name="REQ-FILTERINGPROJECTION-017-b" inputfile="patient-example.xml"><expression>Patient.name.first().select(given.first() + ' ' + family.first())</expression><output type="string">Peter Chalmers</output></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-018" description="The 3.0.0 worked example Patient.name.given.select(substring(0, 1)) returns the first character of every given name, in order (3.0.0 fixes the 2.0.0 example, which writes substring(0))">
+    <source spec="fhirpath-3.0.0" section="String Manipulation" strength="EXAMPLE">Patient.name.given.select(substring(0, 1)) // returns a collection containing the first character of all the given names for a patient</source>
+    <source spec="fhirpath-2.0.0" section="String Manipulation" strength="DEFINITION">To use these functions over a collection with multiple items, one may use filters like `where()` and `select()`:</source>
+    <source spec="fhirpath-2.0.0" section="Collections" strength="DEFINITION">Ordered - The order of items in the collection is important and is preserved through operations as much as possible.</source>
+    <test name="REQ-FILTERINGPROJECTION-018-a" inputfile="patient-example.xml"><expression>Patient.name.given.select(substring(0, 1))</expression><output type="string">P</output><output type="string">J</output><output type="string">J</output><output type="string">P</output><output type="string">J</output></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-019" description="select($this as T) keeps only the items of type T, as the worked example Bundle.entry.select(resource as Patient) does; shown on contained resources, since no suite input is a Bundle">
+    <source spec="fhirpath-2.0.0" section="select(projection: expression) : collection" strength="EXAMPLE">Bundle.entry.select(resource as Patient)</source>
+    <source spec="fhirpath-2.0.0" section="select(projection: expression) : collection" strength="EXAMPLE">This example results in a collection with only the patient resources from the bundle.</source>
+    <source spec="fhirpath-2.0.0" section="as _type specifier_" strength="DEFINITION">If the left operand is a collection with a single item and the second operand is an identifier, this operator returns the value of the left operand if it is of the type specified in the second operand, or a subclass thereof.</source>
+    <source spec="fhirpath-2.0.0" section="as _type specifier_" strength="DEFINITION">Otherwise, this operator returns the empty collection.</source>
+    <source spec="fhirpath-2.0.0" section="select(projection: expression) : collection" strength="DEFINITION">This means that if the evaluation for an element results in the empty collection (`{ }`), no element is added to the result, and that if the input collection is empty (`{ }`), the result is empty as well.</source>
+    <test name="REQ-FILTERINGPROJECTION-019-a" inputfile="patient-container-example.json"><expression>Patient.contained.select($this as Organization).count()</expression><output type="integer">1</output></test>
+    <test name="REQ-FILTERINGPROJECTION-019-b" inputfile="patient-container-example.json"><expression>Patient.contained.select($this as Patient)</expression></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-020" description="When where() or select() is nested inside the criteria or projection of another, $this and $index refer to the outer item again once the nested call is complete (stated only in 3.0.0)">
+    <source spec="fhirpath-3.0.0" section="Scoped Functions" strength="DEFINITION">Variables introduced by scoped functions can only be accessed within the specified parameters of the scoped function. This behavior is preserved through nesting, meaning specifically that once a nested scope function evaluation is complete, the variables in the outer scoped function are again available.</source>
+    <source spec="fhirpath-3.0.0" section="where(criteria : ($this, $index) => Boolean) : collection" strength="DEFINITION">The `criteria` argument is evaluated for each item (setting `$this` and `$index` before each iteration); those that return `true` are included in the output collection.</source>
+    <source spec="fhirpath-3.0.0" section="select(projection: ($this, $index) => any) : collection" strength="DEFINITION">The `projection` argument is evaluated for each item (setting `$this` and `$index` before each iteration); and the results are included in the output collection.</source>
+    <source spec="fhirpath-3.0.0" section="and" strength="DEFINITION">Returns `true` if both operands evaluate to `true`, `false` if either operand evaluates to `false`, and the empty collection (`{ }`) otherwise.</source>
+    <test name="REQ-FILTERINGPROJECTION-020-a" inputfile="patient-example.xml"><expression>Patient.name.where(given.where($this = 'Jim').exists() and $this.use = 'usual').count()</expression><output type="integer">1</output></test>
+    <test name="REQ-FILTERINGPROJECTION-020-b" inputfile="patient-example.xml"><expression>Patient.name.select(given.where($index = 1).count() + $index)</expression><output type="integer">1</output><output type="integer">1</output><output type="integer">3</output></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-021" description="repeat(projection) applies the projection again to the items it yields, so the worked examples collect contains and item elements at every level: 10 of each in the example ValueSet and Questionnaire">
+    <source spec="fhirpath-2.0.0" section="repeat(projection: expression) : collection" strength="DEFINITION">A version of `select` that will repeat the `projection` and add it to the output collection, as long as the projection yields new items (as determined by the &lt;&lt;equals&gt;&gt; (`=`) operator).</source>
+    <source spec="fhirpath-2.0.0" section="repeat(projection: expression) : collection" strength="EXAMPLE">ValueSet.expansion.repeat(contains)</source>
+    <source spec="fhirpath-2.0.0" section="repeat(projection: expression) : collection" strength="EXAMPLE">Will repeat finding children called `contains`, until no new nodes are found.</source>
+    <source spec="fhirpath-2.0.0" section="repeat(projection: expression) : collection" strength="EXAMPLE">Questionnaire.repeat(item)</source>
+    <source spec="fhirpath-2.0.0" section="repeat(projection: expression) : collection" strength="EXAMPLE">Will repeat finding children called `item`, until no new nodes are found.</source>
+    <source spec="fhirpath-3.0.0" section="repeat(projection: ($this) => collection) : collection" strength="DEFINITION">This can be evaluated by adding all items in the input collection to an input queue, then for each item in the input queue evaluate the repeat expression. If the result of the repeat expression is not in the output collection, add it to both the output collection and also the input queue. Processing continues until the input queue is empty.</source>
+    <source spec="fhirpath-3.0.0" section="repeat(projection: ($this) => collection) : collection" strength="EXAMPLE">Will repeat finding children called `contains`, until no new items are found.</source>
+    <source spec="fhirpath-3.0.0" section="repeat(projection: ($this) => collection) : collection" strength="EXAMPLE">Will repeat finding children called `item`, until no new items are found.</source>
+    <source spec="fhirpath-2.0.0" section="repeat(projection: expression) : collection" strength="DEFINITION">The order of items returned by the `repeat()` function is undefined.</source>
+    <test name="REQ-FILTERINGPROJECTION-021-a" inputfile="valueset-example-expansion.xml"><expression>ValueSet.expansion.repeat(contains).count()</expression><output type="integer">10</output></test>
+    <test name="REQ-FILTERINGPROJECTION-021-b" inputfile="valueset-example-expansion.xml"><expression>ValueSet.expansion.repeat(contains).where(code = '55838-7').exists()</expression><output type="boolean">true</output></test>
+    <test name="REQ-FILTERINGPROJECTION-021-c" inputfile="valueset-example-expansion.xml"><expression>ValueSet.expansion.repeat(contains).code.count()</expression><output type="integer">8</output></test>
+    <test name="REQ-FILTERINGPROJECTION-021-d" inputfile="questionnaire-example.xml"><expression>Questionnaire.repeat(item).count()</expression><output type="integer">10</output></test>
+    <test name="REQ-FILTERINGPROJECTION-021-e" inputfile="questionnaire-example.xml"><expression>Questionnaire.repeat(item).where(linkId = '1.1.1.1.2').exists()</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-022" description="repeat() returns what the projection yields, not the input items themselves unless the projection yields them; that a yielded item equal to an input item is still new (022-c) is settled by 3.0.0's queue algorithm, which measures new against the output only">
+    <source spec="fhirpath-2.0.0" section="repeat(projection: expression) : collection" strength="DEFINITION">A version of `select` that will repeat the `projection` and add it to the output collection, as long as the projection yields new items (as determined by the &lt;&lt;equals&gt;&gt; (`=`) operator).</source>
+    <source spec="fhirpath-3.0.0" section="repeat(projection: ($this) => collection) : collection" strength="DEFINITION">This can be evaluated by adding all items in the input collection to an input queue, then for each item in the input queue evaluate the repeat expression. If the result of the repeat expression is not in the output collection, add it to both the output collection and also the input queue. Processing continues until the input queue is empty.</source>
+    <source spec="fhirpath-2.0.0" section="ofType(type : _type specifier_) : collection" strength="DEFINITION">Returns a collection that contains all items in the input collection that are of the given type or a subclass thereof.</source>
+    <test name="REQ-FILTERINGPROJECTION-022-a"><expression>1.repeat(2)</expression><output type="integer">2</output></test>
+    <test name="REQ-FILTERINGPROJECTION-022-b" inputfile="questionnaire-example.xml"><expression>Questionnaire.repeat(item).ofType(Questionnaire).empty()</expression><output type="boolean">true</output></test>
+    <test name="REQ-FILTERINGPROJECTION-022-c"><expression>1.repeat($this)</expression><output type="integer">1</output></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-023" description="repeat() adds a yielded item only if no item already in the output equals it, so a yielded duplicate is added once and repetition stops when nothing new is yielded (the per-item rule is spelled out in 3.0.0)">
+    <source spec="fhirpath-2.0.0" section="repeat(projection: expression) : collection" strength="DEFINITION">A version of `select` that will repeat the `projection` and add it to the output collection, as long as the projection yields new items (as determined by the &lt;&lt;equals&gt;&gt; (`=`) operator).</source>
+    <source spec="fhirpath-3.0.0" section="repeat(projection: ($this) => collection) : collection" strength="DEFINITION">A version of `select` that will repeat the `projection` and add items to the output collection only if they are not already in the output collection as determined by the [equals](#equals) (`=`) operator returning `true` *(i.e. `false` and empty both indicate that the values are not equal and thus added to the output)*.</source>
+    <source spec="fhirpath-3.0.0" section="repeat(projection: ($this) => collection) : collection" strength="DEFINITION">This can be evaluated by adding all items in the input collection to an input queue, then for each item in the input queue evaluate the repeat expression. If the result of the repeat expression is not in the output collection, add it to both the output collection and also the input queue. Processing continues until the input queue is empty.</source>
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">`String`: comparison is based on Unicode values</source>
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">For complex types, equality requires all child properties to be equal, recursively.</source>
+    <source spec="fhirpath-2.0.0" section="| (union collections)" strength="DEFINITION">Merge the two collections into a single collection, eliminating any duplicate values (using &lt;&lt;equals&gt;&gt; (`=`)) to determine equality). There is no expectation of order in the resulting collection.</source>
+    <test name="REQ-FILTERINGPROJECTION-023-a" inputfile="patient-example.xml"><expression>Patient.name.repeat(given).count()</expression><output type="integer">3</output></test>
+    <test name="REQ-FILTERINGPROJECTION-023-b"><expression>1.repeat(1 | 2).count()</expression><output type="integer">2</output></test>
+    <test name="REQ-FILTERINGPROJECTION-023-c" inputfile="questionnaire-example.xml"><expression>Questionnaire.repeat(item | item.item).count()</expression><output type="integer">10</output></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-024" description="repeat() adds a yielded item whose equality with an item already in the output is empty, as with dates of different precision (stated only in 3.0.0)">
+    <source spec="fhirpath-3.0.0" section="repeat(projection: ($this) => collection) : collection" strength="DEFINITION">A version of `select` that will repeat the `projection` and add items to the output collection only if they are not already in the output collection as determined by the [equals](#equals) (`=`) operator returning `true` *(i.e. `false` and empty both indicate that the values are not equal and thus added to the output)*.</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Equality" strength="DEFINITION">If one input has a value for the precision and the other does not, the comparison stops and the result is empty (`{ }`); if neither input has a value for the precision, or the last precision has been reached, the comparison stops and the result is `true`.</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Equality" strength="EXAMPLE">@2012-01 = @2012 // returns empty ({ })</source>
+    <source spec="fhirpath-2.0.0" section="combine(other : collection) : collection" strength="DEFINITION">Merge the input and other collections into a single collection without eliminating duplicate values.</source>
+    <test name="REQ-FILTERINGPROJECTION-024-a"><expression>1.repeat(@2012.combine(@2012-01)).count()</expression><output type="integer">2</output></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-025" description="repeat() of an empty input is empty, and so is repeat() whose projection yields nothing">
+    <source spec="fhirpath-2.0.0" section="select(projection: expression) : collection" strength="DEFINITION">This means that if the evaluation for an element results in the empty collection (`{ }`), no element is added to the result, and that if the input collection is empty (`{ }`), the result is empty as well.</source>
+    <source spec="fhirpath-2.0.0" section="repeat(projection: expression) : collection" strength="DEFINITION">A version of `select` that will repeat the `projection` and add it to the output collection, as long as the projection yields new items (as determined by the &lt;&lt;equals&gt;&gt; (`=`) operator).</source>
+    <source spec="fhirpath-3.0.0" section="repeat(projection: ($this) => collection) : collection" strength="DEFINITION">This can be evaluated by adding all items in the input collection to an input queue, then for each item in the input queue evaluate the repeat expression. If the result of the repeat expression is not in the output collection, add it to both the output collection and also the input queue. Processing continues until the input queue is empty.</source>
+    <test name="REQ-FILTERINGPROJECTION-025-a"><expression>{}.repeat($this)</expression></test>
+    <test name="REQ-FILTERINGPROJECTION-025-b" inputfile="patient-example.xml"><expression>Patient.repeat({})</expression></test>
+    <test name="REQ-FILTERINGPROJECTION-025-c" inputfile="patient-example.xml"><expression>Patient.link.repeat(other)</expression></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-026" description="Inside the projection of repeat(), $this is the item under evaluation">
+    <source spec="fhirpath-2.0.0" section="Functions" strength="DEFINITION">These expressions may refer to the special `$this` and `$index` elements, which represent the item from the input collection currently under evaluation, and its index in the collection, respectively.</source>
+    <source spec="fhirpath-3.0.0" section="repeat(projection: ($this) => collection) : collection" strength="DEFINITION">The `projection` argument is evaluated for each item (setting `$this` before each iteration); and the results are included in the output collection. The function is then evaluated on new items from the previous iteration, repeating until no new items are added.</source>
+    <test name="REQ-FILTERINGPROJECTION-026-a" inputfile="questionnaire-example.xml"><expression>Questionnaire.repeat($this.item).count()</expression><output type="integer">10</output></test>
+    <test name="REQ-FILTERINGPROJECTION-026-b" inputfile="valueset-example-expansion.xml"><expression>ValueSet.expansion.repeat($this.contains).count()</expression><output type="integer">10</output></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-027" description="repeatAll(projection) adds every yielded item, duplicates included, and applies the projection to each of them again (function only in 3.0.0, STU)">
+    <source spec="fhirpath-3.0.0" section="repeatAll(projection: ($this) => collection) : collection" strength="DEFINITION">A version of `repeat` that allows duplicate items in the output collection. Unlike `repeat`, this function does not check whether items are already present in the output collection before adding them.</source>
+    <source spec="fhirpath-3.0.0" section="repeatAll(projection: ($this) => collection) : collection" strength="DEFINITION">This can be evaluated by adding all items in the input collection to an input queue, then for each item in the input queue evaluate the expression. The results are added to the output collection and also to a new iteration queue, regardless of whether they already exist in either collection. The input queue is then replaced by the new iteration queue and processing continues until there are no more items in the input queue to process.</source>
+    <source spec="fhirpath-3.0.0" section="repeatAll(projection: ($this) => collection) : collection" strength="DEFINITION">The order of items returned by the `repeatAll()` function is undefined.</source>
+    <source spec="fhirpath-3.0.0" section="| (union collections)" strength="DEFINITION">Merge the two collections into a single collection, eliminating any duplicate values *(items are considered duplicates if and only if the [equals](#equals) (`=`) operator returns `true`. i.e. `false` and empty both indicate that the items are not duplicates, and thus appear in the output collection)*.</source>
+    <source spec="fhirpath-3.0.0" section="ofType(type : _type specifier_) : collection" strength="DEFINITION">Returns a collection that contains all items in the input collection that are of the given type or a subclass thereof.</source>
+    <test name="REQ-FILTERINGPROJECTION-027-a" inputfile="patient-example.xml"><expression>Patient.name.repeatAll(given).count()</expression><output type="integer">5</output></test>
+    <test name="REQ-FILTERINGPROJECTION-027-b" inputfile="questionnaire-example.xml"><expression>Questionnaire.repeatAll(item | item.item).count()</expression><output type="integer">38</output></test>
+    <test name="REQ-FILTERINGPROJECTION-027-c" inputfile="questionnaire-example.xml"><expression>Questionnaire.repeatAll($this.item).ofType(Questionnaire).empty()</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-028" description="The 3.0.0 safe repeatAll() examples collect contains and item at every level, 10 of each in the example ValueSet and Questionnaire, which have no repeated nodes (function only in 3.0.0, STU)">
+    <source spec="fhirpath-3.0.0" section="repeatAll(projection: ($this) => collection) : collection" strength="EXAMPLE">Some safe expressions:</source>
+    <source spec="fhirpath-3.0.0" section="repeatAll(projection: ($this) => collection) : collection" strength="EXAMPLE">ValueSet.expansion.repeatAll(contains) Questionnaire.repeatAll(item)</source>
+    <source spec="fhirpath-3.0.0" section="repeatAll(projection: ($this) => collection) : collection" strength="DEFINITION">Safe usage typically relies on the hierarchical structure of the input data. Expressions that reference children of the input collection's items will naturally terminate when no more child elements are found.</source>
+    <source spec="fhirpath-3.0.0" section="repeatAll(projection: ($this) => collection) : collection" strength="DEFINITION">This can be evaluated by adding all items in the input collection to an input queue, then for each item in the input queue evaluate the expression. The results are added to the output collection and also to a new iteration queue, regardless of whether they already exist in either collection. The input queue is then replaced by the new iteration queue and processing continues until there are no more items in the input queue to process.</source>
+    <test name="REQ-FILTERINGPROJECTION-028-a" inputfile="valueset-example-expansion.xml"><expression>ValueSet.expansion.repeatAll(contains).count()</expression><output type="integer">10</output></test>
+    <test name="REQ-FILTERINGPROJECTION-028-b" inputfile="questionnaire-example.xml"><expression>Questionnaire.repeatAll(item).count()</expression><output type="integer">10</output></test>
+    <test name="REQ-FILTERINGPROJECTION-028-c" inputfile="questionnaire-example.xml"><expression>Questionnaire.repeatAll(item).where(linkId = '1.1.1.1.1').exists()</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-029" description="repeatAll() of an empty input is empty, and so is repeatAll() whose projection yields nothing (function only in 3.0.0, STU)">
+    <source spec="fhirpath-3.0.0" section="repeatAll(projection: ($this) => collection) : collection" strength="DEFINITION">This can be evaluated by adding all items in the input collection to an input queue, then for each item in the input queue evaluate the expression. The results are added to the output collection and also to a new iteration queue, regardless of whether they already exist in either collection. The input queue is then replaced by the new iteration queue and processing continues until there are no more items in the input queue to process.</source>
+    <test name="REQ-FILTERINGPROJECTION-029-a"><expression>{}.repeatAll($this)</expression></test>
+    <test name="REQ-FILTERINGPROJECTION-029-b" inputfile="patient-example.xml"><expression>Patient.repeatAll({})</expression></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-030" description="ofType() with a System type keeps the items of that type and drops the others, without converting any item">
+    <source spec="fhirpath-2.0.0" section="ofType(type : _type specifier_) : collection" strength="DEFINITION">Returns a collection that contains all items in the input collection that are of the given type or a subclass thereof.</source>
+    <source spec="fhirpath-3.0.0" section="ofType(type : _type specifier_) : collection" strength="DEFINITION">Returns a collection that contains all items in the input collection that are of the given type or a subclass thereof.</source>
+    <source spec="fhirpath-2.0.0" section="Literals" strength="DEFINITION">For each type of literal, FHIRPath defines a named system type to allow operations and functions to be defined, as well as an ultimate root type, `System.Any`.</source>
+    <source spec="fhirpath-2.0.0" section="Models" strength="DEFINITION">The system types defined within FHIRPath directly are prefixed with the namespace `System`.</source>
+    <source spec="fhirpath-2.0.0" section="combine(other : collection) : collection" strength="DEFINITION">Merge the input and other collections into a single collection without eliminating duplicate values.</source>
+    <test name="REQ-FILTERINGPROJECTION-030-a"><expression>1.combine('a').combine(2.5).ofType(System.Integer)</expression><output type="integer">1</output></test>
+    <test name="REQ-FILTERINGPROJECTION-030-b"><expression>1.combine('a').combine(2.5).ofType(System.String)</expression><output type="string">a</output></test>
+    <test name="REQ-FILTERINGPROJECTION-030-c"><expression>'a'.combine(2.5).ofType(System.Decimal)</expression><output type="decimal">2.5</output></test>
+    <test name="REQ-FILTERINGPROJECTION-030-d"><expression>true.combine('true').ofType(System.Boolean)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FILTERINGPROJECTION-030-e"><expression>'a'.combine(5 'mg').ofType(System.Quantity).count()</expression><output type="integer">1</output></test>
+    <test name="REQ-FILTERINGPROJECTION-030-f"><expression>'1'.ofType(System.Integer)</expression></test>
+    <test name="REQ-FILTERINGPROJECTION-030-g"><expression>1.combine(2).combine(3).ofType(System.Integer).count()</expression><output type="integer">3</output></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-031" description="ofType() of an empty input is empty, and so is ofType() when no input item is of the type">
+    <source spec="fhirpath-2.0.0" section="ofType(type : _type specifier_) : collection" strength="DEFINITION">If the input collection is empty (`{ }`), the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="ofType(type : _type specifier_) : collection" strength="DEFINITION">Returns a collection that contains all items in the input collection that are of the given type or a subclass thereof. If the input collection is empty (`{ }`), the result is empty.</source>
+    <test name="REQ-FILTERINGPROJECTION-031-a"><expression>{}.ofType(System.Integer)</expression></test>
+    <test name="REQ-FILTERINGPROJECTION-031-b"><expression>'a'.combine('b').ofType(System.Boolean)</expression></test>
+    <test name="REQ-FILTERINGPROJECTION-031-c" inputfile="patient-example.xml"><expression>Patient.name.ofType(Address)</expression></test>
+    <test name="REQ-FILTERINGPROJECTION-031-d" inputfile="patient-example.xml"><expression>Patient.link.ofType(HumanName)</expression></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-032" description="ofType(System.Any) keeps every System-typed item, since System.Any is the root type every system type derives from">
+    <source spec="fhirpath-2.0.0" section="Literals" strength="DEFINITION">For each type of literal, FHIRPath defines a named system type to allow operations and functions to be defined, as well as an ultimate root type, `System.Any`.</source>
+    <source spec="fhirpath-3.0.0" section="Literals" strength="DEFINITION">For each type of literal, FHIRPath defines a named system type to allow operations and functions to be defined, as well as an ultimate root type, `System.Any`.</source>
+    <source spec="fhirpath-2.0.0" section="ofType(type : _type specifier_) : collection" strength="DEFINITION">Returns a collection that contains all items in the input collection that are of the given type or a subclass thereof.</source>
+    <source spec="fhirpath-2.0.0" section="combine(other : collection) : collection" strength="DEFINITION">Merge the input and other collections into a single collection without eliminating duplicate values.</source>
+    <test name="REQ-FILTERINGPROJECTION-032-a"><expression>1.combine('a').combine(true).ofType(System.Any).count()</expression><output type="integer">3</output></test>
+    <test name="REQ-FILTERINGPROJECTION-032-b"><expression>@2012-01-01.combine(2.5).ofType(System.Any).count()</expression><output type="integer">2</output></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-033" description="ofType() with a FHIR type keeps, in input order, every item of that type from a collection of mixed types">
+    <source spec="fhirpath-2.0.0" section="ofType(type : _type specifier_) : collection" strength="DEFINITION">Returns a collection that contains all items in the input collection that are of the given type or a subclass thereof.</source>
+    <source spec="fhirpath-2.0.0" section="Models" strength="DEFINITION">When resolving a type name, the context-specific model is searched first. If no match is found, the `System` model (containing only the built-in types defined in the &lt;&lt;Literals&gt;&gt; section) is searched.</source>
+    <source spec="fhirpath-2.0.0" section="children() : collection" strength="DEFINITION">Returns a collection with all immediate child nodes of all items in the input collection.</source>
+    <source spec="fhirpath-2.0.0" section="Collections" strength="DEFINITION">Ordered - The order of items in the collection is important and is preserved through operations as much as possible.</source>
+    <test name="REQ-FILTERINGPROJECTION-033-a" inputfile="patient-example.xml"><expression>Patient.children().ofType(HumanName).count()</expression><output type="integer">3</output></test>
+    <test name="REQ-FILTERINGPROJECTION-033-b" inputfile="patient-example.xml"><expression>Patient.children().ofType(ContactPoint).count()</expression><output type="integer">4</output></test>
+    <test name="REQ-FILTERINGPROJECTION-033-c" inputfile="patient-example.xml"><expression>Patient.telecom.ofType(ContactPoint).use</expression><output type="code">home</output><output type="code">work</output><output type="code">mobile</output><output type="code">old</output></test>
+    <test name="REQ-FILTERINGPROJECTION-033-d" inputfile="patient-example.xml"><expression>Patient.children().ofType(Address).city</expression><output type="string">PleasantVille</output></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-034" description="The type argument of ofType() may be qualified with the model name (FHIR) and may be a delimited identifier">
+    <source spec="fhirpath-2.0.0" section="is _type specifier_" strength="DEFINITION">A _type specifier_ is an identifier that must resolve to the name of a type in a model. Type specifiers can have qualifiers, e.g. `FHIR.Patient`, where the qualifier is the name of the model.</source>
+    <source spec="fhirpath-2.0.0" section="Paths and polymorphic items" strength="DEFINITION">The list of available types that can be passed as an argument to the `ofType()` function and `is` and `as` operators is determined by the underlying object model. Within FHIRPath, they are just identifiers, either delimited or simple.</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The namespace for the types defined in FHIR (primitive data types, data types, resources) is FHIR.</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The namespace for the types defined in FHIR (primitive datatypes, datatypes, resources) is FHIR.</source>
+    <test name="REQ-FILTERINGPROJECTION-034-a" inputfile="patient-example.xml"><expression>Patient.name.ofType(FHIR.HumanName).count()</expression><output type="integer">3</output></test>
+    <test name="REQ-FILTERINGPROJECTION-034-b" inputfile="patient-example.xml"><expression>Patient.name.ofType(`HumanName`).count()</expression><output type="integer">3</output></test>
+    <test name="REQ-FILTERINGPROJECTION-034-c" inputfile="patient-example.xml"><expression>Patient.telecom.ofType(FHIR.HumanName)</expression></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-035" description="The worked example Observation.value.ofType(Quantity).unit reaches the unit of a Quantity value, and a polymorphic value of another type is dropped">
+    <source spec="fhirpath-2.0.0" section="Paths and polymorphic items" strength="EXAMPLE">Observation.value.ofType(Quantity).unit - only values that are of type Quantity</source>
+    <source spec="fhirpath-3.0.0" section="Paths and polymorphic items" strength="EXAMPLE">Observation.value.ofType(Quantity).unit // only values that are of type Quantity</source>
+    <source spec="fhirpath-2.0.0" section="Paths and polymorphic items" strength="DEFINITION">Paths may either ignore the type of a node, and continue along the path or may be explicit about the expected node and filter the set of nodes by type before navigating down child nodes:</source>
+    <test name="REQ-FILTERINGPROJECTION-035-a" inputfile="observation-example.xml"><expression>Observation.value.ofType(Quantity).unit</expression><output type="string">lbs</output></test>
+    <test name="REQ-FILTERINGPROJECTION-035-b" inputfile="observation-example.xml"><expression>Observation.value.ofType(CodeableConcept)</expression></test>
+    <test name="REQ-FILTERINGPROJECTION-035-c" inputfile="observation-example.xml"><expression>Observation.value.ofType(string).exists()</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-036" fhir="r5" description="The R5 FHIR page's worked example (Observation.value.ofType(Quantity)).unit gives the unit of the Quantity value">
+    <source spec="fhir-r5" section="2.1.9.1.1 Polymorphism in FHIR" strength="EXAMPLE">(Observation.value.ofType(Quantity)).unit</source>
+    <source spec="fhir-r5" section="2.1.9.1.1 Polymorphism in FHIR" strength="DEFINITION">In FHIRPath, choice elements are labeled according to the name without the '[x]' suffix, and children can be explicitly treated as a specific type using the as operation:</source>
+    <test name="REQ-FILTERINGPROJECTION-036-a" inputfile="observation-example.xml"><expression>(Observation.value.ofType(Quantity)).unit</expression><output type="string">lbs</output></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-037" description="A FHIR choice element is navigated by its name without [x], and ofType() selects it by the type it has in the instance">
+    <source spec="fhir-r4" section="2.9.1.1 Polymorphism in FHIR" strength="DEFINITION">In actual instances these will be present as either Patient.deceasedBoolean or Patient.deceasedDateTime .</source>
+    <source spec="fhir-r4" section="2.9.1.1 Polymorphism in FHIR" strength="DEFINITION">In FHIRPath, choice elements are labeled according to the name without the '[x]' suffix, and children can be explicitly treated as a specific type using the as operation:</source>
+    <source spec="fhir-r5" section="2.1.9.1.1 Polymorphism in FHIR" strength="DEFINITION">In FHIRPath, choice elements are labeled according to the name without the '[x]' suffix, and children can be explicitly treated as a specific type using the as operation:</source>
+    <source spec="fhirpath-2.0.0" section="ofType(type : _type specifier_) : collection" strength="DEFINITION">Returns a collection that contains all items in the input collection that are of the given type or a subclass thereof.</source>
+    <source spec="fhirpath-2.0.0" section="children() : collection" strength="DEFINITION">Returns a collection with all immediate child nodes of all items in the input collection.</source>
+    <test name="REQ-FILTERINGPROJECTION-037-a" inputfile="patient-example.xml"><expression>Patient.deceased.ofType(boolean)</expression><output type="boolean">false</output></test>
+    <test name="REQ-FILTERINGPROJECTION-037-b" inputfile="patient-example.xml"><expression>Patient.deceased.ofType(dateTime)</expression></test>
+    <test name="REQ-FILTERINGPROJECTION-037-c" inputfile="patient-example.xml"><expression>Patient.children().ofType(boolean).count()</expression><output type="integer">2</output></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-038" description="In FHIR every primitive type is a type of its own for ofType(): markdown and uri values are not selected by ofType(string), only by their own type">
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">In FHIR, only concrete core types are allowed as an argument. All primitives are considered to be independent types (so markdown is not a subclass of string ). Profiled types are not allowed, so to select SimpleQuantity one would pass Quantity as an argument.</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">This works the same as in the base FHIRPath specification, but implementers should be aware that in FHIR, only concrete core types are allowed as an argument. All primitives are considered to be independent types (so markdown is not a subclass of string ). Profiled types are not allowed, so to select SimpleQuantity one would pass Quantity as an argument.</source>
+    <source spec="fhirpath-2.0.0" section="ofType(type : _type specifier_) : collection" strength="DEFINITION">Returns a collection that contains all items in the input collection that are of the given type or a subclass thereof.</source>
+    <test name="REQ-FILTERINGPROJECTION-038-a" inputfile="valueset-example-expansion.xml"><expression>ValueSet.description.ofType(string)</expression></test>
+    <test name="REQ-FILTERINGPROJECTION-038-b" inputfile="valueset-example-expansion.xml"><expression>ValueSet.description.ofType(markdown).count()</expression><output type="integer">1</output></test>
+    <test name="REQ-FILTERINGPROJECTION-038-c" inputfile="questionnaire-example.xml"><expression>Questionnaire.url.ofType(string)</expression></test>
+    <test name="REQ-FILTERINGPROJECTION-038-d" inputfile="questionnaire-example.xml"><expression>Questionnaire.url.ofType(uri).count()</expression><output type="integer">1</output></test>
+    <test name="REQ-FILTERINGPROJECTION-038-e" inputfile="patient-example.xml"><expression>Patient.name.given.ofType(string).count()</expression><output type="integer">5</output></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-039" description="The type argument of ofType() names a type, not a path: ofType(Patient) keeps Patient resources even where Patient is not the context, as in the worked example Bundle.entry.resource.ofType(Patient); shown on contained resources and on an Observation">
+    <source spec="fhirpath-2.0.0" section="ofType(type : _type specifier_) : collection" strength="EXAMPLE">Bundle.entry.resource.ofType(Patient)</source>
+    <source spec="fhirpath-2.0.0" section="ofType(type : _type specifier_) : collection" strength="EXAMPLE">In the above example, the symbol `Patient` must be treated as a type identifier rather than a reference to a Patient in context.</source>
+    <source spec="fhirpath-3.0.0" section="ofType(type : _type specifier_) : collection" strength="EXAMPLE">In the following example, the symbol `Patient` must be treated as a type identifier rather than a reference to a Patient in context:</source>
+    <source spec="fhirpath-2.0.0" section="ofType(type : _type specifier_) : collection" strength="DEFINITION">Returns a collection that contains all items in the input collection that are of the given type or a subclass thereof.</source>
+    <test name="REQ-FILTERINGPROJECTION-039-a" inputfile="patient-container-example.json"><expression>Patient.contained.ofType(Organization).count()</expression><output type="integer">1</output></test>
+    <test name="REQ-FILTERINGPROJECTION-039-b" inputfile="patient-container-example.json"><expression>Patient.contained.ofType(Patient)</expression></test>
+    <test name="REQ-FILTERINGPROJECTION-039-c" inputfile="observation-example.xml"><expression>Observation.ofType(Patient)</expression></test>
+    <test name="REQ-FILTERINGPROJECTION-039-d" inputfile="observation-example.xml"><expression>Observation.ofType(Observation).count()</expression><output type="integer">1</output></test>
+  </group>
+
+  <group name="REQ-FILTERINGPROJECTION-040" fhir="r5" description="The R5 FHIR page's example Patient.name.given.ofType(FHIR.string) keeps every given name, which are FHIR strings">
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="EXAMPLE">Note that ofType() does not have such restrictions - both of the following are valid:</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="EXAMPLE">Patient.name.given.ofType(FHIR.string);</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The namespace for the types defined in FHIR (primitive datatypes, datatypes, resources) is FHIR.</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">Returns a collection that contains all items in the input collection that are of the given type or a subclass thereof.</source>
+    <test name="REQ-FILTERINGPROJECTION-040-a" inputfile="patient-example.xml"><expression>Patient.name.given.ofType(FHIR.string).count()</expression><output type="integer">5</output></test>
+  </group>
+
+</tests>

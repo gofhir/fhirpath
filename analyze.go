@@ -104,16 +104,22 @@ func (a *analyzer) expression(node grammar.IExpressionContext, contextType strin
 		return unknownType, nil
 	}
 
-	// Every other operator: walk the operands, and do not claim a result type
+	// Every other operator: walk the operands, and do not claim a result type.
+	// Each operand starts where the expression stood: in item | item.item the
+	// right side navigates from the context, not from where the left one
+	// reached.
+	path := a.path
 	for i := 0; ; i++ {
 		child := childExpression(node, i)
 		if child == nil {
 			break
 		}
+		a.path = path
 		if _, err := a.expression(child, contextType); err != nil {
 			return unknownType, err
 		}
 	}
+	a.path = path
 	return unknownType, nil
 }
 
@@ -223,7 +229,14 @@ func (a *analyzer) invocation(node grammar.IInvocationContext, inputType, contex
 		return a.member(inv.Identifier().GetText(), inputType)
 
 	case *grammar.FunctionInvocationContext:
-		return a.function(inv.Function(), inputType, contextType)
+		result, err := a.function(inv.Function(), inputType, contextType)
+		// A function whose result is of another type leaves the path it was
+		// called on: Questionnaire.item.count() is an Integer, not the item it
+		// counted, so what follows is not navigated from Questionnaire.item
+		if err == nil && result != inputType {
+			a.path = result
+		}
+		return result, err
 	}
 
 	// $this, $index and $total
@@ -246,14 +259,18 @@ func (a *analyzer) member(name, inputType string) (string, error) {
 		return inputType, nil
 	}
 
-	// The path reaches elements the type cannot name
+	// The path reaches elements the type cannot name. A path defined
+	// elsewhere is asked as the model resolves it: Questionnaire.item.item by
+	// Questionnaire.item, and TestReport.test.action's operation by
+	// TestReport.setup.action's
 	if a.path != "" && a.path != inputType {
-		if resolved := a.typeOf(a.path + "." + name); resolved != "" {
-			a.path += "." + name
+		path := a.model.ResolvePath(a.model.ResolvePath(a.path) + "." + name)
+		if resolved := a.typeOf(path); resolved != "" {
+			a.path = path
 			return resolved, nil
 		}
-		if len(a.model.ChoiceTypes(a.path+"."+name)) > 0 {
-			a.path += "." + name
+		if len(a.model.ChoiceTypes(path)) > 0 {
+			a.path = path
 			return unknownType, nil
 		}
 	}
@@ -276,14 +293,15 @@ func (a *analyzer) member(name, inputType string) (string, error) {
 			inputType, name, base)
 	}
 
-	if resolved := a.typeOf(inputType + "." + name); resolved != "" {
-		a.path = inputType + "." + name
+	path := a.model.ResolvePath(a.model.ResolvePath(inputType) + "." + name)
+	if resolved := a.typeOf(path); resolved != "" {
+		a.path = path
 		return resolved, nil
 	}
 
 	// A choice element has no single type, so TypeOf cannot name one. It is
 	// still an element: Observation.value is how value[x] is navigated.
-	if len(a.model.ChoiceTypes(inputType+"."+name)) > 0 {
+	if len(a.model.ChoiceTypes(path)) > 0 {
 		return unknownType, nil
 	}
 
@@ -466,7 +484,10 @@ func (a *analyzer) checkFunctionArguments(name string, args []grammar.IExpressio
 		return nil
 	}
 
+	// Each argument starts where the call sits: iif's criterion navigating
+	// resource.meta.versionId leaves its result to start from there too
 	for _, arg := range args {
+		a.path = argumentPath
 		if _, err := a.expression(arg, argumentScope); err != nil {
 			return err
 		}

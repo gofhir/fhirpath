@@ -1220,3 +1220,23 @@ func TestAsAnswersAsIsWithoutAModel(t *testing.T) {
 		}
 	}
 }
+
+// System.Any is the root of the System types, "an ultimate root type", so
+// every value is one and ofType(System.Any) keeps every item.
+func TestSystemAnyIsEveryValue(t *testing.T) {
+	for expr, want := range map[string]string{
+		"1.combine('a').combine(true).ofType(System.Any).count()": "3",
+		"@2012-01-01.combine(2.5).ofType(System.Any).count()":     "2",
+		"1.ofType(Any).count()":                                   "1",
+		// a FHIR resource or element too: the root of every type
+		"Patient.is(System.Any)":                      "true",
+		"Patient.name.ofType(System.Any).count() > 0": "true",
+		"'a'.is(System.Any)":                          "true",
+		"(5 'mg').is(System.Any)":                     "true",
+		"Patient.name.given.ofType(System.Any).count() = Patient.name.given.count()": "true",
+	} {
+		if got := evaluateScalar(t, expr, patientJSON); got != want {
+			t.Errorf("%s = %s, want %s", expr, got, want)
+		}
+	}
+}
