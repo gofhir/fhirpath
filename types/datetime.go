@@ -178,6 +178,10 @@ func NewDateTime(s string) (DateTime, error) {
 			return DateTime{}, fmt.Errorf("%w: %s", ErrInvalidTemporal, s)
 		}
 		dt = dt.pastLeapSecond()
+		// The second after the last of 9999 is past FHIRPath's DateTime
+		if dt.year > 9999 {
+			return DateTime{}, fmt.Errorf("%w: %s", ErrInvalidTemporal, s)
+		}
 	}
 	return dt, nil
 }
