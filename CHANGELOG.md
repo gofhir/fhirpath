@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.1](https://github.com/gofhir/fhirpath/compare/v1.14.0...v1.14.1) (2026-10-14)
+
+
+### Bug Fixes
+
+* type Resource.id, Element.id and Extension.url by the FHIR type their definitions name ([#178](https://github.com/gofhir/fhirpath/issues/178)) ([fab7ab1](https://github.com/gofhir/fhirpath/commit/fab7ab1ca28644606543e5586e695615d2c2ef88))
+
 ## [1.14.0](https://github.com/gofhir/fhirpath/compare/v1.13.6...v1.14.0) (2026-10-13)
 
 
