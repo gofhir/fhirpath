@@ -52,14 +52,16 @@ func (e *Expression) Analyze(model Model, contextType string) error {
 		return nil
 	}
 
-	a := &analyzer{model: model, source: e.source, path: contextType}
+	fhirTypes, _ := model.(FHIRTypes)
+	a := &analyzer{model: model, fhirTypes: fhirTypes, source: e.source, path: contextType}
 	_, err := a.expression(e.tree.Expression(), contextType)
 	return err
 }
 
 type analyzer struct {
-	model  Model
-	source string
+	model     Model
+	fhirTypes FHIRTypes
+	source    string
 
 	// path is where navigation has reached, which is how a model indexes the
 	// backbone elements: ValueSet.expansion.contains is an element of that
@@ -246,7 +248,7 @@ func (a *analyzer) member(name, inputType string) (string, error) {
 
 	// The path reaches elements the type cannot name
 	if a.path != "" && a.path != inputType {
-		if resolved := a.model.TypeOf(a.path + "." + name); resolved != "" {
+		if resolved := a.typeOf(a.path + "." + name); resolved != "" {
 			a.path += "." + name
 			return resolved, nil
 		}
@@ -274,7 +276,7 @@ func (a *analyzer) member(name, inputType string) (string, error) {
 			inputType, name, base)
 	}
 
-	if resolved := a.model.TypeOf(inputType + "." + name); resolved != "" {
+	if resolved := a.typeOf(inputType + "." + name); resolved != "" {
 		a.path = inputType + "." + name
 		return resolved, nil
 	}
@@ -315,6 +317,12 @@ func (a *analyzer) choiceBase(inputType, name string) (string, bool) {
 		}
 	}
 	return "", false
+}
+
+// typeOf returns the type the model gives the element at path, as the
+// evaluator types it: see FHIRTypes.
+func (a *analyzer) typeOf(path string) string {
+	return declaredType(a.model, a.fhirTypes, path)
 }
 
 // modelDescribes reports whether the model knows the type well enough for a

@@ -1,5 +1,7 @@
 package fhirpath
 
+import "strings"
+
 // Model provides FHIR version-specific type and path metadata for the
 // FHIRPath engine. When a Model is supplied via [WithModel], the evaluator
 // uses it for precise polymorphic field resolution, type hierarchy checking,
@@ -113,6 +115,52 @@ type ElementOrder interface {
 	// path, in the order its definition lists them, or nil for a path the
 	// model does not know.
 	ChildElements(path string) []string
+}
+
+// FHIRTypes is an optional interface a [Model] may also implement to name the
+// FHIR type of an element whose type code is a FHIRPath System type.
+//
+// Resource.id, Element.id and Extension.url have
+// http://hl7.org/fhirpath/System.String as their type code, and name their
+// FHIR type in the structuredefinition-fhir-type extension, which "specifies
+// the applicable FHIR type": string or id for an id, uri for Extension.url,
+// each version its own. The HL7 validator types them by it, and so does the
+// engine with a model that implements this: in R5, Patient.id.is(id) is true
+// and Patient.id.is(System.String) false, as the FHIR page has it for a
+// primitive, "FHIR.string is a different type to System.String".
+//
+// A model that does not implement it has such an element read as the System
+// type, and so is one whose FHIR type is string: R4's Patient.id and
+// Element.id are System.String in the HL7 validator and in fhirpath.js alike.
+// A System.String is none of the FHIR types that convert to it, so with such
+// a model Patient.id.is(id) is false, where up to 1.14.0 it was true.
+type FHIRTypes interface {
+	// FHIRTypeOf returns the FHIR type of the element at path, as TypeOf takes
+	// it, or "" where the model names none. A primitive's value, string.value,
+	// is the System value the primitive is read as, and is not listed.
+	FHIRTypeOf(path string) string
+}
+
+// systemTypeCode is how a definition names a FHIRPath System type as an
+// element's type code.
+const systemTypeCode = "http://hl7.org/fhirpath/System."
+
+// declaredType returns the type m gives the element at path: its FHIR type
+// where the type code is a System type and the model names one, as FHIRTypes
+// says, and TypeOf's answer otherwise.
+//
+// One the definitions call a string stays the System type, as the HL7
+// validator and fhirpath.js both read it: R4's Patient.id, and every
+// version's Element.id, is a System.String, which is(System.String) is true
+// of and is(id) false.
+func declaredType(m Model, fhirTypes FHIRTypes, path string) string {
+	t := m.TypeOf(path)
+	if fhirTypes != nil && strings.HasPrefix(t, systemTypeCode) {
+		if fhirType := fhirTypes.FHIRTypeOf(path); fhirType != "" && fhirType != "string" {
+			return fhirType
+		}
+	}
+	return t
 }
 
 // WithModel sets the FHIR version-specific model for the evaluation.
