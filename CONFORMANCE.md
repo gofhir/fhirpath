@@ -63,11 +63,13 @@ the libraries, part ways, it decides in this order:
    cite.
 
 Each entry below that departs from a text names the text. Among the cases
-measured so far, the two FHIRPath versions part ways in four:
+measured so far, the two FHIRPath versions part ways in six:
 
 | | 2.0.0 | 3.0.0 | This engine |
 |---|---|---|---|
 | `power()` on Integers | an Integer | always a Decimal | a Decimal, as the validator, R4 too |
+| Calendar durations against UCUM's: `1 day = 1 'd'`, `1 week = 1 'wk'`, and hour, minute | unequal: "calendar durations and definite quantity durations above seconds are considered unequal" | equal: "for practical reasons it considers them to be equal" | equal, 3.0.0, as fhirpath.js and the Java engine answer; years and months stay apart |
+| Ordering calendar durations against UCUM's: `1 day > 23 'h'` | "un-comparable" above seconds | "years and months are not comparable across UCUM definite durations and calendar units", so a day is | ordered, 3.0.0, as fhirpath.js and the Java engine answer |
 | `implies` with an empty left operand: `{} implies false` | empty, by the truth table | empty by its table, but its note says "the result of the operation is the right side" | empty, as both tables, fhirpath.js and the Java engine answer |
 | `~` between quantities in different units | in "the most granular unit of either input" | "converted to the least granular unit" | the least granular, 3.0.0: converting to the finer unit made the value look more precise than it was written, the defect 3.0.0 names |
 | `~` between strings | whitespace "normalized": the characters of the Whitespace lexical category, tab, space, line feed and carriage return, equivalent | all characters of the Unicode White_Space class equivalent, a no-break space among them, and "Multiple whitespace characters in sequence are not collapsed", so `'a     b' ~ 'a b'` is false | 3.0.0, as fhirpath.js answers: any whitespace character for another, no run collapsed and no end trimmed. 2.0.0's Whitespace lexical category is the grammar's, for the expression's own text; 3.0.0 names the set for a string's content, the defect it fixes. The Java engine tells a tab from a space; see [Measured, and not followed](#measured-and-not-followed). Case is set aside one character for another, by Unicode's simple folding: fhirpath.js, comparing upper case, also takes `ß` for `SS` and `ﬁ` for `FI`, and tells the Kelvin sign from `K`, where this engine does not |
@@ -427,6 +429,7 @@ comparison, filtering, strings, collections.
 |---|---|---|---|---|
 | existence | 34 | 134 | 134 | 0 |
 | boolean-logic | 17 | 91 | 91 | 0 |
+| equality-comparison | 46 | 325 | 318 | 1, `23 ~ 23 '1'`, following the text |
 
 **Existence.** One gap, closed: a criteria that evaluates to more than one
 item, `(1 | 2).exists(true | false)` or `Patient.name.exists(given)` on a name
@@ -448,6 +451,39 @@ an error where the other operand decides the result alone; measured apart, the
 engines part there as
 [`and`, `or` and `implies` decide from the left](#a-divergence-taken-on-purpose-and-or-and-implies-decide-from-the-left)
 records.
+
+**Equality and comparison.** Three gaps, closed:
+
+- `=` between collections ended at the first pair whose equality is unknown, so
+  `(@2012 | @2013) = (@2012-01 | @2014)` was empty; "if the result is false for
+  any pair, returns false" (3.0.0), and fhirpath.js and the Java engine answer
+  false. An unknown pair now leaves the answer empty only where no pair is
+  unequal.
+- An Integer or a Decimal compared with a quantity was never converted, so
+  `23 = 23 '1'` was false and `2 < 3 '1'` an error. 2.0.0 makes both
+  conversions to Quantity implicit, `toQuantity()` giving "the default unit
+  ('1')", and 3.0.0 gives `23 = 23 '1'` and `23 ~ 23 '1'` as true. Both now
+  convert, under `=`, `~` and ordering, not under arithmetic: `2 + 3 '1'` stays
+  an error. The two references part here: fhirpath.js converts under `=` and
+  ordering and not under `~`, and the Java engine converts under none, `=`
+  false and `<` empty; this engine follows the text, also under `~`, where it
+  stands against both. A number is no quantity of another dimension:
+  `2 = 2 'mg'` is false, as both references answer. The operators that look
+  for an item agree with `=`: `23 in (23 '1')` is true and `(23 | 23 '1')`
+  holds one item, as in fhirpath.js, where the Java engine finds none and
+  keeps two.
+- A FHIR Quantity was found by `=` and not by the operators that look for an
+  item: `Observation.value = 5 'mg'` was true, and `5 'mg' in
+  Observation.value` false, `(Observation.value | 5 'mg')` two items, where
+  fhirpath.js and the Java engine find it. They now compare a FHIR Quantity
+  as `=` does.
+
+The seven cases that fail are written to 2.0.0 where this engine takes 3.0.0,
+with both references: whitespace in `~` and the calendar durations above. Of
+the evaluations where the Java engine alone differs, the coherent ones are
+under [Measured, and not followed](#measured-and-not-followed); fhirpath.js
+alone is wrong in five a version, among them `~` over collections, which it
+pairs in order.
 
 ## Static analysis
 
@@ -1316,7 +1352,7 @@ keeps its own answer.
 | Expression | Validator | This engine | Why not followed |
 |---|---|---|---|
 | `hasValue()` on a single complex value: `"maritalStatus": {"id": "x"}` | true, for a BackboneElement too | false, as fhirpath.js answers | FHIR's FHIRPath page, R4 and R5 alike: "Returns true if the input collection contains a single value which is a FHIR primitive". 1.13.4 followed the validator. The validator accepting such an element is no evidence for it: with `hasValue()` true, ele-1 holds on every complex element, so it holds there whether or not the validator evaluates it. Here ele-1 fails on it (#161) |
-| `'a b' ~ 'a\tb'`, whitespace characters of different kinds | false, a tab is not a space | true, as fhirpath.js answers | FHIRPath 2.0.0 and 3.0.0 alike: whitespace is "normalized", every whitespace character equivalent. 1.13.4 followed the validator. A run of whitespace is not collapsed, `'a b' ~ 'a  b'` false, nor an end trimmed, `' a' ~ 'a'` false, in the three |
+| `'a b' ~ 'a\tb'`, `'a\nb' ~ 'a\rb'`, a no-break space against a space: whitespace characters of different kinds | false, a tab is not a space | true, as fhirpath.js answers | FHIRPath 2.0.0 and 3.0.0 alike: whitespace is "normalized", every whitespace character equivalent. 1.13.4 followed the validator. A run of whitespace is not collapsed, `'a b' ~ 'a  b'` false, nor an end trimmed, `' a' ~ 'a'` false, in the three |
 | `a = b` between complex values, `b` with a child more | `a = b` true, `b = a` false | false, false | Equality that is not symmetric |
 | `~` between quantities in different units: `2.4 'm' ~ 200 'cm'` | true; `1.501 'kg' ~ 1500 'g'` false | false; false | Coherent: both sides in the UCUM base unit, rounded to the less precise. Matching it means rewriting quantity equivalence, and no published constraint compares quantities in different units with `~` |
 | `comparable()` on quantities in a local unit, `Range.low` and `high` in tablets | false, though `low < high` is true | true | Not comparable, yet compared. rng-2 holds in both |
@@ -1326,6 +1362,16 @@ keeps its own answer.
 | `~` between FHIR Quantities in units no conversion knows, `"unit": "Tablet"` and `"unit": "tablet"` | NullPointerException | false | An exception |
 | Arithmetic with a FHIR Quantity: `Observation.value + 1 'mg'` | an exception | the sum | An exception |
 | `2147483647 + 1` | `-2147483648` | `2147483648` | 32-bit overflow |
+| `1.2 / 1.8 = 0.67` | true | false, as fhirpath.js answers | 3.0.0's own example is false: the quotient is not rounded to the other side's precision under `=` |
+| Times and date/times at different precisions: `@T10 = @T10:30`, `@T10 < @T10:30` | false, true: a missing minute read as zero | empty, as fhirpath.js answers | "If one input has a value for the precision and the other does not, the comparison stops and the result is empty" |
+| `@T10:30:31.000 = @T10:30:31` | false | true, as fhirpath.js answers | Seconds and milliseconds are one precision, compared as a decimal |
+| `~` between decimals or quantities of one unit at different precisions: `1.10 ~ 1.14`, `1.10 'mg' ~ 1.14 'mg'` | false | true, as fhirpath.js answers | Equivalence rounds "to the precision of the least precise operand" |
+| `<`, `>`, `<=` and `>=` with an operand of more than one item: `Patient.name.given >= 'A'` | empty | an error, as fhirpath.js raises | "the evaluator will throw an error if either collection has more than one item"; a constraint that compares a repeating element passes silently there |
+| Ordering quantities in commensurable units: `4 'm' > 4 'cm'` | false, and `4 'm' <= 4 'cm'` true | true, false, as fhirpath.js answers | The numbers compared without their units, though `4 'm' = 400 'cm'` |
+| `2 years = 2 year` | empty | true, as fhirpath.js answers | The plural and the singular of one calendar keyword |
+| An Age in UCUM `'a'` against calendar years: `Observation.extension.value = 41 years` | false, `> 40 years` empty | true, true, as fhirpath.js answers | FHIR maps UCUM `'a'` to the calendar `year`: see [Rules the FHIRPath suite does not reach](#rules-the-fhirpath-suite-does-not-reach) |
+| An Integer against a quantity: `23 = 23 '1'`, `2 < 3 '1'` | false, empty | true, true | 2.0.0's implicit conversion to Quantity, as above |
+| DateTime literals to the minute, `@2012-01-01T10:30 = @2012-01-01T10:30`; `2 years > 1 year`; `Patient.telecom.rank < 2`, a positiveInt against an Integer | an exception | the answer, as fhirpath.js gives it | An exception |
 | Date and time arithmetic by an amount past the calendar or the int range: `@2020-01-01 + 18446744073709551617 days`, `@2020-01-01 + 7980 years`, `@T10:00 + 9223372036854775807 hours` | wraps, `@2020-01-02`; no bound on the year, `10000-01-01`; `@T09:00`. fhirpath.js answers `NaN-NaN-NaN` and `10000-01-01` | an error, "If the resulting year is out of range, an error is thrown"; `@T17:00`, the amount modulo a day. A clock amount within the calendar but past what Go's `time.Duration` holds, about 292 years, shifts too: `@2020-01-01T10:00:00Z + 3000000 hours` is `@2362-03-29T10:00:00Z`. A date component on a time is an error whatever its amount, `+ 0 days` and `+ 0.5 days` included: "This includes attempting to add date components to a Time". Amounts are Go `int`s, so on a 32-bit platform a clock amount past about 24 days in milliseconds is past the calendar too | Wraps past the range |
 | `$index` in `exists()` and `all()`: `(10 \| 20 \| 30).exists($index = 2)` | false, `all($index < 2)` true | true, false, as fhirpath.js answers | Not set there |
 | `subsetOf()` and `supersetOf()` with decimals written to other precisions: `1.0.subsetOf(1.00 \| 2.0)` | false | true, as fhirpath.js answers | Membership is by `=`, under which "trailing zeroes after the decimal are ignored" |

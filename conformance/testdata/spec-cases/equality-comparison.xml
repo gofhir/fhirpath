@@ -1,0 +1,792 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tests name="equality-comparison" description="The Equality and Comparison operator sections: =, ~, != and !~ over Boolean, Integer, Decimal, String, Date, DateTime, Time, Quantity and complex types, with empty operands, operands of several items, precision and timezone offsets; the comparison operators &gt;, &lt;, &lt;= and &gt;= over the types they are defined on; and what FHIR's FHIRPath pages (R4, R5) add: FHIR primitives compared as System types, the FHIR Quantity mapping, and Coding/CodeableConcept equivalence. Where 2.0.0 and 3.0.0 differ the cases follow 2.0.0 (whitespace set for string equivalence, calendar day/hour/minute/week against UCUM units) and cite both texts; where 2.0.0's own examples contradict its definitions (&lt;= and &gt;=) the cases follow the definitions and the corrected 3.0.0 examples. Unit conversion is optional in both versions, so cases that involve two different units only exclude the wrong Boolean and accept empty; ~ between commensurable units is written only where the most granular (2.0.0) and least granular (3.0.0) unit give the same answer. Leaves out what the text does not settle: = between one item and several (the text says both false and error), = or ~ between items of types with no implicit conversion, Date against DateTime, DateTime with and without an offset, ordering of partial dates whose earlier components already differ, comparison of Booleans, comparison of an empty operand with one of several items, incommensurable or invalid units, ~ between commensurable units where the unit it converts to changes the answer, rounding ties in decimal equivalence, ~ over collections with duplicates, = over several items where no pair is false and some pair is empty, FHIR equivalence ignoring element ids (no official input has element ids), and the order of a union.">
+
+  <group name="REQ-EQUALITYCOMPARISON-001" description="= and != return empty when either operand is empty, including when both are">
+    <source spec="fhirpath-2.0.0" section="Operations" strength="DEFINITION">Like functions, operators will generally propagate an empty collection in any of their operands. This is true even when comparing two empty collections using the equality operators, e.g.</source>
+    <source spec="fhirpath-2.0.0" section="Operations" strength="EXAMPLE">{} = {}</source>
+    <source spec="fhirpath-2.0.0" section="Operations" strength="EXAMPLE">{} != 'dummy'</source>
+    <source spec="fhirpath-2.0.0" section="Operations" strength="DEFINITION">all result in `{}`.</source>
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">If one or both of the operands is the empty collection, this operation returns an empty collection.</source>
+    <source spec="fhirpath-2.0.0" section="!= (Not Equals)" strength="DEFINITION">The converse of the equals operator, returning `true` if equal returns `false`; `false` if equal returns `true`; and empty (`{ }`) if equal returns empty.</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="EXAMPLE">{} = {} // empty ; as explicitly defined above</source>
+    <source spec="fhirpath-2.0.0" section="Null and empty" strength="DEFINITION">This means that when, in an underlying data object (i.e. they physical data on which the implementation is operating) a member is null or missing, there will simply be no corresponding node for that member in the tree, e.g. `Patient.name` will return an empty collection (not null) if there are no name elements in the instance.</source>
+    <test name="REQ-EQUALITYCOMPARISON-001-a"><expression>{} = {}</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-001-b"><expression>1 = {}</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-001-c"><expression>{} = 'a'</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-001-d"><expression>{} != 'dummy'</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-001-e"><expression>{} != {}</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-001-f"><expression>1 != {}</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-001-g" inputfile="patient-example.xml"><expression>Patient.name.where(use = 'nickname').given = 'Jim'</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-001-h" inputfile="patient-example.xml"><expression>'Jim' != Patient.name.where(use = 'nickname').given</expression></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-002" description="= over two Integers is true only when they are exactly equal">
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">If both operands are collections with a single item, they must be of the same type (or be implicitly convertible to the same type), and:</source>
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">`Integer`: values must be exactly equal</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="DEFINITION">`Integer`: values must be exactly equal</source>
+    <test name="REQ-EQUALITYCOMPARISON-002-a"><expression>1 = 1</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-002-b"><expression>1 = 2</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-002-c"><expression>-5 = -5</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-002-d"><expression>-5 = 5</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-002-e"><expression>2147483647 = 2147483647</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-003" description="= over Decimals compares values with trailing zeroes ignored, an Integer operand being converted to Decimal">
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">`Decimal`: values must be equal, trailing zeroes after the decimal are ignored</source>
+    <source spec="fhirpath-2.0.0" section="Conversion" strength="DEFINITION">|*Integer* |Explicit |N/A |Implicit |Implicit |Explicit |- |- |-</source>
+    <source spec="fhirpath-2.0.0" section="Conversion" strength="DEFINITION">Implicit - Values of the type in the From column will be implicitly converted to values of the type in the To column when necessary</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="DEFINITION">`Decimal`: values must be equal, trailing zeroes after the decimal are ignored</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="EXAMPLE">1.10 = 1.1 // true ; zeros after the decimal place are ignored</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="EXAMPLE">1.2 / 1.8 = 0.67 // false ; division results in a decimal with recurring digits,</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="EXAMPLE">0.0 = 0 // true ; zeros after the decimal place are ignored</source>
+    <test name="REQ-EQUALITYCOMPARISON-003-a"><expression>1.10 = 1.1</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-003-b"><expression>1.2 / 1.8 = 0.67</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-003-c"><expression>0.0 = 0</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-003-d"><expression>1.0 = 1</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-003-e"><expression>1.1 = 1</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-003-f"><expression>1.100 = 1.10</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-003-g"><expression>1.01 = 1.1</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-003-h"><expression>1.11 = 1.1</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-004" description="= over two Booleans is true only when they are the same value">
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">`Boolean`: values must be the same</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="DEFINITION">`Boolean`: values must be the same</source>
+    <test name="REQ-EQUALITYCOMPARISON-004-a"><expression>true = true</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-004-b"><expression>false = false</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-004-c"><expression>true = false</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-004-d"><expression>false = true</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-005" description="= over Strings compares Unicode values: case, whitespace and the composition of a character all count">
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">`String`: comparison is based on Unicode values</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="DEFINITION">`String`: comparison is based on Unicode values</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="EXAMPLE">'a' = 'A' // false ; case is NOT ignored for equality</source>
+    <source spec="fhirpath-2.0.0" section="String" strength="DEFINITION">|`\uXXXX`|Unicode character, where XXXX is the hexadecimal representation of the character</source>
+    <source spec="fhirpath-3.0.0" section="Unicode and String Operations" strength="DEFINITION">| `é` (precomposed) | `'&#92;u00E9'` | U+00E9 | 1 | Single character |</source>
+    <source spec="fhirpath-3.0.0" section="Unicode and String Operations" strength="DEFINITION">| `é` (combining) | `'&#92;u0065&#92;u0301'` | U+0065 U+0301 | 2 | Two characters: 'e' + combining acute accent |</source>
+    <source spec="fhirpath-3.0.0" section="Unicode and String Operations" strength="DEFINITION">When consistent string length behavior is required, data should be normalized (e.g., to NFC or NFD form) before processing, though such normalization is outside the scope of FHIRPath.</source>
+    <test name="REQ-EQUALITYCOMPARISON-005-a"><expression>'a' = 'a'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-005-b"><expression>'a' = 'A'</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-005-c"><expression>'abc' = 'abc '</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-005-d"><expression>'a b' = 'a\tb'</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-005-e"><expression>'é' = 'é'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-005-f"><expression>'é' = 'é'</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-005-g"><expression>'' = ''</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-006" description="= over Date, DateTime and Time compares precision by precision: a differing value gives false, a precision only one side has gives empty, and the end of both gives true">
+    <source spec="fhirpath-2.0.0" section="Date/Time Equality" strength="DEFINITION">For `Date`, `DateTime` and `Time` equality, the comparison is performed by considering each precision in order, beginning with years (or hours for time values), and respecting timezone offsets.</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Equality" strength="DEFINITION">If the values are the same, comparison proceeds to the next precision; if the values are different, the comparison stops and the result is `false`. If one input has a value for the precision and the other does not, the comparison stops and the result is empty (`{ }`); if neither input has a value for the precision, or the last precision has been reached, the comparison stops and the result is `true`.</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Equality" strength="DEFINITION">If the values are the same, comparison proceeds to the next precision; if the values are different, the comparison stops and the result is `false`. If one input has a value for the precision and the other does not, the comparison stops and the result is empty (`{ }`); if neither input has a value for the precision, or the last precision has been reached, the comparison stops and the result is `true`.</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Equality" strength="EXAMPLE">@2012 = @2012 // returns true</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Equality" strength="EXAMPLE">@2012 = @2013 // returns false</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Equality" strength="EXAMPLE">@2012-01 = @2012 // returns empty ({ })</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Equality" strength="EXAMPLE">@2012-01-01T10:30 = @2012-01-01T10:30 // returns true</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Equality" strength="EXAMPLE">@2012-01-01T10:30 = @2012-01-01T10:31 // returns false</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Equality" strength="EXAMPLE">@2012-01-01T10:30:31 = @2012-01-01T10:30 // returns empty ({ })</source>
+    <test name="REQ-EQUALITYCOMPARISON-006-a"><expression>@2012 = @2012</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-006-b"><expression>@2012 = @2013</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-006-c"><expression>@2012-01 = @2012</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-006-d"><expression>@2012-01-01T10:30 = @2012-01-01T10:30</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-006-e"><expression>@2012-01-01T10:30 = @2012-01-01T10:31</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-006-f"><expression>@2012-01-01T10:30:31 = @2012-01-01T10:30</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-006-g"><expression>@2012-01 = @2013</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-006-h"><expression>@2012-01-01T10:30:31 = @2012-01-01T11:30</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-006-i"><expression>@2012-01-15 = @2012-01-15</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-006-j"><expression>@2012-01-01T = @2012-01-01T</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-006-k"><expression>@T10:30 = @T10:30</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-006-l"><expression>@T10 = @T10:30</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-006-m"><expression>@T10:30 = @T11</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-007" description="For = over DateTime and Time, seconds and milliseconds are one precision compared as a decimal">
+    <source spec="fhirpath-2.0.0" section="Date/Time Equality" strength="DEFINITION">For the purposes of comparison, seconds and milliseconds are considered a single precision using a decimal, with decimal equality semantics.</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Equality" strength="DEFINITION">For the purposes of comparison, seconds and milliseconds are considered a single precision using a decimal, with decimal equality semantics.</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Equality" strength="EXAMPLE">@2012-01-01T10:30:31.0 = @2012-01-01T10:30:31 // returns true</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Equality" strength="EXAMPLE">@2012-01-01T10:30:31.1 = @2012-01-01T10:30:31 // returns false</source>
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">`Decimal`: values must be equal, trailing zeroes after the decimal are ignored</source>
+    <test name="REQ-EQUALITYCOMPARISON-007-a"><expression>@2012-01-01T10:30:31.0 = @2012-01-01T10:30:31</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-007-b"><expression>@2012-01-01T10:30:31.1 = @2012-01-01T10:30:31</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-007-c"><expression>@T10:30:31.000 = @T10:30:31</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-007-d"><expression>@T10:30:31.5 = @T10:30:31</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-007-e"><expression>@2012-01-01T10:30:31.10 = @2012-01-01T10:30:31.1</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-008" description="= over two DateTimes that both carry an offset compares the instants, and +00:00, -00:00 and Z are the same offset">
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">`DateTime`: must be exactly the same, respecting the timezone offset (though +00:00 = -00:00 = Z)</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="DEFINITION">`DateTime`: must be exactly the same, respecting the timezone offset (though +00:00 = -00:00 = Z)</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Equality" strength="DEFINITION">To support comparison of DateTime values, either both values have no timezone offset specified, or both values are converted to a common timezone offset.</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Equality" strength="EXAMPLE">@2017-11-05T01:30:00.0-04:00 = @2017-11-05T01:15:00.0-05:00 // false</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Equality" strength="EXAMPLE">@2017-11-05T01:30:00.0-04:00 = @2017-11-05T00:30:00.0-05:00 // true</source>
+    <test name="REQ-EQUALITYCOMPARISON-008-a"><expression>@2017-11-05T01:30:00.0-04:00 = @2017-11-05T01:15:00.0-05:00</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-008-b"><expression>@2017-11-05T01:30:00.0-04:00 = @2017-11-05T00:30:00.0-05:00</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-008-c"><expression>@2012-01-01T10:00:00Z = @2012-01-01T10:00:00+00:00</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-008-d"><expression>@2012-01-01T10:00:00+00:00 = @2012-01-01T10:00:00-00:00</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-008-e"><expression>@2012-01-01T10:00:00-00:00 = @2012-01-01T10:00:00Z</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-008-f"><expression>@2012-01-01T10:00:00+01:00 = @2012-01-01T10:00:00+02:00</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-008-g"><expression>@2012-01-01T23:30:00-01:00 = @2012-01-02T00:30:00Z</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-009" description="= over two collections of several items is true when the items are equal pair by pair in order, and false when the same items come in another order">
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">If both operands are collections with multiple items:</source>
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">Each item must be equal</source>
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">Comparison is order dependent</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="DEFINITION">If both operands are collections with multiple items, check the equality of each pair of items in order:</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="DEFINITION">if the result is `false` for any pair, returns `false`</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="DEFINITION">if the result is `true` for all pairs, returns `true`</source>
+    <source spec="fhirpath-2.0.0" section="Collections" strength="DEFINITION">Ordered - The order of items in the collection is important and is preserved through operations as much as possible. Operators and functions that do not preserve order will note that in their documentation.</source>
+    <source spec="fhirpath-2.0.0" section="take(num : Integer) : collection" strength="DEFINITION">Returns a collection containing the first `num` items in the input collection, or less if there are less than `num` items.</source>
+    <source spec="fhirpath-2.0.0" section="skip(num : Integer) : collection" strength="DEFINITION">Returns a collection containing all but the first `num` items in the input collection.</source>
+    <source spec="fhirpath-2.0.0" section="exclude(other: collection) : collection" strength="DEFINITION">Returns the set of elements that are not in the `other` collection. Duplicate items will not be eliminated by this function, and order will be preserved.</source>
+    <test name="REQ-EQUALITYCOMPARISON-009-a" inputfile="patient-example.xml"><expression>Patient.name.given.take(2) = Patient.name.given.skip(3)</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-009-b" inputfile="patient-example.xml"><expression>Patient.name.given.take(2) = Patient.name.given.exclude('Jim').skip(1).take(2)</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-009-c" inputfile="patient-example.xml"><expression>Patient.name[0].given = Patient.name[2].given</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-009-d" inputfile="patient-example.xml"><expression>Patient.telecom.use = Patient.telecom.use</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-009-e" inputfile="patient-example.xml"><expression>Patient.name[0].given = Patient.name.given.exclude('Peter').take(2)</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-010" description="= over two collections with different numbers of items, each having more than one, is false">
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">Note that this implies that if the collections have a different number of items to compare, the result will be `false`.</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="DEFINITION">Note that this implies that if the collections have a different number of items to compare, the result will be `false`.</source>
+    <source spec="fhirpath-2.0.0" section="take(num : Integer) : collection" strength="DEFINITION">Returns a collection containing the first `num` items in the input collection, or less if there are less than `num` items.</source>
+    <test name="REQ-EQUALITYCOMPARISON-010-a"><expression>(1 | 2) = (1 | 2 | 3)</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-010-b" inputfile="patient-example.xml"><expression>Patient.name.given.take(2) = Patient.name.given.take(3)</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-010-c" inputfile="patient-example.xml"><expression>Patient.name.given = Patient.name[0].given</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-011" description="= over two collections of several items is false when one pair is unequal, even if another pair's equality is empty">
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">Each item must be equal</source>
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">Otherwise, equals returns `false`.</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="DEFINITION">if the result is `false` for any pair, returns `false`</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Equality" strength="DEFINITION">If the values are the same, comparison proceeds to the next precision; if the values are different, the comparison stops and the result is `false`. If one input has a value for the precision and the other does not, the comparison stops and the result is empty (`{ }`); if neither input has a value for the precision, or the last precision has been reached, the comparison stops and the result is `true`.</source>
+    <source spec="fhirpath-2.0.0" section="union(other : collection)" strength="DEFINITION">Merge the two collections into a single collection, eliminating any duplicate values (using &lt;&lt;equals&gt;&gt; (`=`) to determine equality). There is no expectation of order in the resulting collection.</source>
+    <test name="REQ-EQUALITYCOMPARISON-011-a"><expression>(@2012 | @2013) = (@2012-01 | @2014)</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-011-b"><expression>(@2012 | @2013) != (@2012-01 | @2014)</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-012" description="= and ~ over complex values compare their child properties recursively, so two distinct nodes with equal children are equal">
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">For complex types, equality requires all child properties to be equal, recursively.</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="DEFINITION">For complex types, equality requires all child elements to be equal, recursively.</source>
+    <source spec="fhirpath-2.0.0" section="~ (Equivalent)" strength="DEFINITION">For complex types, equivalence requires all child properties to be equivalent, recursively.</source>
+    <source spec="fhirpath-3.0.0" section="~ (Equivalent)" strength="DEFINITION">For complex types, equivalence requires all child elements to be equivalent, recursively.</source>
+    <test name="REQ-EQUALITYCOMPARISON-012-a" inputfile="patient-example.xml"><expression>Patient.telecom[1] = Patient.telecom[1]</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-012-b" inputfile="patient-example.xml"><expression>Patient.telecom[1] = Patient.telecom[2]</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-012-c" inputfile="patient-example.xml"><expression>Patient.address.period = Patient.contact.address.period</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-012-d" inputfile="patient-example.xml"><expression>Patient.identifier.period = Patient.address.period</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-012-e" inputfile="patient-example.xml"><expression>Patient.name[0] = Patient.name[0]</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-012-f" inputfile="patient-example.xml"><expression>Patient.address.period ~ Patient.contact.address.period</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-012-g" inputfile="patient-example.xml"><expression>Patient.telecom[1] ~ Patient.telecom[2]</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-013" description="~ with an empty operand is true when both are empty and false when only one is">
+    <source spec="fhirpath-2.0.0" section="~ (Equivalent)" strength="DEFINITION">Returns `true` if the collections are the same. In particular, comparing empty collections for equivalence `{ } ~ { }` will result in `true`.</source>
+    <source spec="fhirpath-2.0.0" section="~ (Equivalent)" strength="DEFINITION">Note that this implies that if the collections have a different number of items to compare, or if one input is a value and the other is empty (`{ }`), the result will be `false`.</source>
+    <source spec="fhirpath-3.0.0" section="~ (Equivalent)" strength="DEFINITION">Note that this implies that if the collections have a different number of items to compare, or if one input is a value and the other is empty (`{ }`), the result will be `false`.</source>
+    <source spec="fhirpath-3.0.0" section="~ (Equivalent)" strength="EXAMPLE">{} ~ {}     // true ; as explicitly defined above</source>
+    <test name="REQ-EQUALITYCOMPARISON-013-a"><expression>{} ~ {}</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-013-b"><expression>1 ~ {}</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-013-c"><expression>{} ~ 'a'</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-013-d" inputfile="patient-example.xml"><expression>Patient.name.where(use = 'nickname') ~ {}</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-013-e" inputfile="patient-example.xml"><expression>Patient.name.where(use = 'nickname').given ~ 'Jim'</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-013-f" inputfile="patient-example.xml"><expression>Patient.name.given ~ {}</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-014" description="~ over collections of several items is true when every item has an equivalent in the other in any order, and false when the counts differ">
+    <source spec="fhirpath-2.0.0" section="~ (Equivalent)" strength="DEFINITION">Each item must be equivalent</source>
+    <source spec="fhirpath-2.0.0" section="~ (Equivalent)" strength="DEFINITION">Comparison is not order dependent</source>
+    <source spec="fhirpath-2.0.0" section="~ (Equivalent)" strength="DEFINITION">Note that this implies that if the collections have a different number of items to compare, or if one input is a value and the other is empty (`{ }`), the result will be `false`.</source>
+    <source spec="fhirpath-3.0.0" section="~ (Equivalent)" strength="EXAMPLE">(1 | 2 | 3) ~ (3 | 2 | 1) // true ; all items are in both collections irrespective of order</source>
+    <source spec="fhirpath-2.0.0" section="exclude(other: collection) : collection" strength="DEFINITION">Returns the set of elements that are not in the `other` collection. Duplicate items will not be eliminated by this function, and order will be preserved.</source>
+    <test name="REQ-EQUALITYCOMPARISON-014-a"><expression>(1 | 2 | 3) ~ (3 | 2 | 1)</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-014-b" inputfile="patient-example.xml"><expression>Patient.name.given.take(2) ~ Patient.name.given.exclude('Jim').skip(1).take(2)</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-014-c"><expression>(1 | 2) ~ (1 | 2 | 3)</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-014-d"><expression>(1 | 2) ~ 1</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-014-e"><expression>(1 | 2) ~ (1 | 3)</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-014-f"><expression>('a' | 'B') ~ ('b' | 'A')</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-014-g" inputfile="patient-example.xml"><expression>Patient.name.given.take(2) ~ Patient.name.given</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-015" description="~ over Integers is exact equality and over Booleans is sameness, an Integer converting to Decimal against a Decimal">
+    <source spec="fhirpath-2.0.0" section="~ (Equivalent)" strength="DEFINITION">If both operands are collections with a single item, they must be of the same type (or implicitly convertible to the same type), and:</source>
+    <source spec="fhirpath-2.0.0" section="~ (Equivalent)" strength="DEFINITION">`Integer`: exactly equal</source>
+    <source spec="fhirpath-2.0.0" section="~ (Equivalent)" strength="DEFINITION">`Boolean`: the values must be the same</source>
+    <source spec="fhirpath-3.0.0" section="~ (Equivalent)" strength="DEFINITION">`Integer`: exactly equal</source>
+    <source spec="fhirpath-3.0.0" section="~ (Equivalent)" strength="DEFINITION">`Boolean`: the values must be the same</source>
+    <source spec="fhirpath-2.0.0" section="Conversion" strength="DEFINITION">|*Integer* |Explicit |N/A |Implicit |Implicit |Explicit |- |- |-</source>
+    <test name="REQ-EQUALITYCOMPARISON-015-a"><expression>1 ~ 1</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-015-b"><expression>1 ~ 2</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-015-c"><expression>true ~ true</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-015-d"><expression>true ~ false</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-015-e"><expression>1 ~ 1.0</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-016" description="~ over Decimals rounds both values to the precision of the less precise operand, trailing zeroes not counting toward precision">
+    <source spec="fhirpath-2.0.0" section="~ (Equivalent)" strength="DEFINITION">`Decimal`: values must be equal, comparison is done on values rounded to the precision of the least precise operand. Trailing zeroes after the decimal are ignored in determining precision.</source>
+    <source spec="fhirpath-3.0.0" section="~ (Equivalent)" strength="DEFINITION">`Decimal`: values must be equal, comparison is done on values rounded to the precision of the least precise operand. Trailing zeroes after the decimal are ignored in determining precision.</source>
+    <source spec="fhirpath-3.0.0" section="~ (Equivalent)" strength="EXAMPLE">1.10 ~ 1.1  // true ; round to 1 decimal place, then compare values</source>
+    <source spec="fhirpath-3.0.0" section="~ (Equivalent)" strength="EXAMPLE">1.2 / 1.8 ~ 0.67 // true ; division results in a decimal with recurring digits,</source>
+    <source spec="fhirpath-3.0.0" section="~ (Equivalent)" strength="EXAMPLE">0.0 ~ 0     // true ; implicit conversion to decimals, then rounding to the least precise operand (0) results in both sides being 0</source>
+    <test name="REQ-EQUALITYCOMPARISON-016-a"><expression>1.10 ~ 1.1</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-016-b"><expression>1.2 / 1.8 ~ 0.67</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-016-c"><expression>0.0 ~ 0</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-016-d"><expression>1.11 ~ 1.1</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-016-e"><expression>1.16 ~ 1.2</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-016-f"><expression>1.14 ~ 1.2</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-016-g"><expression>1.10 ~ 1.14</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-016-h"><expression>2.0 ~ 2.1</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-016-i"><expression>1.4 ~ 1</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-016-j"><expression>1.123 ~ 1.12</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-016-k"><expression>1.1 ~ 1.2</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-017" description="~ over Strings ignores case and treats each whitespace character as equivalent to any other, without collapsing or trimming">
+    <source spec="fhirpath-2.0.0" section="~ (Equivalent)" strength="DEFINITION">`String`: the strings must be the same, ignoring case and locale, and normalizing whitespace (see &lt;&lt;string-equivalence&gt;&gt; for more details).</source>
+    <source spec="fhirpath-2.0.0" section="String Equivalence" strength="DEFINITION">For strings, equivalence returns true if the strings are the same value while ignoring case and locale, and normalizing whitespace. Normalizing whitespace means that all whitespace characters are treated as equivalent, with whitespace characters as defined in the &lt;&lt;whitespace, Whitespace&gt;&gt; lexical category.</source>
+    <source spec="fhirpath-2.0.0" section="Whitespace" strength="DEFINITION">FHIRPath defines _tab_ (`\t`), _space_ (`` ``), _line feed_ (`\n`) and _carriage return_ (`\r`) as _whitespace_, meaning they are only used to separate other tokens within the language.</source>
+    <source spec="fhirpath-3.0.0" section="String Equivalence" strength="DEFINITION">For strings, equivalence returns `true` if the strings are the same value while ignoring case and locale, and normalizing whitespace.</source>
+    <source spec="fhirpath-3.0.0" section="String Equivalence" strength="DEFINITION">Multiple whitespace characters in sequence are not collapsed to a single character.</source>
+    <source spec="fhirpath-3.0.0" section="String Equivalence" strength="DEFINITION">To simply trim the start and end of content, use the [`trim()`](#trim--string) function.</source>
+    <source spec="fhirpath-3.0.0" section="~ (Equivalent)" strength="EXAMPLE">'a' ~ 'A'   // true ; case is ignored for equivalence</source>
+    <source spec="fhirpath-3.0.0" section="String Equivalence" strength="EXAMPLE">'a b' ~ 'a\tb' // true</source>
+    <source spec="fhirpath-3.0.0" section="String Equivalence" strength="EXAMPLE">'a     b' ~ 'a b' // false ; the whitespace isn't collapsed</source>
+    <source spec="fhirpath-3.0.0" section="String Equivalence" strength="EXAMPLE">'a b' ~ 'A B' // true ; case insensitive test</source>
+    <test name="REQ-EQUALITYCOMPARISON-017-a"><expression>'a' ~ 'A'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-017-b"><expression>'a b' ~ 'A B'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-017-c"><expression>'a b' ~ 'a\tb'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-017-d"><expression>'a     b' ~ 'a b'</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-017-e"><expression>'a\nb' ~ 'a\rb'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-017-f"><expression>'a b' ~ 'ab'</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-017-g"><expression>'abc' ~ 'abd'</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-017-h"><expression>'ÄB' ~ 'äb'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-017-i"><expression>' a' ~ 'a'</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-018" description="~ over Strings normalizes only the whitespace of the 2.0.0 lexical category (tab, space, line feed, carriage return), so a no-break space is not equivalent to a space; 3.0.0 widens the set to Unicode White_Space">
+    <source spec="fhirpath-2.0.0" section="String Equivalence" strength="DEFINITION">For strings, equivalence returns true if the strings are the same value while ignoring case and locale, and normalizing whitespace. Normalizing whitespace means that all whitespace characters are treated as equivalent, with whitespace characters as defined in the &lt;&lt;whitespace, Whitespace&gt;&gt; lexical category.</source>
+    <source spec="fhirpath-2.0.0" section="Whitespace" strength="DEFINITION">FHIRPath defines _tab_ (`\t`), _space_ (`` ``), _line feed_ (`\n`) and _carriage return_ (`\r`) as _whitespace_, meaning they are only used to separate other tokens within the language.</source>
+    <source spec="fhirpath-3.0.0" section="String Equivalence" strength="DEFINITION">Normalizing whitespace means treating as equivalent all characters in the Unicode White_Space character class (as defined in https://www.unicode.org/Public/UCD/latest/ucd/PropList.txt) -</source>
+    <test name="REQ-EQUALITYCOMPARISON-018-a"><expression>'a b' ~ 'a b'</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-019" description="~ over Date, DateTime and Time is equality except that a precision only one side has gives false instead of empty">
+    <source spec="fhirpath-2.0.0" section="Date/Time Equivalence" strength="DEFINITION">For `Date`, `DateTime` and `Time` equivalence, the comparison is the same as for equality, with the exception that if the input values have different levels of precision, the result is `false`, rather than empty (`{ }`).</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Equivalence" strength="DEFINITION">For `Date`, `DateTime` and `Time` equivalence, the comparison is the same as for equality, with the exception that if the input values have different levels of precision, the result is `false`, rather than empty (`{ }`).</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Equivalence" strength="EXAMPLE">@2012 ~ @2012 // returns true</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Equivalence" strength="EXAMPLE">@2012 ~ @2013 // returns false</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Equivalence" strength="EXAMPLE">@2012-01 ~ @2012 // returns false as well</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Equivalence" strength="EXAMPLE">@2012-01-01T10:30 ~ @2012-01-01T10:30 // returns true</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Equivalence" strength="EXAMPLE">@2012-01-01T10:30 ~ @2012-01-01T10:31 // returns false</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Equivalence" strength="EXAMPLE">@2012-01-01T10:30:31 ~ @2012-01-01T10:30 // returns false as well</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Equivalence" strength="EXAMPLE">@2012-01-01T10:30:31.0 ~ @2012-01-01T10:30:31 // returns true</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Equivalence" strength="EXAMPLE">@2012-01-01T10:30:31.1 ~ @2012-01-01T10:30:31 // returns false</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Equality" strength="DEFINITION">For `Date`, `DateTime` and `Time` equality, the comparison is performed by considering each precision in order, beginning with years (or hours for time values), and respecting timezone offsets.</source>
+    <test name="REQ-EQUALITYCOMPARISON-019-a"><expression>@2012 ~ @2012</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-019-b"><expression>@2012 ~ @2013</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-019-c"><expression>@2012-01 ~ @2012</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-019-d"><expression>@2012-01-01T10:30 ~ @2012-01-01T10:30</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-019-e"><expression>@2012-01-01T10:30 ~ @2012-01-01T10:31</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-019-f"><expression>@2012-01-01T10:30:31 ~ @2012-01-01T10:30</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-019-g"><expression>@2012-01-01T10:30:31.0 ~ @2012-01-01T10:30:31</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-019-h"><expression>@2012-01-01T10:30:31.1 ~ @2012-01-01T10:30:31</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-019-i"><expression>@T10 ~ @T10:30</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-019-j"><expression>@T10:30:00.0 ~ @T10:30:00</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-019-k"><expression>@2012-01-01T10:00:00+01:00 ~ @2012-01-01T09:00:00Z</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-020" description="!= is the negation of =: true where = is false, false where = is true, and empty where = is empty">
+    <source spec="fhirpath-2.0.0" section="!= (Not Equals)" strength="DEFINITION">The converse of the equals operator, returning `true` if equal returns `false`; `false` if equal returns `true`; and empty (`{ }`) if equal returns empty. In other words, `A != B` is short-hand for `(A = B).not()`.</source>
+    <source spec="fhirpath-3.0.0" section="!= (Not Equals)" strength="DEFINITION">The converse of the equals operator, returning `true` if equal returns `false`; `false` if equal returns `true`; and empty (`{ }`) if equal returns empty.</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Equality" strength="EXAMPLE">@2012-01 = @2012 // returns empty ({ })</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Equality" strength="EXAMPLE">@2017-11-05T01:30:00.0-04:00 = @2017-11-05T00:30:00.0-05:00 // true</source>
+    <test name="REQ-EQUALITYCOMPARISON-020-a"><expression>1 != 1</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-020-b"><expression>1 != 2</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-020-c"><expression>'a' != 'A'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-020-d"><expression>@2012-01 != @2012</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-020-e"><expression>@2012 != @2013</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-020-f"><expression>(1 | 2) != (1 | 2 | 3)</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-020-g" inputfile="patient-example.xml"><expression>Patient.telecom[1] != Patient.telecom[2]</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-020-h"><expression>1.10 != 1.1</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-020-i"><expression>@2017-11-05T01:30:00.0-04:00 != @2017-11-05T00:30:00.0-05:00</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-020-j"><expression>@T10 != @T10:30</expression></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-021" description="!~ is the negation of ~, so it is never empty for operands ~ accepts">
+    <source spec="fhirpath-2.0.0" section="!~ (Not Equivalent)" strength="DEFINITION">The converse of the equivalent operator, returning `true` if equivalent returns `false` and `false` is equivalent returns `true`. In other words, `A !~ B` is short-hand for `(A ~ B).not()`.</source>
+    <source spec="fhirpath-3.0.0" section="!~ (Not Equivalent)" strength="DEFINITION">The converse of the equivalent operator, returning `true` if equivalent returns `false` and `false` is equivalent returns `true`.</source>
+    <source spec="fhirpath-2.0.0" section="~ (Equivalent)" strength="DEFINITION">Returns `true` if the collections are the same. In particular, comparing empty collections for equivalence `{ } ~ { }` will result in `true`.</source>
+    <test name="REQ-EQUALITYCOMPARISON-021-a"><expression>{} !~ {}</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-021-b"><expression>1 !~ {}</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-021-c"><expression>'a' !~ 'A'</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-021-d"><expression>@2012-01 !~ @2012</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-021-e"><expression>1.10 !~ 1.14</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-021-f"><expression>(1 | 2) !~ (2 | 1)</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-021-g"><expression>'a b' !~ 'a  b'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-021-h"><expression>1 !~ 2</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-022" description="A comparison operator returns empty when one or both operands are empty">
+    <source spec="fhirpath-2.0.0" section="Comparison" strength="DEFINITION">If one or both of the arguments is an empty collection, a comparison operator will return an empty collection.</source>
+    <source spec="fhirpath-3.0.0" section="Comparison" strength="DEFINITION">If one or both of the arguments is an empty collection, a comparison operator will return an empty collection.</source>
+    <source spec="fhirpath-2.0.0" section="Operations" strength="EXAMPLE">true &gt; {}</source>
+    <source spec="fhirpath-2.0.0" section="Operations" strength="DEFINITION">all result in `{}`.</source>
+    <test name="REQ-EQUALITYCOMPARISON-022-a"><expression>true &gt; {}</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-022-b"><expression>{} &lt; 1</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-022-c"><expression>1 &lt;= {}</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-022-d"><expression>{} &gt;= {}</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-022-e"><expression>'a' &gt; {}</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-022-f"><expression>@2012 &lt; {}</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-022-g" inputfile="patient-example.xml"><expression>Patient.name.where(use = 'nickname').given &lt; 'Z'</expression></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-023" description="A comparison operator with an operand of more than one item ends with an error">
+    <source spec="fhirpath-2.0.0" section="Comparison" strength="DEFINITION">Both arguments must be collections with single values, and the evaluator will throw an error if either collection has more than one item.</source>
+    <source spec="fhirpath-3.0.0" section="Comparison" strength="DEFINITION">Both arguments must be collections with single values, and the evaluator will throw an error if either collection has more than one item.</source>
+    <test name="REQ-EQUALITYCOMPARISON-023-a"><expression invalid="execution">(1 | 2) &gt; 1</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-023-b"><expression invalid="execution">1 &lt; (1 | 2)</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-023-c" inputfile="patient-example.xml"><expression invalid="execution">Patient.name.given &gt;= 'A'</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-023-d" inputfile="patient-example.xml"><expression invalid="execution">'A' &lt;= Patient.name.given</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-023-e"><expression invalid="execution">(1 | 2) &lt; (3 | 4)</expression></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-024" description="A comparison operator over two items of types with no implicit conversion between them ends with an error">
+    <source spec="fhirpath-2.0.0" section="Comparison" strength="DEFINITION">Both arguments must be of the same type (or implicitly convertible to the same type), and the evaluator will throw an error if the types differ.</source>
+    <source spec="fhirpath-3.0.0" section="Comparison" strength="DEFINITION">Both arguments must be of the same type (or [implicitly convertible](#conversion) to the same type), and the evaluator will throw an error if the types differ.</source>
+    <source spec="fhirpath-2.0.0" section="Conversion" strength="DEFINITION">|*Integer* |Explicit |N/A |Implicit |Implicit |Explicit |- |- |-</source>
+    <source spec="fhirpath-2.0.0" section="Conversion" strength="DEFINITION">|*Decimal* |Explicit |- |N/A |Implicit |Explicit |- |- |-</source>
+    <source spec="fhirpath-2.0.0" section="Conversion" strength="DEFINITION">|*String* |Explicit |Explicit |Explicit |Explicit |N/A |Explicit |Explicit |Explicit</source>
+    <source spec="fhirpath-2.0.0" section="Conversion" strength="DEFINITION">|*Date* |- |- |- |- |Explicit |N/A |Implicit |-</source>
+    <source spec="fhirpath-2.0.0" section="Conversion" strength="DEFINITION">|*Time* |- |- |- |- |Explicit |- |- |N/A</source>
+    <source spec="fhirpath-2.0.0" section="Conversion" strength="DEFINITION">Explicit - Values of the type in the From column can be explicitly converted using a function defined in this section</source>
+    <test name="REQ-EQUALITYCOMPARISON-024-a"><expression invalid="execution">1 &gt; 'a'</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-024-b"><expression invalid="execution">'1' &lt; 1</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-024-c"><expression invalid="execution">@2012-01-01 &gt;= 1</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-024-d"><expression invalid="execution">@T10:00 &lt; @2012-01-01T10:00</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-024-e"><expression invalid="execution">'2012' &lt;= @2013</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-024-f"><expression invalid="execution">1.5 &gt; 'a'</expression></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-025" description="&gt;, &lt;, &lt;= and &gt;= over Integers order them numerically, as the 2.0.0 definitions say; the 2.0.0 examples for &lt;= and &gt;= (cited) contradict those definitions and the 3.0.0 examples (cited) correct them">
+    <source spec="fhirpath-2.0.0" section="&gt; (Greater Than)" strength="DEFINITION">The greater than operator (`&gt;`) returns true if the first operand is strictly greater than the second.</source>
+    <source spec="fhirpath-2.0.0" section="&lt; (Less Than)" strength="DEFINITION">The less than operator (`&lt;`) returns true if the first operand is strictly less than the second.</source>
+    <source spec="fhirpath-2.0.0" section="&lt;= (Less or Equal)" strength="DEFINITION">The less or equal operator (`\&lt;=`) returns true if the first operand is less than or equal to the second.</source>
+    <source spec="fhirpath-2.0.0" section="&gt;= (Greater or Equal)" strength="DEFINITION">The greater or equal operator (`&gt;=`) returns true if the first operand is greater than or equal to the second.</source>
+    <source spec="fhirpath-2.0.0" section="&gt; (Greater Than)" strength="EXAMPLE">10 &gt; 5 // true</source>
+    <source spec="fhirpath-2.0.0" section="&lt; (Less Than)" strength="EXAMPLE">10 &lt; 5 // false</source>
+    <source spec="fhirpath-2.0.0" section="&lt;= (Less or Equal)" strength="EXAMPLE">10 &lt;= 5 // true</source>
+    <source spec="fhirpath-2.0.0" section="&gt;= (Greater or Equal)" strength="EXAMPLE">10 &gt;= 5 // false</source>
+    <source spec="fhirpath-3.0.0" section="&lt;= (Less or Equal)" strength="EXAMPLE">10 &lt;= 5 // false</source>
+    <source spec="fhirpath-3.0.0" section="&gt;= (Greater or Equal)" strength="EXAMPLE">10 &gt;= 5 // true</source>
+    <test name="REQ-EQUALITYCOMPARISON-025-a"><expression>10 &gt; 5</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-025-b"><expression>10 &lt; 5</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-025-c"><expression>10 &lt;= 5</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-025-d"><expression>10 &gt;= 5</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-025-e"><expression>5 &lt;= 5</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-025-f"><expression>5 &gt;= 5</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-025-g"><expression>5 &gt; 5</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-025-h"><expression>5 &lt; 5</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-025-i"><expression>-1 &lt; 0</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-026" description="Comparing an Integer with a Decimal converts the Integer to Decimal and orders them as the 2.0.0 definitions say; the 2.0.0 examples for &lt;= and &gt;= (cited) contradict those definitions and the 3.0.0 examples (cited) correct them">
+    <source spec="fhirpath-2.0.0" section="Comparison" strength="DEFINITION">When comparing integers and decimals, the integer will be converted to a decimal to make comparison possible.</source>
+    <source spec="fhirpath-2.0.0" section="&lt;= (Less or Equal)" strength="DEFINITION">The less or equal operator (`\&lt;=`) returns true if the first operand is less than or equal to the second.</source>
+    <source spec="fhirpath-2.0.0" section="&gt;= (Greater or Equal)" strength="DEFINITION">The greater or equal operator (`&gt;=`) returns true if the first operand is greater than or equal to the second.</source>
+    <source spec="fhirpath-2.0.0" section="&gt; (Greater Than)" strength="EXAMPLE">10 &gt; 5.0 // true; note the 10 is converted to a decimal to perform the comparison</source>
+    <source spec="fhirpath-2.0.0" section="&lt; (Less Than)" strength="EXAMPLE">10 &lt; 5.0 // false; note the 10 is converted to a decimal to perform the comparison</source>
+    <source spec="fhirpath-2.0.0" section="&lt;= (Less or Equal)" strength="EXAMPLE">10 &lt;= 5.0 // true; note the 10 is converted to a decimal to perform the comparison</source>
+    <source spec="fhirpath-2.0.0" section="&gt;= (Greater or Equal)" strength="EXAMPLE">10 &gt;= 5.0 // false; note the 10 is converted to a decimal to perform the comparison</source>
+    <source spec="fhirpath-3.0.0" section="&lt;= (Less or Equal)" strength="EXAMPLE">10 &lt;= 5.0 // false ; note the 10 is converted to a decimal to perform the comparison</source>
+    <source spec="fhirpath-3.0.0" section="&gt;= (Greater or Equal)" strength="EXAMPLE">10 &gt;= 5.0 // true ; note the 10 is converted to a decimal to perform the comparison</source>
+    <test name="REQ-EQUALITYCOMPARISON-026-a"><expression>10 &gt; 5.0</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-026-b"><expression>10 &lt; 5.0</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-026-c"><expression>10 &lt;= 5.0</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-026-d"><expression>10 &gt;= 5.0</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-026-e"><expression>1 &lt; 1.5</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-026-f"><expression>2 &gt;= 2.0</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-026-g"><expression>2 &gt; 2.0</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-026-h"><expression>3 &lt;= 2.99</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-026-i"><expression>2.5 &gt; 2</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-027" description="Comparison operators over Decimals order them numerically, trailing zeroes making no difference">
+    <source spec="fhirpath-2.0.0" section="Comparison" strength="DEFINITION">The comparison operators are defined for strings, integers, decimals, quantities, dates, datetimes and times.</source>
+    <source spec="fhirpath-2.0.0" section="&lt;= (Less or Equal)" strength="DEFINITION">The less or equal operator (`\&lt;=`) returns true if the first operand is less than or equal to the second.</source>
+    <source spec="fhirpath-3.0.0" section="Comparison" strength="DEFINITION">arguments are compared ignoring trailing zeroes after the decimal point (same as with equality)</source>
+    <test name="REQ-EQUALITYCOMPARISON-027-a"><expression>1.0 &lt; 1.01</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-027-b"><expression>1.10 &lt;= 1.1</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-027-c"><expression>1.10 &gt;= 1.1</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-027-d"><expression>1.10 &gt; 1.1</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-027-e"><expression>-0.5 &lt; 0.5</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-027-f"><expression>3.14159265 &gt; 3.1415926</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-028" description="Comparison operators over Strings order them lexically by the Unicode value of each character, so case and accents follow code points; the 2.0.0 examples for &lt;= and &gt;= (cited) contradict the 2.0.0 definitions and the 3.0.0 examples (cited) correct them">
+    <source spec="fhirpath-2.0.0" section="Comparison" strength="DEFINITION">String ordering is strictly lexical and is based on the Unicode value of the individual characters.</source>
+    <source spec="fhirpath-2.0.0" section="&lt;= (Less or Equal)" strength="DEFINITION">The less or equal operator (`\&lt;=`) returns true if the first operand is less than or equal to the second.</source>
+    <source spec="fhirpath-2.0.0" section="&gt;= (Greater or Equal)" strength="DEFINITION">The greater or equal operator (`&gt;=`) returns true if the first operand is greater than or equal to the second.</source>
+    <source spec="fhirpath-2.0.0" section="&lt;= (Less or Equal)" strength="EXAMPLE">'abc' &lt;= 'ABC' // true</source>
+    <source spec="fhirpath-2.0.0" section="&gt;= (Greater or Equal)" strength="EXAMPLE">'abc' &gt;= 'ABC' // false</source>
+    <source spec="fhirpath-3.0.0" section="Comparison" strength="DEFINITION">String ordering is strictly lexical and is based on the Unicode value of the individual characters.</source>
+    <source spec="fhirpath-2.0.0" section="&gt; (Greater Than)" strength="EXAMPLE">'abc' &gt; 'ABC' // true</source>
+    <source spec="fhirpath-2.0.0" section="&lt; (Less Than)" strength="EXAMPLE">'abc' &lt; 'ABC' // false</source>
+    <source spec="fhirpath-3.0.0" section="&lt;= (Less or Equal)" strength="EXAMPLE">'abc' &lt;= 'ABC' // false</source>
+    <source spec="fhirpath-3.0.0" section="&gt;= (Greater or Equal)" strength="EXAMPLE">'abc' &gt;= 'ABC' // true</source>
+    <test name="REQ-EQUALITYCOMPARISON-028-a"><expression>'abc' &gt; 'ABC'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-028-b"><expression>'abc' &lt; 'ABC'</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-028-c"><expression>'abc' &lt;= 'ABC'</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-028-d"><expression>'abc' &gt;= 'ABC'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-028-e"><expression>'Z' &lt; 'a'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-028-f"><expression>'é' &gt; 'z'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-028-g"><expression>'ab' &lt; 'abc'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-028-h"><expression>'b' &gt; 'abc'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-028-i"><expression>'abc' &lt;= 'abc'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-028-j"><expression>'abc' &lt; 'abc'</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-029" description="Comparison operators over two Dates of the same precision order them chronologically">
+    <source spec="fhirpath-2.0.0" section="Comparison" strength="DEFINITION">For partial Date, DateTime, and Time values, the comparison is performed by comparing the values at each precision, beginning with years, and proceeding to the finest precision specified in either input, and respecting timezone offsets.</source>
+    <source spec="fhirpath-2.0.0" section="&gt; (Greater Than)" strength="EXAMPLE">@2018-03-01 &gt; @2018-01-01 // true</source>
+    <source spec="fhirpath-2.0.0" section="&lt; (Less Than)" strength="EXAMPLE">@2018-03-01 &lt; @2018-01-01 // false</source>
+    <source spec="fhirpath-2.0.0" section="&lt;= (Less or Equal)" strength="EXAMPLE">@2018-03-01 &lt;= @2018-01-01 // false</source>
+    <source spec="fhirpath-2.0.0" section="&gt;= (Greater or Equal)" strength="EXAMPLE">@2018-03-01 &gt;= @2018-01-01 // true</source>
+    <source spec="fhirpath-3.0.0" section="&lt; (Less Than)" strength="EXAMPLE">@2018-01-01 &lt; @2018-01-01 // false ; same precision</source>
+    <source spec="fhirpath-3.0.0" section="&lt;= (Less or Equal)" strength="EXAMPLE">@2018-01-01 &lt;= @2018-01-01 // true ; equal with same precision</source>
+    <source spec="fhirpath-3.0.0" section="&gt;= (Greater or Equal)" strength="EXAMPLE">@2018-01-01 &gt;= @2018-01-01 // true ; equal with same precision</source>
+    <test name="REQ-EQUALITYCOMPARISON-029-a"><expression>@2018-03-01 &gt; @2018-01-01</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-029-b"><expression>@2018-03-01 &lt; @2018-01-01</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-029-c"><expression>@2018-03-01 &lt;= @2018-01-01</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-029-d"><expression>@2018-03-01 &gt;= @2018-01-01</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-029-e"><expression>@2018-01-01 &lt; @2018-01-01</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-029-f"><expression>@2018-01-01 &lt;= @2018-01-01</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-029-g"><expression>@2018-01-01 &gt;= @2018-01-01</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-029-h"><expression>@2018 &lt; @2019</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-029-i"><expression>@2018-03 &gt; @2018-02</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-029-j"><expression>@2018-01-01 &gt; @2018-01-01</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-030" description="Comparison operators over two DateTimes or two Times of the same precision order them chronologically">
+    <source spec="fhirpath-2.0.0" section="Comparison" strength="DEFINITION">For partial Date, DateTime, and Time values, the comparison is performed by comparing the values at each precision, beginning with years, and proceeding to the finest precision specified in either input, and respecting timezone offsets.</source>
+    <source spec="fhirpath-2.0.0" section="&gt; (Greater Than)" strength="EXAMPLE">@2018-03-01T10:30:00 &gt; @2018-03-01T10:00:00 // true</source>
+    <source spec="fhirpath-2.0.0" section="&lt; (Less Than)" strength="EXAMPLE">@2018-03-01T10:30:00 &lt; @2018-03-01T10:00:00 // false</source>
+    <source spec="fhirpath-2.0.0" section="&lt;= (Less or Equal)" strength="EXAMPLE">@2018-03-01T10:30:00 &lt;= @2018-03-01T10:00:00 // false</source>
+    <source spec="fhirpath-2.0.0" section="&gt;= (Greater or Equal)" strength="EXAMPLE">@2018-03-01T10:30:00 &gt;= @2018-03-01T10:00:00 // true</source>
+    <source spec="fhirpath-2.0.0" section="&gt; (Greater Than)" strength="EXAMPLE">@T10:30:00 &gt; @T10:00:00 // true</source>
+    <source spec="fhirpath-2.0.0" section="&lt; (Less Than)" strength="EXAMPLE">@T10:30:00 &lt; @T10:00:00 // false</source>
+    <source spec="fhirpath-2.0.0" section="&lt;= (Less or Equal)" strength="EXAMPLE">@T10:30:00 &lt;= @T10:00:00 // false</source>
+    <source spec="fhirpath-2.0.0" section="&gt;= (Greater or Equal)" strength="EXAMPLE">@T10:30:00 &gt;= @T10:00:00 // true</source>
+    <test name="REQ-EQUALITYCOMPARISON-030-a"><expression>@2018-03-01T10:30:00 &gt; @2018-03-01T10:00:00</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-030-b"><expression>@2018-03-01T10:30:00 &lt; @2018-03-01T10:00:00</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-030-c"><expression>@2018-03-01T10:30:00 &lt;= @2018-03-01T10:00:00</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-030-d"><expression>@2018-03-01T10:30:00 &gt;= @2018-03-01T10:00:00</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-030-e"><expression>@T10:30:00 &gt; @T10:00:00</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-030-f"><expression>@T10:30:00 &lt; @T10:00:00</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-030-g"><expression>@T10:30:00 &lt;= @T10:00:00</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-030-h"><expression>@T10:30:00 &gt;= @T10:00:00</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-030-i"><expression>@T10 &lt; @T11</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-030-j"><expression>@2018-03-01T10 &lt; @2018-03-01T11</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-030-k"><expression>@2018-03-01T &lt; @2018-03-02T</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-031" description="Comparison operators over two Dates, DateTimes or Times of different precision, equal as far as both go, return empty">
+    <source spec="fhirpath-2.0.0" section="Comparison" strength="DEFINITION">If one value is specified to a different level of precision than the other, the result is empty (`{ }`) to indicate that the result of the comparison is unknown.</source>
+    <source spec="fhirpath-3.0.0" section="Comparison" strength="DEFINITION">If one value is specified to a different level of precision than the other, the result is empty (`{ }`) to indicate that the result of the comparison is unknown.</source>
+    <source spec="fhirpath-2.0.0" section="&gt; (Greater Than)" strength="EXAMPLE">@2018-03 &gt; @2018-03-01 // empty ({ })</source>
+    <source spec="fhirpath-2.0.0" section="&gt; (Greater Than)" strength="EXAMPLE">@2018-03-01T10 &gt; @2018-03-01T10:30 // empty ({ })</source>
+    <source spec="fhirpath-2.0.0" section="&gt; (Greater Than)" strength="EXAMPLE">@T10 &gt; @T10:30 // empty ({ })</source>
+    <source spec="fhirpath-2.0.0" section="&lt; (Less Than)" strength="EXAMPLE">@2018-03 &lt; @2018-03-01 // empty ({ })</source>
+    <source spec="fhirpath-2.0.0" section="&lt; (Less Than)" strength="EXAMPLE">@2018-03-01T10 &lt; @2018-03-01T10:30 // empty ({ })</source>
+    <source spec="fhirpath-2.0.0" section="&lt; (Less Than)" strength="EXAMPLE">@T10 &lt; @T10:30 // empty ({ })</source>
+    <source spec="fhirpath-2.0.0" section="&lt;= (Less or Equal)" strength="EXAMPLE">@2018-03 &lt;= @2018-03-01 // empty ({ })</source>
+    <source spec="fhirpath-2.0.0" section="&lt;= (Less or Equal)" strength="EXAMPLE">@2018-03-01T10 &lt;= @2018-03-01T10:30 // empty ({ })</source>
+    <source spec="fhirpath-2.0.0" section="&lt;= (Less or Equal)" strength="EXAMPLE">@T10 &lt;= @T10:30 // empty ({ })</source>
+    <source spec="fhirpath-2.0.0" section="&gt;= (Greater or Equal)" strength="EXAMPLE">@2018-03 &gt;= @2018-03-01 // empty ({ })</source>
+    <source spec="fhirpath-2.0.0" section="&gt;= (Greater or Equal)" strength="EXAMPLE">@2018-03-01T10 &gt;= @2018-03-01T10:30 // empty ({ })</source>
+    <source spec="fhirpath-2.0.0" section="&gt;= (Greater or Equal)" strength="EXAMPLE">@T10 &gt;= @T10:30 // empty ({ })</source>
+    <test name="REQ-EQUALITYCOMPARISON-031-a"><expression>@2018-03 &gt; @2018-03-01</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-031-b"><expression>@2018-03-01T10 &gt; @2018-03-01T10:30</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-031-c"><expression>@T10 &gt; @T10:30</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-031-d"><expression>@2018-03 &lt; @2018-03-01</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-031-e"><expression>@2018-03-01T10 &lt; @2018-03-01T10:30</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-031-f"><expression>@T10 &lt; @T10:30</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-031-g"><expression>@2018-03 &lt;= @2018-03-01</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-031-h"><expression>@2018-03-01T10 &lt;= @2018-03-01T10:30</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-031-i"><expression>@T10 &lt;= @T10:30</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-031-j"><expression>@2018-03 &gt;= @2018-03-01</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-031-k"><expression>@2018-03-01T10 &gt;= @2018-03-01T10:30</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-031-l"><expression>@T10 &gt;= @T10:30</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-031-m"><expression>@2018-03-01T10:30 &lt; @2018-03-01T10:30:00</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-031-n"><expression>@2018 &lt;= @2018-01</expression></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-032" description="Comparison operators treat seconds and milliseconds as one precision compared as a decimal">
+    <source spec="fhirpath-2.0.0" section="Comparison" strength="DEFINITION">As with equality and equivalence, the second and millisecond precisions are considered a single precision using a decimal, with decimal comparison semantics.</source>
+    <source spec="fhirpath-3.0.0" section="Comparison" strength="DEFINITION">As with equality and equivalence, the second and millisecond precisions are considered a single precision using a decimal, with decimal comparison semantics.</source>
+    <source spec="fhirpath-2.0.0" section="&gt; (Greater Than)" strength="EXAMPLE">@2018-03-01T10:30:00 &gt; @2018-03-01T10:30:00.0 // false</source>
+    <source spec="fhirpath-2.0.0" section="&lt; (Less Than)" strength="EXAMPLE">@2018-03-01T10:30:00 &lt; @2018-03-01T10:30:00.0 // false</source>
+    <source spec="fhirpath-2.0.0" section="&lt;= (Less or Equal)" strength="EXAMPLE">@2018-03-01T10:30:00 &lt;= @2018-03-01T10:30:00.0 // true</source>
+    <source spec="fhirpath-2.0.0" section="&gt;= (Greater or Equal)" strength="EXAMPLE">@2018-03-01T10:30:00 &gt;= @2018-03-01T10:30:00.0 // true</source>
+    <source spec="fhirpath-2.0.0" section="&gt; (Greater Than)" strength="EXAMPLE">@T10:30:00 &gt; @T10:30:00.0 // false</source>
+    <source spec="fhirpath-2.0.0" section="&lt; (Less Than)" strength="EXAMPLE">@T10:30:00 &lt; @T10:30:00.0 // false</source>
+    <source spec="fhirpath-2.0.0" section="&lt;= (Less or Equal)" strength="EXAMPLE">@T10:30:00 &lt;= @T10:30:00.0 // true</source>
+    <source spec="fhirpath-2.0.0" section="&gt;= (Greater or Equal)" strength="EXAMPLE">@T10:30:00 &gt;= @T10:30:00.0 // true</source>
+    <test name="REQ-EQUALITYCOMPARISON-032-a"><expression>@2018-03-01T10:30:00 &gt; @2018-03-01T10:30:00.0</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-032-b"><expression>@2018-03-01T10:30:00 &lt; @2018-03-01T10:30:00.0</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-032-c"><expression>@2018-03-01T10:30:00 &lt;= @2018-03-01T10:30:00.0</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-032-d"><expression>@2018-03-01T10:30:00 &gt;= @2018-03-01T10:30:00.0</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-032-e"><expression>@T10:30:00 &gt; @T10:30:00.0</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-032-f"><expression>@T10:30:00 &lt; @T10:30:00.0</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-032-g"><expression>@T10:30:00 &lt;= @T10:30:00.0</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-032-h"><expression>@T10:30:00 &gt;= @T10:30:00.0</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-032-i"><expression>@T10:30:00.5 &gt; @T10:30:00</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-032-j"><expression>@2018-03-01T10:30:00.001 &gt; @2018-03-01T10:30:00</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-032-k"><expression>@T10:30:00.5 &lt;= @T10:30:00</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-033" description="Comparison operators over two DateTimes that both carry an offset compare the instants they denote">
+    <source spec="fhirpath-2.0.0" section="Comparison" strength="DEFINITION">See the &lt;&lt;equals, Equals&gt;&gt; operator for discussion on respecting timezone offsets in comparison operations.</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Equality" strength="DEFINITION">To support comparison of DateTime values, either both values have no timezone offset specified, or both values are converted to a common timezone offset.</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Equality" strength="EXAMPLE">@2017-11-05T01:30:00.0-04:00 &gt; @2017-11-05T01:15:00.0-05:00 // false</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Equality" strength="EXAMPLE">@2017-11-05T01:30:00.0-04:00 &lt; @2017-11-05T01:15:00.0-05:00 // true</source>
+    <source spec="fhirpath-3.0.0" section="&lt; (Less Than)" strength="EXAMPLE">@2018-01-01T16:00:00+11:00 &lt; @2018-01-01T15:00:00.0+10:00 // false (same moment in diff timezones)</source>
+    <source spec="fhirpath-3.0.0" section="&lt; (Less Than)" strength="EXAMPLE">@2018-01-01T16:00:00+12:00 &lt; @2018-01-01T15:00:00.0+10:00 // true (4pm+12 is less than 5pm+10 when timezones are considered)</source>
+    <source spec="fhirpath-3.0.0" section="&lt;= (Less or Equal)" strength="EXAMPLE">@2018-01-01T16:00:00+11:00 &lt;= @2018-01-01T15:00:00.0+10:00 // true (same moment in diff timezones)</source>
+    <source spec="fhirpath-3.0.0" section="&lt;= (Less or Equal)" strength="EXAMPLE">@2018-01-01T16:00:00+12:00 &lt;= @2018-01-01T15:00:00.0+10:00 // true (4pm+12 is less than 5pm+10 when timezones are considered)</source>
+    <test name="REQ-EQUALITYCOMPARISON-033-a"><expression>@2017-11-05T01:30:00.0-04:00 &gt; @2017-11-05T01:15:00.0-05:00</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-033-b"><expression>@2017-11-05T01:30:00.0-04:00 &lt; @2017-11-05T01:15:00.0-05:00</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-033-c"><expression>@2018-01-01T16:00:00+11:00 &lt; @2018-01-01T15:00:00.0+10:00</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-033-d"><expression>@2018-01-01T16:00:00+12:00 &lt; @2018-01-01T15:00:00.0+10:00</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-033-e"><expression>@2018-01-01T16:00:00+11:00 &lt;= @2018-01-01T15:00:00.0+10:00</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-033-f"><expression>@2018-01-01T16:00:00+12:00 &lt;= @2018-01-01T15:00:00.0+10:00</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-033-g"><expression>@2012-01-01T10:00:00Z &gt;= @2012-01-01T11:00:00+01:00</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-033-h"><expression>@2012-01-01T10:00:00Z &gt; @2012-01-01T11:00:00+01:00</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-034" description="= and ~ over two Quantities with the same unit compare their decimal values, trailing zeroes ignored">
+    <source spec="fhirpath-2.0.0" section="Quantity" strength="DEFINITION">The `Quantity` type represents quantities with a specified unit, where the `value` component is defined as a `Decimal`, and the `unit` element is represented as a `String` that is required to be either a valid Unified Code for Units of Measure &lt;&lt;UCUM&gt;&gt; unit or one of the calendar duration keywords, singular or plural.</source>
+    <source spec="fhirpath-2.0.0" section="Quantity" strength="DEFINITION">If the value literal is an Integer, it will be implicitly converted to a Decimal in the resulting Quantity value:</source>
+    <source spec="fhirpath-3.0.0" section="Quantity" strength="SHALL">Implementations shall support [equality](#quantity-equality), [equivalence](#quantity-equivalence), [comparison](#comparison) and [arithmetic](#math-1) operations on quantities with units where the units are the same value, case-sensitively.</source>
+    <source spec="fhirpath-3.0.0" section="Quantity Equality" strength="DEFINITION">Once the units are the same, the values can be compared using simple decimal comparison, ignoring trailing zeroes after the decimal point (as described above).</source>
+    <source spec="fhirpath-2.0.0" section="Time-valued Quantities" strength="DEFINITION">|`year`/`years` |`'year'` |`~ 1 'a'`</source>
+    <source spec="fhirpath-2.0.0" section="Time-valued Quantities" strength="DEFINITION">|`day`/`days` |`'day'` |`~ 1 'd'`</source>
+    <test name="REQ-EQUALITYCOMPARISON-034-a"><expression>4 'mg' = 4 'mg'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-034-b"><expression>4 'mg' = 4.0 'mg'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-034-c"><expression>4 'mg' = 4.1 'mg'</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-034-d"><expression>1 year = 1 year</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-034-e"><expression>2 years = 2 year</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-034-f"><expression>4 'mg' ~ 4.0 'mg'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-034-g"><expression>4 'mg' != 5 'mg'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-034-h"><expression>3 days = 3 days</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-035" description="Comparison operators over two Quantities with the same unit order them by value">
+    <source spec="fhirpath-2.0.0" section="Quantity" strength="SHALL">Implementations shall support comparison and arithmetic operations on quantities with units where the units are the same.</source>
+    <source spec="fhirpath-3.0.0" section="Quantity" strength="SHALL">Implementations shall support [equality](#quantity-equality), [equivalence](#quantity-equivalence), [comparison](#comparison) and [arithmetic](#math-1) operations on quantities with units where the units are the same value, case-sensitively.</source>
+    <source spec="fhirpath-3.0.0" section="Comparison" strength="DEFINITION">Once the units are the same, the values can be compared using simple decimal comparison, ignoring trailing zeroes after the decimal point (as described above).</source>
+    <test name="REQ-EQUALITYCOMPARISON-035-a"><expression>4 'mg' &lt; 5 'mg'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-035-b"><expression>5 'mg' &lt;= 5.0 'mg'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-035-c"><expression>4 'mg' &gt; 5 'mg'</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-035-d"><expression>2 years &gt; 1 year</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-035-e"><expression>4 'mg' &gt;= 4 'mg'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-035-f"><expression>1.5 'mg' &lt; 1.25 'mg'</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-036" description="Quantities of different but commensurable units are compared after conversion where the implementation converts, and otherwise may give empty, but never the wrong Boolean">
+    <source spec="fhirpath-2.0.0" section="Comparison" strength="DEFINITION">When comparing quantities, the dimensions of each quantity must be the same, but not necessarily the unit. For example, units of 'cm' and 'm' can be compared, but units of 'cm2' and  'cm' cannot. The comparison will be made using the most granular unit of either input.</source>
+    <source spec="fhirpath-2.0.0" section="Comparison" strength="DEFINITION">Implementations are not required to fully support operations on units, but they must at least respect units, recognizing when units differ.</source>
+    <source spec="fhirpath-2.0.0" section="Quantity" strength="MAY">Implementations that do not support complete UCUM functionality may return empty (`{ }`) for calculations involving quantities with units where the units are different.</source>
+    <source spec="fhirpath-2.0.0" section="&gt; (Greater Than)" strength="EXAMPLE">4 'm' &gt; 4 'cm' // true (or { } if the implementation does not support unit conversion)</source>
+    <source spec="fhirpath-2.0.0" section="&lt; (Less Than)" strength="EXAMPLE">4 'm' &lt; 4 'cm' // false (or { } if the implementation does not support unit conversion)</source>
+    <source spec="fhirpath-2.0.0" section="&lt;= (Less or Equal)" strength="EXAMPLE">4 'm' &lt;= 4 'cm' // false (or { } if the implementation does not support unit conversion)</source>
+    <source spec="fhirpath-2.0.0" section="&gt;= (Greater or Equal)" strength="EXAMPLE">4 'm' &gt;= 4 'cm' // true (or { } if the implementation does not support unit conversion)</source>
+    <source spec="fhirpath-2.0.0" section="Quantity Equality" strength="DEFINITION">When comparing quantities for equality, the dimensions of each quantity must be the same, but not necessarily the unit. For example, units of 'cm' and 'm' can be compared, but units of 'cm2' and  'cm' cannot. The comparison will be made using the most granular unit of either input.</source>
+    <source spec="fhirpath-3.0.0" section="Quantity Equality" strength="EXAMPLE">1 'cm' = 10.0 'mm' // true ; UCUM conversion gives the same decimal value (ignoring trailing zeros after the decimal place)</source>
+    <source spec="fhirpath-3.0.0" section="Quantity Equality" strength="EXAMPLE">1 'cm' = 1 'm' // false ; convert to a common unit (1 'm' → 100 'cm'); 1 ≠ 100</source>
+    <source spec="fhirpath-2.0.0" section="allTrue() : Boolean" strength="DEFINITION">Takes a collection of Boolean values and returns `true` if all the items are `true`. If any items are `false`, the result is `false`. If the input is empty (`{ }`), the result is `true`.</source>
+    <source spec="fhirpath-2.0.0" section="allFalse() : Boolean" strength="DEFINITION">Takes a collection of Boolean values and returns `true` if all the items are `false`. If any items are `true`, the result is `false`. If the input is empty (`{ }`), the result is `true`.</source>
+    <test name="REQ-EQUALITYCOMPARISON-036-a"><expression>(4 'm' &gt; 4 'cm').allTrue()</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-036-b"><expression>(4 'm' &lt; 4 'cm').allFalse()</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-036-c"><expression>(4 'm' &lt;= 4 'cm').allFalse()</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-036-d"><expression>(4 'm' &gt;= 4 'cm').allTrue()</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-036-e"><expression>(1 'cm' = 10.0 'mm').allTrue()</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-036-f"><expression>(1 'cm' = 1 'm').allFalse()</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-036-g"><expression>(1 'cm' != 1 'm').allTrue()</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-037" description="A calendar year is not equal to 1 'a' but is equivalent to it, and a calendar second or millisecond equals its UCUM unit; without unit support the result may be empty, never the wrong Boolean">
+    <source spec="fhirpath-2.0.0" section="Quantity Equality" strength="DEFINITION">For time-valued quantities, note that calendar durations and definite quantity durations above seconds are considered unequal:</source>
+    <source spec="fhirpath-2.0.0" section="Quantity Equality" strength="EXAMPLE">1 year = 1 'a' // false</source>
+    <source spec="fhirpath-2.0.0" section="Quantity Equality" strength="EXAMPLE">1 second = 1 's' // true</source>
+    <source spec="fhirpath-2.0.0" section="Quantity Equivalence" strength="DEFINITION">For time-valued quantities, calendar durations and definite quantity durations are considered equivalent:</source>
+    <source spec="fhirpath-2.0.0" section="Quantity Equivalence" strength="EXAMPLE">1 year ~ 1 'a' // true</source>
+    <source spec="fhirpath-2.0.0" section="Quantity Equivalence" strength="EXAMPLE">1 second ~ 1 's' // true</source>
+    <source spec="fhirpath-2.0.0" section="Time-valued Quantities" strength="DEFINITION">|`month`/`months` |`'month'` |`~ 1 'mo'`</source>
+    <source spec="fhirpath-2.0.0" section="Time-valued Quantities" strength="DEFINITION">|`millisecond`/`milliseconds` |`'millisecond'` |`= 1 'ms'`</source>
+    <source spec="fhirpath-2.0.0" section="Time-valued Quantities" strength="DEFINITION">The table above defines the equality/equivalence relationship between calendar and definite duration quantities. For example, `1 year` is not equal to `1 'a'`, but it is equivalent to `1 'a'`.</source>
+    <source spec="fhirpath-3.0.0" section="Quantity Equality" strength="EXAMPLE">1 year = 1 'a'    // empty ({ }) ; calendar/UCUM year is not comparable</source>
+    <source spec="fhirpath-3.0.0" section="Quantity Equality" strength="EXAMPLE">1 second = 1 's' // true ; second and 's' are equal by definition</source>
+    <source spec="fhirpath-3.0.0" section="Quantity Equivalence" strength="EXAMPLE">1 year ~ 1 'a' // true ; year and 'a' are equivalent by definition</source>
+    <source spec="fhirpath-2.0.0" section="Quantity" strength="MAY">Implementations that do not support complete UCUM functionality may return empty (`{ }`) for calculations involving quantities with units where the units are different.</source>
+    <source spec="fhirpath-2.0.0" section="allTrue() : Boolean" strength="DEFINITION">Takes a collection of Boolean values and returns `true` if all the items are `true`. If any items are `false`, the result is `false`. If the input is empty (`{ }`), the result is `true`.</source>
+    <source spec="fhirpath-2.0.0" section="allFalse() : Boolean" strength="DEFINITION">Takes a collection of Boolean values and returns `true` if all the items are `false`. If any items are `true`, the result is `false`. If the input is empty (`{ }`), the result is `true`.</source>
+    <test name="REQ-EQUALITYCOMPARISON-037-a"><expression>(1 year = 1 'a').allFalse()</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-037-b"><expression>(1 second = 1 's').allTrue()</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-037-c"><expression>(1 year ~ 1 'a').allTrue()</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-037-d"><expression>(1 second ~ 1 's').allTrue()</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-037-e"><expression>(1 millisecond = 1 'ms').allTrue()</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-037-f"><expression>(1 year != 1 'a').allTrue()</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-037-g"><expression>(1 month ~ 1 'mo').allTrue()</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-037-h"><expression>(1 day ~ 1 'd').allTrue()</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-038" description="Under 2.0.0 a calendar day, hour, minute or week is not equal to the matching UCUM unit (above seconds they are unequal), and the cases follow 2.0.0; 3.0.0 differs for each of the four: its table rows (cited) make them equal, and its example 1 week = 1 'wk' is true, so under 3.0.0 038-a to 038-d fail">
+    <source spec="fhirpath-2.0.0" section="Quantity Equality" strength="DEFINITION">For time-valued quantities, note that calendar durations and definite quantity durations above seconds are considered unequal:</source>
+    <source spec="fhirpath-2.0.0" section="Time-valued Quantities" strength="DEFINITION">|`week`/`weeks` |`'week'` |`~ 1 'wk'`</source>
+    <source spec="fhirpath-2.0.0" section="Time-valued Quantities" strength="DEFINITION">|`day`/`days` |`'day'` |`~ 1 'd'`</source>
+    <source spec="fhirpath-2.0.0" section="Time-valued Quantities" strength="DEFINITION">|`hour`/`hours` |`'hour'` |`~ 1 'h'`</source>
+    <source spec="fhirpath-2.0.0" section="Time-valued Quantities" strength="DEFINITION">|`minute`/`minutes` |`'minute'` |`~ 1 'min'`</source>
+    <source spec="fhirpath-2.0.0" section="Quantity" strength="MAY">Implementations that do not support complete UCUM functionality may return empty (`{ }`) for calculations involving quantities with units where the units are different.</source>
+    <source spec="fhirpath-3.0.0" section="Time-valued Quantities" strength="DEFINITION">| `week`/`weeks` | `'week'` | `= 1 'wk'` |</source>
+    <source spec="fhirpath-3.0.0" section="Time-valued Quantities" strength="DEFINITION">| `day`/`days` | `'day'` | `= 1 'd'` |</source>
+    <source spec="fhirpath-3.0.0" section="Time-valued Quantities" strength="DEFINITION">| `hour`/`hours` | `'hour'` | `= 1 'h'` |</source>
+    <source spec="fhirpath-3.0.0" section="Time-valued Quantities" strength="DEFINITION">| `minute`/`minutes` | `'minute'` | `= 1 'min'` |</source>
+    <source spec="fhirpath-3.0.0" section="Time-valued Quantities" strength="DEFINITION">However for practical reasons it considers them to be equal.</source>
+    <source spec="fhirpath-3.0.0" section="Quantity Equality" strength="EXAMPLE">1 week = 1 'wk'  // true ; week and 'wk' are equal by definition</source>
+    <source spec="fhirpath-2.0.0" section="allFalse() : Boolean" strength="DEFINITION">Takes a collection of Boolean values and returns `true` if all the items are `false`. If any items are `true`, the result is `false`. If the input is empty (`{ }`), the result is `true`.</source>
+    <test name="REQ-EQUALITYCOMPARISON-038-a"><expression>(1 day = 1 'd').allFalse()</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-038-b"><expression>(1 hour = 1 'h').allFalse()</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-038-c"><expression>(1 minute = 1 'min').allFalse()</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-038-d"><expression>(1 week = 1 'wk').allFalse()</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-039" description="Comparison of a calendar year or month with a UCUM duration is empty, and of calendar seconds with 's' follows the values">
+    <source spec="fhirpath-2.0.0" section="Comparison" strength="DEFINITION">For time-valued quantities, calendar durations and definite quantity durations above seconds are considered un-comparable:</source>
+    <source spec="fhirpath-2.0.0" section="Comparison" strength="EXAMPLE">10 seconds &gt; 1 's' // true</source>
+    <source spec="fhirpath-3.0.0" section="Comparison" strength="DEFINITION">As noted in the [Time-valued Quantities](#time-valued-quantities) section, years and months are not comparable across UCUM definite durations and calendar units. Hence when the arguments are a mix of these, the result is empty as they are considered un-comparable.</source>
+    <source spec="fhirpath-3.0.0" section="Comparison" strength="EXAMPLE">1 year &gt; 1 'a' // empty ({ }) ; these units are not comparable</source>
+    <source spec="fhirpath-3.0.0" section="Comparison" strength="EXAMPLE">10 seconds &gt; 1 's' // true</source>
+    <source spec="fhirpath-2.0.0" section="allTrue() : Boolean" strength="DEFINITION">Takes a collection of Boolean values and returns `true` if all the items are `true`. If any items are `false`, the result is `false`. If the input is empty (`{ }`), the result is `true`.</source>
+    <test name="REQ-EQUALITYCOMPARISON-039-a"><expression>1 year &gt; 1 'a'</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-039-b"><expression>1 month &lt; 1 'mo'</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-039-c"><expression>(10 seconds &gt; 1 's').allTrue()</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-039-d"><expression>2 years &gt;= 1 'a'</expression></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-040" description="Under 2.0.0 comparing a calendar day or week with a UCUM duration is empty, since calendar and definite durations above seconds are un-comparable (the cases follow 2.0.0). 3.0.0 differs: its table makes day, hour and week equal to 'd', 'h' and 'wk', and it limits un-comparability to years and months, so under 3.0.0 040-a and 040-b are true, or empty without unit conversion">
+    <source spec="fhirpath-2.0.0" section="Comparison" strength="DEFINITION">For time-valued quantities, calendar durations and definite quantity durations above seconds are considered un-comparable:</source>
+    <source spec="fhirpath-2.0.0" section="Comparison" strength="EXAMPLE">1 year &gt; 1 `a` // { } (empty)</source>
+    <source spec="fhirpath-3.0.0" section="Time-valued unit conversions" strength="DEFINITION">The operation that is processing the result of the implicit conversion will define the appropriate behavior (e.g. 'a' != year, 'a' ~ year, 1 day &gt; 23 'h', 1 year + 12 'mo' )</source>
+    <source spec="fhirpath-3.0.0" section="Time-valued Quantities" strength="DEFINITION">| `week`/`weeks` | `'week'` | `= 1 'wk'` |</source>
+    <source spec="fhirpath-3.0.0" section="Time-valued Quantities" strength="DEFINITION">| `day`/`days` | `'day'` | `= 1 'd'` |</source>
+    <source spec="fhirpath-3.0.0" section="Time-valued Quantities" strength="DEFINITION">| `hour`/`hours` | `'hour'` | `= 1 'h'` |</source>
+    <source spec="fhirpath-3.0.0" section="Comparison" strength="DEFINITION">As noted in the [Time-valued Quantities](#time-valued-quantities) section, years and months are not comparable across UCUM definite durations and calendar units. Hence when the arguments are a mix of these, the result is empty as they are considered un-comparable.</source>
+    <test name="REQ-EQUALITYCOMPARISON-040-a"><expression>1 day &gt; 23 'h'</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-040-b"><expression>1 week &lt; 8 'd'</expression></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-041" description="An Integer compared with a Quantity converts to a Quantity of unit '1': 2.0.0 makes the Integer to Quantity conversion implicit (and gives toQuantity the default unit '1'), and 3.0.0 states that the implicit conversion yields unit '1'">
+    <source spec="fhirpath-2.0.0" section="Conversion" strength="DEFINITION">|*Integer* |Explicit |N/A |Implicit |Implicit |Explicit |- |- |-</source>
+    <source spec="fhirpath-2.0.0" section="Conversion" strength="DEFINITION">Implicit - Values of the type in the From column will be implicitly converted to values of the type in the To column when necessary</source>
+    <source spec="fhirpath-2.0.0" section="toQuantity([unit : String]) : Quantity" strength="DEFINITION">the item is an Integer, or Decimal, where the resulting quantity will have the default unit</source>
+    <source spec="fhirpath-3.0.0" section="Conversion" strength="DEFINITION">When an integer, long or decimal is implicitly converted to a Quantity, the resulting quantity will have the UCUM default unit ('1').</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="EXAMPLE">23 = 23 '1' // true ; integer implicitly converts to Quantity with unit '1', thus compares exactly here</source>
+    <source spec="fhirpath-3.0.0" section="~ (Equivalent)" strength="EXAMPLE">23 ~ 23 '1' // true ; integer implicitly converts to Quantity with unit '1', thus compares exactly here</source>
+    <source spec="fhirpath-3.0.0" section="Comparison" strength="DEFINITION">Both arguments must be of the same type (or [implicitly convertible](#conversion) to the same type), and the evaluator will throw an error if the types differ.</source>
+    <test name="REQ-EQUALITYCOMPARISON-041-a"><expression>23 = 23 '1'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-041-b"><expression>23 ~ 23 '1'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-041-c"><expression>23 = 24 '1'</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-041-d"><expression>2 &lt; 3 '1'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-041-e"><expression>2.5 '1' &gt; 2</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-042" description="In FHIR, primitive elements are compared as the System types they map to, a FHIR date being a System.DateTime">
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.date, FHIR.dateTime, FHIR.instant
+System.DateTime</source>
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">In FHIRPath, this means that FHIR primitives have a value child, but, as described above, they are automatically cast to FHIRPath primitives when comparisons are made, and that the primitive value will be included in the set returned by children() or descendants() .</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.date, FHIR.dateTime, FHIR.instant
+System.DateTime</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">In FHIRPath, this means that FHIR primitives have a value child, but, as described above, they are automatically cast to FHIRPath primitives when comparisons are made, and that the primitive value will be included in the set returned by children() or descendants() .</source>
+    <source spec="fhirpath-2.0.0" section="DateTime" strength="DEFINITION">A `T` can be used at the end of any date (year, year-month, or year-month-day) to indicate a partial DateTime.</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Equality" strength="DEFINITION">If the values are the same, comparison proceeds to the next precision; if the values are different, the comparison stops and the result is `false`. If one input has a value for the precision and the other does not, the comparison stops and the result is empty (`{ }`); if neither input has a value for the precision, or the last precision has been reached, the comparison stops and the result is `true`.</source>
+    <test name="REQ-EQUALITYCOMPARISON-042-a" inputfile="patient-example.xml"><expression>Patient.active = true</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-042-b" inputfile="patient-example.xml"><expression>Patient.gender = 'male'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-042-c" inputfile="patient-example.xml"><expression>Patient.name[0].family = 'Chalmers'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-042-d" inputfile="patient-example.xml"><expression>Patient.telecom[1].rank &lt; 2</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-042-e" inputfile="patient-example.xml"><expression>Patient.birthDate = @1974-12-25T</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-042-f" inputfile="patient-example.xml"><expression>Patient.birthDate &gt; @1974-12-24T</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-042-g" inputfile="patient-example.xml"><expression>Patient.birthDate = @1974-12T</expression></test>
+    <test name="REQ-EQUALITYCOMPARISON-042-h" inputfile="patient-example.xml"><expression>Patient.birthDate.extension.value = @1974-12-25T19:35:45Z</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-042-i" inputfile="patient-example.xml"><expression>Patient.birthDate.extension.value &lt; @1974-12-25T14:35:46-05:00</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-042-j" inputfile="observation-example.xml"><expression>Observation.effective = @2016-03-28T</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-042-k" inputfile="patient-example.xml"><expression>Patient.gender ~ 'MALE'</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-043" description="In FHIR, a Quantity with a UCUM code is compared as a System.Quantity, with time-valued UCUM codes mapped to calendar duration units">
+    <source spec="fhir-r4" section="2.9.1.3 Use of FHIR Quantity" strength="DEFINITION">The Mapping from FHIR Quantity to FHIRPath System.Quantity can only be applied if the FHIR Quantity has a UCUM code
+- i.e. a system of http://unitsofmeasure.org , and a code is present.</source>
+    <source spec="fhir-r4" section="2.9.1.3 Use of FHIR Quantity" strength="DEFINITION">As part of the mapping, time-valued UCUM units are mapped to the calendar duration units defined in FHIRPath, according to the following map:</source>
+    <source spec="fhir-r4" section="2.9.1.3 Use of FHIR Quantity" strength="EXAMPLE">e.g. the FHIR Quantity 1 'a' would be implicitly converted to the FHIRPath System.Quantity 1 'year'.</source>
+    <source spec="fhir-r5" section="2.1.9.1.3 Use of FHIR Quantity" strength="DEFINITION">The Mapping from FHIR Quantity to FHIRPath System.Quantity can only be applied if the FHIR Quantity has a UCUM code
+- i.e. a system of http://unitsofmeasure.org , and a code is present.</source>
+    <source spec="fhir-r5" section="2.1.9.1.3 Use of FHIR Quantity" strength="DEFINITION">As part of the mapping, time-valued UCUM units are mapped to the calendar duration units defined in FHIRPath, according to the following map:</source>
+    <source spec="fhir-r5" section="2.1.9.1.3 Use of FHIR Quantity" strength="EXAMPLE">i.e. The FHIR Quantity 1 'a' would be implicitly converted to the
+FHIRPath System.Quantity 1 'year'.</source>
+    <source spec="fhirpath-2.0.0" section="Quantity" strength="SHALL">Implementations shall support comparison and arithmetic operations on quantities with units where the units are the same.</source>
+    <source spec="fhirpath-2.0.0" section="Time-valued Quantities" strength="DEFINITION">|`year`/`years` |`'year'` |`~ 1 'a'`</source>
+    <test name="REQ-EQUALITYCOMPARISON-043-a" inputfile="observation-example.xml"><expression>Observation.value = 185 '[lb_av]'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-043-b" inputfile="observation-example.xml"><expression>Observation.value &lt; 185.5 '[lb_av]'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-043-c" inputfile="observation-example.xml"><expression>Observation.value &gt;= 185.0 '[lb_av]'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-043-d" inputfile="observation-example.xml"><expression>Observation.value &gt; 185 '[lb_av]'</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-043-e" inputfile="observation-example.xml"><expression>Observation.extension.value = 41 years</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-043-f" inputfile="observation-example.xml"><expression>Observation.extension.value &gt; 40 years</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-043-g" inputfile="observation-example.xml"><expression>Observation.extension.value ~ 41 year</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-044" description="In FHIR, Coding equivalence looks at code and system, and two CodeableConcepts are equivalent when any of their Codings are">
+    <source spec="fhir-r4" section="2.9.1.6 Changes to operators" strength="DEFINITION">In addition, for Coding values, equivalence is defined based on the code and system elements only. The version, display, and userSelected elements are ignored for the purposes of determining Coding equivalence.</source>
+    <source spec="fhir-r4" section="2.9.1.6 Changes to operators" strength="DEFINITION">For CodeableConcept values, equivalence is defined as a non-empty intersection of Coding elements, using equivalence. In other words, two CodeableConcepts are considered equivalent if any Coding in one is equivalent to any Coding in the other.</source>
+    <source spec="fhir-r5" section="2.1.9.1.6 Changes to operators" strength="DEFINITION">In addition, for Coding values, equivalence is defined based on the code and system elements only. The version, display, and userSelected elements are ignored for the purposes of determining Coding equivalence.</source>
+    <source spec="fhir-r5" section="2.1.9.1.6 Changes to operators" strength="DEFINITION">For CodeableConcept values, equivalence is defined as a non-empty intersection of Coding elements, using equivalence. In other words, two CodeableConcepts are considered equivalent if any Coding in one is equivalent to any Coding in the other.</source>
+    <test name="REQ-EQUALITYCOMPARISON-044-a" inputfile="observation-example.xml"><expression>Observation.code ~ Observation.code</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-044-b" inputfile="observation-example.xml"><expression>Observation.code.coding[0] ~ Observation.code.coding[1]</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-044-c" inputfile="observation-example.xml"><expression>Observation.category ~ Observation.code</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-044-d" inputfile="observation-example.xml"><expression>Observation.code.coding[2] ~ Observation.code.coding[2]</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-045" description="~ over Quantities of different but commensurable units compares them after conversion where the implementation converts, and otherwise may give empty, but never the wrong Boolean; the cases are chosen so that 2.0.0 (most granular unit) and 3.0.0 (least granular unit) give the same answer">
+    <source spec="fhirpath-2.0.0" section="Quantity Equivalence" strength="DEFINITION">When comparing quantities for equivalence, the dimensions of each quantity must be the same, but not necessarily the unit. For example, units of 'cm' and 'm' can be compared, but units of 'cm2' and  'cm' cannot. The comparison will be made using the most granular unit of either input.</source>
+    <source spec="fhirpath-2.0.0" section="Quantity Equivalence" strength="DEFINITION">Implementations are not required to fully support operations on units, but they must at least respect units, recognizing when units differ.</source>
+    <source spec="fhirpath-2.0.0" section="Quantity" strength="MAY">Implementations that do not support complete UCUM functionality may return empty (`{ }`) for calculations involving quantities with units where the units are different.</source>
+    <source spec="fhirpath-3.0.0" section="Quantity Equivalence" strength="DEFINITION">When the units are different the quantity values must be [**converted**](#unit-conversions) to the least granular unit before comparison.</source>
+    <source spec="fhirpath-3.0.0" section="Quantity Equivalence" strength="DEFINITION">Once the units are the same, the values can be compared using decimal equivalence: values must be equal, comparison is done on values rounded to the precision of the least precise operand. Trailing zeroes after the decimal are ignored in determining precision (as described above).</source>
+    <source spec="fhirpath-3.0.0" section="Quantity Equivalence" strength="EXAMPLE">2.1 'cm' ~ 21 'mm'  // true ; convert to least granular 'cm' (2.1 ~ 2.1), round to least precise and compare (2.1 = 2.1)</source>
+    <source spec="fhirpath-3.0.0" section="Quantity Equivalence" strength="EXAMPLE">4 'g' ~ 4000 'mg'   // true ; convert to least granular 'g' (4 ~ 4.000), round to least precise and compare (4 = 4)</source>
+    <source spec="fhirpath-2.0.0" section="!~ (Not Equivalent)" strength="DEFINITION">The converse of the equivalent operator, returning `true` if equivalent returns `false` and `false` is equivalent returns `true`. In other words, `A !~ B` is short-hand for `(A ~ B).not()`.</source>
+    <source spec="fhirpath-2.0.0" section="allTrue() : Boolean" strength="DEFINITION">Takes a collection of Boolean values and returns `true` if all the items are `true`. If any items are `false`, the result is `false`. If the input is empty (`{ }`), the result is `true`.</source>
+    <source spec="fhirpath-2.0.0" section="allFalse() : Boolean" strength="DEFINITION">Takes a collection of Boolean values and returns `true` if all the items are `false`. If any items are `true`, the result is `false`. If the input is empty (`{ }`), the result is `true`.</source>
+    <test name="REQ-EQUALITYCOMPARISON-045-a"><expression>(4 'g' ~ 4000 'mg').allTrue()</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-045-b"><expression>(2.1 'cm' ~ 21 'mm').allTrue()</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-045-c"><expression>(4 'g' ~ 5000 'mg').allFalse()</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-045-d"><expression>(4 'g' !~ 5000 'mg').allTrue()</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-045-e"><expression>(1 'm' ~ 100 'cm').allTrue()</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-EQUALITYCOMPARISON-046" description="~ over two Quantities with the same unit compares their values with decimal equivalence, rounded to the precision of the less precise operand, while = does not round; 2.0.0 does not say how the values of two Quantities compare under ~, so this is cited from 3.0.0, which defines it">
+    <source spec="fhirpath-2.0.0" section="Quantity" strength="DEFINITION">The `Quantity` type represents quantities with a specified unit, where the `value` component is defined as a `Decimal`, and the `unit` element is represented as a `String` that is required to be either a valid Unified Code for Units of Measure &lt;&lt;UCUM&gt;&gt; unit or one of the calendar duration keywords, singular or plural.</source>
+    <source spec="fhirpath-3.0.0" section="~ (Equivalent)" strength="DEFINITION">`Quantity`: value comparison based on decimal as described above, after [**conversion**](#unit-conversions) to the least granular unit before comparison.</source>
+    <source spec="fhirpath-3.0.0" section="Quantity Equivalence" strength="DEFINITION">Once the units are the same, the values can be compared using decimal equivalence: values must be equal, comparison is done on values rounded to the precision of the least precise operand. Trailing zeroes after the decimal are ignored in determining precision (as described above).</source>
+    <source spec="fhirpath-3.0.0" section="Quantity Equality" strength="DEFINITION">Once the units are the same, the values can be compared using simple decimal comparison, ignoring trailing zeroes after the decimal point (as described above).</source>
+    <source spec="fhirpath-3.0.0" section="!~ (Not Equivalent)" strength="DEFINITION">The converse of the equivalent operator, returning `true` if equivalent returns `false` and `false` is equivalent returns `true`.</source>
+    <test name="REQ-EQUALITYCOMPARISON-046-a"><expression>1.10 'mg' ~ 1.14 'mg'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-046-b"><expression>1.14 'mg' ~ 1.2 'mg'</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-046-c"><expression>1.16 'mg' ~ 1.2 'mg'</expression><output type="boolean">true</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-046-d"><expression>1.10 'mg' !~ 1.14 'mg'</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-046-e"><expression>1.10 'mg' = 1.14 'mg'</expression><output type="boolean">false</output></test>
+    <test name="REQ-EQUALITYCOMPARISON-046-f"><expression>1.123 'mg' ~ 1.12 'mg'</expression><output type="boolean">true</output></test>
+  </group>
+
+</tests>

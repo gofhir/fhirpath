@@ -45,6 +45,12 @@ func (i Integer) Equal(other Value) bool {
 	case Decimal:
 		// Compare as decimals for cross-type equality
 		return i.ToDecimal().Equal(o)
+	case Quantity:
+		// As a quantity of unit '1': see UnitOne
+		return o.Equal(i)
+	case *ObjectValue:
+		// A FHIR Quantity: see ObjectValue.Equal
+		return o.Equal(i)
 	}
 	return false
 }
@@ -54,8 +60,11 @@ func (i Integer) Equal(other Value) bool {
 // Against a decimal it is the decimal's equivalence, at the precision of the
 // less precise side, so that 1 ~ 1.4 answers as 1.4 ~ 1 does.
 func (i Integer) Equivalent(other Value) bool {
-	if d, ok := other.(Decimal); ok {
-		return d.Equivalent(i)
+	switch o := other.(type) {
+	case Decimal:
+		return o.Equivalent(i)
+	case Quantity:
+		return o.Equivalent(i)
 	}
 	return i.Equal(other)
 }

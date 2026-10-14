@@ -42,6 +42,26 @@ func QuantityPair(left, right types.Value) (lq, rq types.Quantity, ok bool, err 
 	return lq, rq, true, nil
 }
 
+// numberAndQuantity converts an Integer or a Decimal that faces a quantity to
+// a Quantity of unit '1', as comparing the two asks: 2.0.0 makes Integer and
+// Decimal to Quantity implicit conversions, toQuantity() giving "the default
+// unit ('1')", and 3.0.0 gives 23 = 23 '1' and 23 ~ 23 '1' as true. ok is
+// false unless one side is a number and the other a quantity. Arithmetic
+// does not take this: 2 + 3 'mg' stays an error.
+func numberAndQuantity(left, right types.Value) (lq, rq types.Quantity, ok bool) {
+	if n, isNumber := types.UnitOne(left); isNumber {
+		if q, isQuantity, err := AsQuantity(right); isQuantity && err == nil {
+			return n, q, true
+		}
+	}
+	if n, isNumber := types.UnitOne(right); isNumber {
+		if q, isQuantity, err := AsQuantity(left); isQuantity && err == nil {
+			return q, n, true
+		}
+	}
+	return types.Quantity{}, types.Quantity{}, false
+}
+
 // quantityOperands converts both operands to quantities when at least one of
 // them is a FHIR quantity object. Returns false when either side does not
 // convert, so that plain object operands keep their existing behavior.
@@ -420,6 +440,9 @@ func Compare(left, right types.Value) (int, error) {
 		}
 		return lq.Compare(rq)
 	}
+	if lq, rq, ok := numberAndQuantity(left, right); ok {
+		return lq.Compare(rq)
+	}
 	if comp, ok := left.(types.Comparable); ok {
 		return comp.Compare(right)
 	}
@@ -505,49 +528,94 @@ func equal(left, right types.Collection) (types.Collection, error) {
 		return types.FalseCollection, nil
 	}
 
+	// A pair whose equality is unknown leaves the answer unknown unless another
+	// pair is unequal: "if the result is false for any pair, returns false"
+	// (3.0.0), as each item "must be equal" (2.0.0), so (@2012 | @2013) =
+	// (@2012-01 | @2014) is false
+	unknown := false
 	for i := range left {
-		// Temporal equality can be unknown rather than false — the values may be
-		// specified to different precisions, or one may carry a timezone offset
-		// the other does not — in which case so is the result.
-		if types.IsTemporal(left[i]) && types.IsTemporal(right[i]) {
-			equal, err := types.EqualTemporal(left[i], right[i])
-			switch {
-			case types.IsUnknownTemporalComparison(err):
-				return types.EmptyCollection, nil
-			case err != nil:
-				return types.FalseCollection, nil
-			case !equal:
-				return types.FalseCollection, nil
-			}
-			continue
-		}
-
-		// Quantities whose units do not convert cannot be compared, which the
-		// specification treats as unknown rather than unequal — the same
-		// distinction it draws for temporals of different precision:
-		//
-		//	1 'cm' = 1 's'   // empty ; different dimensions
-		//	1 year = 1 'a'   // empty ; a calendar year is not a UCUM year
-		//	1 week = 1 'wk'  // true  ; these two are equal by definition
-		lq, rq, ok, err := QuantityPair(left[i], right[i])
+		verdict, err := equalPair(left[i], right[i])
 		if err != nil {
-			return overflowEmpty(err)
+			return nil, err
 		}
-		if ok {
-			if !lq.Comparable(rq) {
-				return types.EmptyCollection, nil
-			}
-			if !lq.Equal(rq) {
-				return types.FalseCollection, nil
-			}
-			continue
-		}
-
-		if !itemsEqual(left[i], right[i]) {
+		switch verdict {
+		case pairUnequal:
 			return types.FalseCollection, nil
+		case pairUnknown:
+			unknown = true
 		}
 	}
+	if unknown {
+		return types.EmptyCollection, nil
+	}
 	return types.TrueCollection, nil
+}
+
+// pairVerdict is what = says of one pair of items.
+type pairVerdict int
+
+const (
+	pairEqual pairVerdict = iota
+	pairUnequal
+	pairUnknown
+)
+
+// equalPair compares one pair of items under =.
+func equalPair(left, right types.Value) (pairVerdict, error) {
+	// Temporal equality can be unknown rather than false — the values may be
+	// specified to different precisions, or one may carry a timezone offset
+	// the other does not.
+	if types.IsTemporal(left) && types.IsTemporal(right) {
+		equal, err := types.EqualTemporal(left, right)
+		switch {
+		case types.IsUnknownTemporalComparison(err):
+			return pairUnknown, nil
+		case err != nil, !equal:
+			return pairUnequal, nil
+		}
+		return pairEqual, nil
+	}
+
+	// Quantities whose units do not convert cannot be compared, which the
+	// specification treats as unknown rather than unequal — the same
+	// distinction it draws for temporals of different precision:
+	//
+	//	1 'cm' = 1 's'   // empty ; different dimensions
+	//	1 year = 1 'a'   // empty ; a calendar year is not a UCUM year
+	//	1 week = 1 'wk'  // true  ; these two are equal by definition
+	//
+	// A quantity whose value overflows is unknown, as an overflow is empty.
+	lq, rq, ok, err := QuantityPair(left, right)
+	if err != nil {
+		if isOverflow(err) {
+			return pairUnknown, nil
+		}
+		return pairUnequal, err
+	}
+	converted := false
+	if !ok {
+		lq, rq, ok = numberAndQuantity(left, right)
+		converted = ok
+	}
+	if ok {
+		switch {
+		case !lq.Comparable(rq) && converted:
+			// A number is no quantity of another dimension: 2 = 2 'mg' is
+			// false, as fhirpath.js and the HL7 validator answer, where two
+			// quantities of different dimensions are unknown
+			return pairUnequal, nil
+		case !lq.Comparable(rq):
+			return pairUnknown, nil
+		case !lq.Equal(rq):
+			return pairUnequal, nil
+		}
+		return pairEqual, nil
+	}
+
+	if !itemsEqual(left, right) {
+		return pairUnequal, nil
+	}
+	return pairEqual, nil
 }
 
 // itemsEqual compares two items that are neither temporals nor quantities. Two
@@ -637,6 +705,9 @@ func valuesEquivalent(left, right types.Value) bool {
 	if ok {
 		return lq.Equivalent(rq)
 	}
+	if lq, rq, ok := numberAndQuantity(left, right); ok {
+		return lq.Equivalent(rq)
+	}
 	return left.Equivalent(right)
 }
 
@@ -649,16 +720,6 @@ func exactInteger(v types.Integer, err error) (types.Value, error) {
 		return nil, err
 	}
 	return v, nil
-}
-
-// overflowEmpty answers empty for a value that overflows the decimals or the
-// integers this engine holds, as an overflow does, and the error for anything
-// else.
-func overflowEmpty(err error) (types.Collection, error) {
-	if isOverflow(err) {
-		return types.EmptyCollection, nil
-	}
-	return nil, err
 }
 
 // isOverflow reports an error that is an overflow: a decimal or an Integer

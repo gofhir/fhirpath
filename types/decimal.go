@@ -174,6 +174,12 @@ func (d Decimal) Equal(other Value) bool {
 		return d.value.Equal(o.value)
 	case Integer:
 		return d.value.Equal(decimal.NewFromInt(o.value))
+	case Quantity:
+		// As a quantity of unit '1': see UnitOne
+		return o.Equal(d)
+	case *ObjectValue:
+		// A FHIR Quantity: see ObjectValue.Equal
+		return o.Equal(d)
 	}
 	return false
 }
@@ -194,6 +200,8 @@ func (d Decimal) Equivalent(other Value) bool {
 		o = v
 	case Integer:
 		o = v.ToDecimal()
+	case Quantity:
+		return v.Equivalent(d)
 	default:
 		return false
 	}
