@@ -51,6 +51,10 @@ func TestSystemTypedElementsTakeTheirFHIRType(t *testing.T) {
 		{patient, "Patient.gender.id.is(id)", "[false]", "[false]"},
 		{patient, "Patient.contact.id.is(id)", "[false]", "[false]"},
 		{patient, "Patient.contact.id.is(System.String)", "[true]", "[true]"},
+		// as() of a FHIR primitive to a System type answers as is(), which
+		// says no, as both engines answer; ofType() keeps it
+		{patient, "Patient.name.family.as(System.String).count()", "[0]", "[0]"},
+		{patient, "Patient.name.family.ofType(System.String).count()", "[1]", "[1]"},
 		{plan, "PlanDefinition.descendants().ofType(canonical).count()", "[1]", "[1]"},
 		{plan, "PlanDefinition.descendants().where($this = '#a').type().name", "[canonical]", "[canonical]"},
 	}

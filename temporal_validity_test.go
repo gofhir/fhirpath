@@ -48,10 +48,18 @@ func TestTemporalValidity(t *testing.T) {
 		"@2016-12-31T23:59:60Z.toDate()":   "2016-12-31",
 		"@2016-12-31T23:59:60Z.secondOf()": "60",
 		"@2016-12-31T23:59:60Z.timeOf()":   "23:59:60",
+		// and within its day and its minute, as toDate() has it
+		"@2016-12-31T23:59:60Z > @2016-12-31":          "EMPTY",
+		"@2016-12-31T23:59:60Z > @2016-12-31T23:59Z":   "EMPTY",
+		"@2016-12-31T23:59:60Z < @2017-01-01":          "true",
+		"@2016-12-31T23:59:60Z.toDate() = @2016-12-31": "true",
 		// and a time's is after 23:59:59, before nothing that day
 		"@T23:59:60 > @T23:59:59":          "true",
 		"@T23:59:60 = @T00:00:00":          "false",
 		"@T23:59:60 + 1 second":            "00:00:01",
+		"@T23:59:60 + 0 seconds":           "23:59:60",
+		"@T23:59:60 - 1 second":            "23:59:59",
+		"@T10:30:60 + 0 seconds":           "10:30:60",
 		"'23:59:60'.convertsToTime()":      "true",
 		"@2012T12:30:00.exists()":          "true",
 		"@2021-01-01T10:00+14:00.exists()": "true",

@@ -236,6 +236,11 @@ func (t Time) AddDuration(value int, unit string) (Time, error) {
 		return Time{}, dateComponentOnTime(unit)
 	}
 
+	// Nothing to shift leaves the time as it is: a leap second, 23:59:60,
+	// counted as a time of day would read as the next minute's start
+	if millis == 0 {
+		return t, nil
+	}
 	shifted := t.millisecondsOfDay() + millis
 
 	// Go's remainder keeps the sign of the dividend, so a subtraction that runs

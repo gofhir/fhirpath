@@ -90,6 +90,12 @@ type temporalValue struct {
 	// both have one be compared on the same footing.
 	hasOffset bool
 	offset    int // minutes east of UTC
+
+	// A DateTime held past a leap second keeps the components it was written
+	// with, 23:59:60 of its day, which a comparison at a coarser precision
+	// reads: the second falls within its day and its minute.
+	leap    bool
+	written [unitCount]int
 }
 
 // compareTemporal orders two temporal values component by component, from the
@@ -128,11 +134,12 @@ func compareTemporal(left, right temporalValue) (int, error) {
 		shared = right.unit
 	}
 
+	leftParts, rightParts := left.partsAt(shared), right.partsAt(shared)
 	for unit := unitYear; unit <= shared; unit++ {
 		switch {
-		case left.parts[unit] < right.parts[unit]:
+		case leftParts[unit] < rightParts[unit]:
 			return -1, nil
-		case left.parts[unit] > right.parts[unit]:
+		case leftParts[unit] > rightParts[unit]:
 			return 1, nil
 		}
 	}
@@ -142,6 +149,16 @@ func compareTemporal(left, right temporalValue) (int, error) {
 		return 0, ErrPrecisionMismatch
 	}
 	return 0, nil
+}
+
+// partsAt returns the components a comparison to the given precision reads:
+// a value held past a leap second is read as written, within its day and its
+// minute, unless the comparison reaches its second.
+func (v temporalValue) partsAt(precision temporalUnit) [unitCount]int {
+	if v.leap && precision < unitSecond {
+		return v.written
+	}
+	return v.parts
 }
 
 // start returns the instant a value names the start of, at its offset.
@@ -239,6 +256,11 @@ func (dt DateTime) temporalValue() temporalValue {
 	v.parts[unitMinute] = dt.minute
 	// Seconds and milliseconds form one precision, held as thousandths
 	v.parts[unitSecond] = dt.second*1000 + dt.millis
+	if dt.leap {
+		w := dt.written()
+		v.leap = true
+		v.written = [unitCount]int{w.year, w.month, w.day, w.hour, w.minute, w.second*1000 + w.millis}
+	}
 	return v
 }
 
