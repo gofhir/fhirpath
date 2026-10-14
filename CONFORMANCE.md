@@ -430,6 +430,7 @@ comparison, filtering, strings, collections.
 | existence | 34 | 134 | 134 | 0 |
 | boolean-logic | 17 | 91 | 91 | 0 |
 | equality-comparison | 46 | 325 | 318 | 1, `23 ~ 23 '1'`, following the text |
+| filtering-projection | 40 | 114 | all, 112 in R4 and 114 in R5 | none where the other two answer; `repeatAll()` and `System.Any`, which both refuse |
 
 **Existence.** One gap, closed: a criteria that evaluates to more than one
 item, `(1 | 2).exists(true | false)` or `Patient.name.exists(given)` on a name
@@ -485,6 +486,26 @@ under [Measured, and not followed](#measured-and-not-followed); fhirpath.js
 alone is wrong in five a version, among them `~` over collections, which it
 pairs in order.
 
+**Filtering and projection.** `where()`, `select()`, `repeat()`, `repeatAll()`
+and `ofType()`. Two gaps, closed:
+
+- `ofType(System.Any)` kept nothing, where System.Any is "an ultimate root
+  type" of the System types, so every value is one, and this engine's own
+  `type()` names it the base of `System.String`. It now keeps every item, and
+  `is(System.Any)` is true of any value, a FHIR resource or element among
+  them: the text names no other root, though `type()` gives a FHIR type the
+  base FHIR's own hierarchy does. The namespace is written `System.`, as for
+  every System type; unqualified, `Any` names no FHIR type and is System.Any,
+  and `FHIR.Any` with a model is a type that does not resolve, an error. fhirpath.js and the Java engine both
+  refuse the type name, and an error is no answer to follow.
+- [Static analysis](#static-analysis) rejected `Questionnaire.repeat(item |
+  item.item)`, which evaluation answers: see there.
+
+fhirpath.js is wrong in two: `repeat(item | item.item)` keeps duplicates past
+six items, and `ofType(string)` keeps a `markdown`, which FHIR says is no
+subclass of string. Neither it nor the Java engine implements `repeatAll()`,
+3.0.0's trial-use function, which this engine does.
+
 ## Static analysis
 
 A semantic fault is one that evaluation cannot see. `Patient.name.given1`
@@ -509,6 +530,19 @@ fault — the analysis exists to catch typos, not to become one. Silence means
 
 fhirpath.js does not do this, so it is a second point where the engine goes
 past the reference implementation while following the specification.
+
+Each operand of an operator and each argument of a function is navigated from
+where the expression stands, and a path defined elsewhere as the model resolves
+it, `Questionnaire.item.item` by `Questionnaire.item`, as evaluation navigates
+them. Up to 1.14.4 the path leaked from one operand into the next, `item |
+item.item` reading its right side from `Questionnaire.item`, and from one of
+`iif()`'s arguments into the next, and such paths were not resolved; so the
+analysis rejected 55 of the R4, R4B and R5 core constraints, all valid (#180).
+Now it rejects four, each a defect of the specification: `cid-0` names
+`ChargeItemDefinition.name` in R4 and R4B, and `cnl-0` `Evidence.name` and
+`EvidenceReport.name` in R4B, elements those resources do not have.
+`TestCoreConstraintsAnalyze` in `corpusdiff` holds it, over every constraint of
+the core type definitions.
 
 ## A correction neither suite covers
 
@@ -1373,10 +1407,11 @@ keeps its own answer.
 | An Integer against a quantity: `23 = 23 '1'`, `2 < 3 '1'` | false, empty | true, true | 2.0.0's implicit conversion to Quantity, as above |
 | DateTime literals to the minute, `@2012-01-01T10:30 = @2012-01-01T10:30`; `2 years > 1 year`; `Patient.telecom.rank < 2`, a positiveInt against an Integer | an exception | the answer, as fhirpath.js gives it | An exception |
 | Date and time arithmetic by an amount past the calendar or the int range: `@2020-01-01 + 18446744073709551617 days`, `@2020-01-01 + 7980 years`, `@T10:00 + 9223372036854775807 hours` | wraps, `@2020-01-02`; no bound on the year, `10000-01-01`; `@T09:00`. fhirpath.js answers `NaN-NaN-NaN` and `10000-01-01` | an error, "If the resulting year is out of range, an error is thrown"; `@T17:00`, the amount modulo a day. A clock amount within the calendar but past what Go's `time.Duration` holds, about 292 years, shifts too: `@2020-01-01T10:00:00Z + 3000000 hours` is `@2362-03-29T10:00:00Z`. A date component on a time is an error whatever its amount, `+ 0 days` and `+ 0.5 days` included: "This includes attempting to add date components to a Time". Amounts are Go `int`s, so on a 32-bit platform a clock amount past about 24 days in milliseconds is past the calendar too | Wraps past the range |
-| `$index` in `exists()` and `all()`: `(10 \| 20 \| 30).exists($index = 2)` | false, `all($index < 2)` true | true, false, as fhirpath.js answers | Not set there |
+| `$index` in `exists()`, `all()` and `where()`, a `where()` within `select()` among them: `(10 \| 20 \| 30).exists($index = 2)`, `Patient.name.where($index = 1)` | false, `all($index < 2)` true, `where($index = 1)` empty: 0 in every iteration, where `select()` sets it | true, false, the second name, as fhirpath.js answers | Not set there |
 | `subsetOf()` and `supersetOf()` with decimals written to other precisions: `1.0.subsetOf(1.00 \| 2.0)` | false | true, as fhirpath.js answers | Membership is by `=`, under which "trailing zeroes after the decimal are ignored" |
-| `distinct()`, `isDistinct()` and `subsetOf()` over dates at different precisions: `@2012.combine(@2012-01)`, `@2012.subsetOf(@2012-01)` | `distinct().count()` 0, `isDistinct()` empty, `subsetOf()` true | 2, true, false, as fhirpath.js answers | No item kept of two, neither said equal; a member of what holds no equal to it. 3.0.0: an empty `=` is not a match |
-| `min()`, `max()`, `toDate()` | not known functions | | Not implemented there |
+| `distinct()`, `isDistinct()`, `subsetOf()` and `repeat()` over dates at different precisions: `@2012.combine(@2012-01)`, `@2012.subsetOf(@2012-01)`, `1.repeat(@2012.combine(@2012-01)).count()` | `distinct().count()` 0, `isDistinct()` empty, `subsetOf()` true, `repeat()` 1 | 2, true, false, 2, as fhirpath.js answers | No item kept of two, neither said equal; a member of what holds no equal to it. 3.0.0: an empty `=` is not a match |
+| `ofType(System.Quantity)` on a quantity literal: `'a'.combine(5 'mg').ofType(System.Quantity).count()` | 0 | 1, as fhirpath.js answers | A quantity literal is a System.Quantity |
+| `min()`, `max()`, `toDate()`, `repeatAll()`; `ofType(System.Any)` | not known functions; System.Any no type | | Not implemented there |
 
 ## Decisions taken where the specification is silent
 

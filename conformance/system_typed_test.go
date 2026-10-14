@@ -56,6 +56,10 @@ func TestSystemTypedElementsTakeTheirFHIRType(t *testing.T) {
 		{patient, "Patient.name.family.as(System.String).count()", "[0]", "[0]"},
 		{patient, "Patient.name.family.ofType(System.String).count()", "[1]", "[1]"},
 		{plan, "PlanDefinition.descendants().ofType(canonical).count()", "[1]", "[1]"},
+		// System.Any, qualified or not, is every value, and a type the model
+		// does not refuse
+		{patient, "1.ofType(Any).count()", "[1]", "[1]"},
+		{patient, "1.ofType(System.Any).count()", "[1]", "[1]"},
 		{plan, "PlanDefinition.descendants().where($this = '#a').type().name", "[canonical]", "[canonical]"},
 	}
 
@@ -78,5 +82,15 @@ func TestSystemTypedElementsTakeTheirFHIRType(t *testing.T) {
 				}
 			})
 		}
+	}
+}
+
+// FHIR names no type Any: with a model, FHIR.Any is a type specifier that
+// resolves to nothing, an error, where Any and System.Any are System.Any.
+func TestFHIRAnyIsNoType(t *testing.T) {
+	_, err := fhirpath.MustCompile("1.ofType(FHIR.Any).count()").
+		EvaluateWithOptions([]byte(`{"resourceType":"Patient"}`), fhirpath.WithModel(r4.FHIRPathModel()))
+	if err == nil {
+		t.Error("1.ofType(FHIR.Any): no error, want one for a type the model does not have")
 	}
 }
