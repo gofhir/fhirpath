@@ -661,6 +661,13 @@ func (o *ObjectValue) Equal(other Value) bool {
 	if ov, ok := other.(*ObjectValue); ok {
 		return equalJSON(o.data, ov.data)
 	}
+	// A FHIR Quantity against a quantity or a number answers as = does, so
+	// that in, contains and union find it: 5 'mg' in Observation.value is
+	// true where Observation.value = 5 'mg' is, as in fhirpath.js and the HL7
+	// validator
+	if q, ok, err := o.AsQuantity(); ok && err == nil {
+		return q.Equal(other)
+	}
 	return false
 }
 

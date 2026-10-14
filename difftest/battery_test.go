@@ -92,3 +92,18 @@ func TestASpecCaseFileReadsAsABattery(t *testing.T) {
 		t.Errorf("versions %v, want 4.0.1 and 5.0.0", versions)
 	}
 }
+
+// An expression that starts with a minus reaches the validator as the
+// expression, not as an option it does not know.
+func TestAnExpressionStartingWithAMinusIsNoOption(t *testing.T) {
+	args := javaArgs(batteryCase{testCase: testCase{Expression: "-5 = -5"}, file: "p.json", version: "4.0.1"}, "jar")
+	for i, arg := range args {
+		if arg == "-fhirpath" {
+			if got := args[i+1]; strings.HasPrefix(got, "-") || strings.TrimSpace(got) != "-5 = -5" {
+				t.Errorf("expression argument %q, want -5 = -5 that no option parser takes for a flag", got)
+			}
+			return
+		}
+	}
+	t.Fatal("no -fhirpath argument")
+}

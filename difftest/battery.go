@@ -170,6 +170,18 @@ func evaluateWithJava(cases []batteryCase, jar string, jobs int) (map[string]ans
 // ansiCodes are the terminal colors the validator writes its log in.
 var ansiCodes = regexp.MustCompile("\x1b\\[[0-9;]*m")
 
+// javaArgs is the validator's command line for a case. An expression that
+// starts with a minus, -5 = -5, would be read as an option; a leading space,
+// which FHIRPath reads as whitespace, keeps it the expression.
+func javaArgs(c batteryCase, jar string) []string {
+	expression := c.Expression
+	if strings.HasPrefix(expression, "-") {
+		expression = " " + expression
+	}
+	return []string{"-Xmx3g", "-jar", jar,
+		"-fhirpath", expression, c.file, "-version", c.version, "-tx", "n/a"}
+}
+
 // evaluateOneWithJava runs one case. The validator writes its log, then
 // "...evaluating <expression>", then the result as one line, the items joined
 // by commas, or an exception, then "Done.". A run that writes no result line —
@@ -177,8 +189,7 @@ var ansiCodes = regexp.MustCompile("\x1b\\[[0-9;]*m")
 // of the Java engine, and is reported as the error it is rather than counted
 // as one: two refusals compare alike, and it would pass for agreement.
 func evaluateOneWithJava(c batteryCase, jar string) (answer, error) {
-	cmd := exec.Command("java", "-Xmx3g", "-jar", jar,
-		"-fhirpath", c.Expression, c.file, "-version", c.version, "-tx", "n/a")
+	cmd := exec.Command("java", javaArgs(c, jar)...)
 	out, runErr := cmd.CombinedOutput()
 
 	lines := strings.Split(ansiCodes.ReplaceAllString(string(out), ""), "\n")

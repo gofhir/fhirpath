@@ -160,8 +160,35 @@ func (q Quantity) Type() string {
 
 // Equal checks equality with another value.
 // For quantities with different units, uses UCUM normalization per FHIRPath spec.
+// UnitOne is an Integer or a Decimal as a Quantity of unit '1', which is how
+// one compares with a quantity: 2.0.0 makes Integer and Decimal to Quantity
+// implicit conversions, toQuantity() giving "the default unit ('1')", and
+// 3.0.0 gives 23 = 23 '1' and 23 ~ 23 '1' as true.
+func UnitOne(v Value) (Quantity, bool) {
+	switch n := v.(type) {
+	case Integer:
+		return NewQuantityFromDecimal(n.ToDecimal().Value(), "1"), true
+	case Decimal:
+		return NewQuantityFromDecimal(n.Value(), "1"), true
+	}
+	return Quantity{}, false
+}
+
+// asQuantity is another value as a quantity to compare with: a quantity, a
+// FHIR Quantity as = reads it, or a number as UnitOne has it.
+func asQuantity(v Value) (Quantity, bool) {
+	switch q := v.(type) {
+	case Quantity:
+		return q, true
+	case *ObjectValue:
+		converted, ok, err := q.AsQuantity()
+		return converted, ok && err == nil
+	}
+	return UnitOne(v)
+}
+
 func (q Quantity) Equal(other Value) bool {
-	o, ok := other.(Quantity)
+	o, ok := asQuantity(other)
 	if !ok {
 		return false
 	}
@@ -186,7 +213,7 @@ func (q Quantity) Equal(other Value) bool {
 // UCUM value to the UCUM unit that matches the calendar unit" — so 1 year ~
 // 1 'a' and 1 year ~ 12 'mo', where = has no answer.
 func (q Quantity) Equivalent(other Value) bool {
-	o, ok := other.(Quantity)
+	o, ok := asQuantity(other)
 	if !ok {
 		return false
 	}
