@@ -33,10 +33,14 @@ func fnComparable(_ *eval.Context, input types.Collection, args []interface{}) (
 
 	// A FHIR Quantity object converts as the comparison operators convert it,
 	// its comparator not read; one whose value overflows is comparable to
-	// nothing
+	// nothing. A value that is no quantity, a Money among them, cannot be
+	// compared with one: false, as fhirpath.js and the HL7 validator answer.
 	left, right, ok, err := eval.QuantityPair(input[0], argCol[0])
-	if err != nil || !ok {
+	if err != nil {
 		return types.Collection{}, nil
+	}
+	if !ok {
+		return types.Collection{types.NewBoolean(false)}, nil
 	}
 
 	return types.Collection{types.NewBoolean(left.Comparable(right))}, nil

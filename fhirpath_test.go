@@ -448,11 +448,25 @@ func TestTypeOperators(t *testing.T) {
 	})
 
 	t.Run("as type cast", func(t *testing.T) {
-		result, err := Evaluate(patientJSON, "Patient.active as Boolean")
+		result, err := Evaluate(patientJSON, "Patient.active as boolean")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		assertBooleanResult(t, result, true)
+	})
+
+	// A FHIR boolean is not a System.Boolean, as is() has it, so as() finds
+	// none, as fhirpath.js and the HL7 validator answer
+	t.Run("as a System type on a FHIR primitive", func(t *testing.T) {
+		for _, expr := range []string{"Patient.active as Boolean", "Patient.active.as(System.Boolean)"} {
+			result, err := Evaluate(patientJSON, expr)
+			if err != nil {
+				t.Fatalf("%s: unexpected error: %v", expr, err)
+			}
+			if !result.Empty() {
+				t.Errorf("%s = %v, want empty", expr, result)
+			}
+		}
 	})
 }
 

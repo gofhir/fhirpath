@@ -40,10 +40,12 @@ var ErrPrecisionMismatch = errors.New("temporal values are specified to differen
 // the message looking in the wrong place.
 var ErrOffsetMismatch = errors.New("one temporal value specifies a timezone offset and the other does not")
 
-// ErrSpansOverlap reports that two temporal values written at different
-// offsets name spans of time that overlap without being the same, so their
-// order is unknown: @2020-01-01T10+05:30 is 04:30 to 05:30 at UTC, and
-// @2020-01-01T04Z 04:00 to 05:00. See compareSpans.
+// ErrSpansOverlap reported that two temporal values written at different
+// offsets named spans of time that overlap without being the same.
+//
+// Deprecated: no comparison returns it since two values at different offsets
+// are compared as instants, as fhirpath.js and the HL7 validator compare them;
+// see compareTemporal. It is kept so that code naming it still compiles.
 var ErrSpansOverlap = errors.New("temporal values at different offsets name overlapping spans of time")
 
 // IsUnknownTemporalComparison reports whether err means a comparison of two
@@ -91,19 +93,23 @@ type temporalValue struct {
 }
 
 // compareTemporal orders two temporal values component by component, from the
-// most significant down, stopping at the first difference; two at different
-// offsets, as the spans of time they name (see compareSpans).
+// most significant down, stopping at the first difference.
 //
 // Returns ErrPrecisionMismatch when every shared component matches but the
-// values are specified to different precisions, and, for two at different
-// offsets, ErrSpansOverlap when their spans overlap.
+// values are specified to different precisions.
 func compareTemporal(left, right temporalValue) (int, error) {
-	// Two at different offsets are compared as the spans of time they name,
-	// which is what "respecting timezone offsets" amounts to: re-expressing a
-	// value given to the hour in another offset can put it on a minute, or a
-	// value given to the year in another year, that it never stated.
+	// "Both values are converted to a common timezone offset." Two at different
+	// offsets are compared as the instants they start at, as fhirpath.js and
+	// the HL7 validator compare them: @2020-01-01T10+05:30 is 04:30 at UTC,
+	// after @2020-01-01T04Z and @2020-01-01T04:29Z, before @2020-01-01T05Z, and
+	// equal to @2020-01-01T11+06:30. The same instant at different precisions
+	// is unknown, as for two values at one offset: @2020-01-01T10+05:30 =
+	// @2020-01-01T04:30Z is empty.
 	if left.hasOffset && right.hasOffset && left.offset != right.offset {
-		return compareSpans(left, right)
+		if order := left.start().Compare(right.start()); order != 0 || left.unit == right.unit {
+			return order, nil
+		}
+		return 0, ErrPrecisionMismatch
 	}
 
 	// "To support comparison of DateTime values, either both values have no
@@ -138,63 +144,21 @@ func compareTemporal(left, right temporalValue) (int, error) {
 	return 0, nil
 }
 
-// compareSpans orders two values written at different offsets by the spans of
-// time they name: @2020-01-01T10+05:30 is 04:30 to 05:30 at UTC. The same
-// span is equal; spans apart are ordered; spans that overlap without being
-// the same have no order, ErrSpansOverlap, unknown as for different precisions:
-// @2020-01-01T10+05:30 = @2020-01-01T04Z is empty, the two hours overlapping
-// from 04:30 to 05:00. A value given to the second or finer names an instant,
-// seconds and milliseconds being one precision.
-func compareSpans(left, right temporalValue) (int, error) {
-	leftStart, leftEnd := left.span()
-	rightStart, rightEnd := right.span()
-	switch {
-	case leftStart.Equal(rightStart) && leftEnd.Equal(rightEnd):
-		return 0, nil
-	case !leftEnd.After(rightStart) && !leftStart.Equal(rightStart):
-		return -1, nil
-	case !rightEnd.After(leftStart) && !leftStart.Equal(rightStart):
-		return 1, nil
-	}
-	return 0, ErrSpansOverlap
-}
-
-// span returns the start and end of the time a value names at its precision,
-// in absolute time: the end is the start for a value given to the second.
-func (v temporalValue) span() (start, end time.Time) {
-	start = time.Date(
+// start returns the instant a value names the start of, at its offset.
+func (v temporalValue) start() time.Time {
+	return time.Date(
 		v.parts[unitYear], time.Month(v.parts[unitMonth]), v.parts[unitDay],
 		v.parts[unitHour], v.parts[unitMinute], v.parts[unitSecond]/1000,
 		(v.parts[unitSecond]%1000)*1e6,
 		time.FixedZone("", v.offset*60),
 	)
-	switch v.unit {
-	case unitYear:
-		end = start.AddDate(1, 0, 0)
-	case unitMonth:
-		end = start.AddDate(0, 1, 0)
-	case unitDay:
-		end = start.AddDate(0, 0, 1)
-	case unitHour:
-		end = start.Add(time.Hour)
-	case unitMinute:
-		end = start.Add(time.Minute)
-	default:
-		end = start
-	}
-	return start, end
 }
 
 // inUTC re-expresses the value's components at UTC, so that difference() and
 // duration() count between two values written against different offsets on
-// the same footing. Comparison reads spans instead: see compareSpans.
+// the same footing.
 func (v temporalValue) inUTC() temporalValue {
-	instant := time.Date(
-		v.parts[unitYear], time.Month(v.parts[unitMonth]), v.parts[unitDay],
-		v.parts[unitHour], v.parts[unitMinute], v.parts[unitSecond]/1000,
-		(v.parts[unitSecond]%1000)*1e6,
-		time.FixedZone("", v.offset*60),
-	).UTC()
+	instant := v.start().UTC()
 
 	shifted := v
 	shifted.parts = partsOf(instant)
@@ -394,12 +358,12 @@ func daysIn(year, month int) int {
 	return 31
 }
 
-// validClock reports an hour, minute and second on the clock. A leap second,
-// 60, which FHIR's regular expressions allow, is not: FHIRPath's Time ends at
-// @T23:59:59.999, and time.Date reads :60 as the next minute, which made a
-// value equal to two that are not equal to one another.
+// validClock reports an hour, minute and second on the clock, a leap second,
+// 60, among them: FHIR's dateTime, instant and time allow it, and fhirpath.js
+// and the HL7 validator read it. A DateTime holds it as the second after it;
+// a Time as written, after 23:59:59 and before nothing that day.
 func validClock(hour, minute, second int) error {
-	if hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 59 {
+	if hour < 0 || hour > 23 || minute < 0 || minute > 59 || second < 0 || second > 60 {
 		return ErrInvalidTemporal
 	}
 	return nil

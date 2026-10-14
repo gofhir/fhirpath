@@ -145,7 +145,10 @@ func TestFHIRMoneyIsNotAQuantity(t *testing.T) {
 	money := []byte(`{"resourceType":"Claim","total":{"value":10.5,"currency":"USD"}}`)
 
 	for _, tc := range []struct{ expr, want string }{
-		{"Claim.total.comparable(10 'mg')", "EMPTY"},
+		// cannot be compared with one: false, as fhirpath.js and the HL7
+		// validator answer
+		{"Claim.total.comparable(10 'mg')", "false"},
+		{"Claim.total.comparable(Claim.total)", "false"},
 		{"Claim.total = 10.5 '1'", "false"},
 		{"Claim.total.lowBoundary()", "EMPTY"},
 		{"Claim.total.toQuantity()", "EMPTY"},

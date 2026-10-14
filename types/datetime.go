@@ -18,7 +18,10 @@ type DateTime struct {
 	millis   int
 	tzOffset int  // timezone offset in minutes, as written
 	hasTZ    bool // whether the value states a timezone offset
-	read     bool // read from the input, so a FHIR primitive. See IsFHIRPrimitive.
+	// leap marks a value written with a leap second, 23:59:60, which is held
+	// as the second after it and written back as it was: see NewDateTime
+	leap bool
+	read bool // read from the input, so a FHIR primitive. See IsFHIRPrimitive.
 	// The offset to assume when the value states none, supplied by a caller
 	// whose language settles what an unwritten offset means. Kept apart from
 	// the written one on purpose: see WithDefaultOffset.
@@ -51,9 +54,11 @@ const (
 //
 // so the marker may trail a date of any precision with no time after it —
 // @2015T, @2015-02T and @2015-02-04T are all DateTime values, distinct from the
-// Date literals @2015, @2015-02 and @2015-02-04.
+// Date literals @2015, @2015-02 and @2015-02-04. An offset follows a time and
+// nothing else, as there and in FHIR's dateTime: '2020-01-01+05:00' is no
+// DateTime, as fhirpath.js and the HL7 validator read it.
 var dateTimePattern = regexp.MustCompile(
-	`^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?(?:T(?:(\d{2})(?::(\d{2})(?::(\d{2})(?:\.(\d+))?)?)?)?)?(Z|[+-]\d{2}:\d{2})?$`,
+	`^(\d{4})(?:-(\d{2})(?:-(\d{2}))?)?(?:T(?:(\d{2})(?::(\d{2})(?::(\d{2})(?:\.(\d+))?)?)?(Z|[+-]\d{2}:\d{2})?)?)?$`,
 )
 
 // NewDateTime creates a DateTime from a string.
@@ -168,7 +173,26 @@ func NewDateTime(s string) (DateTime, error) {
 	if err := dt.validate(matches[2] != "", matches[3] != ""); err != nil {
 		return DateTime{}, fmt.Errorf("%w: %s", err, s)
 	}
+	if dt.second == 60 {
+		if matches[2] == "" || matches[3] == "" {
+			return DateTime{}, fmt.Errorf("%w: %s", ErrInvalidTemporal, s)
+		}
+		dt = dt.pastLeapSecond()
+	}
 	return dt, nil
+}
+
+// pastLeapSecond holds a value written with a leap second, which FHIR's
+// dateTime and instant allow, as the second after it, as the HL7 validator
+// does: 2016-12-31T23:59:60Z is 2017-01-01T00:00:00Z, after
+// 2016-12-31T23:59:59Z, and a second later is 00:00:01. fhirpath.js reads it
+// too. It is still written as it was.
+func (dt DateTime) pastLeapSecond() DateTime {
+	next := time.Date(dt.year, time.Month(dt.month), dt.day, dt.hour, dt.minute, 60, 0, time.UTC)
+	dt.year, dt.month, dt.day = next.Year(), int(next.Month()), next.Day()
+	dt.hour, dt.minute, dt.second = next.Hour(), next.Minute(), next.Second()
+	dt.leap = true
+	return dt
 }
 
 // validate refuses a DateTime off the calendar or the clock, on the
@@ -311,6 +335,10 @@ func (dt DateTime) Equivalent(other Value) bool {
 
 // String returns the string representation.
 func (dt DateTime) String() string {
+	// A value held past a leap second writes as it was written
+	if dt.leap {
+		return dt.written().String()
+	}
 	result := fmt.Sprintf("%04d", dt.year)
 
 	// A month or a day the value does not write, as @2012T12:30:00 writes a
@@ -351,6 +379,21 @@ func (dt DateTime) String() string {
 	return result
 }
 
+// written returns the value's components as written: a value held past a
+// leap second has them at 23:59:60 of the second before. Its leap mark is
+// cleared, as its components are no longer held past it.
+func (dt DateTime) written() DateTime {
+	if !dt.leap {
+		return dt
+	}
+	before := time.Date(dt.year, time.Month(dt.month), dt.day, dt.hour, dt.minute, dt.second, 0, time.UTC).Add(-time.Second)
+	written := dt
+	written.leap = false
+	written.year, written.month, written.day = before.Year(), int(before.Month()), before.Day()
+	written.hour, written.minute, written.second = before.Hour(), before.Minute(), 60
+	return written
+}
+
 // IsEmpty returns false for DateTime.
 func (dt DateTime) IsEmpty() bool {
 	return false
@@ -389,12 +432,15 @@ func (dt DateTime) HasTZ() bool { return dt.hasTZ }
 func (dt DateTime) TZOffset() int { return dt.tzOffset }
 
 // Accessors
-func (dt DateTime) Year() int        { return dt.year }
-func (dt DateTime) Month() int       { return dt.month }
-func (dt DateTime) Day() int         { return dt.day }
-func (dt DateTime) Hour() int        { return dt.hour }
-func (dt DateTime) Minute() int      { return dt.minute }
-func (dt DateTime) Second() int      { return dt.second }
+//
+// They read the components as written, so a leap second's are 23:59:60 of
+// the day it falls on, as dateOf(), toDate() and secondOf() read it.
+func (dt DateTime) Year() int        { return dt.written().year }
+func (dt DateTime) Month() int       { return dt.written().month }
+func (dt DateTime) Day() int         { return dt.written().day }
+func (dt DateTime) Hour() int        { return dt.written().hour }
+func (dt DateTime) Minute() int      { return dt.written().minute }
+func (dt DateTime) Second() int      { return dt.written().second }
 func (dt DateTime) Millisecond() int { return dt.millis }
 
 // AddDuration adds a duration (as Quantity with temporal unit) to the datetime.
