@@ -1,0 +1,231 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tests name="boolean-logic" description="The Boolean logic section: and, or, xor, implies and not(); their truth tables over true, false and empty; operands evaluated as Booleans by singleton evaluation of collections (a single Boolean, a single non-Boolean item, more than one item); and the worked examples. FHIR's FHIRPath pages (R4, R5) say nothing about these operators. Where 3.0.0's implies note (an empty left side gives the right side) disagrees with the truth table, the cases follow 2.0.0. Leaves out what the text does not settle: a single String, Integer or Decimal whose value converts explicitly to false ('false', 0, 0.0), which 2.0.0 and 3.0.0 word differently; not() on a non-Boolean item or on more than one item; and whether an operand that would signal an error still does so when the other operand alone decides the result (false and X, X and false, true or X, X or true, false implies X, X implies true, X xor {}, {} xor X), since the text allows short-circuit evaluation.">
+
+  <group name="REQ-BOOLEANLOGIC-001" description="and over two Boolean operands is true only when both are true">
+    <source spec="fhirpath-2.0.0" section="and" strength="DEFINITION">Returns `true` if both operands evaluate to `true`, `false` if either operand evaluates to `false`, and the empty collection (`{ }`) otherwise.</source>
+    <source spec="fhirpath-3.0.0" section="and" strength="DEFINITION">Returns `true` if both operands evaluate to `true`, `false` if either operand evaluates to `false`, and the empty collection (`{ }`) otherwise.</source>
+    <test name="REQ-BOOLEANLOGIC-001-a"><expression>true and true</expression><output type="boolean">true</output></test>
+    <test name="REQ-BOOLEANLOGIC-001-b"><expression>true and false</expression><output type="boolean">false</output></test>
+    <test name="REQ-BOOLEANLOGIC-001-c"><expression>false and true</expression><output type="boolean">false</output></test>
+    <test name="REQ-BOOLEANLOGIC-001-d"><expression>false and false</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-BOOLEANLOGIC-002" description="and with an empty operand is false when the other operand is false and empty otherwise">
+    <source spec="fhirpath-2.0.0" section="Boolean logic" strength="DEFINITION">The operators then use three-valued logic to propagate empty operands.</source>
+    <source spec="fhirpath-2.0.0" section="and" strength="DEFINITION">Returns `true` if both operands evaluate to `true`, `false` if either operand evaluates to `false`, and the empty collection (`{ }`) otherwise.</source>
+    <source spec="fhirpath-2.0.0" section="and" strength="DEFINITION">|*true* |`true` |`false` |empty (`{ }`)
+|*false* |`false` |`false` |`false`
+|*empty* |empty (`{ }`) |`false` |empty (`{ }`)</source>
+    <source spec="fhirpath-3.0.0" section="and" strength="DEFINITION">Returns `true` if both operands evaluate to `true`, `false` if either operand evaluates to `false`, and the empty collection (`{ }`) otherwise.</source>
+    <source spec="fhirpath-2.0.0" section="Null and empty" strength="DEFINITION">This means that when, in an underlying data object (i.e. they physical data on which the implementation is operating) a member is null or missing, there will simply be no corresponding node for that member in the tree, e.g. `Patient.name` will return an empty collection (not null) if there are no name elements in the instance.</source>
+    <test name="REQ-BOOLEANLOGIC-002-a"><expression>true and {}</expression></test>
+    <test name="REQ-BOOLEANLOGIC-002-b"><expression>{} and true</expression></test>
+    <test name="REQ-BOOLEANLOGIC-002-c"><expression>false and {}</expression><output type="boolean">false</output></test>
+    <test name="REQ-BOOLEANLOGIC-002-d"><expression>{} and false</expression><output type="boolean">false</output></test>
+    <test name="REQ-BOOLEANLOGIC-002-e"><expression>{} and {}</expression></test>
+    <test name="REQ-BOOLEANLOGIC-002-f" inputfile="patient-example.xml"><expression>Patient.link and true</expression></test>
+    <test name="REQ-BOOLEANLOGIC-002-g" inputfile="patient-example.xml"><expression>Patient.link and false</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-BOOLEANLOGIC-003" description="or over two Boolean operands is false only when both are false">
+    <source spec="fhirpath-2.0.0" section="or" strength="DEFINITION">Returns `false` if both operands evaluate to `false`, `true` if either operand evaluates to `true`, and empty (`{ }`) otherwise:</source>
+    <source spec="fhirpath-3.0.0" section="or" strength="DEFINITION">Returns `false` if both operands evaluate to `false`, `true` if either operand evaluates to `true`, and empty (`{ }`) otherwise:</source>
+    <test name="REQ-BOOLEANLOGIC-003-a"><expression>true or true</expression><output type="boolean">true</output></test>
+    <test name="REQ-BOOLEANLOGIC-003-b"><expression>true or false</expression><output type="boolean">true</output></test>
+    <test name="REQ-BOOLEANLOGIC-003-c"><expression>false or true</expression><output type="boolean">true</output></test>
+    <test name="REQ-BOOLEANLOGIC-003-d"><expression>false or false</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-BOOLEANLOGIC-004" description="or with an empty operand is true when the other operand is true and empty otherwise">
+    <source spec="fhirpath-2.0.0" section="Boolean logic" strength="DEFINITION">The operators then use three-valued logic to propagate empty operands.</source>
+    <source spec="fhirpath-2.0.0" section="or" strength="DEFINITION">Returns `false` if both operands evaluate to `false`, `true` if either operand evaluates to `true`, and empty (`{ }`) otherwise:</source>
+    <source spec="fhirpath-2.0.0" section="or" strength="DEFINITION">|*true* |`true` |`true` |`true`
+|*false* |`true` |`false` |empty (`{ }`)
+|*empty* |`true` |empty (`{ }`) |empty (`{ }`)</source>
+    <source spec="fhirpath-3.0.0" section="or" strength="DEFINITION">Returns `false` if both operands evaluate to `false`, `true` if either operand evaluates to `true`, and empty (`{ }`) otherwise:</source>
+    <test name="REQ-BOOLEANLOGIC-004-a"><expression>true or {}</expression><output type="boolean">true</output></test>
+    <test name="REQ-BOOLEANLOGIC-004-b"><expression>{} or true</expression><output type="boolean">true</output></test>
+    <test name="REQ-BOOLEANLOGIC-004-c"><expression>false or {}</expression></test>
+    <test name="REQ-BOOLEANLOGIC-004-d"><expression>{} or false</expression></test>
+    <test name="REQ-BOOLEANLOGIC-004-e"><expression>{} or {}</expression></test>
+    <test name="REQ-BOOLEANLOGIC-004-f" inputfile="patient-example.xml"><expression>Patient.link or true</expression><output type="boolean">true</output></test>
+    <test name="REQ-BOOLEANLOGIC-004-g" inputfile="patient-example.xml"><expression>false or Patient.link</expression></test>
+  </group>
+
+  <group name="REQ-BOOLEANLOGIC-005" description="xor over two Boolean operands is true when exactly one is true">
+    <source spec="fhirpath-2.0.0" section="xor" strength="DEFINITION">Returns `true` if exactly one of the operands evaluates to `true`, `false` if either both operands evaluate to `true` or both operands evaluate to `false`, and the empty collection (`{ }`) otherwise:</source>
+    <source spec="fhirpath-3.0.0" section="xor" strength="DEFINITION">Returns `true` if exactly one of the operands evaluates to `true`, `false` if either both operands evaluate to `true` or both operands evaluate to `false`, and the empty collection (`{ }`) otherwise:</source>
+    <test name="REQ-BOOLEANLOGIC-005-a"><expression>true xor true</expression><output type="boolean">false</output></test>
+    <test name="REQ-BOOLEANLOGIC-005-b"><expression>true xor false</expression><output type="boolean">true</output></test>
+    <test name="REQ-BOOLEANLOGIC-005-c"><expression>false xor true</expression><output type="boolean">true</output></test>
+    <test name="REQ-BOOLEANLOGIC-005-d"><expression>false xor false</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-BOOLEANLOGIC-006" description="xor with an empty operand is always empty">
+    <source spec="fhirpath-2.0.0" section="Boolean logic" strength="DEFINITION">The operators then use three-valued logic to propagate empty operands.</source>
+    <source spec="fhirpath-2.0.0" section="xor" strength="DEFINITION">Returns `true` if exactly one of the operands evaluates to `true`, `false` if either both operands evaluate to `true` or both operands evaluate to `false`, and the empty collection (`{ }`) otherwise:</source>
+    <source spec="fhirpath-2.0.0" section="xor" strength="DEFINITION">|*empty* |empty (`{ }`) |empty (`{ }`) |empty (`{ }`)</source>
+    <source spec="fhirpath-3.0.0" section="xor" strength="DEFINITION">Returns `true` if exactly one of the operands evaluates to `true`, `false` if either both operands evaluate to `true` or both operands evaluate to `false`, and the empty collection (`{ }`) otherwise:</source>
+    <test name="REQ-BOOLEANLOGIC-006-a"><expression>true xor {}</expression></test>
+    <test name="REQ-BOOLEANLOGIC-006-b"><expression>{} xor true</expression></test>
+    <test name="REQ-BOOLEANLOGIC-006-c"><expression>false xor {}</expression></test>
+    <test name="REQ-BOOLEANLOGIC-006-d"><expression>{} xor false</expression></test>
+    <test name="REQ-BOOLEANLOGIC-006-e"><expression>{} xor {}</expression></test>
+    <test name="REQ-BOOLEANLOGIC-006-f" inputfile="patient-example.xml"><expression>Patient.link xor true</expression></test>
+  </group>
+
+  <group name="REQ-BOOLEANLOGIC-007" description="implies over two Boolean operands is false only when the left is true and the right is false">
+    <source spec="fhirpath-2.0.0" section="implies" strength="DEFINITION">If the left operand evaluates to `true`, this operator returns the boolean evaluation of the right operand. If the left operand evaluates to `false`, this operator returns `true`.</source>
+    <source spec="fhirpath-3.0.0" section="implies" strength="DEFINITION">If the left operand evaluates to `true`, this operator returns the boolean evaluation of the right operand. If the left operand evaluates to `false`, this operator returns `true`.</source>
+    <test name="REQ-BOOLEANLOGIC-007-a"><expression>true implies true</expression><output type="boolean">true</output></test>
+    <test name="REQ-BOOLEANLOGIC-007-b"><expression>true implies false</expression><output type="boolean">false</output></test>
+    <test name="REQ-BOOLEANLOGIC-007-c"><expression>false implies true</expression><output type="boolean">true</output></test>
+    <test name="REQ-BOOLEANLOGIC-007-d"><expression>false implies false</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-BOOLEANLOGIC-008" description="implies with an empty operand: a true left gives empty, a false left gives true, an empty left gives true when the right is true and empty otherwise. Cited from 2.0.0 only: 3.0.0 has the same prose and table but adds a note that with an empty left side 'the result of the operation is the right side', which gives false, not empty, for 008-d and 008-f">
+    <source spec="fhirpath-2.0.0" section="Boolean logic" strength="DEFINITION">The operators then use three-valued logic to propagate empty operands.</source>
+    <source spec="fhirpath-2.0.0" section="implies" strength="DEFINITION">If the left operand evaluates to `true`, this operator returns the boolean evaluation of the right operand. If the left operand evaluates to `false`, this operator returns `true`. Otherwise, this operator returns `true` if the right operand evaluates to `true`, and the empty collection (`{ }`) otherwise.</source>
+    <source spec="fhirpath-2.0.0" section="implies" strength="DEFINITION">|*true* |`true` |`false` |empty (`{ }`)
+|*false* |`true` |`true` |`true`
+|*empty* |`true` |empty (`{ }`) |empty (`{ }`)</source>
+    <test name="REQ-BOOLEANLOGIC-008-a"><expression>true implies {}</expression></test>
+    <test name="REQ-BOOLEANLOGIC-008-b"><expression>false implies {}</expression><output type="boolean">true</output></test>
+    <test name="REQ-BOOLEANLOGIC-008-c"><expression>{} implies true</expression><output type="boolean">true</output></test>
+    <test name="REQ-BOOLEANLOGIC-008-d"><expression>{} implies false</expression></test>
+    <test name="REQ-BOOLEANLOGIC-008-e"><expression>{} implies {}</expression></test>
+    <test name="REQ-BOOLEANLOGIC-008-f" inputfile="patient-example.xml"><expression>Patient.link implies false</expression></test>
+    <test name="REQ-BOOLEANLOGIC-008-g" inputfile="patient-example.xml"><expression>Patient.link implies true</expression><output type="boolean">true</output></test>
+    <test name="REQ-BOOLEANLOGIC-008-h" inputfile="patient-example.xml"><expression>false implies Patient.link</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-BOOLEANLOGIC-009" description="implies with a true left operand returns the Boolean evaluation of the right operand: its value if Boolean, true for a single non-Boolean item, empty for an empty one">
+    <source spec="fhirpath-2.0.0" section="implies" strength="DEFINITION">If the left operand evaluates to `true`, this operator returns the boolean evaluation of the right operand.</source>
+    <source spec="fhirpath-3.0.0" section="implies" strength="DEFINITION">If the left operand evaluates to `true`, this operator returns the boolean evaluation of the right operand.</source>
+    <source spec="fhirpath-2.0.0" section="Singleton Evaluation of Collections" strength="DEFINITION">ELSE IF the collection contains a single node AND the expected input type is Boolean THEN
+  The collection evaluates to true</source>
+    <source spec="fhirpath-3.0.0" section="Singleton Evaluation of Collections" strength="DEFINITION">ELSE IF the collection contains a single node AND the expected input type is Boolean THEN
+  The collection evaluates to true</source>
+    <test name="REQ-BOOLEANLOGIC-009-a" inputfile="patient-example.xml"><expression>true implies Patient.active</expression><output type="boolean">true</output></test>
+    <test name="REQ-BOOLEANLOGIC-009-b" inputfile="patient-example.xml"><expression>true implies Patient.deceased</expression><output type="boolean">false</output></test>
+    <test name="REQ-BOOLEANLOGIC-009-c"><expression>true implies 'abc'</expression><output type="boolean">true</output></test>
+    <test name="REQ-BOOLEANLOGIC-009-d" inputfile="patient-example.xml"><expression>true implies Patient.gender</expression><output type="boolean">true</output></test>
+    <test name="REQ-BOOLEANLOGIC-009-e" inputfile="patient-example.xml"><expression>true implies Patient.link</expression></test>
+  </group>
+
+  <group name="REQ-BOOLEANLOGIC-010" description="not() is false for true and true for false">
+    <source spec="fhirpath-2.0.0" section="not() : Boolean" strength="DEFINITION">Returns `true` if the input collection evaluates to `false`, and `false` if it evaluates to `true`.</source>
+    <source spec="fhirpath-3.0.0" section="not() : Boolean" strength="DEFINITION">Returns `true` if the input collection evaluates to `false`, and `false` if it evaluates to `true`.</source>
+    <test name="REQ-BOOLEANLOGIC-010-a"><expression>true.not()</expression><output type="boolean">false</output></test>
+    <test name="REQ-BOOLEANLOGIC-010-b"><expression>false.not()</expression><output type="boolean">true</output></test>
+    <test name="REQ-BOOLEANLOGIC-010-c" inputfile="patient-example.xml"><expression>Patient.active.not()</expression><output type="boolean">false</output></test>
+    <test name="REQ-BOOLEANLOGIC-010-d" inputfile="patient-example.xml"><expression>Patient.deceased.not()</expression><output type="boolean">true</output></test>
+    <test name="REQ-BOOLEANLOGIC-010-e"><expression>true.not().not()</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-BOOLEANLOGIC-011" description="not() of an empty collection is empty">
+    <source spec="fhirpath-2.0.0" section="not() : Boolean" strength="DEFINITION">Otherwise, the result is empty (`{ }`):</source>
+    <source spec="fhirpath-2.0.0" section="not() : Boolean" strength="DEFINITION">|*empty* |empty (`{ }`)</source>
+    <source spec="fhirpath-3.0.0" section="not() : Boolean" strength="DEFINITION">Otherwise, the result is empty (`{ }`):</source>
+    <test name="REQ-BOOLEANLOGIC-011-a"><expression>{}.not()</expression></test>
+    <test name="REQ-BOOLEANLOGIC-011-b" inputfile="patient-example.xml"><expression>Patient.link.not()</expression></test>
+    <test name="REQ-BOOLEANLOGIC-011-c"><expression>(true and {}).not()</expression></test>
+  </group>
+
+  <group name="REQ-BOOLEANLOGIC-012" description="An operand that is a single Boolean item, literal or element, is evaluated as that Boolean value">
+    <source spec="fhirpath-2.0.0" section="Boolean logic" strength="DEFINITION">For all boolean operators, the collections passed as operands are first evaluated as Booleans (as described in &lt;&lt;Singleton Evaluation of Collections&gt;&gt;).</source>
+    <source spec="fhirpath-3.0.0" section="Boolean logic" strength="DEFINITION">For all boolean operators, the collections passed as operands are first evaluated as Booleans (as described in [Singleton Evaluation of Collections](#singleton-evaluation-of-collections)).</source>
+    <source spec="fhirpath-2.0.0" section="Singleton Evaluation of Collections" strength="DEFINITION">IF the collection contains a single node AND the node's value can be converted to the expected input type THEN
+  The collection evaluates to the value of that single node</source>
+    <source spec="fhirpath-3.0.0" section="Singleton Evaluation of Collections" strength="DEFINITION">IF the collection contains a single node AND the node's value can be implicitly converted to the expected input type THEN
+  The collection evaluates to the value of that single node</source>
+    <test name="REQ-BOOLEANLOGIC-012-a" inputfile="patient-example.xml"><expression>Patient.active and Patient.deceased</expression><output type="boolean">false</output></test>
+    <test name="REQ-BOOLEANLOGIC-012-b" inputfile="patient-example.xml"><expression>Patient.active or Patient.deceased</expression><output type="boolean">true</output></test>
+    <test name="REQ-BOOLEANLOGIC-012-c" inputfile="patient-example.xml"><expression>Patient.active xor Patient.deceased</expression><output type="boolean">true</output></test>
+    <test name="REQ-BOOLEANLOGIC-012-d" inputfile="patient-example.xml"><expression>Patient.deceased implies false</expression><output type="boolean">true</output></test>
+    <test name="REQ-BOOLEANLOGIC-012-e" inputfile="patient-example.xml"><expression>Patient.active implies Patient.deceased</expression><output type="boolean">false</output></test>
+    <test name="REQ-BOOLEANLOGIC-012-f"><expression>(1 = 1) and (1 = 2)</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-BOOLEANLOGIC-013" description="An operand that is a single item which is not a Boolean and whose value converts to no Boolean, or only to true, is evaluated as true; 013-l applies the positive half of the singleton worked example (active true, gender female, a single telecom) to the Patient's single contact">
+    <source spec="fhirpath-2.0.0" section="Boolean logic" strength="DEFINITION">For all boolean operators, the collections passed as operands are first evaluated as Booleans (as described in &lt;&lt;Singleton Evaluation of Collections&gt;&gt;).</source>
+    <source spec="fhirpath-3.0.0" section="Boolean logic" strength="DEFINITION">For all boolean operators, the collections passed as operands are first evaluated as Booleans (as described in [Singleton Evaluation of Collections](#singleton-evaluation-of-collections)).</source>
+    <source spec="fhirpath-2.0.0" section="Singleton Evaluation of Collections" strength="DEFINITION">IF the collection contains a single node AND the node's value can be converted to the expected input type THEN
+  The collection evaluates to the value of that single node
+ELSE IF the collection contains a single node AND the expected input type is Boolean THEN
+  The collection evaluates to true</source>
+    <source spec="fhirpath-3.0.0" section="Singleton Evaluation of Collections" strength="DEFINITION">IF the collection contains a single node AND the node's value can be implicitly converted to the expected input type THEN
+  The collection evaluates to the value of that single node
+ELSE IF the collection contains a single node AND the expected input type is Boolean THEN
+  The collection evaluates to true</source>
+    <source spec="fhirpath-2.0.0" section="toBoolean() : Boolean" strength="DEFINITION">If the item is not one the above types, or the item is a String, Integer, or Decimal, but is not equal to one of the possible values convertible to a Boolean, the result is empty.</source>
+    <source spec="fhirpath-2.0.0" section="toBoolean() : Boolean" strength="DEFINITION">| *Integer* |`1` |`true`</source>
+    <source spec="fhirpath-2.0.0" section="Singleton Evaluation of Collections" strength="EXAMPLE">Patient.active and Patient.gender and Patient.telecom</source>
+    <source spec="fhirpath-3.0.0" section="Singleton Evaluation of Collections" strength="EXAMPLE">Patient.active and Patient.gender and Patient.telecom</source>
+    <source spec="fhirpath-2.0.0" section="Singleton Evaluation of Collections" strength="EXAMPLE">Assuming the `Patient` instance has an `active` value of `true`, a `gender` of `female` and a single `telecom` element, this expression will result in true.</source>
+    <source spec="fhirpath-3.0.0" section="Singleton Evaluation of Collections" strength="EXAMPLE">Assuming the `Patient` instance has an `active` value of `true`, a `gender` of `female` and a single `telecom` element, this expression will result in `true`.</source>
+    <test name="REQ-BOOLEANLOGIC-013-a"><expression>'abc' and true</expression><output type="boolean">true</output></test>
+    <test name="REQ-BOOLEANLOGIC-013-b"><expression>true and 'abc'</expression><output type="boolean">true</output></test>
+    <test name="REQ-BOOLEANLOGIC-013-c"><expression>'abc' and false</expression><output type="boolean">false</output></test>
+    <test name="REQ-BOOLEANLOGIC-013-d"><expression>false or 'abc'</expression><output type="boolean">true</output></test>
+    <test name="REQ-BOOLEANLOGIC-013-e"><expression>'abc' xor true</expression><output type="boolean">false</output></test>
+    <test name="REQ-BOOLEANLOGIC-013-f"><expression>2 xor false</expression><output type="boolean">true</output></test>
+    <test name="REQ-BOOLEANLOGIC-013-g"><expression>'abc' implies false</expression><output type="boolean">false</output></test>
+    <test name="REQ-BOOLEANLOGIC-013-h"><expression>@2012-04-15 and true</expression><output type="boolean">true</output></test>
+    <test name="REQ-BOOLEANLOGIC-013-i"><expression>1 and true</expression><output type="boolean">true</output></test>
+    <test name="REQ-BOOLEANLOGIC-013-j"><expression>2.5 'mg' or false</expression><output type="boolean">true</output></test>
+    <test name="REQ-BOOLEANLOGIC-013-k" inputfile="patient-example.xml"><expression>Patient.name.first() and true</expression><output type="boolean">true</output></test>
+    <test name="REQ-BOOLEANLOGIC-013-l" inputfile="patient-example.xml"><expression>Patient.active and Patient.contact.gender and Patient.contact.telecom</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-BOOLEANLOGIC-014" description="An operand with more than one item ends the evaluation with an error, on either side of and, or, xor and implies">
+    <source spec="fhirpath-2.0.0" section="Boolean logic" strength="DEFINITION">For all boolean operators, the collections passed as operands are first evaluated as Booleans (as described in &lt;&lt;Singleton Evaluation of Collections&gt;&gt;).</source>
+    <source spec="fhirpath-3.0.0" section="Boolean logic" strength="DEFINITION">For all boolean operators, the collections passed as operands are first evaluated as Booleans (as described in [Singleton Evaluation of Collections](#singleton-evaluation-of-collections)).</source>
+    <source spec="fhirpath-2.0.0" section="Singleton Evaluation of Collections" strength="DEFINITION">ELSE IF the collection is empty THEN
+  The collection evaluates to an empty collection
+ELSE
+  The evaluation will end and signal an error to the calling environment</source>
+    <source spec="fhirpath-3.0.0" section="Singleton Evaluation of Collections" strength="DEFINITION">ELSE IF the collection is empty THEN
+  The collection evaluates to an empty collection
+ELSE
+  The evaluation will end and signal an error to the calling environment</source>
+    <test name="REQ-BOOLEANLOGIC-014-a"><expression invalid="execution">(true | false) and true</expression></test>
+    <test name="REQ-BOOLEANLOGIC-014-b"><expression invalid="execution">true and (true | false)</expression></test>
+    <test name="REQ-BOOLEANLOGIC-014-c"><expression invalid="execution">{} and (true | false)</expression></test>
+    <test name="REQ-BOOLEANLOGIC-014-d"><expression invalid="execution">(1 | 2) or false</expression></test>
+    <test name="REQ-BOOLEANLOGIC-014-e"><expression invalid="execution">false or (1 | 2)</expression></test>
+    <test name="REQ-BOOLEANLOGIC-014-f"><expression invalid="execution">true xor (true | false)</expression></test>
+    <test name="REQ-BOOLEANLOGIC-014-g"><expression invalid="execution">(true | false) xor true</expression></test>
+    <test name="REQ-BOOLEANLOGIC-014-h"><expression invalid="execution">true implies (true | false)</expression></test>
+    <test name="REQ-BOOLEANLOGIC-014-i"><expression invalid="execution">(true | false) implies false</expression></test>
+    <test name="REQ-BOOLEANLOGIC-014-j" inputfile="patient-example.xml"><expression invalid="execution">Patient.name and true</expression></test>
+    <test name="REQ-BOOLEANLOGIC-014-k" inputfile="patient-example.xml"><expression invalid="execution">Patient.telecom xor false</expression></test>
+  </group>
+
+  <group name="REQ-BOOLEANLOGIC-016" description="The worked example of singleton evaluation: Patient.active and Patient.gender and Patient.telecom is an error for a Patient whose active is true, gender is male and telecom has several elements">
+    <source spec="fhirpath-2.0.0" section="Singleton Evaluation of Collections" strength="EXAMPLE">Patient.active and Patient.gender and Patient.telecom</source>
+    <source spec="fhirpath-2.0.0" section="Singleton Evaluation of Collections" strength="EXAMPLE">However, consider a different instance of `Patient` that has an `active` value of `true`, a `gender` of `male`, and multiple `telecom` elements, then this expression will result in an error because of the multiple telecom elements.</source>
+    <source spec="fhirpath-3.0.0" section="Singleton Evaluation of Collections" strength="EXAMPLE">However, consider a different instance of `Patient` that has an `active` value of `true`, a `gender` of `male`, and multiple `telecom` elements, then this expression will result in an error because of the multiple telecom elements.</source>
+    <test name="REQ-BOOLEANLOGIC-016-a" inputfile="patient-example.xml"><expression invalid="execution">Patient.active and Patient.gender and Patient.telecom</expression></test>
+  </group>
+
+  <group name="REQ-BOOLEANLOGIC-017" description="The worked example of the explicit rendering: Patient.active and Patient.gender and Patient.telecom.count() = 1 is evaluated without error, and is false for a Patient with several telecom elements">
+    <source spec="fhirpath-2.0.0" section="Singleton Evaluation of Collections" strength="EXAMPLE">For example, a more explicit rendering of the same logic that more clearly indicates the actual intent and avoids the run-time rror is:</source>
+    <source spec="fhirpath-2.0.0" section="Singleton Evaluation of Collections" strength="EXAMPLE">Patient.active and Patient.gender and Patient.telecom.count() = 1</source>
+    <source spec="fhirpath-3.0.0" section="Singleton Evaluation of Collections" strength="EXAMPLE">For example, a more explicit rendering of the same logic that more clearly indicates the actual intent and avoids the run-time error is:</source>
+    <source spec="fhirpath-2.0.0" section="and" strength="DEFINITION">Returns `true` if both operands evaluate to `true`, `false` if either operand evaluates to `false`, and the empty collection (`{ }`) otherwise.</source>
+    <test name="REQ-BOOLEANLOGIC-017-a" inputfile="patient-example.xml"><expression>Patient.active and Patient.gender and Patient.telecom.count() = 1</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-BOOLEANLOGIC-018" description="The worked example of implies: Patient.name.given.exists() implies Patient.name.family.exists() is true for a Patient with given and family names; with a false left (no link) it is true, and with a true left and a false right (no link) it is false">
+    <source spec="fhirpath-2.0.0" section="implies" strength="DEFINITION">If the left operand evaluates to `true`, this operator returns the boolean evaluation of the right operand. If the left operand evaluates to `false`, this operator returns `true`.</source>
+    <source spec="fhirpath-3.0.0" section="implies" strength="DEFINITION">If the left operand evaluates to `true`, this operator returns the boolean evaluation of the right operand. If the left operand evaluates to `false`, this operator returns `true`.</source>
+    <source spec="fhirpath-2.0.0" section="implies" strength="EXAMPLE">The implies operator is useful for testing conditionals. For example, if a given name is present, then a family name must be as well:</source>
+    <source spec="fhirpath-2.0.0" section="implies" strength="EXAMPLE">Patient.name.given.exists() implies Patient.name.family.exists()</source>
+    <source spec="fhirpath-3.0.0" section="implies" strength="EXAMPLE">Patient.name.given.exists() implies Patient.name.family.exists()</source>
+    <test name="REQ-BOOLEANLOGIC-018-a" inputfile="patient-example.xml"><expression>Patient.name.given.exists() implies Patient.name.family.exists()</expression><output type="boolean">true</output></test>
+    <test name="REQ-BOOLEANLOGIC-018-b" inputfile="patient-example.xml"><expression>Patient.link.exists() implies Patient.name.family.exists()</expression><output type="boolean">true</output></test>
+    <test name="REQ-BOOLEANLOGIC-018-c" inputfile="patient-example.xml"><expression>Patient.name.given.exists() implies Patient.link.exists()</expression><output type="boolean">false</output></test>
+  </group>
+
+</tests>

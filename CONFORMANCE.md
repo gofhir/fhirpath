@@ -63,11 +63,12 @@ the libraries, part ways, it decides in this order:
    cite.
 
 Each entry below that departs from a text names the text. Among the cases
-measured so far, the two FHIRPath versions part ways in three:
+measured so far, the two FHIRPath versions part ways in four:
 
 | | 2.0.0 | 3.0.0 | This engine |
 |---|---|---|---|
 | `power()` on Integers | an Integer | always a Decimal | a Decimal, as the validator, R4 too |
+| `implies` with an empty left operand: `{} implies false` | empty, by the truth table | empty by its table, but its note says "the result of the operation is the right side" | empty, as both tables, fhirpath.js and the Java engine answer |
 | `~` between quantities in different units | in "the most granular unit of either input" | "converted to the least granular unit" | the least granular, 3.0.0: converting to the finer unit made the value look more precise than it was written, the defect 3.0.0 names |
 | `~` between strings | whitespace "normalized": the characters of the Whitespace lexical category, tab, space, line feed and carriage return, equivalent | all characters of the Unicode White_Space class equivalent, a no-break space among them, and "Multiple whitespace characters in sequence are not collapsed", so `'a     b' ~ 'a b'` is false | 3.0.0, as fhirpath.js answers: any whitespace character for another, no run collapsed and no end trimmed. 2.0.0's Whitespace lexical category is the grammar's, for the expression's own text; 3.0.0 names the set for a string's content, the defect it fixes. The Java engine tells a tab from a space; see [Measured, and not followed](#measured-and-not-followed). Case is set aside one character for another, by Unicode's simple folding: fhirpath.js, comparing upper case, also takes `ß` for `SS` and `ﬁ` for `FI`, and tells the Kelvin sign from `K`, where this engine does not |
 
@@ -425,6 +426,7 @@ comparison, filtering, strings, collections.
 | Area | Requirements | Cases | Pass, R4 and R5 | Alone against fhirpath.js and Java |
 |---|---|---|---|---|
 | existence | 34 | 134 | 134 | 0 |
+| boolean-logic | 17 | 91 | 91 | 0 |
 
 **Existence.** One gap, closed: a criteria that evaluates to more than one
 item, `(1 | 2).exists(true | false)` or `Patient.name.exists(given)` on a name
@@ -437,6 +439,15 @@ engine does in all three; fhirpath.js reads the first item in `where()` and
 fhirpath.js is wrong in two more cases: `subsetOf()` and `supersetOf()`
 compare the collections' sizes first, so `1.combine(1).subsetOf(1)` is false. Where the Java engine alone differs, see
 [Measured, and not followed](#measured-and-not-followed).
+
+**Boolean logic.** No gap: the three engines agree on all 182 evaluations, the
+truth tables of `and`, `or`, `xor` and `implies`, `not()`, empty and non-Boolean
+operands, an operand of more than one item, and the specification's worked
+examples. The cases leave out what the text leaves open, an operand that raises
+an error where the other operand decides the result alone; measured apart, the
+engines part there as
+[`and`, `or` and `implies` decide from the left](#a-divergence-taken-on-purpose-and-or-and-implies-decide-from-the-left)
+records.
 
 ## Static analysis
 
@@ -770,6 +781,14 @@ and no time is spent on an operand whose answer cannot change the outcome.
 Measured in the HL7 validator 6.10.2, R4 and R5: `true or
 Patient.name.given.startsWith('A')`, over a name with two given names, is true,
 and so are `false and ...` false and `false implies ...` true, here as there.
+Measured again across the three engines alongside the boolean-logic cases,
+which leave these expressions out (#167): `false and (true | false)`, `true or
+(true | false)` and `false implies (true | false)` are false, true and true here
+and in the Java engine, and an error in fhirpath.js. A left operand of more
+than one item is an error in all three whatever the right one holds, as in
+`(true | false) and false` and `(true | false) xor {}`; so is an empty left
+operand beside a right one of more than one item, under each of `and`, `or`,
+`xor` and `implies`.
 
 An expression that has to run on engines that evaluate both operands should
 still guard the right side with `iif()`, as the specification advises.
