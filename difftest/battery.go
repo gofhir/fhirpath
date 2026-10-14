@@ -30,15 +30,22 @@ type batteryCase struct {
 	version string
 }
 
-// loadBattery reads a battery and the resources it names.
-func loadBattery(path string) ([]batteryCase, error) {
+// loadBattery reads a battery and the resources it names. A battery that is
+// one of this project's spec-case files, conformance/testdata/spec-cases/
+// <area>.xml, is read as those cases with the R4 and the R5 model, as
+// -corpus spec reads them; the Java engine reads each input from a file
+// written into dir.
+func loadBattery(path, dir string) ([]batteryCase, error) {
+	if strings.HasSuffix(path, ".xml") {
+		return loadSpecBattery(path, dir)
+	}
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, err
 	}
 	defer f.Close()
 
-	dir := filepath.Dir(path)
+	base := filepath.Dir(path)
 	var cases []batteryCase
 	scanner := bufio.NewScanner(f)
 	for n := 1; scanner.Scan(); n++ {
@@ -54,7 +61,7 @@ func loadBattery(path string) ([]batteryCase, error) {
 		if !ok {
 			return nil, fmt.Errorf("%s:%d: version %q is not 4.0.1, r4, 5.0.0 or r5", path, n, fields[2])
 		}
-		file := filepath.Join(dir, fields[0])
+		file := filepath.Join(base, fields[0])
 		resource, err := os.ReadFile(file)
 		if err != nil {
 			return nil, fmt.Errorf("%s:%d: %w", path, n, err)
@@ -71,6 +78,47 @@ func loadBattery(path string) ([]batteryCase, error) {
 		})
 	}
 	return cases, scanner.Err()
+}
+
+// loadSpecBattery reads a spec-case file as a battery, each case once with the
+// R4 model and inputs and once with the R5 ones. A case with no input is
+// evaluated by this engine and fhirpath.js against {}, as the spec cases are;
+// the Java engine needs a resource to start from, and is given an empty
+// Parameters. A case with no input that reads its context, %context or a
+// path, reads that Parameters in the Java engine, and a difference there is
+// the input's, not the engine's.
+func loadSpecBattery(path, dir string) ([]batteryCase, error) {
+	written := map[string]string{}
+	var cases []batteryCase
+	for _, official := range corpora() {
+		c := official
+		c.file = path
+		loaded, err := c.load(true)
+		if err != nil {
+			return nil, err
+		}
+		_, version, _ := fhirVersion(c.fhir)
+		for _, tc := range loaded {
+			if tc.skip != "" {
+				continue
+			}
+			resource := string(tc.Resource)
+			if resource == "{}" {
+				resource = `{"resourceType":"Parameters"}`
+			}
+			file, ok := written[resource]
+			if !ok {
+				file = filepath.Join(dir, fmt.Sprintf("input-%d.json", len(written)))
+				if err := os.WriteFile(file, []byte(resource), 0o600); err != nil {
+					return nil, err
+				}
+				written[resource] = file
+			}
+			tc.ID = c.fhir + " " + tc.ID
+			cases = append(cases, batteryCase{testCase: tc, file: file, version: version})
+		}
+	}
+	return cases, nil
 }
 
 // fhirVersion reads a battery's version as the model this engine and
@@ -229,7 +277,12 @@ func renderedLine(items []string) string {
 // runBattery compares a battery across the engines and prints where they part
 // ways. Without a jar it compares this engine and fhirpath.js only.
 func runBattery(path, jar string, jobs int, verbose bool) error {
-	cases, err := loadBattery(path)
+	dir, err := os.MkdirTemp("", "battery-")
+	if err != nil {
+		return err
+	}
+	defer os.RemoveAll(dir)
+	cases, err := loadBattery(path, dir)
 	if err != nil {
 		return err
 	}

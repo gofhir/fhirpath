@@ -410,6 +410,34 @@ whose authors cannot read this engine, fhirpath.js or this file — a case
 written by someone who has seen an engine's answer tends to agree with it —
 and adjudicated by an agent that reads all three.
 
+An area's cases are a battery too, so the same run puts them to HL7's Java
+engine, once with the R4 model and inputs and once with the R5 ones (#167):
+
+    HL7_VALIDATOR_JAR=~/tools/validator_cli.jar make three-engine \
+      BATTERY=../conformance/testdata/spec-cases/existence.xml DIFFTEST_ARGS="-jobs 8 -v"
+
+The areas are taken in the order published constraints use them, counted over
+the 610 distinct constraint expressions of the R4, R4B and R5 core and the IGs
+in the validator's package cache: existence first (`exists` in 353 of them,
+`empty` in 168, `count` in 50, `all` in 43), then Boolean logic, equality and
+comparison, filtering, strings, collections.
+
+| Area | Requirements | Cases | Pass, R4 and R5 | Alone against fhirpath.js and Java |
+|---|---|---|---|---|
+| existence | 34 | 134 | 134 | 0 |
+
+**Existence.** One gap, closed: a criteria that evaluates to more than one
+item, `(1 | 2).exists(true | false)` or `Patient.name.exists(given)` on a name
+with two given names, read as not true where `where()`'s text ends the
+evaluation: "If the result of evaluating the condition is other than a single
+boolean value, the evaluation will end and signal an error to the calling
+environment". `where()`, `exists()` and `all()` now raise it, as the Java
+engine does in all three; fhirpath.js reads the first item in `where()` and
+`exists()`. No constraint over the R4, R4B and R5 examples reaches it.
+fhirpath.js is wrong in two more cases: `subsetOf()` and `supersetOf()`
+compare the collections' sizes first, so `1.combine(1).subsetOf(1)` is false. Where the Java engine alone differs, see
+[Measured, and not followed](#measured-and-not-followed).
+
 ## Static analysis
 
 A semantic fault is one that evaluation cannot see. `Patient.name.given1`
@@ -1280,6 +1308,9 @@ keeps its own answer.
 | Arithmetic with a FHIR Quantity: `Observation.value + 1 'mg'` | an exception | the sum | An exception |
 | `2147483647 + 1` | `-2147483648` | `2147483648` | 32-bit overflow |
 | Date and time arithmetic by an amount past the calendar or the int range: `@2020-01-01 + 18446744073709551617 days`, `@2020-01-01 + 7980 years`, `@T10:00 + 9223372036854775807 hours` | wraps, `@2020-01-02`; no bound on the year, `10000-01-01`; `@T09:00`. fhirpath.js answers `NaN-NaN-NaN` and `10000-01-01` | an error, "If the resulting year is out of range, an error is thrown"; `@T17:00`, the amount modulo a day. A clock amount within the calendar but past what Go's `time.Duration` holds, about 292 years, shifts too: `@2020-01-01T10:00:00Z + 3000000 hours` is `@2362-03-29T10:00:00Z`. A date component on a time is an error whatever its amount, `+ 0 days` and `+ 0.5 days` included: "This includes attempting to add date components to a Time". Amounts are Go `int`s, so on a 32-bit platform a clock amount past about 24 days in milliseconds is past the calendar too | Wraps past the range |
+| `$index` in `exists()` and `all()`: `(10 \| 20 \| 30).exists($index = 2)` | false, `all($index < 2)` true | true, false, as fhirpath.js answers | Not set there |
+| `subsetOf()` and `supersetOf()` with decimals written to other precisions: `1.0.subsetOf(1.00 \| 2.0)` | false | true, as fhirpath.js answers | Membership is by `=`, under which "trailing zeroes after the decimal are ignored" |
+| `distinct()`, `isDistinct()` and `subsetOf()` over dates at different precisions: `@2012.combine(@2012-01)`, `@2012.subsetOf(@2012-01)` | `distinct().count()` 0, `isDistinct()` empty, `subsetOf()` true | 2, true, false, as fhirpath.js answers | No item kept of two, neither said equal; a member of what holds no equal to it. 3.0.0: an empty `=` is not a match |
 | `min()`, `max()`, `toDate()` | not known functions | | Not implemented there |
 
 ## Decisions taken where the specification is silent

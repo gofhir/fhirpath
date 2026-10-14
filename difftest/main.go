@@ -10,12 +10,13 @@
 // Usage:
 //
 //	go run . [-corpus r4|r5|both|spec|all] [-model] [-v]
-//	go run . -battery file.tsv [-java validator_cli.jar] [-jobs 4] [-v]
+//	go run . -battery file.tsv|area.xml [-java validator_cli.jar] [-jobs 4] [-v]
 //
 // both is the two official suites, spec is this project's own spec cases, and
-// all is everything. -battery compares a list of expressions of one's own
-// across this engine, fhirpath.js and, given the validator's jar (-java, or
-// HL7_VALIDATOR_JAR), HL7's Java engine: see battery.go.
+// all is everything. -battery compares a list of expressions of one's own, or
+// one area's spec cases, across this engine, fhirpath.js and, given the
+// validator's jar (-java, or HL7_VALIDATOR_JAR), HL7's Java engine: see
+// battery.go.
 package main
 
 import (

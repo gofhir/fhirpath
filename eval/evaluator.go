@@ -821,6 +821,9 @@ func (e *Evaluator) evaluateWhere(input types.Collection, criteria Node) interfa
 
 		// Check if criteria is true
 		if col, ok := criteriaResult.(types.Collection); ok {
+			if err := criteriaSingleton("where", col); err != nil {
+				return err
+			}
 			if val, isBool := col.SingletonBoolean(); isBool && val {
 				result = append(result, item)
 			}
@@ -828,6 +831,24 @@ func (e *Evaluator) evaluateWhere(input types.Collection, criteria Node) interfa
 	}
 
 	return result
+}
+
+// criteriaSingleton refuses criteria that evaluate to more than one item.
+// where() says: "If the result of evaluating the condition is other than a
+// single boolean value, the evaluation will end and signal an error to the
+// calling environment, consistent with singleton evaluation of collections
+// behavior", and exists(criteria) is its shorthand. Singleton evaluation
+// errs on more than one item; empty is not true, and a single item that is no
+// Boolean is true, so (1 | 2).where('a') keeps both, as fhirpath.js and the
+// HL7 validator answer. The validator raises the error in where(), exists()
+// and all() alike, so Patient.name.exists(given) is an error on a name with
+// two given names. fhirpath.js reads only the first item instead.
+func criteriaSingleton(fn string, criteria types.Collection) error {
+	if len(criteria) > 1 {
+		return NewEvalError(ErrSingletonExpected,
+			"%s expects its criteria to evaluate to a single item, got %d", fn, len(criteria))
+	}
+	return nil
 }
 
 // evaluateExists evaluates exists() with optional criteria.
@@ -861,6 +882,9 @@ func (e *Evaluator) evaluateExists(input types.Collection, criteria Node) interf
 
 		// Check if criteria is true
 		if col, ok := criteriaResult.(types.Collection); ok {
+			if err := criteriaSingleton("exists", col); err != nil {
+				return err
+			}
 			if val, isBool := col.SingletonBoolean(); isBool && val {
 				return types.Collection{types.NewBoolean(true)}
 			}
@@ -905,6 +929,9 @@ func (e *Evaluator) evaluateAll(input types.Collection, criteria Node) interface
 
 		// Check if criteria is true
 		if col, ok := criteriaResult.(types.Collection); ok {
+			if err := criteriaSingleton("all", col); err != nil {
+				return err
+			}
 			if val, isBool := col.SingletonBoolean(); !isBool || !val {
 				return types.Collection{types.NewBoolean(false)}
 			}
