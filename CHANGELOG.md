@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.5](https://github.com/gofhir/fhirpath/compare/v1.14.4...v1.14.5) (2026-10-14)
+
+
+### Bug Fixes
+
+* static analysis follows paths as evaluation does, and System.Any is every value ([#189](https://github.com/gofhir/fhirpath/issues/189)) ([68a1ab8](https://github.com/gofhir/fhirpath/commit/68a1ab821f711e1bc9550e3304205871d0f9326f))
+
 ## [1.14.4](https://github.com/gofhir/fhirpath/compare/v1.14.3...v1.14.4) (2026-10-14)
 
 
