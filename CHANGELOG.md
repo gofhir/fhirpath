@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.6](https://github.com/gofhir/fhirpath/compare/v1.14.5...v1.14.6) (2026-10-14)
+
+
+### Bug Fixes
+
+* string functions refuse an argument of several items, read a surrogate pair escape as one character, and trim as both engines do ([#191](https://github.com/gofhir/fhirpath/issues/191)) ([6f0e256](https://github.com/gofhir/fhirpath/commit/6f0e256f74bd5fbdc633a6caf666afc2d56077e4))
+
 ## [1.14.5](https://github.com/gofhir/fhirpath/compare/v1.14.4...v1.14.5) (2026-10-14)
 
 
