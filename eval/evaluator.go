@@ -1357,6 +1357,11 @@ func (e *Evaluator) checkAsSingleton(input types.Collection) error {
 }
 
 // castCollection keeps the items of a collection that are of the given type.
+//
+// A FHIR primitive asked for as a System type is that type exactly when is()
+// says so: with a model Patient.name.given.is(System.string) is false, so
+// given.as(System.String) is empty, as fhirpath.js and the HL7 validator both
+// answer. ofType() "does not have such restrictions", and keeps it.
 func (e *Evaluator) castCollection(input types.Collection, typeName string) types.Collection {
 	result := types.Collection{}
 	for _, item := range input {
@@ -1364,11 +1369,33 @@ func (e *Evaluator) castCollection(input types.Collection, typeName string) type
 		if obj, ok := item.(*types.ObjectValue); ok {
 			actualType = obj.Type()
 		}
+		if fhirPrimitiveAsSystemType(item, typeName) {
+			if ValueTypeMatches(item, typeName, e.ctx.model) {
+				result = append(result, item)
+			}
+			continue
+		}
 		if castMatches(item, actualType, typeName, e.ctx.model) {
 			result = append(result, item)
 		}
 	}
 	return result
+}
+
+// fhirPrimitiveAsSystemType reports a FHIR primitive asked for as a System
+// type, System.String or String, which as() answers as is() does.
+func fhirPrimitiveAsSystemType(item types.Value, typeName string) bool {
+	if !types.IsFHIRPrimitive(item) {
+		return false
+	}
+	if _, primitive := types.SystemValue(item); !primitive {
+		return false
+	}
+	name := typeName
+	if len(name) > len("System.") && strings.EqualFold(name[:len("System.")], "System.") {
+		return true
+	}
+	return types.IsSystemTypeName(name) && !isFHIRPrimitiveName(name)
 }
 
 // isTypeArg checks if the given argument index is marked as a type specifier argument.

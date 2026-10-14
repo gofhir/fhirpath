@@ -1,6 +1,7 @@
 package fhirpath
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/gofhir/fhirpath/types"
@@ -448,11 +449,30 @@ func TestTypeOperators(t *testing.T) {
 	})
 
 	t.Run("as type cast", func(t *testing.T) {
-		result, err := Evaluate(patientJSON, "Patient.active as Boolean")
+		result, err := Evaluate(patientJSON, "Patient.active as boolean")
 		if err != nil {
 			t.Fatalf("unexpected error: %v", err)
 		}
 		assertBooleanResult(t, result, true)
+	})
+
+	// as() of a FHIR primitive to a System type answers as is() does; with
+	// the generated models both say no: see conformance/system_typed_test.go
+	t.Run("as a System type on a FHIR primitive", func(t *testing.T) {
+		for _, expr := range []string{"Patient.active as Boolean", "Patient.active.as(System.Boolean)"} {
+			is := strings.Replace(strings.Replace(expr, " as ", " is ", 1), ".as(", ".is(", 1)
+			isResult, err := Evaluate(patientJSON, is)
+			if err != nil {
+				t.Fatalf("%s: unexpected error: %v", is, err)
+			}
+			asResult, err := Evaluate(patientJSON, expr)
+			if err != nil {
+				t.Fatalf("%s: unexpected error: %v", expr, err)
+			}
+			if got, want := !asResult.Empty(), isResult.String() == "[true]"; got != want {
+				t.Errorf("%s found %v, where %s = %v", expr, asResult, is, isResult)
+			}
+		}
 	})
 }
 
@@ -1183,4 +1203,20 @@ func TestDelimitedIdentifiers(t *testing.T) {
 		}
 		assertStringResult(t, result, "value")
 	})
+}
+
+// as() answers as is() does for a FHIR primitive asked for as a System type:
+// without a model a string read from the resource is taken for a String, and
+// as(String) keeps it, where with a model it is a FHIR string and is not.
+func TestAsAnswersAsIsWithoutAModel(t *testing.T) {
+	doc := []byte(`{"resourceType":"Patient","name":[{"family":"F"}]}`)
+	for expr, want := range map[string]string{
+		"Patient.name.family is String":          "true",
+		"Patient.name.family.as(String).count()": "1",
+		"(Patient.name.family is System.String) = Patient.name.family.as(System.String).exists()": "true",
+	} {
+		if got := evaluateScalar(t, expr, doc); got != want {
+			t.Errorf("%s = %s, want %s", expr, got, want)
+		}
+	}
 }
