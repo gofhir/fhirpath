@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.3](https://github.com/gofhir/fhirpath/compare/v1.14.2...v1.14.3) (2026-10-14)
+
+
+### Bug Fixes
+
+* a criteria of several items ends where(), exists() and all() with an error, and the existence cases measure three engines ([#183](https://github.com/gofhir/fhirpath/issues/183)) ([0d8de83](https://github.com/gofhir/fhirpath/commit/0d8de83ef2128134bdbaae44ebacffb477c832ac))
+
 ## [1.14.2](https://github.com/gofhir/fhirpath/compare/v1.14.1...v1.14.2) (2026-10-14)
 
 
