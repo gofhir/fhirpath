@@ -236,10 +236,14 @@ func (t Time) AddDuration(value int, unit string) (Time, error) {
 		return Time{}, dateComponentOnTime(unit)
 	}
 
-	// Nothing to shift leaves the time as it is: a leap second, 23:59:60,
-	// counted as a time of day would read as the next minute's start
+	// Nothing to shift leaves the clock as it is: a leap second, 23:59:60,
+	// counted as a time of day would read as the next minute's start. The
+	// result is still a new value, as any sum is, and no FHIR primitive
 	if millis == 0 {
-		return t, nil
+		return Time{
+			hour: t.hour, minute: t.minute, second: t.second, millis: t.millis,
+			precision: t.precision, fhirType: t.fhirType,
+		}, nil
 	}
 	shifted := t.millisecondsOfDay() + millis
 
