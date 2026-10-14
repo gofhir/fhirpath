@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.2](https://github.com/gofhir/fhirpath/compare/v1.14.1...v1.14.2) (2026-10-14)
+
+
+### Bug Fixes
+
+* where fhirpath.js and HL7's Java engine agree, answer as they do on offsets, leap seconds, as() and comparable() ([#181](https://github.com/gofhir/fhirpath/issues/181)) ([4f6b85b](https://github.com/gofhir/fhirpath/commit/4f6b85b378b2b7dc0f06f058ac48d09337bd80e3))
+
 ## [1.14.1](https://github.com/gofhir/fhirpath/compare/v1.14.0...v1.14.1) (2026-10-14)
 
 
