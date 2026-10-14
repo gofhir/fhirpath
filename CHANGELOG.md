@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.4](https://github.com/gofhir/fhirpath/compare/v1.14.3...v1.14.4) (2026-10-14)
+
+
+### Bug Fixes
+
+* = over collections answers false past an unknown pair, a number compares with a quantity, and in finds a FHIR Quantity ([#186](https://github.com/gofhir/fhirpath/issues/186)) ([547dd31](https://github.com/gofhir/fhirpath/commit/547dd3126ee55f49b96b8a7d801524abe0d496e2))
+
 ## [1.14.3](https://github.com/gofhir/fhirpath/compare/v1.14.2...v1.14.3) (2026-10-14)
 
 
