@@ -7,6 +7,7 @@ import (
 	"strconv"
 	"strings"
 	"time"
+	"unicode/utf16"
 
 	"github.com/antlr4-go/antlr/v4"
 
@@ -2997,6 +2998,16 @@ func unquoteString(s string) string {
 				// parsing it at that width is what makes the rune conversion
 				// exact rather than merely likely
 				if code, err := strconv.ParseUint(string(runes[i+1:i+5]), 16, 16); err == nil {
+					// A surrogate pair written as two escapes is one
+					// character: '\uD83D\uDD25' is '🔥', as 3.0.0's
+					// examples have it
+					if code >= 0xD800 && code <= 0xDBFF {
+						if low, ok := lowSurrogateAt(runes, i+5); ok {
+							b.WriteRune(utf16.DecodeRune(rune(code), low))
+							i += 10
+							continue
+						}
+					}
 					b.WriteRune(rune(code))
 					i += 4
 					continue
@@ -3011,6 +3022,18 @@ func unquoteString(s string) string {
 	}
 
 	return b.String()
+}
+
+// lowSurrogateAt reads a \uXXXX escape at runes[at:] that is a low surrogate.
+func lowSurrogateAt(runes []rune, at int) (rune, bool) {
+	if at+5 >= len(runes) || runes[at] != '\\' || runes[at+1] != 'u' {
+		return 0, false
+	}
+	code, err := strconv.ParseUint(string(runes[at+2:at+6]), 16, 16)
+	if err != nil || code < 0xDC00 || code > 0xDFFF {
+		return 0, false
+	}
+	return rune(code), true
 }
 
 // stripBackticks removes backtick delimiters from delimited identifiers.

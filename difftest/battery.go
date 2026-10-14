@@ -150,6 +150,12 @@ func evaluateWithJava(cases []batteryCase, jar string, jobs int) (map[string]ans
 			defer wg.Done()
 			for c := range work {
 				a, err := evaluateOneWithJava(c, jar)
+				if err != nil {
+					// A run that writes no result under load, a JVM short of
+					// memory beside the others, is tried once more before it
+					// stops the battery
+					a, err = evaluateOneWithJava(c, jar)
+				}
 				mu.Lock()
 				if err != nil && firstErr == nil {
 					firstErr = err

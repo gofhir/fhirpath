@@ -1,0 +1,1 @@
+REQ-STRINGS-074/REQ-STRINGS-074-a deliberate strings trim removes a form feed, as fhirpath.js and the Java engine both do (rule 1): tab, line feed, vertical tab, form feed, carriage return and space; both versions name only tab, space, line feed and carriage return, the Whitespace lexical category

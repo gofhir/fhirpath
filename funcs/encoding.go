@@ -3,7 +3,7 @@
 // Per the FHIRPath specification, section "String Manipulation" (Standard for
 // Trial Use):
 //
-//	encode(format : String) : String    // hex, base64, urlbase64
+//	encode(format : String) : String    // hex, base64, urlbase64, ascii
 //	decode(format : String) : String    // same formats as encode
 //	escape(target : String) : String    // html, json
 //	unescape(target : String) : String  // same targets as escape
@@ -20,17 +20,19 @@ import (
 	"fmt"
 	"html"
 	"strings"
+	"unicode"
 	"unicode/utf16"
+	"unicode/utf8"
 
 	"github.com/gofhir/fhirpath/eval"
 	"github.com/gofhir/fhirpath/types"
 )
 
 func init() {
-	Register(FuncDef{Name: "encode", MinArgs: 1, MaxArgs: 1, Fn: singleInput("encode", fnEncode)})
-	Register(FuncDef{Name: "decode", MinArgs: 1, MaxArgs: 1, Fn: singleInput("decode", fnDecode)})
-	Register(FuncDef{Name: "escape", MinArgs: 1, MaxArgs: 1, Fn: singleInput("escape", fnEscape)})
-	Register(FuncDef{Name: "unescape", MinArgs: 1, MaxArgs: 1, Fn: singleInput("unescape", fnUnescape)})
+	Register(FuncDef{Name: "encode", MinArgs: 1, MaxArgs: 1, Fn: singleInput("encode", singleArgs("encode", fnEncode))})
+	Register(FuncDef{Name: "decode", MinArgs: 1, MaxArgs: 1, Fn: singleInput("decode", singleArgs("decode", fnDecode))})
+	Register(FuncDef{Name: "escape", MinArgs: 1, MaxArgs: 1, Fn: singleInput("escape", singleArgs("escape", fnEscape))})
+	Register(FuncDef{Name: "unescape", MinArgs: 1, MaxArgs: 1, Fn: singleInput("unescape", singleArgs("unescape", fnUnescape))})
 }
 
 // Encoding formats and escaping targets named by the specification.
@@ -38,6 +40,7 @@ const (
 	formatHex       = "hex"
 	formatBase64    = "base64"
 	formatURLBase64 = "urlbase64"
+	formatASCII     = "ascii"
 
 	targetHTML = "html"
 	targetJSON = "json"
@@ -78,6 +81,17 @@ func fnEncode(_ *eval.Context, input types.Collection, args []interface{}) (type
 		return types.Collection{types.NewString(base64.StdEncoding.EncodeToString([]byte(value)))}, nil
 	case formatURLBase64:
 		return types.Collection{types.NewString(base64.URLEncoding.EncodeToString([]byte(value)))}, nil
+	case formatASCII:
+		// "any character above character code 127 replaced with ?", a
+		// character being a Unicode scalar value: 'a🔥b' is 'a?b'
+		var b strings.Builder
+		for _, r := range value {
+			if r > unicode.MaxASCII {
+				r = '?'
+			}
+			b.WriteRune(r)
+		}
+		return types.Collection{types.NewString(b.String())}, nil
 	}
 	return types.Collection{}, nil
 }
@@ -104,8 +118,10 @@ func fnDecode(_ *eval.Context, input types.Collection, args []interface{}) (type
 		return types.Collection{}, nil
 	}
 
-	if err != nil {
-		// Not valid for this encoding: empty, per the absence of an error result
+	// Not valid for this encoding, or bytes that are no UTF-8 string: "If the
+	// content being decoded is not a valid UTF-8 value, the result will be
+	// empty" (3.0.0)
+	if err != nil || !utf8.Valid(decoded) {
 		return types.Collection{}, nil
 	}
 	return types.Collection{types.NewString(string(decoded))}, nil

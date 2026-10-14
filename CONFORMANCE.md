@@ -431,6 +431,7 @@ comparison, filtering, strings, collections.
 | boolean-logic | 17 | 91 | 91 | 0 |
 | equality-comparison | 46 | 325 | 318 | 1, `23 ~ 23 '1'`, following the text |
 | filtering-projection | 40 | 114 | all, 112 in R4 and 114 in R5 | none where the other two answer; `repeatAll()` and `System.Any`, which both refuse |
+| strings | 88 | 317 | 316 | on two points, each as 3.0.0 states: characters counted as Unicode scalar values, and `encode('hex')` in lower case |
 
 **Existence.** One gap, closed: a criteria that evaluates to more than one
 item, `(1 | 2).exists(true | false)` or `Patient.name.exists(given)` on a name
@@ -505,6 +506,44 @@ fhirpath.js is wrong in two: `repeat(item | item.item)` keeps duplicates past
 six items, and `ofType(string)` keeps a `markdown`, which FHIR says is no
 subclass of string. Neither it nor the Java engine implements `repeatAll()`,
 3.0.0's trial-use function, which this engine does.
+
+### Strings
+
+Six gaps, closed:
+
+- An argument of more than one item, `'abc'.startsWith('a' | 'b')`, was read
+  as no argument; "If the function expects the argument passed to a parameter
+  to be a single value ... and it is passed an argument that evaluates to a
+  collection with multiple items, ... the evaluation of the expression will
+  end and an error will be signaled to the calling environment" (2.0.0). It
+  now does, for the string and encoding functions, as fhirpath.js does, where
+  the Java engine answers from one of them.
+- A surrogate pair written as two escapes, `'\uD83D\uDD25'`, read as two
+  characters; it is now one, `'🔥'`.
+- `encode('ascii')`, 3.0.0's, was not implemented: "any character above
+  character code 127 replaced with `?`", a character being a scalar value.
+- `decode()` turned bytes that are no UTF-8 into replacement characters: "If
+  the content being decoded is not a valid UTF-8 value, the result will be
+  empty".
+- `trim()` removed every Unicode space; see the decision below.
+- `{}.join()` was the empty string; "If the input is empty, the result is
+  empty".
+
+Characters are Unicode scalar values, as 3.0.0 states with its examples,
+`'🔥'.length()` 1 and `'a🔥b'.indexOf('b')` 2. fhirpath.js and the Java engine
+count UTF-16 code units, 2 and 3, and cut a surrogate pair apart in
+`substring()` and `toChars()`, which leaves no string; see
+[Measured, and not followed](#measured-and-not-followed).
+
+`trim()` removes tab, line feed, vertical tab, form feed, carriage return and
+space. 3.0.0, which defines it, trims "whitespace characters as defined in the
+Whitespace lexical category", which names four of those: tab, space, line feed
+and carriage return. fhirpath.js and the Java engine both remove the vertical
+tab and the form feed too, and this engine follows them, so `'\fa'.trim()` is
+`a`, against the case written to the text. Where the two part, the text's
+reading stays: the Java engine trims every character up to space, `\u0000`
+and `\u001F` among them, and fhirpath.js every Unicode space, the no-break
+space and `\u2003` among them; this engine trims neither.
 
 ## Static analysis
 
@@ -1411,7 +1450,15 @@ keeps its own answer.
 | `subsetOf()` and `supersetOf()` with decimals written to other precisions: `1.0.subsetOf(1.00 \| 2.0)` | false | true, as fhirpath.js answers | Membership is by `=`, under which "trailing zeroes after the decimal are ignored" |
 | `distinct()`, `isDistinct()`, `subsetOf()` and `repeat()` over dates at different precisions: `@2012.combine(@2012-01)`, `@2012.subsetOf(@2012-01)`, `1.repeat(@2012.combine(@2012-01)).count()` | `distinct().count()` 0, `isDistinct()` empty, `subsetOf()` true, `repeat()` 1 | 2, true, false, 2, as fhirpath.js answers | No item kept of two, neither said equal; a member of what holds no equal to it. 3.0.0: an empty `=` is not a match |
 | `ofType(System.Quantity)` on a quantity literal: `'a'.combine(5 'mg').ofType(System.Quantity).count()` | 0 | 1, as fhirpath.js answers | A quantity literal is a System.Quantity |
-| `min()`, `max()`, `toDate()`, `repeatAll()`; `ofType(System.Any)` | not known functions; System.Any no type | | Not implemented there |
+| Characters counted as UTF-16 code units: `'🔥'.length()`, `'a🔥b'.indexOf('b')`, `'a\uD83D\uDD25b'.toChars()` | 2, 3, four items, the pair cut in two | 1, 2, three items: Unicode scalar values, as 3.0.0 states | fhirpath.js counts as the Java engine does, and both cut a pair into halves that are no string |
+| A string function given more than one item: `Patient.name.given.startsWith('P')` | true, from one of them; `upper()`, `toChars()` empty | an error, as fhirpath.js raises | "If the input collection contains multiple items, the evaluation of the expression will end and signal an error": a constraint over a repeating element passes silently there |
+| A string function given a value that is no String: `1.startsWith('1')`, `true.upper()` | empty | an error, as fhirpath.js raises | The input must be a String |
+| A string or encoding function given an argument of more than one item: `'abc'.startsWith('a' \| 'b')`, `'a,b;c'.split(',' \| ';')`, `'abc'.substring(0 \| 1)` | false, `a` and `b;c`, `abc`: an answer from the first | an error, as fhirpath.js raises | An argument "that evaluates to a collection with multiple items" ends the evaluation |
+| `decode()` of bytes that are no UTF-8: `'ff'.decode('hex')` | the replacement character | empty; fhirpath.js raises "URI malformed" | "If the content being decoded is not a valid UTF-8 value, the result will be empty" (3.0.0) |
+| `substring(3, {})`, `substring(3, 0)`, `''.upper()`, `''.lower()` | empty | `defg`, `''`, `''`, `''`, as fhirpath.js answers | An empty length is no length, and the empty string is a string |
+| `matchesFull()` with an empty input or argument | false | empty, as fhirpath.js answers | Empty in, empty out |
+| `encode('hex')` | upper case, `7A3F` | lower case, `7a3f` | 3.0.0: "hexadecimal characters (base 16) in lowercase"; fhirpath.js mixes the cases |
+| `min()`, `max()`, `toDate()`, `repeatAll()`, `lastIndexOf()`, regular expression flags, `encode('ascii')`; `ofType(System.Any)` | not known functions or formats; System.Any no type | | Not implemented there; fhirpath.js has neither `repeatAll()` nor the `ascii` format |
 
 ## Decisions taken where the specification is silent
 
