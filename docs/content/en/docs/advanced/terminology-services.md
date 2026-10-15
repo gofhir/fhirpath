@@ -325,6 +325,33 @@ func main() {
 }
 ```
 
+## Subsumption and HTML Checks
+
+`subsumes()` and `subsumedBy()` decide equivalence themselves, by `system` and
+`code`. For a hierarchy they ask the `TerminologyService`, when it also
+implements `eval.Subsumer`:
+
+```go
+type Subsumer interface {
+    // Subsumes reports whether source subsumes given. Both come as memberOf()
+    // passes a code: a Coding or CodeableConcept as a map.
+    Subsumes(ctx context.Context, source, given interface{}) (bool, error)
+}
+```
+
+`htmlChecks()` asks an `HTMLChecker`, given with `fhirpath.WithHTMLChecker` or
+set with `eval.Context.SetHTMLChecker`, about a single xhtml element:
+
+```go
+type HTMLChecker interface {
+    // HTMLChecks reports whether the xhtml passes FHIR's checks.
+    HTMLChecks(ctx context.Context, xhtml string) (bool, error)
+}
+```
+
+Without a checker, `htmlChecks()` on an xhtml element ends the evaluation with
+an error; on anything else it is empty.
+
 ## Behavior When Services Are Not Configured
 
 | Scenario                        | memberOf() returns | conformsTo() returns |
@@ -334,6 +361,7 @@ func main() {
 | Code is a member / conforms     | `[true]`           | `[true]`             |
 | Code is not a member / does not conform | `[false]`  | `[false]`            |
 | Input is empty                  | empty collection   | empty collection     |
+| Value set is no URI, R4 rules   | error              |                      |
 
 This behavior follows the FHIRPath specification's treatment of unknown results:
 when the system cannot determine the answer, it returns an empty collection rather

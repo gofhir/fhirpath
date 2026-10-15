@@ -5,7 +5,6 @@
 HTMLChecks/htmlTest01
 HTMLChecks/htmlTest02
 HTMLChecks/htmlTest03
-HTMLChecks/htmlTest04
 HighBoundary/HighBoundaryDateTimeMillisecond1
 HighBoundary/HighBoundaryDateTimeMillisecond3
 HighBoundary/HighBoundaryDecimal15

@@ -8,7 +8,7 @@ import (
 )
 
 func init() {
-	Register(FuncDef{Name: "comparable", MinArgs: 1, MaxArgs: 1, Fn: singleInput("comparable", fnComparable)})
+	Register(FuncDef{Name: "comparable", MinArgs: 1, MaxArgs: 1, Fn: fnComparable})
 }
 
 // fnComparable returns true when the input quantity and the argument quantity
@@ -20,7 +20,10 @@ func init() {
 // the same irrespective of system, or both carry code and system and the codes
 // are commensurable within it — 'd' and 'h', or '[in_i]' and 'cm'.
 //
-// Returns empty unless both sides are single quantities, as the spec requires.
+// Returns empty unless both sides are single quantities, as the spec requires:
+// "If either or both inputs are empty, or either input is not a single Quantity
+// value, the result is empty". An Integer or a Decimal is one of unit '1', as
+// 3.0.0's 2 '1'.comparable(3) and 1.comparable(2), both true, read it.
 func fnComparable(_ *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
 	if len(args) == 0 {
 		return nil, eval.InvalidArgumentsError("comparable", 1, 0)
@@ -35,7 +38,7 @@ func fnComparable(_ *eval.Context, input types.Collection, args []interface{}) (
 	// its comparator not read; one whose value overflows is comparable to
 	// nothing. A value that is no quantity, a Money among them, cannot be
 	// compared with one: false, as fhirpath.js and the HL7 validator answer.
-	left, right, ok, err := eval.QuantityPair(input[0], argCol[0])
+	left, right, ok, err := eval.QuantityPair(unitOne(input[0]), unitOne(argCol[0]))
 	if err != nil {
 		return types.Collection{}, nil
 	}
@@ -44,4 +47,13 @@ func fnComparable(_ *eval.Context, input types.Collection, args []interface{}) (
 	}
 
 	return types.Collection{types.NewBoolean(left.Comparable(right))}, nil
+}
+
+// unitOne reads an Integer or a Decimal as a quantity of unit '1', the
+// implicit conversion 2.0.0 gives them, and leaves any other value as it is.
+func unitOne(v types.Value) types.Value {
+	if q, ok := types.UnitOne(v); ok {
+		return q
+	}
+	return v
 }

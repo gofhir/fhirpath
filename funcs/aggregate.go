@@ -220,8 +220,26 @@ func fnHasValue(_ *eval.Context, input types.Collection, _ []interface{}) (types
 	// complex value is no primitive: false, as fhirpath.js answers. HL7's
 	// Java engine answers true there; CONFORMANCE.md records why that is not
 	// followed.
+	//
+	// A single System value of a primitive type, 'a' or @2020, has a value too,
+	// as fhirpath.js and the Java engine both answer, though the text speaks of
+	// FHIR primitives alone. A quantity is no primitive.
 	_, has := primitiveValue(input)
+	if !has && len(input) == 1 {
+		has = isSystemPrimitive(input[0])
+	}
 	return types.Collection{types.NewBoolean(has)}, nil
+}
+
+// isSystemPrimitive reports whether v is a value of one of the System types a
+// FHIR primitive maps to.
+func isSystemPrimitive(v types.Value) bool {
+	switch v.(type) {
+	case types.String, types.Boolean, types.Integer, types.Decimal,
+		types.Date, types.DateTime, types.Time:
+		return true
+	}
+	return false
 }
 
 // fnGetValue returns "the underlying system value for the FHIR primitive if

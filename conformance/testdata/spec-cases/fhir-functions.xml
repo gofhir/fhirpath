@@ -1,0 +1,601 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tests name="fhir-functions" description="What FHIR's FHIRPath page (R4 and R5) adds to the language: extension(url), hasValue(), getValue(), the FHIR type model (primitives with a value child, the primitive-to-System mapping, resource names and supertypes at the root, contained resources), resolve(), conformsTo(), memberOf(), subsumes(), subsumedBy(), htmlChecks(), checkModifiers(), elementDefinition(), slice(), comparable(), lowBoundary() and highBoundary() on decimals, the variables %resource, %rootResource, %context, %ucum, %sct, %loinc and %vs-[name], and trace() from the FHIRPath specification. Only what the text settles without a terminology server, a reference resolver or profiles is covered: no case asks whether a code is a member of a value set, whether a resource conforms to a profile, what a slice or element definition contains, whether a reference resolves, or whether a narrative passes the HTML rules. Where the R4 and R5 pages differ (hasValue(), getValue(), conformsTo(), memberOf(), subsumes(), htmlChecks(), checkModifiers(), slice()) the cases are per version. Left out because the text does not settle them: hasValue() and getValue() outside a single valued primitive under R4, %resource inside a contained resource, the value of %sct, %loinc and %ext-[name], whether a reference '1' resolves to a contained resource with id 1, the order in which a function checks its input and its arguments, lowBoundary() and highBoundary() on dates, integers and Quantities (R5's page lists Quantity among the types, 3.0.0 does not), whether getValue() of a FHIR.date is a System.DateTime or a System.Date, conformsTo() on an empty input under R4, subsumes() and subsumedBy() across code systems, and the FHIR Quantity without a UCUM code. Also left out: ofType() on FHIR types (filtering-projection area), equivalence on Coding and CodeableConcept and the Quantity mapping (equality-comparison area), the restricted subset, lowBoundary() and highBoundary() with a precision argument (3.0.0's utility functions), and R5's draft %factory, %terminologies and %server APIs.">
+
+  <group name="REQ-FHIRFUNCTIONS-001" description="extension(url) returns the extensions of the input items whose url is the given one, as .extension.where(url = string) does">
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">Will filter the input collection for items named "extension" with the given url. This is a syntactical shortcut for .extension.where(url = string) , but is simpler to write.</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">Will filter the input collection for items named "extension" with the given url. This is a syntactical shortcut for .extension.where(url = string) , but is simpler to write.</source>
+    <source spec="fhirpath-2.0.0" section="where(criteria : expression) : collection" strength="DEFINITION">Returns a collection containing only those elements in the input collection for which the stated `criteria` expression evaluates to `true`.</source>
+    <test name="REQ-FHIRFUNCTIONS-001-a" inputfile="patient-example.xml"><expression>Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').value = @1974-12-25T14:35:45-05:00</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-001-b" inputfile="patient-example.xml"><expression>Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').count()</expression><output type="integer">1</output></test>
+    <test name="REQ-FHIRFUNCTIONS-001-c" inputfile="patient-example.xml"><expression>Patient.contact.name.family.extension('http://hl7.org/fhir/StructureDefinition/humanname-own-prefix').value = 'VV'</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-001-d" inputfile="observation-example.xml"><expression>Observation.extension('http://example.com/fhir/StructureDefinition/patient-age').exists()</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-001-e" inputfile="patient-name-extensions.json"><expression>Patient.name.given.extension('https://example.org/syllable-count').value = 'five'</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-002" description="extension(url) looks only at the extension children of the input items, and only at the url that is equal to the argument">
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">This is a syntactical shortcut for .extension.where(url = string) , but is simpler to write.</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">This is a syntactical shortcut for .extension.where(url = string) , but is simpler to write.</source>
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">`String`: comparison is based on Unicode values</source>
+    <test name="REQ-FHIRFUNCTIONS-002-a" inputfile="patient-example.xml"><expression>Patient.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime')</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-002-b" inputfile="patient-example.xml"><expression>Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/humanname-own-prefix')</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-002-c" inputfile="patient-example.xml"><expression>Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthtime')</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-002-d" inputfile="patient-example.xml"><expression>Patient.contact.extension('http://hl7.org/fhir/StructureDefinition/humanname-own-prefix')</expression></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-003" description="extension(url) over several input items collects the matching extensions of every item, the same collection .extension.where(url = string) gives">
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">This is a syntactical shortcut for .extension.where(url = string) , but is simpler to write.</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">This is a syntactical shortcut for .extension.where(url = string) , but is simpler to write.</source>
+    <source spec="fhirpath-2.0.0" section="descendants() : collection" strength="DEFINITION">Returns a collection with all descendant nodes of all items in the input collection.</source>
+    <test name="REQ-FHIRFUNCTIONS-003-a" inputfile="patient-example.xml"><expression>Patient.descendants().extension('http://hl7.org/fhir/StructureDefinition/humanname-own-prefix').value = 'VV'</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-003-b" inputfile="patient-example.xml"><expression>Patient.descendants().extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').count()</expression><output type="integer">1</output></test>
+    <test name="REQ-FHIRFUNCTIONS-003-c" inputfile="patient-example.xml"><expression>Patient.descendants().extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime') = Patient.descendants().extension.where(url = 'http://hl7.org/fhir/StructureDefinition/patient-birthTime')</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-003-d" inputfile="patient-name-extensions.json"><expression>Patient.name.given.extension('https://example.org/syllable-count').count()</expression><output type="integer">1</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-004" description="extension(url) is empty when the input is empty or the url is empty">
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">Will return an empty collection if the input collection is empty or the url is empty.</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">Will return an empty collection if the input collection is empty or the url is empty.</source>
+    <test name="REQ-FHIRFUNCTIONS-004-a" inputfile="patient-example.xml"><expression>Patient.link.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime')</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-004-b"><expression>{}.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime')</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-004-c" inputfile="patient-example.xml"><expression>Patient.birthDate.extension({})</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-004-d" inputfile="patient-example.xml"><expression>Patient.birthDate.extension('')</expression></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-005" description="A FHIR primitive compares as its value and also has extensions, so the page's two examples (the value of a primitive, the value of its extension) can both hold for the same element; shown on the example Patient's contact family name, which has a value and an extension">
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">Since FHIR primitives may contain extensions, so that the following expressions are not mutually exclusive:</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="EXAMPLE">Patient.name.given = 'Ewout' // value of Patient.name.given as a string</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="EXAMPLE">Patient.name.given.extension.first().value = true // extension of the primitive value</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">Since FHIR primitives may contain extensions, the following expressions are not mutually exclusive:</source>
+    <source spec="fhirpath-2.0.0" section="and" strength="DEFINITION">Returns `true` if both operands evaluate to `true`, `false` if either operand evaluates to `false`, and the empty collection (`{ }`) otherwise.</source>
+    <test name="REQ-FHIRFUNCTIONS-005-a" inputfile="patient-example.xml"><expression>Patient.contact.name.family = 'du Marché'</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-005-b" inputfile="patient-example.xml"><expression>Patient.contact.name.family.extension.first().value = 'VV'</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-005-c" inputfile="patient-example.xml"><expression>(Patient.contact.name.family = 'du Marché') and (Patient.contact.name.family.extension.first().value = 'VV')</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-006" description="There is no difference between an attribute and an element: the url of an extension, an XML attribute, is navigated like any element">
+    <source spec="fhir-r4" section="2.9.1 Using FHIRPath with Resources" strength="DEFINITION">There is no difference between an attribute and an element</source>
+    <source spec="fhir-r5" section="2.1.9.1 Using FHIRPath with Resources" strength="DEFINITION">There is no difference between an attribute and an element</source>
+    <test name="REQ-FHIRFUNCTIONS-006-a" inputfile="patient-example.xml"><expression>Patient.birthDate.extension.url = 'http://hl7.org/fhir/StructureDefinition/patient-birthTime'</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-006-b" inputfile="patient-example.xml"><expression>Patient.contact.name.family.extension.url = 'http://hl7.org/fhir/StructureDefinition/humanname-own-prefix'</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-007" description="hasValue() is true for a single FHIR primitive that has a value, whether or not it also has extensions">
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">Returns true if the input collection contains a single value which is a FHIR primitive, and it has a primitive value (e.g. as opposed to not having a value and just having extensions).</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">Returns true if the input collection contains a single value which is a FHIR primitive, and it has a primitive value (e.g. as opposed to not having a value and just having extensions).</source>
+    <test name="REQ-FHIRFUNCTIONS-007-a" inputfile="patient-example.xml"><expression>Patient.birthDate.hasValue()</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-007-b" inputfile="patient-example.xml"><expression>Patient.active.hasValue()</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-007-c" inputfile="patient-example.xml"><expression>Patient.name[0].family.hasValue()</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-007-d" inputfile="patient-name-extensions.json"><expression>Patient.name.given[1].hasValue()</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-007-e" inputfile="parameters-example-types.xml"><expression>Parameters.parameter.where(name = 'uuid').value.hasValue()</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-008" description="hasValue() is not true for a primitive with extensions and no value, for a non-primitive, for several items, for an empty input or for a System value (no FHIR primitive); whether the answer is false or empty differs between the pages, so the cases only require that it is not true (allFalse() is true of both false and empty)">
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">Returns true if the input collection contains a single value which is a FHIR primitive, and it has a primitive value (e.g. as opposed to not having a value and just having extensions).</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">Returns true if the input collection contains a single value which is a FHIR primitive, and it has a primitive value (e.g. as opposed to not having a value and just having extensions). Otherwise, the return value is empty.</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">Understanding the primitive types is critical: FHIR.string is a different type to System.String.</source>
+    <source spec="fhirpath-2.0.0" section="allFalse() : Boolean" strength="DEFINITION">Takes a collection of Boolean values and returns `true` if all the items are `false`. If any items are `true`, the result is `false`. If the input is empty (`{ }`), the result is `true`.</source>
+    <test name="REQ-FHIRFUNCTIONS-008-a" inputfile="patient-name-extensions.json"><expression>Patient.name.given[0].hasValue().allFalse()</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-008-b" inputfile="patient-example.xml"><expression>Patient.name[0].hasValue().allFalse()</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-008-c" inputfile="patient-example.xml"><expression>Patient.name.given.hasValue().allFalse()</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-008-d" inputfile="patient-example.xml"><expression>Patient.link.hasValue().allFalse()</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-008-e"><expression>'a'.hasValue().allFalse()</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-009" fhir="r5" description="Under R5, hasValue() is empty whenever the input is not a single FHIR primitive with a value: a primitive with only extensions, a non-primitive, several items, an empty input, a System value">
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">Returns true if the input collection contains a single value which is a FHIR primitive, and it has a primitive value (e.g. as opposed to not having a value and just having extensions). Otherwise, the return value is empty.</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">Understanding the primitive types is critical: FHIR.string is a different type to System.String.</source>
+    <test name="REQ-FHIRFUNCTIONS-009-a" inputfile="patient-name-extensions.json"><expression>Patient.name.given[0].hasValue()</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-009-b" inputfile="patient-example.xml"><expression>Patient.name[0].hasValue()</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-009-c" inputfile="patient-example.xml"><expression>Patient.name.given.hasValue()</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-009-d" inputfile="patient-example.xml"><expression>Patient.link.hasValue()</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-009-e"><expression>'a'.hasValue()</expression></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-010" description="getValue() returns the System value of a single FHIR primitive that has a value">
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">Return the underlying system value for the FHIR primitive (see discussion above).</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">Return the underlying system value for the FHIR primitive if the input collection contains a single value which is a FHIR primitive, and it has a primitive value (see discussion for hasValue()).</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">As shown, all FHIR primitives have the operation getValue() defined (see below) for the few edge cases where the automatic conversion isn't appropriate.</source>
+    <test name="REQ-FHIRFUNCTIONS-010-a" inputfile="patient-example.xml"><expression>Patient.active.getValue()</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-010-b" inputfile="patient-example.xml"><expression>Patient.name[0].family.getValue()</expression><output type="string">Chalmers</output></test>
+    <test name="REQ-FHIRFUNCTIONS-010-c" inputfile="patient-example.xml"><expression>Patient.birthDate.extension.value.getValue() = @1974-12-25T14:35:45-05:00</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-010-d" inputfile="parameters-example-types.xml"><expression>Parameters.parameter.where(name = 'decimal').value.getValue() = 1.0</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-010-e" inputfile="patient-name-extensions.json"><expression>Patient.name.given[1].getValue()</expression><output type="string">James</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-011" description="getValue() gives the System type the page's mapping assigns to the FHIR primitive: String for string, code, uri, uuid and markdown; Integer for integer and positiveInt; Decimal for decimal; Boolean for boolean; DateTime for dateTime (FHIR.date, which the same row maps to DateTime, has no case: see the open questions)">
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.boolean
+System.Boolean</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.string, FHIR.uri, FHIR.code, FHIR.oid, FHIR.id, FHIR.uuid, FHIR.sid, FHIR.markdown, FHIR.base64Binary
+System.String</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.integer, FHIR.unsignedInt, FHIR.positiveInt
+System.Integer</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.decimal
+System.Decimal</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.date, FHIR.dateTime, FHIR.instant
+System.DateTime</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.string, FHIR.uri, FHIR.code, FHIR.oid, FHIR.id, FHIR.uuid, FHIR.markdown, FHIR.base64Binary
+System.String</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.date, FHIR.dateTime, FHIR.instant
+System.DateTime</source>
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">Return the underlying system value for the FHIR primitive (see discussion above).</source>
+    <source spec="fhirpath-2.0.0" section="is _type specifier_" strength="DEFINITION">If the left operand is a collection with a single item and the second operand is a type identifier, this operator returns `true` if the type of the left operand is the type specified in the second operand, or a subclass thereof.</source>
+    <test name="REQ-FHIRFUNCTIONS-011-a" inputfile="patient-example.xml"><expression>Patient.name[0].family.getValue().is(System.String)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-011-b" inputfile="patient-example.xml"><expression>Patient.gender.getValue().is(System.String)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-011-c" inputfile="questionnaire-example.xml"><expression>Questionnaire.url.getValue().is(System.String)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-011-d" inputfile="parameters-example-types.xml"><expression>Parameters.parameter.where(name = 'uuid').value.getValue().is(System.String)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-011-e" inputfile="valueset-example-expansion.xml"><expression>ValueSet.description.getValue().is(System.String)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-011-f" inputfile="parameters-example-types.xml"><expression>Parameters.parameter.where(name = 'integer').value.getValue().is(System.Integer)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-011-g" inputfile="patient-example.xml"><expression>Patient.telecom[1].rank.getValue().is(System.Integer)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-011-h" inputfile="parameters-example-types.xml"><expression>Parameters.parameter.where(name = 'decimal').value.getValue().is(System.Decimal)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-011-i" inputfile="patient-example.xml"><expression>Patient.active.getValue().is(System.Boolean)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-011-j" inputfile="observation-example.xml"><expression>Observation.effective.getValue().is(System.DateTime)</expression><output type="boolean">true</output></test>  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-012" description="The page's is() examples: a FHIR string is a FHIR.string and not a System.String, and its getValue() is a System.String; shown on one given name, since is() of several items is an error, and with System.String where the examples write System.string">
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">Understanding the primitive types is critical: FHIR.string is a different type to System.String.</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The automatic conversion means that in most respects, a FHIR primitive can generally be treated as if it was the equivalent FHIRPath system type. The primary exception is the is() operation, where the difference is explicit:</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="EXAMPLE">Patient.name.given.is(FHIR.string);</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="EXAMPLE">Patient.name.given.is(System.string).not();</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="EXAMPLE">Patient.name.given.getValue().is(System.string);</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">Understanding the primitive types is critical: FHIR.string is a different type to System.String.</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="EXAMPLE">Patient.name.given.is(System.string).not();</source>
+    <source spec="fhirpath-2.0.0" section="is _type specifier_" strength="DEFINITION">If the left operand is a collection with a single item and the second operand is a type identifier, this operator returns `true` if the type of the left operand is the type specified in the second operand, or a subclass thereof. If the input value is not of the type, this operator returns `false`.</source>
+    <test name="REQ-FHIRFUNCTIONS-012-a" inputfile="patient-example.xml"><expression>Patient.name.given.first().is(FHIR.string)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-012-b" inputfile="patient-example.xml"><expression>Patient.name.given.first().is(System.String).not()</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-012-c" inputfile="patient-example.xml"><expression>Patient.name.given.first().getValue().is(System.String)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-012-d" inputfile="patient-example.xml"><expression>Patient.name.given.first().getValue().is(FHIR.string)</expression><output type="boolean">false</output></test>
+    <test name="REQ-FHIRFUNCTIONS-012-e" inputfile="patient-example.xml"><expression>Patient.name.given.first() = 'Peter'</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-013" fhir="r4" description="The R4 page's example Patient.name.given.as(FHIR.string) is valid: as() of one given name with FHIR.string returns it">
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">Note that as() does not have such restrictions - both of the following are valid:</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="EXAMPLE">Patient.name.given.as(FHIR.string);</source>
+    <source spec="fhirpath-2.0.0" section="as _type specifier_" strength="DEFINITION">If the left operand is a collection with a single item and the second operand is an identifier, this operator returns the value of the left operand if it is of the type specified in the second operand, or a subclass thereof.</source>
+    <test name="REQ-FHIRFUNCTIONS-013-a" inputfile="patient-example.xml"><expression>Patient.name.given.first().as(FHIR.string)</expression><output type="string">Peter</output></test>
+    <test name="REQ-FHIRFUNCTIONS-013-b" inputfile="patient-example.xml"><expression>Patient.name.given.first().as(FHIR.string) = 'Peter'</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-014" fhir="r5" description="Under R5, getValue() is empty unless the input is a single FHIR primitive with a value: a primitive with only extensions, several items, a non-primitive and a System value all give empty">
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">Return the underlying system value for the FHIR primitive if the input collection contains a single value which is a FHIR primitive, and it has a primitive value (see discussion for hasValue()). Otherwise the return value is empty.</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">Understanding the primitive types is critical: FHIR.string is a different type to System.String.</source>
+    <test name="REQ-FHIRFUNCTIONS-014-a" inputfile="patient-name-extensions.json"><expression>Patient.name.given[0].getValue()</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-014-b" inputfile="patient-example.xml"><expression>Patient.name.given.getValue()</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-014-c" inputfile="patient-example.xml"><expression>Patient.name[0].getValue()</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-014-d"><expression>'a'.getValue()</expression></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-015" description="getValue() of an empty input is empty (stated by R5's page; under R4 by the base rule for functions that take a single input)">
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">Return the underlying system value for the FHIR primitive if the input collection contains a single value which is a FHIR primitive, and it has a primitive value (see discussion for hasValue()). Otherwise the return value is empty.</source>
+    <source spec="fhirpath-2.0.0" section="Propagation of empty results in expressions" strength="DEFINITION">If a single-input operator or function operates on an empty collection, the result is an empty collection</source>
+    <test name="REQ-FHIRFUNCTIONS-015-a" inputfile="patient-example.xml"><expression>Patient.link.getValue()</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-015-b" inputfile="patient-example.xml"><expression>Patient.maritalStatus.text.getValue()</expression></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-016" description="A FHIR primitive has a value child of the System type, returned by children() and descendants() beside its extensions; a primitive without a value has no value child">
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">In FHIRPath, this means that FHIR primitives have a value child, but, as described above, they are automatically cast to FHIRPath primitives when comparisons are made, and that the primitive value will be included in the set returned by children() or descendants() .</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">In FHIRPath, this means that FHIR primitives have a value child, but, as described above, they are automatically cast to FHIRPath primitives when comparisons are made, and that the primitive value will be included in the set returned by children() or descendants() .</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The FHIR.string type specializes FHIR.Element, and has the properties id, extension, and also
+the implicit value property that is actually of type of System.String.</source>
+    <source spec="fhirpath-2.0.0" section="children() : collection" strength="DEFINITION">Returns a collection with all immediate child nodes of all items in the input collection.</source>
+    <source spec="fhirpath-2.0.0" section="descendants() : collection" strength="DEFINITION">Returns a collection with all descendant nodes of all items in the input collection. The result does not include the nodes in the input collection themselves.</source>
+    <test name="REQ-FHIRFUNCTIONS-016-a" inputfile="patient-example.xml"><expression>Patient.name[0].family.children().count()</expression><output type="integer">1</output></test>
+    <test name="REQ-FHIRFUNCTIONS-016-b" inputfile="patient-example.xml"><expression>Patient.name[0].family.children().is(System.String)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-016-c" inputfile="patient-example.xml"><expression>Patient.contact.name.family.children().count()</expression><output type="integer">2</output></test>
+    <test name="REQ-FHIRFUNCTIONS-016-d" inputfile="patient-example.xml"><expression>Patient.active.descendants().count()</expression><output type="integer">1</output></test>
+    <test name="REQ-FHIRFUNCTIONS-016-e" inputfile="patient-name-extensions.json"><expression>Patient.name.given[0].children().count()</expression><output type="integer">1</output></test>
+    <test name="REQ-FHIRFUNCTIONS-016-f" inputfile="patient-name-extensions.json"><expression>Patient.name.given[1].children().count()</expression><output type="integer">1</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-017" description="An expression may start with the resource name or leave it out, and the name may be a supertype such as DomainResource, which applies to any resource that specializes it">
+    <source spec="fhir-r4" section="2.9.1 Using FHIRPath with Resources" strength="DEFINITION">A FHIRPath may optionally start with a full resource name</source>
+    <source spec="fhir-r4" section="2.9.1.1 Polymorphism in FHIR" strength="DEFINITION">The name can also include super types such as DomainResource:</source>
+    <source spec="fhir-r4" section="2.9.1.1 Polymorphism in FHIR" strength="DEFINITION">These statements apply to any resource that specializes DomainResource .</source>
+    <source spec="fhir-r5" section="2.1.9.1.1 Polymorphism in FHIR" strength="DEFINITION">The name can also include super types such as DomainResource:</source>
+    <source spec="fhirpath-2.0.0" section="Models" strength="DEFINITION">When resolving an identifier that is also the root of a FHIRPath expression, it is resolved as a type name first, and if it resolves to a type, it must resolve to the type of the context (or a supertype). Otherwise, it is resolved as a path on the context.</source>
+    <test name="REQ-FHIRFUNCTIONS-017-a" inputfile="patient-container-example.json"><expression>DomainResource.contained.id = '1'</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-017-b" inputfile="patient-example.xml"><expression>DomainResource.text.status = 'generated'</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-017-c" inputfile="patient-example.xml"><expression>name.given.count() = Patient.name.given.count()</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-018" description="FHIR types are named in the FHIR namespace: the page's example Patient.is(FHIR.Patient) is true, a resource is also of its supertype, and not of another resource type">
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The namespace for the types defined in FHIR (primitive data types, data types, resources) is FHIR.</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="EXAMPLE">Patient.is(FHIR.Patient)</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The first element - the type name - is not namespaced, but the parameter to the is() operation is.</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The namespace for the types defined in FHIR (primitive datatypes, datatypes, resources) is FHIR.</source>
+    <source spec="fhir-r4" section="2.9.1.1 Polymorphism in FHIR" strength="DEFINITION">These statements apply to any resource that specializes DomainResource .</source>
+    <source spec="fhirpath-2.0.0" section="is _type specifier_" strength="DEFINITION">If the left operand is a collection with a single item and the second operand is a type identifier, this operator returns `true` if the type of the left operand is the type specified in the second operand, or a subclass thereof. If the input value is not of the type, this operator returns `false`.</source>
+    <test name="REQ-FHIRFUNCTIONS-018-a" inputfile="patient-example.xml"><expression>Patient.is(FHIR.Patient)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-018-b" inputfile="patient-example.xml"><expression>Patient.is(FHIR.DomainResource)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-018-c" inputfile="patient-example.xml"><expression>Patient.is(FHIR.Observation)</expression><output type="boolean">false</output></test>
+    <test name="REQ-FHIRFUNCTIONS-018-d" inputfile="observation-example.xml"><expression>Observation.is(FHIR.Observation)</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-019" description="The contained element node is the contained resource itself: its children are the contained resource's children and it is of the contained resource's type">
+    <source spec="fhir-r4" section="2.9.1 Using FHIRPath with Resources" strength="DEFINITION">The contained element node does not have the name of the Resource as its first and only child (instead it directly contains the contained resource’s children)</source>
+    <source spec="fhir-r5" section="2.1.9.1 Using FHIRPath with Resources" strength="DEFINITION">The contained element node does not have the name of the Resource as its first and only child (instead it directly contains the contained resource’s children)</source>
+    <test name="REQ-FHIRFUNCTIONS-019-a" inputfile="patient-container-example.json"><expression>Patient.contained.id = '1'</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-019-b" inputfile="patient-container-example.json"><expression>Patient.contained.is(FHIR.Organization)</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-020" fhir="r4" description="The R4 page's example (Observation.value as Quantity).unit gives the unit of the Quantity value of the choice element">
+    <source spec="fhir-r4" section="2.9.1.1 Polymorphism in FHIR" strength="DEFINITION">In FHIRPath, choice elements are labeled according to the name without the '[x]' suffix, and children can be explicitly treated
+as a specific type using the as operation:</source>
+    <source spec="fhir-r4" section="2.9.1.1 Polymorphism in FHIR" strength="EXAMPLE">(Observation.value as Quantity).unit</source>
+    <source spec="fhirpath-2.0.0" section="as _type specifier_" strength="DEFINITION">If the left operand is a collection with a single item and the second operand is an identifier, this operator returns the value of the left operand if it is of the type specified in the second operand, or a subclass thereof.</source>
+    <test name="REQ-FHIRFUNCTIONS-020-a" inputfile="observation-example.xml"><expression>(Observation.value as Quantity).unit</expression><output type="string">lbs</output></test>
+    <test name="REQ-FHIRFUNCTIONS-020-b" inputfile="observation-example.xml"><expression>(Observation.value as CodeableConcept).text</expression></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-021" description="%resource is the resource that contains the node in %context; when the context is a resource, %resource is that resource, so %resource = %context, and it stays so inside functions that do not enter a contained resource (inside one, 3.0.0 and the FHIR pages differ, so no case goes there)">
+    <source spec="fhir-r4" section="2.9.1.4 FHIR Specific Variables" strength="DEFINITION">FHIR defines two specific variables that are always in scope when FHIRPath is used
+in any of the contexts above:</source>
+    <source spec="fhir-r4" section="2.9.1.4 FHIR Specific Variables" strength="DEFINITION">%resource // the resource that contains the original node that is in %context</source>
+    <source spec="fhir-r4" section="2.9.1.4 FHIR Specific Variables" strength="DEFINITION">The resource is very often the context, such that %resource = %context.</source>
+    <source spec="fhir-r5" section="2.1.9.1.4 FHIR Specific Variables" strength="DEFINITION">%resource // the resource that contains the original node that is in %context</source>
+    <source spec="fhirpath-3.0.0" section="Special variables" strength="DEFINITION">(Defined in FHIR) The current resource being processed (that contains the element in focus)</source>
+    <source spec="fhirpath-2.0.0" section="all(criteria : expression) : Boolean" strength="DEFINITION">Returns `true` if for every element in the input collection, `criteria` evaluates to `true`. Otherwise, the result is `false`.</source>
+    <test name="REQ-FHIRFUNCTIONS-021-a" inputfile="patient-example.xml"><expression>%resource = %context</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-021-b" inputfile="patient-example.xml"><expression>%resource.is(FHIR.Patient)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-021-c" inputfile="patient-example.xml"><expression>%resource.id = 'example'</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-021-d" inputfile="patient-example.xml"><expression>Patient.name.all(%resource.id = 'example')</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-021-e" inputfile="observation-example.xml"><expression>Observation.code.coding.all(%resource.is(FHIR.Observation))</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-022" description="%rootResource is %resource when the resource is not contained, and it is the top-level resource passed in (here the Patient), also when evaluated inside the Patient's contained resources">
+    <source spec="fhir-r4" section="2.9.1.4 FHIR Specific Variables" strength="DEFINITION">%rootResource // the container resource for the resource identified by %resource</source>
+    <source spec="fhir-r4" section="2.9.1.4 FHIR Specific Variables" strength="DEFINITION">Note that in most cases, the resource is not contained by another resource, and
+then %rootResource is the same as %resource.</source>
+    <source spec="fhir-r5" section="2.1.9.1.4 FHIR Specific Variables" strength="DEFINITION">Note that in most cases, the resource is not contained by another resource, and
+then %rootResource is the same as %resource.</source>
+    <source spec="fhirpath-3.0.0" section="Special variables" strength="DEFINITION">(Defined in FHIR) The top level fhir resource. Usually a Bundle, or resource that has contained resources (or Parameters resource).</source>
+    <test name="REQ-FHIRFUNCTIONS-022-a" inputfile="patient-example.xml"><expression>%rootResource = %resource</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-022-b" inputfile="patient-example.xml"><expression>%rootResource.id = 'example'</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-022-c" inputfile="patient-container-example.json"><expression>Patient.contained.all(%rootResource.id = 'example-container')</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-022-d" inputfile="patient-container-example.json"><expression>Patient.contained.all(%rootResource.is(FHIR.Patient))</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-023" description="%context is the node passed to the engine, here the resource, and it does not change inside functions">
+    <source spec="fhirpath-2.0.0" section="Environment variables" strength="DEFINITION">%context    // The original node that was passed to the evaluation engine before starting evaluation</source>
+    <source spec="fhirpath-3.0.0" section="Environment variables" strength="DEFINITION">%context    // The original node that was passed to the evaluation engine before starting evaluation</source>
+    <source spec="fhirpath-3.0.0" section="Special variables" strength="DEFINITION">The entry/starting point for execution of the fhirpath expression.</source>
+    <source spec="fhirpath-2.0.0" section="all(criteria : expression) : Boolean" strength="DEFINITION">Returns `true` if for every element in the input collection, `criteria` evaluates to `true`. Otherwise, the result is `false`.</source>
+    <test name="REQ-FHIRFUNCTIONS-023-a" inputfile="patient-example.xml"><expression>%context.is(FHIR.Patient)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-023-b" inputfile="patient-example.xml"><expression>%context.name.count()</expression><output type="integer">3</output></test>
+    <test name="REQ-FHIRFUNCTIONS-023-c" inputfile="patient-example.xml"><expression>Patient.name.all(%context.name.count() = 3)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-023-d" inputfile="patient-example.xml"><expression>Patient.name.given.all(%context.is(FHIR.Patient))</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-024" description="%ucum is 'http://unitsofmeasure.org', and may also be written as a delimited identifier or, for backwards compatibility, as a string">
+    <source spec="fhirpath-2.0.0" section="Environment variables" strength="DEFINITION">%ucum       // (string) url for UCUM (http://unitsofmeasure.org, per http://hl7.org/fhir/ucum.html)</source>
+    <source spec="fhirpath-3.0.0" section="Environment variables" strength="DEFINITION">%ucum       // (string) url for UCUM (http://unitsofmeasure.org, per http://hl7.org/fhir/ucum.html)</source>
+    <source spec="fhirpath-2.0.0" section="Environment variables" strength="DEFINITION">Note that the identifier portion of the token is allowed to be either a simple identifier (as in `%ucum`), or a delimited identifier to allow for alternative characters (as in `%`us-zip``).</source>
+    <source spec="fhirpath-2.0.0" section="Environment variables" strength="DEFINITION">Note: For backwards compatibility with some existing implementations, the token for an environment variable may also be a string, as in `%'us-zip'`, with no difference in semantics.</source>
+    <test name="REQ-FHIRFUNCTIONS-024-a"><expression>%ucum = 'http://unitsofmeasure.org'</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-024-b"><expression>%`ucum` = 'http://unitsofmeasure.org'</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-024-c"><expression>%'ucum' = 'http://unitsofmeasure.org'</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-024-d" inputfile="patient-example.xml"><expression>%ucum = 'http://unitsofmeasure.org'</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-025" description="%sct, %loinc and %ext-[name] are set in every context; the %ext- case presumes patient-birthTime is the id of an HL7 extension, which the page itself does not list">
+    <source spec="fhir-r4" section="2.9.1.7 Environment variables" strength="DEFINITION">The following environmental values are set for all contexts:</source>
+    <source spec="fhir-r4" section="2.9.1.7 Environment variables" strength="DEFINITION">%sct // (string) url for snomed ct</source>
+    <source spec="fhir-r4" section="2.9.1.7 Environment variables" strength="DEFINITION">%loinc // (string) url for loinc</source>
+    <source spec="fhir-r5" section="2.1.9.1.7 Environment variables" strength="DEFINITION">%sct // (string) url for snomed ct</source>
+    <source spec="fhir-r5" section="2.1.9.1.7 Environment variables" strength="DEFINITION">%loinc // (string) url for loinc</source>
+    <source spec="fhir-r4" section="2.9.1.7 Environment variables" strength="DEFINITION">%"ext-[name]" // (string) full url for the provided HL7 extension with id [name]</source>
+    <source spec="fhir-r5" section="2.1.9.1.7 Environment variables" strength="DEFINITION">The following environmental values are set for all contexts:</source>
+    <source spec="fhir-r5" section="2.1.9.1.7 Environment variables" strength="DEFINITION">%"ext-[name]" // (string) full url for the provided HL7 extension with id [name]</source>
+    <source spec="fhirpath-2.0.0" section="Environment variables" strength="DEFINITION">Note that the identifier portion of the token is allowed to be either a simple identifier (as in `%ucum`), or a delimited identifier to allow for alternative characters (as in `%`us-zip``).</source>
+    <test name="REQ-FHIRFUNCTIONS-025-a"><expression>%sct.exists()</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-025-b"><expression>%loinc.exists()</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-025-c" inputfile="observation-example.xml"><expression>%sct.count() = 1</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-025-d" inputfile="patient-example.xml"><expression>%`ext-patient-birthTime`.exists()</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-026" description="%vs-[name] is the url of the HL7 value set with id [name], written quoted; the page gives the memberOf() example with %&quot;vs-observation-vitalsignresult&quot; and with 'http://hl7.org/fhir/ValueSet/observation-vitalsignresult' as the same value set (cases use the delimited identifier and string forms the grammar accepts)">
+    <source spec="fhir-r4" section="2.9.1.7 Environment variables" strength="DEFINITION">%"vs-[name]" // (string) full url for the provided HL7 value set with id [name]</source>
+    <source spec="fhir-r4" section="2.9.1.7 Environment variables" strength="DEFINITION">// Note that the names of the `vs-` and `ext-` constants are quoted (just like paths) to allow "-" in the name.</source>
+    <source spec="fhir-r4" section="2.9.1.7 Environment variables" strength="EXAMPLE">Observation.component.where(code.memberOf(%"vs-observation-vitalsignresult"))</source>
+    <source spec="fhir-r4" section="2.9.1.7 Environment variables" strength="EXAMPLE">This expression returns components that have a code that is a member of the observation-vitalsignresult valueset.</source>
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="EXAMPLE">Observation.component.where(code.memberOf('http://hl7.org/fhir/ValueSet/observation-vitalsignresult'))</source>
+    <source spec="fhir-r5" section="2.1.9.1.7 Environment variables" strength="DEFINITION">%"vs-[name]" // (string) full url for the provided HL7 value set with id [name]</source>
+    <source spec="fhir-r5" section="2.1.9.1.7 Environment variables" strength="DEFINITION">// Note that the names of the `vs-` and `ext-` constants are quoted (just like paths) to allow "-" in the name.</source>
+    <source spec="fhir-r5" section="2.1.9.1.7 Environment variables" strength="EXAMPLE">Observation.component.where(code.memberOf(%"vs-observation-vitalsignresult"))</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="EXAMPLE">Observation.component.where(code.memberOf('http://hl7.org/fhir/ValueSet/observation-vitalsignresult'))</source>
+    <source spec="fhirpath-2.0.0" section="Environment variables" strength="DEFINITION">Note: For backwards compatibility with some existing implementations, the token for an environment variable may also be a string, as in `%'us-zip'`, with no difference in semantics.</source>
+    <test name="REQ-FHIRFUNCTIONS-026-a"><expression>%`vs-observation-vitalsignresult` = 'http://hl7.org/fhir/ValueSet/observation-vitalsignresult'</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-026-b"><expression>%'vs-observation-vitalsignresult' = 'http://hl7.org/fhir/ValueSet/observation-vitalsignresult'</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-027" description="Accessing an environment variable that is not defined is an error">
+    <source spec="fhirpath-2.0.0" section="Environment variables" strength="DEFINITION">Attempting to access an undefined environment variable will result in an error, but accessing a defined environment variable that does not have a value specified results in empty (`{ }`).</source>
+    <source spec="fhirpath-3.0.0" section="Environment variables" strength="DEFINITION">Attempting to access an undefined environment variable will result in an error, but accessing a defined environment variable that does not have a value specified results in empty (`{ }`).</source>
+    <test name="REQ-FHIRFUNCTIONS-027-a"><expression invalid="execution">%fhirpathNoSuchVariable</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-027-b" inputfile="patient-example.xml"><expression invalid="execution">%`fhirpath-no-such-variable`.exists()</expression></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-028" description="trace(name) returns its input unchanged: same items, same order, duplicates kept, empty for empty">
+    <source spec="fhirpath-2.0.0" section="trace(name : String [, projection: Expression]) : collection" strength="DEFINITION">Adds a String representation of the input collection to the diagnostic log, using the `name` argument as the name in the log. This log should be made available to the user in some appropriate fashion. Does not change the input, so returns the input collection as output.</source>
+    <source spec="fhirpath-3.0.0" section="trace(name : String [, projection: ($this, $index) => any]) : collection" strength="DEFINITION">The input collection is returned as the result of the function.</source>
+    <source spec="fhirpath-2.0.0" section="combine(other : collection) : collection" strength="DEFINITION">Merge the input and other collections into a single collection without eliminating duplicate values.</source>
+    <test name="REQ-FHIRFUNCTIONS-028-a" inputfile="patient-example.xml"><expression>Patient.name.given.trace('given')</expression><output type="string">Peter</output><output type="string">James</output><output type="string">Jim</output><output type="string">Peter</output><output type="string">James</output></test>
+    <test name="REQ-FHIRFUNCTIONS-028-b"><expression>1.combine(2).combine(1).trace('x')</expression><output type="integer">1</output><output type="integer">2</output><output type="integer">1</output></test>
+    <test name="REQ-FHIRFUNCTIONS-028-c"><expression>{}.trace('x')</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-028-d" inputfile="patient-example.xml"><expression>Patient.trace('p').name.count()</expression><output type="integer">3</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-029" description="trace(name, projection) logs the projection but returns the input, not the projection; the worked example contained.where(criteria).trace('unmatched', id).empty() is shown with id = '1' as the criteria">
+    <source spec="fhirpath-2.0.0" section="trace(name : String [, projection: Expression]) : collection" strength="DEFINITION">If the `projection` argument is used, the trace would log the result of evaluating the project expression on the input, but still return the input to the trace function unchanged.</source>
+    <source spec="fhirpath-2.0.0" section="trace(name : String [, projection: Expression]) : collection" strength="EXAMPLE">contained.where(criteria).trace('unmatched', id).empty()</source>
+    <source spec="fhirpath-2.0.0" section="trace(name : String [, projection: Expression]) : collection" strength="EXAMPLE">The above example traces only the id elements of the result of the where.</source>
+    <source spec="fhirpath-3.0.0" section="trace(name : String [, projection: ($this, $index) => any]) : collection" strength="DEFINITION">If the `projection` argument is used, the trace would log the result of evaluating the project expression on the input, but still return the input to the trace function unchanged.</source>
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">The FHIRPath specification adds an additional parameter to the trace() function, a selection expression that can be used
+to shape what is logged for the collection that is traced.</source>
+    <test name="REQ-FHIRFUNCTIONS-029-a" inputfile="patient-example.xml"><expression>Patient.name.trace('n', given).family</expression><output type="string">Chalmers</output><output type="string">Windsor</output></test>
+    <test name="REQ-FHIRFUNCTIONS-029-b"><expression>1.combine(2).trace('x', $this * 10)</expression><output type="integer">1</output><output type="integer">2</output></test>
+    <test name="REQ-FHIRFUNCTIONS-029-c" inputfile="patient-container-example.json"><expression>contained.where(id = '1').trace('unmatched', id).empty()</expression><output type="boolean">false</output></test>
+    <test name="REQ-FHIRFUNCTIONS-029-d" inputfile="patient-container-example.json"><expression>contained.where(id = '2').trace('unmatched', id).empty()</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-029-e" inputfile="patient-example.xml"><expression>Patient.telecom.trace('t', {}).count()</expression><output type="integer">4</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-030" fhir="r4" description="The R4 page's invariant with trace(), reference.startsWith('#').not() or (... trace('url') in %resource.contained.id.trace('ids')), is true on a reference that does not start with '#'; the example's %context.reference is written reference, evaluated on each managingOrganization">
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="SHOULD">When FHIRPath statements are used in an invariant, the log contents should be added to the error message constructed when the invariant is violated.</source>
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="EXAMPLE">"reference.startsWith('#').not() or</source>
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="EXAMPLE">(%context.reference.substring(1).trace('url') in %resource.contained.id.trace('ids'))"</source>
+    <source spec="fhirpath-2.0.0" section="trace(name : String [, projection: Expression]) : collection" strength="DEFINITION">Does not change the input, so returns the input collection as output.</source>
+    <source spec="fhirpath-2.0.0" section="or" strength="DEFINITION">Returns `false` if both operands evaluate to `false`, `true` if either operand evaluates to `true`, and empty (`{ }`) otherwise:</source>
+    <test name="REQ-FHIRFUNCTIONS-030-a" inputfile="patient-example.xml"><expression>Patient.managingOrganization.select(reference.startsWith('#').not() or (reference.substring(1).trace('url') in %resource.contained.id.trace('ids')))</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-030-b" inputfile="patient-container-example.json"><expression>Patient.managingOrganization.select(reference.startsWith('#').not() or (reference.substring(1).trace('url') in %resource.contained.id.trace('ids')))</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-031" description="resolve() adds nothing for an item that does not resolve to a resource, such as an item that is neither a uri string nor a Reference, and is empty for an empty input">
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">For each item in the collection, if it is a string that is a uri (or canonical or url ), locate the target of the reference, and add it to the resulting collection. If the item does not resolve to a resource, the item is ignored and nothing is added to the output collection.</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">For each item in the collection, if it is a string that is a uri (or canonical or url ), locate the target of the reference, and add it to the resulting collection. If the item does not resolve to a resource, the item is ignored and nothing is added to the output collection.</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">If the input is empty, the output will be empty.</source>
+    <test name="REQ-FHIRFUNCTIONS-031-a" inputfile="patient-example.xml"><expression>Patient.link.other.resolve()</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-031-b"><expression>{}.resolve()</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-031-c" inputfile="patient-example.xml"><expression>Patient.name.resolve()</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-031-d"><expression>1.resolve()</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-031-e"><expression>'not a uri'.resolve()</expression></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-032" fhir="r5" description="Under R5, conformsTo() of an empty input is empty, whether or not the structure can be resolved (under R4 an empty input gives empty and an unresolvable structure an error, and the text does not order the two, so R4 has no case)">
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">If the input is not a single item, the structure is empty, or the structure cannot be resolved to a valid profile, the result is empty.</source>
+    <test name="REQ-FHIRFUNCTIONS-032-a" inputfile="patient-example.xml"><expression>Patient.link.conformsTo('http://hl7.org/fhir/StructureDefinition/Patient')</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-032-b"><expression>{}.conformsTo('http://hl7.org/fhir/StructureDefinition/Patient')</expression></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-033" fhir="r4" description="Under R4, conformsTo() is an error when the input has more than one item or the structure cannot be resolved to a profile (a string that is not a uri cannot)">
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">Returns true if the single input element conforms to the profile specified by the structure argument, and false otherwise. If the structure cannot be resolved to a valid profile, an error is thrown. If the input contains more than one element, an error is thrown.</source>
+    <test name="REQ-FHIRFUNCTIONS-033-a" inputfile="patient-example.xml"><expression invalid="execution">Patient.name.conformsTo('http://hl7.org/fhir/StructureDefinition/HumanName')</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-033-b" inputfile="patient-example.xml"><expression invalid="execution">Patient.conformsTo('not a uri')</expression></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-034" fhir="r5" description="Under R5, conformsTo() is empty when the input is not a single item, the structure is empty, or the structure cannot be resolved to a profile (a string that is not a uri cannot)">
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">Returns true if the single input element conforms to the profile specified by the structure argument, and false otherwise. If the input is not a single item, the structure is empty, or the structure cannot be resolved to a valid profile, the result is empty.</source>
+    <test name="REQ-FHIRFUNCTIONS-034-a" inputfile="patient-example.xml"><expression>Patient.name.conformsTo('http://hl7.org/fhir/StructureDefinition/HumanName')</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-034-b" inputfile="patient-example.xml"><expression>Patient.conformsTo({})</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-034-c" inputfile="patient-example.xml"><expression>Patient.conformsTo('not a uri')</expression></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-035" fhir="r4" description="Under R4, memberOf() is an error when the value set cannot be resolved as a uri (a string that is not a uri cannot)">
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">If the valueset cannot be resolved as a uri to a value set, an error is thrown.</source>
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">When invoked on a code-valued element, returns true if the code is a member of the given valueset.</source>
+    <test name="REQ-FHIRFUNCTIONS-035-a" inputfile="patient-example.xml"><expression invalid="execution">Patient.gender.memberOf('not a uri')</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-035-b" inputfile="observation-example.xml"><expression invalid="execution">Observation.code.memberOf('not a uri')</expression></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-036" fhir="r5" description="Under R5, memberOf() is empty when the input is empty or has more than one item, or the value set cannot be resolved as a uri (a string that is not a uri cannot)">
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">If the valueset cannot be resolved as a uri to a value set, or the input is empty or has more than one value, the return value is empty.</source>
+    <test name="REQ-FHIRFUNCTIONS-036-a" inputfile="patient-example.xml"><expression>Patient.maritalStatus.memberOf('http://hl7.org/fhir/ValueSet/marital-status')</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-036-b" inputfile="observation-example.xml"><expression>Observation.code.coding.memberOf('http://hl7.org/fhir/ValueSet/observation-vitalsignresult')</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-036-c" inputfile="patient-example.xml"><expression>Patient.name.given.memberOf('http://hl7.org/fhir/ValueSet/administrative-gender')</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-036-d" inputfile="patient-example.xml"><expression>Patient.gender.memberOf('not a uri')</expression></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-037" description="subsumes() and subsumedBy() are true when the source code is equivalent to the given code, as a Coding is to itself, and for CodeableConcepts when any of their Codings is; every case compares Codings of one code system, since across systems the pages give an error or empty unless the relationship is well-defined">
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">When invoked on a Coding-valued element and the given code is Coding-valued, returns true if the source code is equivalent to the given code, or if the source code subsumes the given code (i.e. the source code is an ancestor of the given code in a subsumption hierarchy), and false otherwise.</source>
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">When the source or given elements are CodeableConcepts, returns true if any Coding in the source or given elements is equivalent to or subsumes the given code.</source>
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">When invoked on a Coding-valued element and the given code is Coding-valued, returns true if the source code is equivalent to the given code, or if the source code is subsumed by the given code (i.e. the given code is an ancestor of the source code in a subsumption hierarchy), and false otherwise.</source>
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">When the source or given elements are CodeableConcepts, returns true if any Coding in the source or given elements is equivalent to or subsumed by the given code.</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">When invoked on a Coding-valued element and the given code is Coding-valued, returns true if the source code is equivalent to the given code, or if the source code subsumes the given code (i.e. the source code is an ancestor of the given code in a subsumption hierarchy), and false otherwise.</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">When invoked on a Coding-valued element and the given code is Coding-valued, returns true if the source code is equivalent to the given code, or if the source code is subsumed by the given code (i.e. the given code is an ancestor of the source code in a subsumption hierarchy), and false otherwise.</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">When the source or given elements are CodeableConcepts, returns true if any Coding in the source or given elements is equivalent to or subsumes the given code.</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">When the source or given elements are CodeableConcepts, returns true if any Coding in the source or given elements is equivalent to or subsumed by the given code.</source>
+    <source spec="fhir-r4" section="2.9.1.6 Changes to operators" strength="DEFINITION">In addition, for Coding values, equivalence is defined based on the code and system elements only.</source>
+    <source spec="fhir-r5" section="2.1.9.1.6 Changes to operators" strength="DEFINITION">In addition, for Coding values, equivalence is defined based on the code and system elements only.</source>
+    <test name="REQ-FHIRFUNCTIONS-037-a" inputfile="observation-example.xml"><expression>Observation.code.coding[0].subsumes(Observation.code.coding[0])</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-037-b" inputfile="observation-example.xml"><expression>Observation.code.coding[2].subsumedBy(Observation.code.coding[2])</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-037-c" inputfile="observation-example.xml"><expression>Observation.category.subsumes(Observation.category)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-037-d" inputfile="observation-example.xml"><expression>Observation.category.coding[0].subsumedBy(Observation.category)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-037-e" inputfile="observation-example.xml"><expression>Observation.category.subsumes(Observation.category.coding[0])</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-038" fhir="r5" description="Under R5, subsumes() and subsumedBy() are empty when the input or the code argument is not a single item (the subsumedBy() cases keep both sides in one code system, loinc)">
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">If either the input or the code parameter are not single value collections, the return value is empty.</source>
+    <source spec="fhirpath-2.0.0" section="where(criteria : expression) : collection" strength="DEFINITION">Returns a collection containing only those elements in the input collection for which the stated `criteria` expression evaluates to `true`.</source>
+    <test name="REQ-FHIRFUNCTIONS-038-a" inputfile="observation-example.xml"><expression>Observation.code.coding.subsumes(Observation.code.coding[0])</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-038-b" inputfile="observation-example.xml"><expression>Observation.code.coding[0].subsumes(Observation.code.coding)</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-038-c" inputfile="observation-example.xml"><expression>Observation.code.coding.where(system = 'http://loinc.org').subsumedBy(Observation.code.coding[0])</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-038-d" inputfile="observation-example.xml"><expression>Observation.code.coding[0].subsumedBy(Observation.code.coding.where(system = 'http://loinc.org'))</expression></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-039" description="subsumes() and subsumedBy() are empty when the input or the code argument is empty (stated by R5's page; under R4 by the base rule for single-input functions)">
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">If either the input or the code parameter are not single value collections, the return value is empty.</source>
+    <source spec="fhirpath-2.0.0" section="Propagation of empty results in expressions" strength="DEFINITION">If a single-input operator or function operates on an empty collection, the result is an empty collection</source>
+    <source spec="fhirpath-2.0.0" section="Propagation of empty results in expressions" strength="DEFINITION">If a single-input operator or function is passed an empty collection as an argument, the result is an empty collection</source>
+    <test name="REQ-FHIRFUNCTIONS-039-a" inputfile="observation-example.xml"><expression>Observation.method.subsumes(Observation.code)</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-039-b" inputfile="observation-example.xml"><expression>Observation.code.subsumes(Observation.method)</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-039-c" inputfile="observation-example.xml"><expression>Observation.method.subsumedBy(Observation.code)</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-039-d" inputfile="observation-example.xml"><expression>Observation.code.subsumedBy(Observation.method)</expression></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-040" description="htmlChecks() on an element that is not xhtml is empty (R4: undefined, null; R5: empty; FHIRPath has no null other than the empty collection)">
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">The return value is undefined ( null ) on any other kind of element.</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">The return value is empty on any other kind of element, or a collection of xhtml elements.</source>
+    <source spec="fhirpath-2.0.0" section="Null and empty" strength="DEFINITION">There is no literal representation for _null_ in FHIRPath. This means that when, in an underlying data object (i.e. they physical data on which the implementation is operating) a member is null or missing, there will simply be no corresponding node for that member in the tree, e.g. `Patient.name` will return an empty collection (not null) if there are no name elements in the instance.</source>
+    <source spec="fhirpath-2.0.0" section="Null and empty" strength="DEFINITION">In expressions, the empty collection is represented as `{ }`.</source>
+    <test name="REQ-FHIRFUNCTIONS-040-a" inputfile="patient-example.xml"><expression>Patient.name.first().htmlChecks()</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-040-b" inputfile="patient-example.xml"><expression>Patient.text.status.htmlChecks()</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-040-c" inputfile="patient-example.xml"><expression>Patient.htmlChecks()</expression></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-041" fhir="r5" description="Under R5, htmlChecks() on a collection of several xhtml elements is empty">
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">When invoked on a single xhtml element returns true if the rules around HTML usage are met, and false if they are not. The return value is empty on any other kind of element, or a collection of xhtml elements.</source>
+    <source spec="fhirpath-2.0.0" section="combine(other : collection) : collection" strength="DEFINITION">Merge the input and other collections into a single collection without eliminating duplicate values.</source>
+    <source spec="fhirpath-2.0.0" section="Keywords" strength="DEFINITION">In general, keywords within FHIRPath are also considered _reserved_ words, meaning that it is illegal to use them as identifiers. FHIRPath keywords are reserved words, with the exception of the following keywords that may also be used as identifiers:</source>
+    <source spec="fhirpath-2.0.0" section="Keywords" strength="DEFINITION">The `div` element of the `Patient.text` must be offset with backticks (`` ` ``) because `div` is both a keyword and a reserved word.</source>
+    <test name="REQ-FHIRFUNCTIONS-041-a" inputfile="patient-example.xml"><expression>Patient.text.`div`.combine(Patient.text.`div`).htmlChecks()</expression></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-042" description="checkModifiers() returns its input when no input item has a modifying extension other than those named; the example inputs have no modifier extensions">
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">For each element in the input collection, verifies that there are no modifying extensions defined other than the ones given by the modifier argument. If the check passes, the input collection is returned.</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">If the check passes, the input collection is returned.</source>
+    <test name="REQ-FHIRFUNCTIONS-042-a" inputfile="patient-example.xml"><expression>Patient.checkModifiers('http://example.org/fhir/StructureDefinition/some-modifier').id = 'example'</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-042-b" inputfile="patient-example.xml"><expression>Patient.name.checkModifiers('http://example.org/fhir/StructureDefinition/some-modifier').count()</expression><output type="integer">3</output></test>
+    <test name="REQ-FHIRFUNCTIONS-042-c" inputfile="patient-example.xml"><expression>Patient.name.checkModifiers('http://example.org/fhir/StructureDefinition/some-modifier').family</expression><output type="string">Chalmers</output><output type="string">Windsor</output></test>
+    <test name="REQ-FHIRFUNCTIONS-042-d" inputfile="patient-example.xml"><expression>Patient.link.checkModifiers('http://example.org/fhir/StructureDefinition/some-modifier')</expression></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-043" fhir="r5" description="Under R5, the modifier argument of checkModifiers() is a comma-separated string, and an empty modifier is an error">
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">For each element in the input collection, verifies that there are no modifying extensions defined other than the ones given by the modifier argument (comma-separated string). If the check passes, the input collection is returned. Otherwise, an error is thrown, including if modifier is empty.</source>
+    <test name="REQ-FHIRFUNCTIONS-043-a" inputfile="patient-example.xml"><expression>Patient.checkModifiers('http://example.org/fhir/StructureDefinition/a,http://example.org/fhir/StructureDefinition/b').count()</expression><output type="integer">1</output></test>
+    <test name="REQ-FHIRFUNCTIONS-043-b" inputfile="patient-example.xml"><expression invalid="execution">Patient.checkModifiers({})</expression></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-044" description="elementDefinition() of an empty input is empty (stated by R5's page; under R4 it returns something for each input element, and there is none)">
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">Returns the FHIR element definition information for each element in the input collection.</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">Returns the FHIR element definition information for each element in the input collection. If the input collection is empty, the return value will be empty.</source>
+    <test name="REQ-FHIRFUNCTIONS-044-a" inputfile="patient-example.xml"><expression>Patient.link.elementDefinition()</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-044-b"><expression>{}.elementDefinition()</expression></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-045" fhir="r4" description="Under R4, slice() is an error when the structure cannot be resolved (a string that is not a uri cannot)">
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">If the structure cannot be resolved, or the name of the slice within the resolved structure is not present, an error is thrown.</source>
+    <test name="REQ-FHIRFUNCTIONS-045-a" inputfile="patient-example.xml"><expression invalid="execution">Patient.name.slice('not a uri', 'official')</expression></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-046" fhir="r5" description="Under R5, slice() is empty when the structure cannot be resolved, its parameters are empty, or the input is empty">
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">If the structure cannot be resolved, or the name of the slice within the resolved structure is not present, or those parameters are empty, and empty value is returned.</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">If the slice does not match any element in the input collection, or if the input collection is empty, the result is an empty collection ( { } ).</source>
+    <test name="REQ-FHIRFUNCTIONS-046-a" inputfile="patient-example.xml"><expression>Patient.name.slice('not a uri', 'official')</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-046-b" inputfile="patient-example.xml"><expression>Patient.name.slice({}, {})</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-046-c" inputfile="patient-example.xml"><expression>Patient.link.slice('not a uri', 'x')</expression></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-047" description="comparable() is true for two Quantities with values whose units are the same, an integer counting as a Quantity of unit '1', and a FHIR Quantity with a UCUM code counting as the System Quantity it maps to (function in 3.0.0, STU, and on R5's page)">
+    <source spec="fhirpath-3.0.0" section="comparable(other : Quantity) : Boolean" strength="DEFINITION">Returns `true` if the input Quantity can be compared with the `other` Quantity and their relationship to each other determined.</source>
+    <source spec="fhirpath-3.0.0" section="comparable(other : Quantity) : Boolean" strength="DEFINITION">Comparable means that both have values, and the units are the same (irrespective of the system), or both have `code` and `system` values,</source>
+    <source spec="fhirpath-3.0.0" section="comparable(other : Quantity) : Boolean" strength="EXAMPLE">1 'mg'.comparable(2 'mg') // true ; these types are comparable</source>
+    <source spec="fhirpath-3.0.0" section="comparable(other : Quantity) : Boolean" strength="EXAMPLE">2 '1'.comparable(3) // true ; the integer will implicitly convert to a Quantity with unit `'1'` which is the same system/code so is comparable</source>
+    <source spec="fhirpath-3.0.0" section="comparable(other : Quantity) : Boolean" strength="EXAMPLE">1.comparable(2) // true ; these will both convert to quantities with the same system/code, hence are comparable</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">This function returns true if the engine executing the FHIRPath statement can compare the singleton Quantity with the singleton other Quantity and determine their relationship to each other. Comparable means that both have values and that the code and system for the units are the same (irrespective of system) or both have code + system, system is recognized by the FHIRPath implementation and the codes are comparable within that code system.</source>
+    <source spec="fhir-r4" section="2.9.1.3 Use of FHIR Quantity" strength="DEFINITION">The Mapping from FHIR Quantity to FHIRPath System.Quantity can only be applied if the FHIR Quantity has a UCUM code
+- i.e. a system of http://unitsofmeasure.org , and a code is present.</source>
+    <source spec="fhir-r5" section="2.1.9.1.3 Use of FHIR Quantity" strength="DEFINITION">The Mapping from FHIR Quantity to FHIRPath System.Quantity can only be applied if the FHIR Quantity has a UCUM code
+- i.e. a system of http://unitsofmeasure.org , and a code is present.</source>
+    <test name="REQ-FHIRFUNCTIONS-047-a"><expression>1 'mg'.comparable(2 'mg')</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-047-b"><expression>2 '1'.comparable(3)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-047-c"><expression>1.comparable(2)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-047-d" inputfile="observation-example.xml"><expression>Observation.value.comparable(1 '[lb_av]')</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-047-e"><expression>1.5 'cm'.comparable(20 'cm')</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-048" description="comparable() is false for units that cannot be compared: different dimensions, and the 3.0.0 example of a calendar year against the UCUM year 'a' (function in 3.0.0, STU, and on R5's page)">
+    <source spec="fhirpath-3.0.0" section="comparable(other : Quantity) : Boolean" strength="DEFINITION">Comparable means that both have values, and the units are the same (irrespective of the system), or both have `code` and `system` values,
+and the `system` is recognized by the FHIRPath implementation, and the codes are comparable within that system</source>
+    <source spec="fhirpath-3.0.0" section="comparable(other : Quantity) : Boolean" strength="EXAMPLE">1 year.comparable(1 'a') // false ; these units are equivalent, not equal hence not comparable</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">Comparable means that both have values and that the code and system for the units are the same (irrespective of system) or both have code + system, system is recognized by the FHIRPath implementation and the codes are comparable within that code system.</source>
+    <test name="REQ-FHIRFUNCTIONS-048-a"><expression>1 'mg'.comparable(1 'm')</expression><output type="boolean">false</output></test>
+    <test name="REQ-FHIRFUNCTIONS-048-b"><expression>1 year.comparable(1 'a')</expression><output type="boolean">false</output></test>
+    <test name="REQ-FHIRFUNCTIONS-048-c" inputfile="observation-example.xml"><expression>Observation.value.comparable(1 'cm')</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-049" description="comparable() is true for different UCUM units of the same dimension, as in the worked examples (metres and centimetres, Celsius and Fahrenheit) and the text's own pairs (days and hours, inches and centimetres); these presume an implementation that recognizes UCUM (function in 3.0.0, STU, and on R5's page)">
+    <source spec="fhirpath-3.0.0" section="comparable(other : Quantity) : Boolean" strength="DEFINITION">and the `system` is recognized by the FHIRPath implementation, and the codes are comparable within that system
+(e.g. `'d'` (days) and `'h'` (hours), or `'[in_i]'` (inches) and `'cm'` (centimeters)).</source>
+    <source spec="fhirpath-3.0.0" section="comparable(other : Quantity) : Boolean" strength="EXAMPLE">1 'm'.comparable(20 'cm') // true ; these types are both metric distance measures</source>
+    <source spec="fhirpath-3.0.0" section="comparable(other : Quantity) : Boolean" strength="EXAMPLE">1 'Cel'.comparable(1 '[degF]') // true ; these ucum "special" units are comparable</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="EXAMPLE">E.g. days and hours or inches and cm.</source>
+    <test name="REQ-FHIRFUNCTIONS-049-a"><expression>1 'm'.comparable(20 'cm')</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-049-b"><expression>1 'Cel'.comparable(1 '[degF]')</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-049-c"><expression>1 'd'.comparable(1 'h')</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-049-d"><expression>1 '[in_i]'.comparable(1 'cm')</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-050" description="comparable() is empty when either side is empty or is not a single Quantity (stated only in 3.0.0, STU)">
+    <source spec="fhirpath-3.0.0" section="comparable(other : Quantity) : Boolean" strength="DEFINITION">If either or both inputs are empty, or either input is not a single Quantity value, the result is empty (`{ }`).</source>
+    <test name="REQ-FHIRFUNCTIONS-050-a"><expression>{}.comparable(1 'mg')</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-050-b"><expression>1 'mg'.comparable({})</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-050-c"><expression>(1 'mg').combine(2 'mg').comparable(1 'mg')</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-050-d"><expression>true.comparable(1 'mg')</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-050-e" inputfile="observation-example.xml"><expression>Observation.method.comparable(1 'mg')</expression></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-051" description="The 3.0.0 guard example iif(Observation.value.comparable(2 'mg'), Observation.value &lt; 2 'mg', false) is false on the example Observation (185 [lb_av]) whether or not the implementation relates pounds to milligrams (stated only in 3.0.0, STU)">
+    <source spec="fhirpath-3.0.0" section="comparable(other : Quantity) : Boolean" strength="DEFINITION">This function can be used to guard [comparison operations](#comparison) to prevent returning empty results when the quantities are not comparable:</source>
+    <source spec="fhirpath-3.0.0" section="comparable(other : Quantity) : Boolean" strength="EXAMPLE">iif(Observation.value.comparable(2 'mg'), Observation.value &lt; 2 'mg', false)</source>
+    <source spec="fhirpath-3.0.0" section="comparable(other : Quantity) : Boolean" strength="DEFINITION">Returning true from this function indicates that a result from [equality](#equality) or [comparison](#comparison) functions will succeed, and not return empty.</source>
+    <source spec="fhirpath-2.0.0" section="iif(criterion: expression, true-result: collection [, otherwise-result: collection]) : collection" strength="DEFINITION">If `criterion` is `false` or an empty collection, the function returns `otherwise-result`, unless the optional `otherwise-result` is not given, in which case the function returns an empty collection.</source>
+    <test name="REQ-FHIRFUNCTIONS-051-a" inputfile="observation-example.xml"><expression>iif(Observation.value.comparable(2 'mg'), Observation.value &lt; 2 'mg', false)</expression><output type="boolean">false</output></test>
+    <test name="REQ-FHIRFUNCTIONS-051-b" inputfile="observation-example.xml"><expression>iif(Observation.value.comparable(2 's'), Observation.value &lt; 2 's', false)</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-052" description="lowBoundary() and highBoundary() of the decimal 1.0 are 0.95 and 1.05, as R5's page gives them and 3.0.0's half-unit rule computes them; compared with = so that the number of trailing zeros, which the two texts give differently, does not matter">
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">This function returns the lowest possible value in the natural range expressed by the type it is invoked on.</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="EXAMPLE">E.g. the lowBoundary of 1.0 is 0.95000000000 , and the lowBoundary of 2010-10-10 is 2010-10-10T00:00:00.000+14:00 .</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="EXAMPLE">E.g. the highBoundary of 1.0 is 1.05000000000 , and the highBoundary of 2010-10-10 is 2010-10-10T23:59:59.999-12:00 .</source>
+    <source spec="fhirpath-3.0.0" section="lowBoundary([precision: Integer]): Decimal | Date | DateTime | Time" strength="DEFINITION">The least possible value of the input to the specified precision.</source>
+    <source spec="fhirpath-3.0.0" section="lowBoundary([precision: Integer]): Decimal | Date | DateTime | Time" strength="EXAMPLE">1.587.lowBoundary() // 1.58650000</source>
+    <source spec="fhirpath-3.0.0" section="highBoundary([precision: Integer]): Decimal | Date | DateTime | Time" strength="DEFINITION">The greatest possible value of the input to the specified precision.</source>
+    <source spec="fhirpath-3.0.0" section="highBoundary([precision: Integer]): Decimal | Date | DateTime | Time" strength="EXAMPLE">1.587.highBoundary() // 1.58750000</source>
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">`Decimal`: values must be equal, trailing zeroes after the decimal are ignored</source>
+    <test name="REQ-FHIRFUNCTIONS-052-a"><expression>1.0.lowBoundary() = 0.95</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-052-b"><expression>1.0.highBoundary() = 1.05</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-052-c" inputfile="parameters-example-types.xml"><expression>Parameters.parameter.where(name = 'decimal').value.lowBoundary() = 0.95</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-053" description="htmlChecks() on a single xhtml element returns true or false, never empty; whether it is true depends on the HTML rules, which these texts do not give, so the case asks only that a result exists">
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">When invoked on an xhtml element returns true if the rules around
+HTML usage are met, and false if they are not.</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">When invoked on a single xhtml element returns true if the rules around
+HTML usage are met, and false if they are not.</source>
+    <source spec="fhirpath-2.0.0" section="exists([criteria : expression]) : Boolean" strength="DEFINITION">Returns `true` if the collection has any elements, and `false` otherwise.</source>
+    <source spec="fhirpath-2.0.0" section="Keywords" strength="DEFINITION">In general, keywords within FHIRPath are also considered _reserved_ words, meaning that it is illegal to use them as identifiers. FHIRPath keywords are reserved words, with the exception of the following keywords that may also be used as identifiers:</source>
+    <source spec="fhirpath-2.0.0" section="Keywords" strength="DEFINITION">The `div` element of the `Patient.text` must be offset with backticks (`` ` ``) because `div` is both a keyword and a reserved word.</source>
+    <test name="REQ-FHIRFUNCTIONS-053-a" inputfile="patient-example.xml"><expression>Patient.text.`div`.htmlChecks().exists()</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-054" description="Without a precision, lowBoundary() and highBoundary() of a decimal give the 3.0.0 examples: 1.587 gives 1.5865 and 1.5875, and (-1.587) gives -1.5875 and -1.5865; compared with = so that the trailing zeros do not matter (3.0.0, STU; R5's page describes the same natural range)">
+    <source spec="fhirpath-3.0.0" section="lowBoundary([precision: Integer]): Decimal | Date | DateTime | Time" strength="DEFINITION">The least possible value of the input to the specified precision.</source>
+    <source spec="fhirpath-3.0.0" section="lowBoundary([precision: Integer]): Decimal | Date | DateTime | Time" strength="DEFINITION">If no precision is specified, the greatest precision of the type of the input value is used (i.e. at least 8 for Decimal, 4 for Date, at least 17 for DateTime, and at least 9 for Time).</source>
+    <source spec="fhirpath-3.0.0" section="lowBoundary([precision: Integer]): Decimal | Date | DateTime | Time" strength="EXAMPLE">1.587.lowBoundary() // 1.58650000</source>
+    <source spec="fhirpath-3.0.0" section="lowBoundary([precision: Integer]): Decimal | Date | DateTime | Time" strength="EXAMPLE">(-1.587).lowBoundary() // -1.58750000</source>
+    <source spec="fhirpath-3.0.0" section="highBoundary([precision: Integer]): Decimal | Date | DateTime | Time" strength="DEFINITION">The greatest possible value of the input to the specified precision.</source>
+    <source spec="fhirpath-3.0.0" section="highBoundary([precision: Integer]): Decimal | Date | DateTime | Time" strength="EXAMPLE">1.587.highBoundary() // 1.58750000</source>
+    <source spec="fhirpath-3.0.0" section="highBoundary([precision: Integer]): Decimal | Date | DateTime | Time" strength="EXAMPLE">(-1.587).highBoundary() // -1.58650000</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">This function returns the lowest possible value in the natural range expressed by the type it is invoked on.</source>
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">`Decimal`: values must be equal, trailing zeroes after the decimal are ignored</source>
+    <test name="REQ-FHIRFUNCTIONS-054-a"><expression>1.587.lowBoundary() = 1.5865</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-054-b"><expression>(-1.587).lowBoundary() = (-1.5875)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-054-c"><expression>1.587.highBoundary() = 1.5875</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-054-d"><expression>(-1.587).highBoundary() = (-1.5865)</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-055" description="lowBoundary() and highBoundary() of an empty input are empty (stated only in 3.0.0, STU)">
+    <source spec="fhirpath-3.0.0" section="lowBoundary([precision: Integer]): Decimal | Date | DateTime | Time" strength="DEFINITION">If the input collection is empty, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="highBoundary([precision: Integer]): Decimal | Date | DateTime | Time" strength="DEFINITION">If the input collection is empty, the result is empty.</source>
+    <test name="REQ-FHIRFUNCTIONS-055-a"><expression>{}.lowBoundary()</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-055-b"><expression>{}.highBoundary()</expression></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-056" description="lowBoundary() and highBoundary() of an input of several items are an error (stated only in 3.0.0, STU; R5's page says only that the function can be invoked on a singleton)">
+    <source spec="fhirpath-3.0.0" section="lowBoundary([precision: Integer]): Decimal | Date | DateTime | Time" strength="DEFINITION">If the input collection contains multiple items, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-3.0.0" section="highBoundary([precision: Integer]): Decimal | Date | DateTime | Time" strength="DEFINITION">If the input collection contains multiple items, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-2.0.0" section="| (union collections)" strength="DEFINITION">Merge the two collections into a single collection, eliminating any duplicate values (using &lt;&lt;equals&gt;&gt; (`=`)) to determine equality).</source>
+    <test name="REQ-FHIRFUNCTIONS-056-a"><expression invalid="execution">(1.0 | 2.0).lowBoundary()</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-056-b"><expression invalid="execution">(1.0 | 2.0).highBoundary()</expression></test>
+  </group>
+
+</tests>

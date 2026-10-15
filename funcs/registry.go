@@ -94,7 +94,8 @@ func GetRegistry() *Registry {
 // collection contains multiple items, the evaluation of the expression will end
 // and signal an error to the calling environment." It says so of the to- and
 // convertsTo- functions, the math functions and the boundaries; encode, decode,
-// escape, unescape and comparable are defined on "a singleton".
+// escape and unescape are defined on "a singleton". comparable() is not wrapped:
+// its own text makes an input that "is not a single Quantity value" empty.
 //
 // Without it a function reads the first item, or answers empty, for a value the
 // expression never singled out: (1 | 2).toString() gave '1', and

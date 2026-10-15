@@ -68,13 +68,14 @@ func TestAggregateFunctions(t *testing.T) {
 			t.Error("expected integer to have value")
 		}
 
-		// A System value is not a FHIR primitive, and has no value property
+		// A System value of a primitive type has one, as fhirpath.js and the
+		// HL7 validator answer
 		result, err = fn.Fn(ctx, types.Collection{types.NewInteger(1)}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if result[0].(types.Boolean).Bool() {
-			t.Error("expected a System integer not to have a value")
+		if !result[0].(types.Boolean).Bool() {
+			t.Error("expected a System integer to have a value")
 		}
 
 		// Empty collection

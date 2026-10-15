@@ -252,9 +252,7 @@ func (a *analyzer) member(name, inputType string) (string, error) {
 		return unknownType, nil
 	}
 
-	// An expression may open with the name of the type it is evaluated against,
-	// which is a restatement of the context rather than navigation
-	if name == inputType {
+	if a.restatesContext(name, inputType) {
 		a.path = inputType
 		return inputType, nil
 	}
@@ -316,6 +314,18 @@ func (a *analyzer) member(name, inputType string) (string, error) {
 	}
 
 	return unknownType, a.fault("%s has no element %s", inputType, name)
+}
+
+// restatesContext reports whether a name restates the context rather than
+// navigating from it. An expression may open with the name of the type it is
+// evaluated against, or with a supertype of it, DomainResource.text on a
+// Patient: the name "must resolve to the type of the context (or a
+// supertype)" (2.0.0). The context keeps its own type.
+func (a *analyzer) restatesContext(name, inputType string) bool {
+	if name == inputType {
+		return true
+	}
+	return (a.path == "" || a.path == inputType) && a.model.IsSubtype(inputType, name)
 }
 
 // choiceBase reports whether a name is a choice element written with its type

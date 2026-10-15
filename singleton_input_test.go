@@ -28,7 +28,6 @@ func TestSingletonFunctionsRejectMultipleItems(t *testing.T) {
 		"(1.5 | 2.5).lowBoundary()",
 		"(1.5 | 2.5).highBoundary()",
 		"(@2020 | @2021).precision()",
-		"(1 'mg' | 2 'mg').comparable(1 'g')",
 		"('ab' | 'cd').encode('base64')",
 		"('YWI=' | 'Y2Q=').decode('base64')",
 		"('<a>' | '<b>').escape('html')",
