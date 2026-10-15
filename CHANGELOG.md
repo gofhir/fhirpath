@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.14.7](https://github.com/gofhir/fhirpath/compare/v1.14.6...v1.14.7) (2026-10-15)
+
+
+### Bug Fixes
+
+* combine takes preserveOrder, single of empty is empty, and skip and take refuse a num of several items ([#193](https://github.com/gofhir/fhirpath/issues/193)) ([f2b9dcf](https://github.com/gofhir/fhirpath/commit/f2b9dcf5c275b5c93fea0b08fcfe3c9c6a8ece32)), closes [#167](https://github.com/gofhir/fhirpath/issues/167)
+
 ## [1.14.6](https://github.com/gofhir/fhirpath/compare/v1.14.5...v1.14.6) (2026-10-14)
 
 
