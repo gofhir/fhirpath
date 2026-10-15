@@ -1,0 +1,495 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tests name="collections" description="The collection operators | (union), in and contains (membership), the Combining functions union(other) and combine(other[, preserveOrder]), and the Subsetting functions single(), first(), last(), tail(), skip(num), take(num), intersect(other), exclude(other). Order is only asserted where the text guarantees it (paths of an instance, exclude(), combine with preserveOrder true, and the positional functions on an ordered input); results of |, union(), intersect() and combine() without preserveOrder are compared by count and supersetOf. Leaves out what the text does not settle: an empty left and right operand of in/contains together, a multi-item left operand of in with an empty right operand, a multi-item right operand of contains, the equality intersect() and exclude() use, which of two equal items union() keeps, an empty num for skip()/take(), an empty or non-Boolean preserveOrder, items of different types compared by in/contains, and whether tail(), skip() and take() must return a result on an input whose order is undefined (the results of | and of combine() without preserveOrder), which the text lets an implementation refuse with an error; for that reason the 3.0.0 worked examples (0 | 1 | 2).tail(), .skip(n) and .take(n) have no case. A num for skip()/take() that is not an Integer and cannot be converted to one ends with an error. The indexer [ ] is not covered.">
+
+  <group name="REQ-COLLECTIONS-001" description="The union operator | merges both operands and eliminates duplicate values, including duplicates inside one operand">
+    <source spec="fhirpath-2.0.0" section="| (union collections)" strength="DEFINITION">Merge the two collections into a single collection, eliminating any duplicate values (using &lt;&lt;equals&gt;&gt; (`=`)) to determine equality). There is no expectation of order in the resulting collection.</source>
+    <source spec="fhirpath-3.0.0" section="| (union collections)" strength="DEFINITION">Merge the two collections into a single collection, eliminating any duplicate values *(items are considered duplicates if and only if the [equals](#equals) (`=`) operator returns `true`. i.e. `false` and empty both indicate that the items are not duplicates, and thus appear in the output collection)*.</source>
+    <source spec="fhirpath-2.0.0" section="Collections" strength="DEFINITION">Non-Unique - Duplicate elements are allowed within a collection. Some operations and functions, such as `distinct()` and the union operator `|` produce collections of unique elements, but in general, duplicate elements are allowed.</source>
+    <source spec="fhirpath-3.0.0" section="Collections" strength="DEFINITION">Non-Unique - Duplicate values are allowed within a collection. Some operations and functions, such as `distinct()` and the union operator `|` produce collections of unique values, but in general, duplicate values are allowed.</source>
+    <source spec="fhirpath-2.0.0" section="count() : Integer" strength="DEFINITION">Returns the integer count of the number of items in the input collection. Returns 0 when the input collection is empty.</source>
+    <source spec="fhirpath-2.0.0" section="supersetOf(other : collection) : Boolean" strength="DEFINITION">Returns `true` if all items in the collection passed as the `other` argument are members of the input collection. Membership is determined using the &lt;&lt;equals&gt;&gt; (`=`) operation.</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.string, FHIR.uri, FHIR.code, FHIR.oid, FHIR.id, FHIR.uuid, FHIR.sid, FHIR.markdown, FHIR.base64Binary
+System.String</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.string, FHIR.uri, FHIR.code, FHIR.oid, FHIR.id, FHIR.uuid, FHIR.markdown, FHIR.base64Binary
+System.String</source>
+    <test name="REQ-COLLECTIONS-001-a"><expression>(1 | 2 | 2).count()</expression><output type="integer">2</output></test>
+    <test name="REQ-COLLECTIONS-001-b"><expression>((1 | 2) | (2 | 3)).count()</expression><output type="integer">3</output></test>
+    <test name="REQ-COLLECTIONS-001-c" inputfile="patient-example.xml"><expression>(Patient.name.given | Patient.name.given).count()</expression><output type="integer">3</output></test>
+    <test name="REQ-COLLECTIONS-001-d" inputfile="patient-example.xml"><expression>(Patient.name.given | Patient.name[1].given).count()</expression><output type="integer">3</output></test>
+    <test name="REQ-COLLECTIONS-001-e" inputfile="patient-example.xml"><expression>(Patient.name.given | Patient.name.given).supersetOf('Peter' | 'James' | 'Jim')</expression><output type="boolean">true</output></test>
+    <test name="REQ-COLLECTIONS-001-f"><expression>((1 | 2) | (2 | 3)).supersetOf(1 | 2 | 3)</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-002" description="The union of an empty collection with a non-empty collection is the non-empty collection; the union of two empty collections is empty">
+    <source spec="fhirpath-2.0.0" section="Propagation of empty results in expressions" strength="DEFINITION">For operator or function arguments that expect collections, in general the empty collection is treated as any other collection would be. For example, the union (`|`) of an empty collection with some non-empty collection is that non-empty collection.</source>
+    <source spec="fhirpath-3.0.0" section="Propagation of empty results in expressions" strength="DEFINITION">For operator or function arguments that expect collections, in general the empty collection is treated as any other collection would be. For example, the union (`|`) of an empty collection with some non-empty collection is that non-empty collection.</source>
+    <source spec="fhirpath-2.0.0" section="| (union collections)" strength="DEFINITION">Merge the two collections into a single collection, eliminating any duplicate values (using &lt;&lt;equals&gt;&gt; (`=`)) to determine equality).</source>
+    <source spec="fhirpath-3.0.0" section="| (union collections)" strength="DEFINITION">Merge the two collections into a single collection, eliminating any duplicate values *(items are considered duplicates if and only if the [equals](#equals) (`=`) operator returns `true`. i.e. `false` and empty both indicate that the items are not duplicates, and thus appear in the output collection)*.</source>
+    <test name="REQ-COLLECTIONS-002-a"><expression>{} | 1</expression><output type="integer">1</output></test>
+    <test name="REQ-COLLECTIONS-002-b"><expression>1 | {}</expression><output type="integer">1</output></test>
+    <test name="REQ-COLLECTIONS-002-c"><expression>{} | {}</expression></test>
+    <test name="REQ-COLLECTIONS-002-d"><expression>{} | 'a'</expression><output type="string">a</output></test>
+    <test name="REQ-COLLECTIONS-002-e" inputfile="patient-example.xml"><expression>Patient.name[1].given | Patient.name[1].family</expression><output type="string">Jim</output></test>
+    <test name="REQ-COLLECTIONS-002-f" inputfile="patient-example.xml"><expression>Patient.name[1].family | Patient.name[1].given</expression><output type="string">Jim</output></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-003" description="Union decides duplicates with the = operator: strings equal only with the same Unicode values (case is not ignored), decimals equal ignoring trailing zeroes, booleans and dates equal when the same">
+    <source spec="fhirpath-2.0.0" section="union(other : collection)" strength="DEFINITION">Merge the two collections into a single collection, eliminating any duplicate values (using &lt;&lt;equals&gt;&gt; (`=`) to determine equality). There is no expectation of order in the resulting collection.</source>
+    <source spec="fhirpath-3.0.0" section="union(other : collection) : collection" strength="DEFINITION">Merge the two collections into a single collection, eliminating any duplicate values *(items are considered duplicates if and only if the [equals](#equals) (`=`) operator returns `true`. i.e. `false` and empty both indicate that the items are not duplicates, and thus appear in the output collection)*.</source>
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">`String`: comparison is based on Unicode values</source>
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">`Decimal`: values must be equal, trailing zeroes after the decimal are ignored</source>
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">`Boolean`: values must be the same</source>
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">`Date`: must be exactly the same</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="EXAMPLE">'a' = 'A' // false ; case is NOT ignored for equality</source>
+    <source spec="fhirpath-2.0.0" section="count() : Integer" strength="DEFINITION">Returns the integer count of the number of items in the input collection. Returns 0 when the input collection is empty.</source>
+    <test name="REQ-COLLECTIONS-003-a"><expression>('a' | 'A').count()</expression><output type="integer">2</output></test>
+    <test name="REQ-COLLECTIONS-003-b"><expression>('a' | 'a').count()</expression><output type="integer">1</output></test>
+    <test name="REQ-COLLECTIONS-003-c"><expression>(1.0 | 1.00).count()</expression><output type="integer">1</output></test>
+    <test name="REQ-COLLECTIONS-003-d"><expression>(true | true | false).count()</expression><output type="integer">2</output></test>
+    <test name="REQ-COLLECTIONS-003-e"><expression>(@2012-01-01 | @2012-01-01).count()</expression><output type="integer">1</output></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-004" description="Items whose equality is empty (dates of different precision) are not duplicates for | and union(), so both appear in the result; stated by 3.0.0, which says when = gives false or empty the items are not duplicates (2.0.0 only says = determines equality)">
+    <source spec="fhirpath-3.0.0" section="| (union collections)" strength="DEFINITION">Merge the two collections into a single collection, eliminating any duplicate values *(items are considered duplicates if and only if the [equals](#equals) (`=`) operator returns `true`. i.e. `false` and empty both indicate that the items are not duplicates, and thus appear in the output collection)*.</source>
+    <source spec="fhirpath-3.0.0" section="union(other : collection) : collection" strength="DEFINITION">Merge the two collections into a single collection, eliminating any duplicate values *(items are considered duplicates if and only if the [equals](#equals) (`=`) operator returns `true`. i.e. `false` and empty both indicate that the items are not duplicates, and thus appear in the output collection)*.</source>
+    <source spec="fhirpath-2.0.0" section="| (union collections)" strength="DEFINITION">Merge the two collections into a single collection, eliminating any duplicate values (using &lt;&lt;equals&gt;&gt; (`=`)) to determine equality).</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Equality" strength="DEFINITION">If one input has a value for the precision and the other does not, the comparison stops and the result is empty (`{ }`); if neither input has a value for the precision, or the last precision has been reached, the comparison stops and the result is `true`.</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Equality" strength="EXAMPLE">@2012-01 = @2012 // empty ({ }) ; different date precision</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Equality" strength="EXAMPLE">@2012-01-01T10:30:31 = @2012-01-01T10:30 // empty ({ }) ; different datetime precision</source>
+    <source spec="fhirpath-2.0.0" section="count() : Integer" strength="DEFINITION">Returns the integer count of the number of items in the input collection. Returns 0 when the input collection is empty.</source>
+    <test name="REQ-COLLECTIONS-004-a"><expression>(@2012-01 | @2012).count()</expression><output type="integer">2</output></test>
+    <test name="REQ-COLLECTIONS-004-b"><expression>(@2012-01).union(@2012).count()</expression><output type="integer">2</output></test>
+    <test name="REQ-COLLECTIONS-004-c"><expression>(@2012-01-01T10:30:31 | @2012-01-01T10:30).count()</expression><output type="integer">2</output></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-005" description="union(other) is the | operator written as a function: it merges input and other and eliminates duplicates">
+    <source spec="fhirpath-2.0.0" section="union(other : collection)" strength="DEFINITION">Merge the two collections into a single collection, eliminating any duplicate values (using &lt;&lt;equals&gt;&gt; (`=`) to determine equality). There is no expectation of order in the resulting collection.</source>
+    <source spec="fhirpath-2.0.0" section="union(other : collection)" strength="DEFINITION">In other words, this function returns the distinct list of elements from both inputs.</source>
+    <source spec="fhirpath-2.0.0" section="union(other : collection)" strength="DEFINITION">This function can also be invoked using the `|` operator.</source>
+    <source spec="fhirpath-3.0.0" section="union(other : collection) : collection" strength="DEFINITION">In other words, this function returns the distinct list of items from both inputs.</source>
+    <source spec="fhirpath-3.0.0" section="union(other : collection) : collection" strength="DEFINITION">This function can also be invoked using the [`|`](#-union-collections) operator.</source>
+    <source spec="fhirpath-3.0.0" section="union(other : collection) : collection" strength="EXAMPLE">e.g. `x.union(y)`{:.fhirpath} is synonymous with `x | y`{:.fhirpath}</source>
+    <source spec="fhirpath-2.0.0" section="Propagation of empty results in expressions" strength="DEFINITION">For operator or function arguments that expect collections, in general the empty collection is treated as any other collection would be. For example, the union (`|`) of an empty collection with some non-empty collection is that non-empty collection.</source>
+    <source spec="fhirpath-2.0.0" section="count() : Integer" strength="DEFINITION">Returns the integer count of the number of items in the input collection. Returns 0 when the input collection is empty.</source>
+    <source spec="fhirpath-2.0.0" section="supersetOf(other : collection) : Boolean" strength="DEFINITION">Returns `true` if all items in the collection passed as the `other` argument are members of the input collection. Membership is determined using the &lt;&lt;equals&gt;&gt; (`=`) operation.</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <test name="REQ-COLLECTIONS-005-a"><expression>(1 | 2).union(2 | 3).count()</expression><output type="integer">3</output></test>
+    <test name="REQ-COLLECTIONS-005-b"><expression>(1 | 2).union(2 | 3).supersetOf(1 | 2 | 3)</expression><output type="boolean">true</output></test>
+    <test name="REQ-COLLECTIONS-005-c" inputfile="patient-example.xml"><expression>Patient.name.given.union(Patient.name.given).count()</expression><output type="integer">3</output></test>
+    <test name="REQ-COLLECTIONS-005-d" inputfile="patient-example.xml"><expression>Patient.name.given.union({}).count()</expression><output type="integer">3</output></test>
+    <test name="REQ-COLLECTIONS-005-e" inputfile="patient-example.xml"><expression>{}.union(Patient.name.given).count()</expression><output type="integer">3</output></test>
+    <test name="REQ-COLLECTIONS-005-f"><expression>1.union({})</expression><output type="integer">1</output></test>
+    <test name="REQ-COLLECTIONS-005-g"><expression>{}.union(1)</expression><output type="integer">1</output></test>
+    <test name="REQ-COLLECTIONS-005-h"><expression>{}.union({})</expression></test>
+    <test name="REQ-COLLECTIONS-005-i"><expression>1.union(1)</expression><output type="integer">1</output></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-006" description="The worked union example with A: 1, 1, 2, 3 and B: 2, 3: A union B and A union { } are both 1, 2, 3 (compared as a set, since no order is expected; A is built with combine(), which keeps duplicates)">
+    <source spec="fhirpath-2.0.0" section="union(other : collection)" strength="EXAMPLE">In other words, this function returns the distinct list of elements from both inputs. For example, consider two lists of integers `A: 1, 1, 2, 3` and `B: 2, 3`:</source>
+    <source spec="fhirpath-2.0.0" section="union(other : collection)" strength="EXAMPLE">A union B // 1, 2, 3
+A union { } // 1, 2, 3</source>
+    <source spec="fhirpath-3.0.0" section="union(other : collection) : collection" strength="EXAMPLE">For example, consider two lists of integers `A: 1, 1, 2, 3` and `B: 2, 3`:</source>
+    <source spec="fhirpath-3.0.0" section="union(other : collection) : collection" strength="EXAMPLE">A.union( B )   // 1, 2, 3
+A.union( { } ) // 1, 2, 3</source>
+    <source spec="fhirpath-3.0.0" section="union(other : collection) : collection" strength="DEFINITION">There is no expectation of order in the resulting collection.</source>
+    <source spec="fhirpath-2.0.0" section="combine(other : collection) : collection" strength="DEFINITION">Merge the input and other collections into a single collection without eliminating duplicate values.</source>
+    <source spec="fhirpath-2.0.0" section="count() : Integer" strength="DEFINITION">Returns the integer count of the number of items in the input collection. Returns 0 when the input collection is empty.</source>
+    <source spec="fhirpath-2.0.0" section="supersetOf(other : collection) : Boolean" strength="DEFINITION">Returns `true` if all items in the collection passed as the `other` argument are members of the input collection. Membership is determined using the &lt;&lt;equals&gt;&gt; (`=`) operation.</source>
+    <test name="REQ-COLLECTIONS-006-a"><expression>1.combine(1).combine(2).combine(3).union(2 | 3).count()</expression><output type="integer">3</output></test>
+    <test name="REQ-COLLECTIONS-006-b"><expression>1.combine(1).combine(2).combine(3).union(2 | 3).supersetOf(1 | 2 | 3)</expression><output type="boolean">true</output></test>
+    <test name="REQ-COLLECTIONS-006-c"><expression>1.combine(1).combine(2).combine(3).union({}).count()</expression><output type="integer">3</output></test>
+    <test name="REQ-COLLECTIONS-006-d"><expression>1.combine(1).combine(2).combine(3).union({}).supersetOf(1 | 2 | 3)</expression><output type="boolean">true</output></test>
+    <test name="REQ-COLLECTIONS-006-e"><expression>(1.combine(1).combine(2).combine(3) | (2 | 3)).count()</expression><output type="integer">3</output></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-007" description="The 3.0.0 worked example: name.select(use.union(given)) is the same as name.select(use | given); union() introduces no iteration context, so the union is taken per name (example only in 3.0.0)">
+    <source spec="fhirpath-3.0.0" section="union(other : collection) : collection" strength="EXAMPLE">e.g. `name.select(use.union(given))`{:.fhirpath} is the same as `name.select(use | given)`{:.fhirpath}, noting that the union function does not introduce an iteration context, in this example the select introduces the iteration context on the name elements.</source>
+    <source spec="fhirpath-3.0.0" section="select(projection: ($this, $index) =&gt; any) : collection" strength="DEFINITION">Evaluates the `projection` expression for each item in the input collection. The result of each evaluation is added to the output collection. If the evaluation results in a collection with multiple items, all items are added to the output collection (collections resulting from evaluation of `projection` are _flattened_).</source>
+    <source spec="fhirpath-2.0.0" section="select(projection: expression) : collection" strength="DEFINITION">Evaluates the `projection` expression for each item in the input collection. The result of each evaluation is added to the output collection. If the evaluation results in a collection with multiple items, all items are added to the output collection (collections resulting from evaluation of `projection` are _flattened_).</source>
+    <source spec="fhirpath-2.0.0" section="count() : Integer" strength="DEFINITION">Returns the integer count of the number of items in the input collection. Returns 0 when the input collection is empty.</source>
+    <source spec="fhirpath-2.0.0" section="where(criteria : expression) : collection" strength="DEFINITION">Returns a collection containing only those elements in the input collection for which the stated `criteria` expression evaluates to `true`. Elements for which the expression evaluates to `false` or empty (`{ }`) are not included in the result.</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <test name="REQ-COLLECTIONS-007-a" inputfile="patient-example.xml"><expression>name.select(use.union(given)).count()</expression><output type="integer">8</output></test>
+    <test name="REQ-COLLECTIONS-007-b" inputfile="patient-example.xml"><expression>name.select(use | given).count()</expression><output type="integer">8</output></test>
+    <test name="REQ-COLLECTIONS-007-c" inputfile="patient-example.xml"><expression>name.select(use.union(given)).where($this = 'Peter').count()</expression><output type="integer">2</output></test>
+    <test name="REQ-COLLECTIONS-007-d" inputfile="patient-example.xml"><expression>name.select(use | given).where($this = 'James').count()</expression><output type="integer">2</output></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-008" description="combine(other) merges input and other without eliminating duplicate values">
+    <source spec="fhirpath-2.0.0" section="combine(other : collection) : collection" strength="DEFINITION">Merge the input and other collections into a single collection without eliminating duplicate values.</source>
+    <source spec="fhirpath-3.0.0" section="combine(other : collection, [preserveOrder : Boolean]) : collection" strength="DEFINITION">Merge the input and other collections into a single collection without eliminating duplicate values.</source>
+    <source spec="fhirpath-3.0.0" section="combine(other : collection, [preserveOrder : Boolean]) : collection" strength="EXAMPLE">Note that the duplicate `1`s are not removed from the collection using combine, where using `union` or `|` they would have been.</source>
+    <source spec="fhirpath-2.0.0" section="count() : Integer" strength="DEFINITION">Returns the integer count of the number of items in the input collection. Returns 0 when the input collection is empty.</source>
+    <source spec="fhirpath-2.0.0" section="where(criteria : expression) : collection" strength="DEFINITION">Returns a collection containing only those elements in the input collection for which the stated `criteria` expression evaluates to `true`. Elements for which the expression evaluates to `false` or empty (`{ }`) are not included in the result.</source>
+    <test name="REQ-COLLECTIONS-008-a"><expression>1.combine(1)</expression><output type="integer">1</output><output type="integer">1</output></test>
+    <test name="REQ-COLLECTIONS-008-b"><expression>(1 | 2).combine(2 | 3).count()</expression><output type="integer">4</output></test>
+    <test name="REQ-COLLECTIONS-008-c"><expression>(1 | 2).combine(2 | 3).where($this = 2).count()</expression><output type="integer">2</output></test>
+    <test name="REQ-COLLECTIONS-008-d" inputfile="patient-example.xml"><expression>Patient.name.given.combine(Patient.name.given).count()</expression><output type="integer">10</output></test>
+    <test name="REQ-COLLECTIONS-008-e"><expression>1.combine(1).combine(1).count()</expression><output type="integer">3</output></test>
+    <test name="REQ-COLLECTIONS-008-f"><expression>'a'.combine('a')</expression><output type="string">a</output><output type="string">a</output></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-009" description="Combining an empty collection with a non-empty collection returns the non-empty collection; combining two empty collections is empty">
+    <source spec="fhirpath-2.0.0" section="combine(other : collection) : collection" strength="DEFINITION">Merge the input and other collections into a single collection without eliminating duplicate values. Combining an empty collection with a non-empty collection will return the non-empty collection.</source>
+    <source spec="fhirpath-3.0.0" section="combine(other : collection, [preserveOrder : Boolean]) : collection" strength="DEFINITION">Merge the input and other collections into a single collection without eliminating duplicate values. Combining an empty collection with a non-empty collection will return the non-empty collection.</source>
+    <source spec="fhirpath-2.0.0" section="count() : Integer" strength="DEFINITION">Returns the integer count of the number of items in the input collection. Returns 0 when the input collection is empty.</source>
+    <test name="REQ-COLLECTIONS-009-a"><expression>{}.combine(1)</expression><output type="integer">1</output></test>
+    <test name="REQ-COLLECTIONS-009-b"><expression>1.combine({})</expression><output type="integer">1</output></test>
+    <test name="REQ-COLLECTIONS-009-c" inputfile="patient-example.xml"><expression>Patient.name.given.combine({}).count()</expression><output type="integer">5</output></test>
+    <test name="REQ-COLLECTIONS-009-d" inputfile="patient-example.xml"><expression>{}.combine(Patient.name.given).count()</expression><output type="integer">5</output></test>
+    <test name="REQ-COLLECTIONS-009-e"><expression>{}.combine({})</expression></test>
+    <test name="REQ-COLLECTIONS-009-f"><expression>1.combine(1).combine({}).count()</expression><output type="integer">2</output></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-010" description="The 3.0.0 worked combine examples with A: 1, 1, 2, 3 and B: 2, 3: A.combine(B) holds 1, 1, 2, 2, 3, 3 in any order, A.combine({}) holds 1, 1, 2, 3 (compared by counts; examples only in 3.0.0)">
+    <source spec="fhirpath-3.0.0" section="combine(other : collection, [preserveOrder : Boolean]) : collection" strength="EXAMPLE">For example, considering the same two lists of integers used in the union example `A: 1, 1, 2, 3` and `B: 2, 3`:</source>
+    <source spec="fhirpath-3.0.0" section="combine(other : collection, [preserveOrder : Boolean]) : collection" strength="EXAMPLE">A.combine(B)       // 1, 1, 2, 2, 3, 3 ; order is not guaranteed to be preserved (could be in any order)</source>
+    <source spec="fhirpath-3.0.0" section="combine(other : collection, [preserveOrder : Boolean]) : collection" strength="EXAMPLE">A.combine( {} )    // 1, 1, 2, 3       ; combining an empty collection with a non-empty collection returns the non-empty collection</source>
+    <source spec="fhirpath-2.0.0" section="count() : Integer" strength="DEFINITION">Returns the integer count of the number of items in the input collection. Returns 0 when the input collection is empty.</source>
+    <source spec="fhirpath-2.0.0" section="where(criteria : expression) : collection" strength="DEFINITION">Returns a collection containing only those elements in the input collection for which the stated `criteria` expression evaluates to `true`. Elements for which the expression evaluates to `false` or empty (`{ }`) are not included in the result.</source>
+    <test name="REQ-COLLECTIONS-010-a"><expression>1.combine(1).combine(2).combine(3).combine(2 | 3).count()</expression><output type="integer">6</output></test>
+    <test name="REQ-COLLECTIONS-010-b"><expression>1.combine(1).combine(2).combine(3).combine(2 | 3).where($this = 1).count()</expression><output type="integer">2</output></test>
+    <test name="REQ-COLLECTIONS-010-c"><expression>1.combine(1).combine(2).combine(3).combine(2 | 3).where($this = 2).count()</expression><output type="integer">2</output></test>
+    <test name="REQ-COLLECTIONS-010-d"><expression>1.combine(1).combine(2).combine(3).combine(2 | 3).where($this = 3).count()</expression><output type="integer">2</output></test>
+    <test name="REQ-COLLECTIONS-010-e"><expression>1.combine(1).combine(2).combine(3).combine({}).count()</expression><output type="integer">4</output></test>
+    <test name="REQ-COLLECTIONS-010-f"><expression>1.combine(1).combine(2).combine(3).combine({}).where($this = 1).count()</expression><output type="integer">2</output></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-011" description="combine(other, true) appends the items of other after the items of the input, preserving the order of both (preserveOrder is defined only by 3.0.0, as STU)">
+    <source spec="fhirpath-3.0.0" section="combine(other : collection, [preserveOrder : Boolean]) : collection" strength="DEFINITION">When `preserveOrder` is `true`, the items of the other collection are appended to the items of the input collection, preserving the order of items in both collections.</source>
+    <source spec="fhirpath-3.0.0" section="combine(other : collection, [preserveOrder : Boolean]) : collection" strength="DEFINITION">Merge the input and other collections into a single collection without eliminating duplicate values. Combining an empty collection with a non-empty collection will return the non-empty collection.</source>
+    <source spec="fhirpath-3.0.0" section="Collections" strength="DEFINITION">Ordered - The order of items in the collection is important and is preserved through operations as much as possible. Operators and functions that do not preserve order will note that in their documentation.</source>
+    <test name="REQ-COLLECTIONS-011-a"><expression>1.combine(2, true)</expression><output type="integer">1</output><output type="integer">2</output></test>
+    <test name="REQ-COLLECTIONS-011-b"><expression>2.combine(1, true)</expression><output type="integer">2</output><output type="integer">1</output></test>
+    <test name="REQ-COLLECTIONS-011-c"><expression>1.combine(1, true)</expression><output type="integer">1</output><output type="integer">1</output></test>
+    <test name="REQ-COLLECTIONS-011-d" inputfile="patient-example.xml"><expression>Patient.telecom.use.combine(Patient.name.use, true)</expression><output type="code">home</output><output type="code">work</output><output type="code">mobile</output><output type="code">old</output><output type="code">official</output><output type="code">usual</output><output type="code">maiden</output></test>
+    <test name="REQ-COLLECTIONS-011-e" inputfile="patient-example.xml"><expression>Patient.name.use.combine(Patient.telecom.use, true)</expression><output type="code">official</output><output type="code">usual</output><output type="code">maiden</output><output type="code">home</output><output type="code">work</output><output type="code">mobile</output><output type="code">old</output></test>
+    <test name="REQ-COLLECTIONS-011-f" inputfile="patient-example.xml"><expression>Patient.name.given.combine(Patient.name.given, true)</expression><output type="string">Peter</output><output type="string">James</output><output type="string">Jim</output><output type="string">Peter</output><output type="string">James</output><output type="string">Peter</output><output type="string">James</output><output type="string">Jim</output><output type="string">Peter</output><output type="string">James</output></test>
+    <test name="REQ-COLLECTIONS-011-g"><expression>{}.combine(1, true)</expression><output type="integer">1</output></test>
+    <test name="REQ-COLLECTIONS-011-h"><expression>1.combine({}, true)</expression><output type="integer">1</output></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-012" description="The 3.0.0 worked example A.combine(B, true) is 1, 1, 2, 3, 2, 3; A and B are built in order with preserveOrder true (example only in 3.0.0, STU)">
+    <source spec="fhirpath-3.0.0" section="combine(other : collection, [preserveOrder : Boolean]) : collection" strength="EXAMPLE">For example, considering the same two lists of integers used in the union example `A: 1, 1, 2, 3` and `B: 2, 3`:</source>
+    <source spec="fhirpath-3.0.0" section="combine(other : collection, [preserveOrder : Boolean]) : collection" strength="EXAMPLE">A.combine(B, true) // 1, 1, 2, 3, 2, 3 ; The order is preserved using the `preserveOrder` argument</source>
+    <source spec="fhirpath-3.0.0" section="combine(other : collection, [preserveOrder : Boolean]) : collection" strength="DEFINITION">When `preserveOrder` is `true`, the items of the other collection are appended to the items of the input collection, preserving the order of items in both collections.</source>
+    <test name="REQ-COLLECTIONS-012-a"><expression>1.combine(1, true).combine(2, true).combine(3, true).combine(2.combine(3, true), true)</expression><output type="integer">1</output><output type="integer">1</output><output type="integer">2</output><output type="integer">3</output><output type="integer">2</output><output type="integer">3</output></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-013" description="combine(other, false) behaves as combine(other): no duplicate is eliminated and no order is expected (preserveOrder is defined only by 3.0.0, as STU)">
+    <source spec="fhirpath-3.0.0" section="combine(other : collection, [preserveOrder : Boolean]) : collection" strength="DEFINITION">When `preserveOrder` is `false`, or not supplied, there is no expectation of order.</source>
+    <source spec="fhirpath-3.0.0" section="combine(other : collection, [preserveOrder : Boolean]) : collection" strength="DEFINITION">Merge the input and other collections into a single collection without eliminating duplicate values. Combining an empty collection with a non-empty collection will return the non-empty collection.</source>
+    <source spec="fhirpath-2.0.0" section="count() : Integer" strength="DEFINITION">Returns the integer count of the number of items in the input collection. Returns 0 when the input collection is empty.</source>
+    <test name="REQ-COLLECTIONS-013-a"><expression>1.combine(1, false)</expression><output type="integer">1</output><output type="integer">1</output></test>
+    <test name="REQ-COLLECTIONS-013-b"><expression>(1 | 2).combine(2 | 3, false).count()</expression><output type="integer">4</output></test>
+    <test name="REQ-COLLECTIONS-013-c"><expression>{}.combine(1, false)</expression><output type="integer">1</output></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-014" description="single() returns the one item of a one-item input, empty for an empty input, and signals an error for an input of several items, equal or not">
+    <source spec="fhirpath-2.0.0" section="single() : collection" strength="DEFINITION">Will return the single item in the input if there is just one item. If the input collection is empty (`{ }`), the result is empty. If there are multiple items, an error is signaled to the evaluation environment.</source>
+    <source spec="fhirpath-3.0.0" section="single() : any" strength="DEFINITION">Will return the single item in the input if there is just one item. If the input collection is empty (`{ }`), the result is empty. If there are multiple items, an error is signaled to the evaluation environment.</source>
+    <source spec="fhirpath-2.0.0" section="combine(other : collection) : collection" strength="DEFINITION">Merge the input and other collections into a single collection without eliminating duplicate values.</source>
+    <test name="REQ-COLLECTIONS-014-a"><expression>1.single()</expression><output type="integer">1</output></test>
+    <test name="REQ-COLLECTIONS-014-b"><expression>{}.single()</expression></test>
+    <test name="REQ-COLLECTIONS-014-c"><expression invalid="execution">(1 | 2).single()</expression></test>
+    <test name="REQ-COLLECTIONS-014-d"><expression invalid="execution">1.combine(1).single()</expression></test>
+    <test name="REQ-COLLECTIONS-014-e" inputfile="patient-example.xml"><expression>Patient.name[1].given.single()</expression><output type="string">Jim</output></test>
+    <test name="REQ-COLLECTIONS-014-f" inputfile="patient-example.xml"><expression invalid="execution">Patient.name.given.single()</expression></test>
+    <test name="REQ-COLLECTIONS-014-g" inputfile="patient-example.xml"><expression>Patient.name[1].family.single()</expression></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-015" description="The worked single() example: Patient.name.single() signals an error when the Patient has several names, and, by the single() definition, a path with one name (Patient.contact.name) returns that name">
+    <source spec="fhirpath-2.0.0" section="single() : collection" strength="EXAMPLE">The following example returns the name of the Patient if there is one. If there are no names, an empty collection, and if there are multiple names, an error is signaled to the evaluation environment:</source>
+    <source spec="fhirpath-2.0.0" section="single() : collection" strength="EXAMPLE">Patient.name.single()</source>
+    <source spec="fhirpath-3.0.0" section="single() : any" strength="EXAMPLE">The following example returns the name of the Patient if there is one. If there are no names, an empty collection, and if there are multiple names, an error is signaled to the evaluation environment:</source>
+    <source spec="fhirpath-3.0.0" section="single() : any" strength="EXAMPLE">Patient.name.single()</source>
+    <source spec="fhirpath-2.0.0" section="single() : collection" strength="DEFINITION">Will return the single item in the input if there is just one item. If the input collection is empty (`{ }`), the result is empty. If there are multiple items, an error is signaled to the evaluation environment.</source>
+    <source spec="fhirpath-3.0.0" section="single() : any" strength="DEFINITION">Will return the single item in the input if there is just one item. If the input collection is empty (`{ }`), the result is empty. If there are multiple items, an error is signaled to the evaluation environment.</source>
+    <test name="REQ-COLLECTIONS-015-a" inputfile="patient-example.xml"><expression invalid="execution">Patient.name.single()</expression></test>
+    <test name="REQ-COLLECTIONS-015-b" inputfile="patient-example.xml"><expression>Patient.contact.name.single().family</expression><output type="string">du Marché</output></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-016" description="first() returns only the first item of the input, in the input's order, and empty for an empty input">
+    <source spec="fhirpath-2.0.0" section="first() : collection" strength="DEFINITION">Returns a collection containing only the first item in the input collection. This function is equivalent to `item[0]`, so it will return an empty collection if the input collection has no items.</source>
+    <source spec="fhirpath-3.0.0" section="first() : any" strength="DEFINITION">Returns a collection containing only the first item in the input collection. This function is equivalent to `item[0]`, so it will return an empty collection if the input collection has no items.</source>
+    <source spec="fhirpath-2.0.0" section="Collections" strength="DEFINITION">Ordered - The order of items in the collection is important and is preserved through operations as much as possible. Operators and functions that do not preserve order will note that in their documentation.</source>
+    <test name="REQ-COLLECTIONS-016-a" inputfile="patient-example.xml"><expression>Patient.name.given.first()</expression><output type="string">Peter</output></test>
+    <test name="REQ-COLLECTIONS-016-b" inputfile="patient-example.xml"><expression>Patient.telecom.use.first()</expression><output type="code">home</output></test>
+    <test name="REQ-COLLECTIONS-016-c"><expression>{}.first()</expression></test>
+    <test name="REQ-COLLECTIONS-016-d"><expression>1.first()</expression><output type="integer">1</output></test>
+    <test name="REQ-COLLECTIONS-016-e" inputfile="patient-example.xml"><expression>Patient.name[1].family.first()</expression></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-017" description="The 3.0.0 worked first() example: Patient.name.first() is the first name element, as Patient.name[0] (example only in 3.0.0)">
+    <source spec="fhirpath-3.0.0" section="first() : any" strength="EXAMPLE">The following example returns the first name element, equivalent to `Patient.name[0]`:</source>
+    <source spec="fhirpath-3.0.0" section="first() : any" strength="EXAMPLE">Patient.name.first()</source>
+    <test name="REQ-COLLECTIONS-017-a" inputfile="patient-example.xml"><expression>Patient.name.first().use</expression><output type="code">official</output></test>
+    <test name="REQ-COLLECTIONS-017-b" inputfile="patient-example.xml"><expression>Patient.name.first().given</expression><output type="string">Peter</output><output type="string">James</output></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-018" description="last() returns only the last item of the input, in the input's order, and empty for an empty input">
+    <source spec="fhirpath-2.0.0" section="last() : collection" strength="DEFINITION">Returns a collection containing only the last item in the input collection. Will return an empty collection if the input collection has no items.</source>
+    <source spec="fhirpath-3.0.0" section="last() : any" strength="DEFINITION">Returns a collection containing only the last item in the input collection. Will return an empty collection if the input collection has no items.</source>
+    <source spec="fhirpath-2.0.0" section="Collections" strength="DEFINITION">Ordered - The order of items in the collection is important and is preserved through operations as much as possible. Operators and functions that do not preserve order will note that in their documentation.</source>
+    <test name="REQ-COLLECTIONS-018-a" inputfile="patient-example.xml"><expression>Patient.telecom.use.last()</expression><output type="code">old</output></test>
+    <test name="REQ-COLLECTIONS-018-b" inputfile="patient-example.xml"><expression>Patient.name.given.last()</expression><output type="string">James</output></test>
+    <test name="REQ-COLLECTIONS-018-c"><expression>{}.last()</expression></test>
+    <test name="REQ-COLLECTIONS-018-d"><expression>1.last()</expression><output type="integer">1</output></test>
+    <test name="REQ-COLLECTIONS-018-e" inputfile="patient-example.xml"><expression>Patient.name[1].given.last()</expression><output type="string">Jim</output></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-019" description="The 3.0.0 worked last() example: Patient.name.last() is the last name element (example only in 3.0.0)">
+    <source spec="fhirpath-3.0.0" section="last() : any" strength="EXAMPLE">The following example returns the last name element in the collection:</source>
+    <source spec="fhirpath-3.0.0" section="last() : any" strength="EXAMPLE">Patient.name.last()</source>
+    <test name="REQ-COLLECTIONS-019-a" inputfile="patient-example.xml"><expression>Patient.name.last().use</expression><output type="code">maiden</output></test>
+    <test name="REQ-COLLECTIONS-019-b" inputfile="patient-example.xml"><expression>Patient.name.last().family</expression><output type="string">Windsor</output></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-020" description="tail() returns all but the first item, in order and keeping duplicates; empty for an input of no items or one item">
+    <source spec="fhirpath-2.0.0" section="tail() : collection" strength="DEFINITION">Returns a collection containing all but the first item in the input collection. Will return an empty collection if the input collection has no items, or only one item.</source>
+    <source spec="fhirpath-3.0.0" section="tail() : collection" strength="DEFINITION">Returns a collection containing all but the first item in the input collection. Will return an empty collection if the input collection has no items, or only one item.</source>
+    <source spec="fhirpath-2.0.0" section="Collections" strength="DEFINITION">Ordered - The order of items in the collection is important and is preserved through operations as much as possible. Operators and functions that do not preserve order will note that in their documentation.</source>
+    <test name="REQ-COLLECTIONS-020-a" inputfile="patient-example.xml"><expression>Patient.telecom.use.tail()</expression><output type="code">work</output><output type="code">mobile</output><output type="code">old</output></test>
+    <test name="REQ-COLLECTIONS-020-b" inputfile="patient-example.xml"><expression>Patient.name.given.tail()</expression><output type="string">James</output><output type="string">Jim</output><output type="string">Peter</output><output type="string">James</output></test>
+    <test name="REQ-COLLECTIONS-020-c" inputfile="patient-example.xml"><expression>Patient.name[1].given.tail()</expression></test>
+    <test name="REQ-COLLECTIONS-020-d"><expression>1.tail()</expression></test>
+    <test name="REQ-COLLECTIONS-020-e"><expression>{}.tail()</expression></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-022" description="skip(num) returns all but the first num items in order; empty when none remain or the input is empty; the input itself when num is zero or negative">
+    <source spec="fhirpath-2.0.0" section="skip(num : Integer) : collection" strength="DEFINITION">Returns a collection containing all but the first `num` items in the input collection. Will return an empty collection if there are no items remaining after the indicated number of items have been skipped, or if the input collection is empty. If `num` is less than or equal to zero, the input collection is simply returned.</source>
+    <source spec="fhirpath-3.0.0" section="skip(num : Integer) : collection" strength="DEFINITION">Returns a collection containing all but the first `num` items in the input collection. Will return an empty collection if there are no items remaining after the indicated number of items have been skipped, or if the input collection is empty. If `num` is less than or equal to zero, the input collection is simply returned.</source>
+    <source spec="fhirpath-2.0.0" section="Collections" strength="DEFINITION">Ordered - The order of items in the collection is important and is preserved through operations as much as possible. Operators and functions that do not preserve order will note that in their documentation.</source>
+    <test name="REQ-COLLECTIONS-022-a" inputfile="patient-example.xml"><expression>Patient.telecom.use.skip(1)</expression><output type="code">work</output><output type="code">mobile</output><output type="code">old</output></test>
+    <test name="REQ-COLLECTIONS-022-b" inputfile="patient-example.xml"><expression>Patient.telecom.use.skip(2)</expression><output type="code">mobile</output><output type="code">old</output></test>
+    <test name="REQ-COLLECTIONS-022-c" inputfile="patient-example.xml"><expression>Patient.telecom.use.skip(3)</expression><output type="code">old</output></test>
+    <test name="REQ-COLLECTIONS-022-d" inputfile="patient-example.xml"><expression>Patient.telecom.use.skip(4)</expression></test>
+    <test name="REQ-COLLECTIONS-022-e" inputfile="patient-example.xml"><expression>Patient.telecom.use.skip(10)</expression></test>
+    <test name="REQ-COLLECTIONS-022-f" inputfile="patient-example.xml"><expression>Patient.telecom.use.skip(0)</expression><output type="code">home</output><output type="code">work</output><output type="code">mobile</output><output type="code">old</output></test>
+    <test name="REQ-COLLECTIONS-022-g" inputfile="patient-example.xml"><expression>Patient.telecom.use.skip(-1)</expression><output type="code">home</output><output type="code">work</output><output type="code">mobile</output><output type="code">old</output></test>
+    <test name="REQ-COLLECTIONS-022-h"><expression>{}.skip(1)</expression></test>
+    <test name="REQ-COLLECTIONS-022-i"><expression>{}.skip(0)</expression></test>
+    <test name="REQ-COLLECTIONS-022-j" inputfile="patient-example.xml"><expression>Patient.name.given.skip(2)</expression><output type="string">Jim</output><output type="string">Peter</output><output type="string">James</output></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-024" description="take(num) returns the first num items in order, or all items when there are fewer; empty when num is zero or negative or the input is empty">
+    <source spec="fhirpath-2.0.0" section="take(num : Integer) : collection" strength="DEFINITION">Returns a collection containing the first `num` items in the input collection, or less if there are less than `num` items. If num is less than or equal to 0, or if the input collection is empty (`{ }`), `take` returns an empty collection.</source>
+    <source spec="fhirpath-3.0.0" section="take(num : Integer) : collection" strength="DEFINITION">Returns a collection containing the first `num` items in the input collection, or less if there are less than `num` items. If num is less than or equal to 0, or if the input collection is empty (`{ }`), `take` returns an empty collection.</source>
+    <source spec="fhirpath-2.0.0" section="Collections" strength="DEFINITION">Ordered - The order of items in the collection is important and is preserved through operations as much as possible. Operators and functions that do not preserve order will note that in their documentation.</source>
+    <test name="REQ-COLLECTIONS-024-a" inputfile="patient-example.xml"><expression>Patient.telecom.use.take(1)</expression><output type="code">home</output></test>
+    <test name="REQ-COLLECTIONS-024-b" inputfile="patient-example.xml"><expression>Patient.telecom.use.take(2)</expression><output type="code">home</output><output type="code">work</output></test>
+    <test name="REQ-COLLECTIONS-024-c" inputfile="patient-example.xml"><expression>Patient.telecom.use.take(4)</expression><output type="code">home</output><output type="code">work</output><output type="code">mobile</output><output type="code">old</output></test>
+    <test name="REQ-COLLECTIONS-024-d" inputfile="patient-example.xml"><expression>Patient.telecom.use.take(5)</expression><output type="code">home</output><output type="code">work</output><output type="code">mobile</output><output type="code">old</output></test>
+    <test name="REQ-COLLECTIONS-024-e" inputfile="patient-example.xml"><expression>Patient.telecom.use.take(0)</expression></test>
+    <test name="REQ-COLLECTIONS-024-f" inputfile="patient-example.xml"><expression>Patient.telecom.use.take(-1)</expression></test>
+    <test name="REQ-COLLECTIONS-024-g"><expression>{}.take(1)</expression></test>
+    <test name="REQ-COLLECTIONS-024-h" inputfile="patient-example.xml"><expression>Patient.name.given.take(3)</expression><output type="string">Peter</output><output type="string">James</output><output type="string">Jim</output></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-026" description="skip() and take() take num as a single Integer: an argument of several items ends the evaluation with an error">
+    <source spec="fhirpath-2.0.0" section="Singleton Evaluation of Collections" strength="DEFINITION">In general, when a collection is passed as an argument to a function or operator that expects a single item as input, the collection is implicitly converted to a singleton as follows:</source>
+    <source spec="fhirpath-2.0.0" section="Singleton Evaluation of Collections" strength="DEFINITION">ELSE
+  The evaluation will end and signal an error to the calling environment</source>
+    <source spec="fhirpath-3.0.0" section="Singleton Evaluation of Collections" strength="DEFINITION">In general, when a collection is passed as an argument to a function or operator that expects a single item as input, the collection is implicitly converted to a singleton as follows:</source>
+    <source spec="fhirpath-3.0.0" section="Singleton Evaluation of Collections" strength="DEFINITION">ELSE
+  The evaluation will end and signal an error to the calling environment</source>
+    <source spec="fhirpath-2.0.0" section="Functions" strength="DEFINITION">If the function expects the argument passed to a parameter to be a single value (e.g. `startsWith(prefix: String)`) and it is passed an argument that evaluates to a collection with multiple items, or to a collection with an item that is not of the required type (or cannot be converted to the required type), the evaluation of the expression will end and an error will be signaled to the calling environment.</source>
+    <source spec="fhirpath-3.0.0" section="Functions" strength="DEFINITION">If a function expects the argument passed to a parameter to be a single value (e.g. `startsWith(prefix: String)`) and it is passed an argument that evaluates to a collection with multiple items, or to a collection with an item that is not of the required type (or cannot be converted to the required type), the evaluation of the expression will end and an error will be signaled to the calling environment.</source>
+    <test name="REQ-COLLECTIONS-026-a" inputfile="patient-example.xml"><expression invalid="execution">Patient.telecom.use.skip(1 | 2)</expression></test>
+    <test name="REQ-COLLECTIONS-026-b" inputfile="patient-example.xml"><expression invalid="execution">Patient.telecom.use.take(1 | 2)</expression></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-027" description="intersect(other) returns the items in both collections with duplicates eliminated; empty when either side is empty or nothing is shared">
+    <source spec="fhirpath-2.0.0" section="intersect(other: collection) : collection" strength="DEFINITION">Returns the set of elements that are in both collections. Duplicate items will be eliminated by this function. Order of items is not guaranteed to be preserved in the result of this function.</source>
+    <source spec="fhirpath-3.0.0" section="intersect(other: collection) : collection" strength="DEFINITION">Returns the set of items that are in both collections. Duplicate items will be eliminated by this function. Order of items is not guaranteed to be preserved in the result of this function.</source>
+    <source spec="fhirpath-2.0.0" section="combine(other : collection) : collection" strength="DEFINITION">Merge the input and other collections into a single collection without eliminating duplicate values.</source>
+    <source spec="fhirpath-2.0.0" section="count() : Integer" strength="DEFINITION">Returns the integer count of the number of items in the input collection. Returns 0 when the input collection is empty.</source>
+    <source spec="fhirpath-2.0.0" section="supersetOf(other : collection) : Boolean" strength="DEFINITION">Returns `true` if all items in the collection passed as the `other` argument are members of the input collection. Membership is determined using the &lt;&lt;equals&gt;&gt; (`=`) operation.</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <test name="REQ-COLLECTIONS-027-a"><expression>{}.intersect(1 | 2)</expression></test>
+    <test name="REQ-COLLECTIONS-027-b"><expression>(1 | 2).intersect({})</expression></test>
+    <test name="REQ-COLLECTIONS-027-c"><expression>(1 | 2 | 3).intersect(4 | 5)</expression></test>
+    <test name="REQ-COLLECTIONS-027-d"><expression>1.combine(1).intersect(1.combine(1))</expression><output type="integer">1</output></test>
+    <test name="REQ-COLLECTIONS-027-e" inputfile="patient-example.xml"><expression>Patient.name.given.intersect('Peter' | 'James').count()</expression><output type="integer">2</output></test>
+    <test name="REQ-COLLECTIONS-027-f" inputfile="patient-example.xml"><expression>Patient.name.given.intersect('Peter' | 'James').supersetOf('Peter' | 'James')</expression><output type="boolean">true</output></test>
+    <test name="REQ-COLLECTIONS-027-g" inputfile="patient-example.xml"><expression>Patient.name.given.intersect(Patient.name.given).count()</expression><output type="integer">3</output></test>
+    <test name="REQ-COLLECTIONS-027-h" inputfile="patient-example.xml"><expression>Patient.name.given.intersect('Joe')</expression></test>
+    <test name="REQ-COLLECTIONS-027-i"><expression>(1 | 2).intersect(2.combine(2))</expression><output type="integer">2</output></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-028" description="The 3.0.0 worked intersect() example: (1 | 2 | 3).intersect(2 | 4) is 2 (example only in 3.0.0)">
+    <source spec="fhirpath-3.0.0" section="intersect(other: collection) : collection" strength="EXAMPLE">(1 | 2 | 3).intersect(2 | 4) // 2</source>
+    <test name="REQ-COLLECTIONS-028-a"><expression>(1 | 2 | 3).intersect(2 | 4)</expression><output type="integer">2</output></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-029" description="exclude(other) returns the input items not in other, keeping duplicates and the input's order; the whole input when other is empty, empty when the input is">
+    <source spec="fhirpath-2.0.0" section="exclude(other: collection) : collection" strength="DEFINITION">Returns the set of elements that are not in the `other` collection. Duplicate items will not be eliminated by this function, and order will be preserved.</source>
+    <source spec="fhirpath-3.0.0" section="exclude(other: collection) : collection" strength="DEFINITION">Returns the set of items that are not in the `other` collection. Duplicate items will not be eliminated by this function, and order will be preserved.</source>
+    <source spec="fhirpath-2.0.0" section="combine(other : collection) : collection" strength="DEFINITION">Merge the input and other collections into a single collection without eliminating duplicate values.</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.string, FHIR.uri, FHIR.code, FHIR.oid, FHIR.id, FHIR.uuid, FHIR.sid, FHIR.markdown, FHIR.base64Binary
+System.String</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.string, FHIR.uri, FHIR.code, FHIR.oid, FHIR.id, FHIR.uuid, FHIR.markdown, FHIR.base64Binary
+System.String</source>
+    <test name="REQ-COLLECTIONS-029-a" inputfile="patient-example.xml"><expression>Patient.name.given.exclude('Jim')</expression><output type="string">Peter</output><output type="string">James</output><output type="string">Peter</output><output type="string">James</output></test>
+    <test name="REQ-COLLECTIONS-029-b" inputfile="patient-example.xml"><expression>Patient.telecom.use.exclude('work' | 'old')</expression><output type="code">home</output><output type="code">mobile</output></test>
+    <test name="REQ-COLLECTIONS-029-c" inputfile="patient-example.xml"><expression>Patient.name.given.exclude({})</expression><output type="string">Peter</output><output type="string">James</output><output type="string">Jim</output><output type="string">Peter</output><output type="string">James</output></test>
+    <test name="REQ-COLLECTIONS-029-d"><expression>{}.exclude(1)</expression></test>
+    <test name="REQ-COLLECTIONS-029-e"><expression>1.combine(1).exclude(2)</expression><output type="integer">1</output><output type="integer">1</output></test>
+    <test name="REQ-COLLECTIONS-029-f" inputfile="patient-example.xml"><expression>Patient.name.given.exclude(Patient.name.given)</expression></test>
+    <test name="REQ-COLLECTIONS-029-g" inputfile="patient-example.xml"><expression>Patient.name.given.exclude('Peter' | 'James')</expression><output type="string">Jim</output></test>
+    <test name="REQ-COLLECTIONS-029-h"><expression>1.combine(1).exclude(1)</expression></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-030" description="The worked exclude() example: (1 | 2 | 3).exclude(2) is 1 and 3 (compared by count and supersetOf, since | does not guarantee the order of the input)">
+    <source spec="fhirpath-2.0.0" section="exclude(other: collection) : collection" strength="EXAMPLE">e.g. `(1 | 2 | 3).exclude(2)` returns `(1 | 3)`.</source>
+    <source spec="fhirpath-3.0.0" section="exclude(other: collection) : collection" strength="EXAMPLE">(1 | 2 | 3).exclude(2) // 1, 3</source>
+    <source spec="fhirpath-2.0.0" section="count() : Integer" strength="DEFINITION">Returns the integer count of the number of items in the input collection. Returns 0 when the input collection is empty.</source>
+    <source spec="fhirpath-2.0.0" section="supersetOf(other : collection) : Boolean" strength="DEFINITION">Returns `true` if all items in the collection passed as the `other` argument are members of the input collection. Membership is determined using the &lt;&lt;equals&gt;&gt; (`=`) operation.</source>
+    <test name="REQ-COLLECTIONS-030-a"><expression>(1 | 2 | 3).exclude(2).count()</expression><output type="integer">2</output></test>
+    <test name="REQ-COLLECTIONS-030-b"><expression>(1 | 2 | 3).exclude(2).supersetOf(1 | 3)</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-031" description="in: a single left item is true if it equals an item of the right operand and false otherwise; an empty left operand gives empty, an empty right operand false">
+    <source spec="fhirpath-2.0.0" section="in (membership)" strength="DEFINITION">If the left operand is a collection with a single item, this operator returns true if the item is in the right operand using equality semantics. If the left-hand side of the operator is empty, the result is empty, if the right-hand side is empty, the result is false.</source>
+    <source spec="fhirpath-3.0.0" section="in (membership) : Boolean" strength="DEFINITION">If the left operand is a collection with a single item, this operator returns `true` if the item is in the right operand using equality semantics *(items are considered equal if and only if the [equals](#equals) (`=`) operator returns `true`. i.e. `false` and empty both indicate that the items are not equal)*. If the left-hand side of the operator is empty, the result is empty, if the right-hand side is empty, the result is `false`.</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.string, FHIR.uri, FHIR.code, FHIR.oid, FHIR.id, FHIR.uuid, FHIR.sid, FHIR.markdown, FHIR.base64Binary
+System.String</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.string, FHIR.uri, FHIR.code, FHIR.oid, FHIR.id, FHIR.uuid, FHIR.markdown, FHIR.base64Binary
+System.String</source>
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">`String`: comparison is based on Unicode values</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="EXAMPLE">'a' = 'A' // false ; case is NOT ignored for equality</source>
+    <test name="REQ-COLLECTIONS-031-a" inputfile="patient-example.xml"><expression>'Jim' in Patient.name.given</expression><output type="boolean">true</output></test>
+    <test name="REQ-COLLECTIONS-031-b" inputfile="patient-example.xml"><expression>'Peter' in Patient.name.given</expression><output type="boolean">true</output></test>
+    <test name="REQ-COLLECTIONS-031-c"><expression>1 in 1</expression><output type="boolean">true</output></test>
+    <test name="REQ-COLLECTIONS-031-d"><expression>1 in 2</expression><output type="boolean">false</output></test>
+    <test name="REQ-COLLECTIONS-031-e"><expression>{} in (1 | 2)</expression></test>
+    <test name="REQ-COLLECTIONS-031-f" inputfile="patient-example.xml"><expression>Patient.name[1].family in Patient.name.family</expression></test>
+    <test name="REQ-COLLECTIONS-031-g"><expression>1 in {}</expression><output type="boolean">false</output></test>
+    <test name="REQ-COLLECTIONS-031-h" inputfile="patient-example.xml"><expression>'Jim' in Patient.name[1].family</expression><output type="boolean">false</output></test>
+    <test name="REQ-COLLECTIONS-031-i" inputfile="patient-example.xml"><expression>Patient.name[1].given in Patient.name.given</expression><output type="boolean">true</output></test>
+    <test name="REQ-COLLECTIONS-031-j"><expression>'a' in ('A' | 'b')</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-032" description="in signals an error when the left operand has several items and the right operand is not empty">
+    <source spec="fhirpath-2.0.0" section="in (membership)" strength="DEFINITION">If the left operand has multiple items, an exception is thrown.</source>
+    <source spec="fhirpath-3.0.0" section="in (membership) : Boolean" strength="DEFINITION">If the left operand has multiple items, an exception is thrown.</source>
+    <test name="REQ-COLLECTIONS-032-a"><expression invalid="execution">(1 | 2) in (1 | 2 | 3)</expression></test>
+    <test name="REQ-COLLECTIONS-032-b" inputfile="patient-example.xml"><expression invalid="execution">Patient.name.given in 'Peter'</expression></test>
+    <test name="REQ-COLLECTIONS-032-c"><expression invalid="execution">1.combine(1) in 1</expression></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-033" description="The worked in example: 'Joe' in Patient.name.given is true only if 'Joe' is one of the given names, so false for the example Patient">
+    <source spec="fhirpath-2.0.0" section="in (membership)" strength="EXAMPLE">The following example returns true if 'Joe' is in the list of given names for the Patient:</source>
+    <source spec="fhirpath-2.0.0" section="in (membership)" strength="EXAMPLE">'Joe' in Patient.name.given</source>
+    <source spec="fhirpath-3.0.0" section="in (membership) : Boolean" strength="EXAMPLE">The following example returns `true` if `'Joe'` is in the list of given names for the Patient:</source>
+    <source spec="fhirpath-3.0.0" section="in (membership) : Boolean" strength="EXAMPLE">'Joe' in Patient.name.given</source>
+    <source spec="fhirpath-2.0.0" section="in (membership)" strength="DEFINITION">If the left operand is a collection with a single item, this operator returns true if the item is in the right operand using equality semantics.</source>
+    <test name="REQ-COLLECTIONS-033-a" inputfile="patient-example.xml"><expression>'Joe' in Patient.name.given</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-034" description="contains: a single right item is true if it equals an item of the left operand and false otherwise; an empty right operand gives empty, an empty left operand false">
+    <source spec="fhirpath-2.0.0" section="contains (containership)" strength="DEFINITION">If the right operand is a collection with a single item, this operator returns true if the item is in the left operand using equality semantics. If the right-hand side of the operator is empty, the result is empty, if the left-hand side is empty, the result is false. This is the converse operation of in.</source>
+    <source spec="fhirpath-3.0.0" section="contains (containership) : Boolean" strength="DEFINITION">If the right operand is a collection with a single item, this operator returns `true` if the item is in the left operand using equality semantics *(items are considered equal if and only if the [equals](#equals) (`=`) operator returns `true`. i.e. `false` and empty both indicate that the items are not equal)*. If the right-hand side of the operator is empty, the result is empty, if the left-hand side is empty, the result is `false`. This is the converse operation of `in`.</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.string, FHIR.uri, FHIR.code, FHIR.oid, FHIR.id, FHIR.uuid, FHIR.sid, FHIR.markdown, FHIR.base64Binary
+System.String</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.string, FHIR.uri, FHIR.code, FHIR.oid, FHIR.id, FHIR.uuid, FHIR.markdown, FHIR.base64Binary
+System.String</source>
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">`String`: comparison is based on Unicode values</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="EXAMPLE">'a' = 'A' // false ; case is NOT ignored for equality</source>
+    <test name="REQ-COLLECTIONS-034-a" inputfile="patient-example.xml"><expression>Patient.name.given contains 'Jim'</expression><output type="boolean">true</output></test>
+    <test name="REQ-COLLECTIONS-034-b"><expression>1 contains 1</expression><output type="boolean">true</output></test>
+    <test name="REQ-COLLECTIONS-034-c"><expression>(1 | 2) contains 3</expression><output type="boolean">false</output></test>
+    <test name="REQ-COLLECTIONS-034-d"><expression>(1 | 2) contains {}</expression></test>
+    <test name="REQ-COLLECTIONS-034-e" inputfile="patient-example.xml"><expression>Patient.name.given contains Patient.name[1].family</expression></test>
+    <test name="REQ-COLLECTIONS-034-f"><expression>{} contains 1</expression><output type="boolean">false</output></test>
+    <test name="REQ-COLLECTIONS-034-g" inputfile="patient-example.xml"><expression>Patient.name[1].family contains 'Jim'</expression><output type="boolean">false</output></test>
+    <test name="REQ-COLLECTIONS-034-h" inputfile="patient-example.xml"><expression>Patient.name.given contains Patient.name[1].given</expression><output type="boolean">true</output></test>
+    <test name="REQ-COLLECTIONS-034-i"><expression>('A' | 'b') contains 'a'</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-035" description="The worked contains example: Patient.name.given contains 'Joe' is true only if 'Joe' is one of the given names, so false for the example Patient">
+    <source spec="fhirpath-2.0.0" section="contains (containership)" strength="EXAMPLE">The following example returns true if the list of given names for the Patient has 'Joe' in it:</source>
+    <source spec="fhirpath-2.0.0" section="contains (containership)" strength="EXAMPLE">Patient.name.given contains 'Joe'</source>
+    <source spec="fhirpath-3.0.0" section="contains (containership) : Boolean" strength="EXAMPLE">The following example returns `true` if the list of given names for the Patient has `'Joe'` in it:</source>
+    <source spec="fhirpath-3.0.0" section="contains (containership) : Boolean" strength="EXAMPLE">Patient.name.given contains 'Joe'</source>
+    <source spec="fhirpath-2.0.0" section="contains (containership)" strength="DEFINITION">If the right operand is a collection with a single item, this operator returns true if the item is in the left operand using equality semantics.</source>
+    <test name="REQ-COLLECTIONS-035-a" inputfile="patient-example.xml"><expression>Patient.name.given contains 'Joe'</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-036" description="in and contains treat an item whose equality is empty (dates of different precision) as not equal, so the result is false; stated by 3.0.0 (2.0.0 only says equality semantics)">
+    <source spec="fhirpath-3.0.0" section="in (membership) : Boolean" strength="DEFINITION">If the left operand is a collection with a single item, this operator returns `true` if the item is in the right operand using equality semantics *(items are considered equal if and only if the [equals](#equals) (`=`) operator returns `true`. i.e. `false` and empty both indicate that the items are not equal)*.</source>
+    <source spec="fhirpath-3.0.0" section="contains (containership) : Boolean" strength="DEFINITION">If the right operand is a collection with a single item, this operator returns `true` if the item is in the left operand using equality semantics *(items are considered equal if and only if the [equals](#equals) (`=`) operator returns `true`. i.e. `false` and empty both indicate that the items are not equal)*.</source>
+    <source spec="fhirpath-2.0.0" section="in (membership)" strength="DEFINITION">If the left operand is a collection with a single item, this operator returns true if the item is in the right operand using equality semantics.</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Equality" strength="DEFINITION">If one input has a value for the precision and the other does not, the comparison stops and the result is empty (`{ }`); if neither input has a value for the precision, or the last precision has been reached, the comparison stops and the result is `true`.</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Equality" strength="EXAMPLE">@2012-01 = @2012 // empty ({ }) ; different date precision</source>
+    <test name="REQ-COLLECTIONS-036-a"><expression>@2012-01 in @2012</expression><output type="boolean">false</output></test>
+    <test name="REQ-COLLECTIONS-036-b"><expression>@2012-01 in (@2012 | @2013)</expression><output type="boolean">false</output></test>
+    <test name="REQ-COLLECTIONS-036-c"><expression>(@2012 | @2013) contains @2012-01</expression><output type="boolean">false</output></test>
+    <test name="REQ-COLLECTIONS-036-d"><expression>@2012-01-01T10:30 contains @2012-01-01T10:30:31</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-037" description="skip() and take() take num as a single Integer: a num that is a String, a Decimal or a Boolean, none of which converts implicitly to Integer, ends the evaluation with an error">
+    <source spec="fhirpath-2.0.0" section="Functions" strength="DEFINITION">If the function expects the argument passed to a parameter to be a single value (e.g. `startsWith(prefix: String)`) and it is passed an argument that evaluates to a collection with multiple items, or to a collection with an item that is not of the required type (or cannot be converted to the required type), the evaluation of the expression will end and an error will be signaled to the calling environment.</source>
+    <source spec="fhirpath-3.0.0" section="Functions" strength="DEFINITION">If a function expects the argument passed to a parameter to be a single value (e.g. `startsWith(prefix: String)`) and it is passed an argument that evaluates to a collection with multiple items, or to a collection with an item that is not of the required type (or cannot be converted to the required type), the evaluation of the expression will end and an error will be signaled to the calling environment.</source>
+    <source spec="fhirpath-2.0.0" section="Conversion" strength="DEFINITION">|From\To |Boolean |Integer |Decimal |Quantity |String |Date |DateTime |Time
+|*Boolean* |N/A |Explicit |Explicit |- |Explicit |- |- |-
+|*Integer* |Explicit |N/A |Implicit |Implicit |Explicit |- |- |-
+|*Decimal* |Explicit |- |N/A |Implicit |Explicit |- |- |-</source>
+    <source spec="fhirpath-2.0.0" section="Conversion" strength="DEFINITION">|*String* |Explicit |Explicit |Explicit |Explicit |N/A |Explicit |Explicit |Explicit</source>
+    <source spec="fhirpath-2.0.0" section="Conversion" strength="DEFINITION">* Implicit - Values of the type in the From column will be implicitly converted to values of the type in the To column when necessary
+* Explicit - Values of the type in the From column can be explicitly converted using a function defined in this section
+* N/A - Not applicable
+* - No conversion is defined</source>
+    <source spec="fhirpath-2.0.0" section="Conversion" strength="DEFINITION">Implicit conversions occur automatically, as opposed to explicit conversions that require the function be called explicitly.</source>
+    <source spec="fhirpath-3.0.0" section="Conversion" strength="DEFINITION">Implicit conversions occur automatically, as opposed to explicit conversions that require the function be called explicitly.</source>
+    <source spec="fhirpath-2.0.0" section="skip(num : Integer) : collection" strength="DEFINITION">Returns a collection containing all but the first `num` items in the input collection.</source>
+    <source spec="fhirpath-2.0.0" section="take(num : Integer) : collection" strength="DEFINITION">Returns a collection containing the first `num` items in the input collection, or less if there are less than `num` items.</source>
+    <test name="REQ-COLLECTIONS-037-a" inputfile="patient-example.xml"><expression invalid="execution">Patient.telecom.use.skip('1')</expression></test>
+    <test name="REQ-COLLECTIONS-037-b" inputfile="patient-example.xml"><expression invalid="execution">Patient.telecom.use.take(1.5)</expression></test>
+    <test name="REQ-COLLECTIONS-037-c" inputfile="patient-example.xml"><expression invalid="execution">Patient.telecom.use.skip(true)</expression></test>
+    <test name="REQ-COLLECTIONS-037-d" inputfile="patient-example.xml"><expression invalid="execution">Patient.telecom.use.take('2')</expression></test>
+    <test name="REQ-COLLECTIONS-037-e" inputfile="patient-example.xml"><expression invalid="execution">Patient.telecom.use.skip(1.0)</expression></test>
+  </group>
+
+  <group name="REQ-COLLECTIONS-038" description="The worked precedence example on combine(): -7.combine(3) negates the result of 7.combine(3), a list, and so signals an error; (-7).combine(3) holds -7 and 3 (compared by count and supersetOf, since combine() expects no order)">
+    <source spec="fhirpath-2.0.0" section="Operator precedence" strength="EXAMPLE">-7.combine(3)</source>
+    <source spec="fhirpath-2.0.0" section="Operator precedence" strength="EXAMPLE">Because the invocation operator (`.`) has a higher precedence than the unary negation (`-`), the unary negation will be applied to the result of the combine of 7 and 3, resulting in an error (because unary negation cannot be applied to a list):</source>
+    <source spec="fhirpath-2.0.0" section="Operator precedence" strength="EXAMPLE">-(7.combine(3)) // ERROR</source>
+    <source spec="fhirpath-2.0.0" section="Operator precedence" strength="EXAMPLE">(-7).combine(3) // { -7, 3 }</source>
+    <source spec="fhirpath-3.0.0" section="Operator precedence" strength="EXAMPLE">-(7.combine(3)) // ERROR</source>
+    <source spec="fhirpath-3.0.0" section="Operator precedence" strength="EXAMPLE">(-7).combine(3) // -7, 3</source>
+    <source spec="fhirpath-2.0.0" section="combine(other : collection) : collection" strength="DEFINITION">Merge the input and other collections into a single collection without eliminating duplicate values. Combining an empty collection with a non-empty collection will return the non-empty collection. There is no expectation of order in the resulting collection.</source>
+    <source spec="fhirpath-2.0.0" section="count() : Integer" strength="DEFINITION">Returns the integer count of the number of items in the input collection. Returns 0 when the input collection is empty.</source>
+    <source spec="fhirpath-2.0.0" section="supersetOf(other : collection) : Boolean" strength="DEFINITION">Returns `true` if all items in the collection passed as the `other` argument are members of the input collection. Membership is determined using the &lt;&lt;equals&gt;&gt; (`=`) operation.</source>
+    <test name="REQ-COLLECTIONS-038-a"><expression invalid="execution">-7.combine(3)</expression></test>
+    <test name="REQ-COLLECTIONS-038-b"><expression invalid="execution">-(7.combine(3))</expression></test>
+    <test name="REQ-COLLECTIONS-038-c"><expression>(-7).combine(3).count()</expression><output type="integer">2</output></test>
+    <test name="REQ-COLLECTIONS-038-d"><expression>(-7).combine(3).supersetOf((-7) | 3)</expression><output type="boolean">true</output></test>
+  </group>
+
+</tests>

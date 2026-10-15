@@ -142,6 +142,7 @@ result, _ := fhirpath.Evaluate(patient, "Patient.name.take(100)")
 
 - Si `n` es mayor que el tamano de la coleccion, se devuelven todos los elementos.
 - Si `n` es cero o negativo, devuelve una coleccion vacia.
+- Un `num` de mas de un elemento termina la evaluacion con un error.
 - Devuelve una coleccion vacia si la entrada esta vacia.
 
 ---
@@ -181,13 +182,14 @@ result, _ := fhirpath.Evaluate(patient, "Patient.name.skip(0)")
 
 - Si `n` es mayor o igual al tamano de la coleccion, devuelve una coleccion vacia.
 - Si `n` es cero o negativo, se devuelven todos los elementos.
+- Un `num` de mas de un elemento termina la evaluacion con un error.
 - Devuelve una coleccion vacia si la entrada esta vacia.
 
 ---
 
 ## single
 
-Devuelve el unico elemento de la coleccion de entrada. Si la coleccion no contiene exactamente un elemento, se genera un error.
+Devuelve el unico elemento de la coleccion de entrada, o vacio si la entrada esta vacia. Si la coleccion contiene mas de un elemento, se genera un error.
 
 **Firma:**
 
@@ -195,7 +197,7 @@ Devuelve el unico elemento de la coleccion de entrada. Si la coleccion no contie
 single() : Collection
 ```
 
-**Tipo de Retorno:** `Collection` (que contiene exactamente un elemento)
+**Tipo de Retorno:** `Collection` (que contiene como maximo un elemento)
 
 **Ejemplos:**
 
@@ -212,9 +214,10 @@ result, err := fhirpath.Evaluate(patient, "Patient.name.single()")
 
 **Casos Limite / Notas:**
 
-- Devuelve un error de tipo `ErrSingletonExpected` si la coleccion contiene cero o mas de un elemento.
-- Use esta funcion cuando espera exactamente un resultado y desea imponer esa restriccion.
-- Es mas estricta que `first()`, que silenciosamente devuelve vacio o el primer elemento.
+- Devuelve una coleccion vacia si la entrada esta vacia.
+- Devuelve un error de tipo `ErrSingletonExpected` si la coleccion contiene mas de un elemento.
+- Use esta funcion cuando espera como maximo un resultado y desea imponer esa restriccion.
+- Es mas estricta que `first()`, que silenciosamente devuelve el primero de varios elementos.
 
 ---
 
