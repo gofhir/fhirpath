@@ -59,7 +59,7 @@ Devuelve la concatenacion de la coleccion de entrada y otra coleccion. A diferen
 **Firma:**
 
 ```text
-combine(other : Collection) : Collection
+combine(other : Collection [, preserveOrder : Boolean]) : Collection
 ```
 
 **Parametros:**
@@ -88,6 +88,7 @@ result, _ := fhirpath.Evaluate(patient, "Patient.name.first().given.combine(Pati
 - A diferencia de `union`, `combine` **no** elimina duplicados. Es una concatenacion simple.
 - El orden de los elementos se preserva: todos los elementos de la entrada vienen primero, seguidos por todos los elementos de la otra coleccion.
 - Si cualquiera de las colecciones esta vacia, el resultado es la otra coleccion.
+- `preserveOrder` es opcional (FHIRPath 3.0.0, uso de prueba): el resultado mantiene el orden de la entrada y luego el de `other` en ambos casos. Un `preserveOrder` de mas de un elemento, o que no sea Boolean, termina la evaluacion con un error.
 - Use `combine` cuando necesite preservar duplicados (por ejemplo, para contar o agregar). Use `union` cuando necesite semantica de conjuntos.
 
 ---

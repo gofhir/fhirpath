@@ -32,14 +32,14 @@ func init() {
 		Name:    "skip",
 		MinArgs: 1,
 		MaxArgs: 1,
-		Fn:      fnSkip,
+		Fn:      singleArgs("skip", fnSkip),
 	})
 
 	Register(FuncDef{
 		Name:    "take",
 		MinArgs: 1,
 		MaxArgs: 1,
-		Fn:      fnTake,
+		Fn:      singleArgs("take", fnTake),
 	})
 
 	Register(FuncDef{
@@ -113,8 +113,12 @@ func fnTake(_ *eval.Context, input types.Collection, args []interface{}) (types.
 	return input.Take(int(n)), nil
 }
 
-// fnSingle returns the single element or errors if not exactly one.
+// fnSingle returns the single element, empty for an empty input, and errors
+// for several: "If the input collection is empty ({ }), the result is empty".
 func fnSingle(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
+	if input.Empty() {
+		return types.Collection{}, nil
+	}
 	single, err := input.Single()
 	if err != nil {
 		return nil, eval.NewEvalError(eval.ErrSingletonExpected, "%s", err)

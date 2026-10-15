@@ -56,7 +56,7 @@ func init() {
 	Register(FuncDef{
 		Name:    "combine",
 		MinArgs: 1,
-		MaxArgs: 1,
+		MaxArgs: 2,
 		Fn:      fnCombine,
 	})
 
@@ -244,10 +244,27 @@ func primitiveValue(input types.Collection) (types.Value, bool) {
 	return types.SystemValue(input[0])
 }
 
-// fnCombine combines two collections.
+// fnCombine combines two collections. Its result keeps the input's order and
+// then other's, which meets preserveOrder true (3.0.0) and false alike: "When
+// preserveOrder is false, or not supplied, there is no expectation of order".
+// A preserveOrder of more than one item, or other than a Boolean, ends the
+// evaluation; a Boolean written with no value is one, as in allTrue().
 func fnCombine(_ *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
 	if len(args) == 0 {
 		return nil, eval.InvalidArgumentsError("combine", 1, 0)
+	}
+	if len(args) > 1 {
+		if order, ok := args[1].(types.Collection); ok {
+			if len(order) > 1 {
+				return nil, eval.NewEvalError(eval.ErrSingletonExpected,
+					"combine() requires a single value for preserveOrder, got %d items", len(order))
+			}
+			if len(order) == 1 && !types.IsValueless(order[0]) {
+				if _, ok := order[0].(types.Boolean); !ok {
+					return nil, eval.TypeError("Boolean", order[0].Type(), "combine")
+				}
+			}
+		}
 	}
 
 	result := make(types.Collection, len(input))

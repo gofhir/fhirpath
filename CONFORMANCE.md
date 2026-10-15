@@ -417,7 +417,7 @@ An area's cases are a battery too, so the same run puts them to HL7's Java
 engine, once with the R4 model and inputs and once with the R5 ones (#167):
 
     HL7_VALIDATOR_JAR=~/tools/validator_cli.jar make three-engine \
-      BATTERY=../conformance/testdata/spec-cases/existence.xml DIFFTEST_ARGS="-jobs 8 -v"
+      BATTERY=../conformance/testdata/spec-cases/existence.xml DIFFTEST_ARGS="-jobs 2 -v"
 
 The areas are taken in the order published constraints use them, counted over
 the 610 distinct constraint expressions of the R4, R4B and R5 core and the IGs
@@ -432,6 +432,7 @@ comparison, filtering, strings, collections.
 | equality-comparison | 46 | 325 | 318 | 1, `23 ~ 23 '1'`, following the text |
 | filtering-projection | 40 | 114 | all, 112 in R4 and 114 in R5 | none where the other two answer; `repeatAll()` and `System.Any`, which both refuse |
 | strings | 88 | 317 | 316 | on two points, each as 3.0.0 states: characters counted as Unicode scalar values, and `encode('hex')` in lower case |
+| collections | 35 | 173 | 173 | none where the other two answer; `combine(other, preserveOrder)`, which both refuse |
 
 **Existence.** One gap, closed: a criteria that evaluates to more than one
 item, `(1 | 2).exists(true | false)` or `Patient.name.exists(given)` on a name
@@ -544,6 +545,33 @@ tab and the form feed too, and this engine follows them, so `'\fa'.trim()` is
 reading stays: the Java engine trims every character up to space, `\u0000`
 and `\u001F` among them, and fhirpath.js every Unicode space, the no-break
 space and `\u2003` among them; this engine trims neither.
+
+### Collections
+
+`|`, `in`, `contains`, `union()`, `combine()`, and the subsetting functions,
+`single()`, `first()`, `last()`, `tail()`, `skip()`, `take()`, `intersect()`
+and `exclude()`. Three gaps, closed:
+
+- `combine()` refused 3.0.0's second argument, `preserveOrder`, a trial-use
+  addition: "When `preserveOrder` is `true`, the items of the other
+  collection are appended to the items of the input collection, preserving
+  the order of items in both collections". It now takes it. The result was
+  already in that order, so `true` and `false` give the same items; a
+  `preserveOrder` of more than one item, or no Boolean, ends the evaluation.
+  The Java engine refuses the second argument, and fhirpath.js logs the
+  arity and answers empty; neither is an answer to follow.
+- `single()` of an empty input ended with an error; "If the input collection
+  is empty (`{ }`), the result is empty", as fhirpath.js answers. The Java
+  engine raises an exception.
+- `skip()` and `take()` read the first item of a `num` of several,
+  `skip(1 | 2)`; the argument now ends the evaluation, as for the string
+  functions above and as fhirpath.js does, where the Java engine answers from
+  the first.
+
+fhirpath.js is wrong with a negative `num`: `take(-1)` keeps all but the last
+item and `skip(-1)` the last alone, where "If num is less than or equal to
+0" `take()` returns empty, and "If `num` is less than or equal to zero, the
+input collection is simply returned" by `skip()`.
 
 ## Static analysis
 
@@ -1453,12 +1481,14 @@ keeps its own answer.
 | Characters counted as UTF-16 code units: `'🔥'.length()`, `'a🔥b'.indexOf('b')`, `'a\uD83D\uDD25b'.toChars()` | 2, 3, four items, the pair cut in two | 1, 2, three items: Unicode scalar values, as 3.0.0 states | fhirpath.js counts as the Java engine does, and both cut a pair into halves that are no string |
 | A string function given more than one item: `Patient.name.given.startsWith('P')` | true, from one of them; `upper()`, `toChars()` empty | an error, as fhirpath.js raises | "If the input collection contains multiple items, the evaluation of the expression will end and signal an error": a constraint over a repeating element passes silently there |
 | A string function given a value that is no String: `1.startsWith('1')`, `true.upper()` | empty | an error, as fhirpath.js raises | The input must be a String |
-| A string or encoding function given an argument of more than one item: `'abc'.startsWith('a' \| 'b')`, `'a,b;c'.split(',' \| ';')`, `'abc'.substring(0 \| 1)` | false, `a` and `b;c`, `abc`: an answer from the first | an error, as fhirpath.js raises | An argument "that evaluates to a collection with multiple items" ends the evaluation |
+| A string or encoding function, `skip()` or `take()` given an argument of more than one item: `'abc'.startsWith('a' \| 'b')`, `'a,b;c'.split(',' \| ';')`, `'abc'.substring(0 \| 1)`, `Patient.telecom.use.take(1 \| 2)` | false, `a` and `b;c`, `abc`, the first item: an answer from the first | an error, as fhirpath.js raises | An argument "that evaluates to a collection with multiple items" ends the evaluation |
 | `decode()` of bytes that are no UTF-8: `'ff'.decode('hex')` | the replacement character | empty; fhirpath.js raises "URI malformed" | "If the content being decoded is not a valid UTF-8 value, the result will be empty" (3.0.0) |
 | `substring(3, {})`, `substring(3, 0)`, `''.upper()`, `''.lower()` | empty | `defg`, `''`, `''`, `''`, as fhirpath.js answers | An empty length is no length, and the empty string is a string |
 | `matchesFull()` with an empty input or argument | false | empty, as fhirpath.js answers | Empty in, empty out |
+| `skip()` and `take()` given a String: `Patient.telecom.use.skip('1')` | converts it, all but the first item | an error, as fhirpath.js raises | `num` is an Integer, and a String converts to one only through `toInteger()` |
+| `{}.single()`; `skip(-1)` | an exception | empty; the input, as "If `num` is less than or equal to zero, the input collection is simply returned" | An exception |
 | `encode('hex')` | upper case, `7A3F` | lower case, `7a3f` | 3.0.0: "hexadecimal characters (base 16) in lowercase"; fhirpath.js mixes the cases |
-| `min()`, `max()`, `toDate()`, `repeatAll()`, `lastIndexOf()`, regular expression flags, `encode('ascii')`; `ofType(System.Any)` | not known functions or formats; System.Any no type | | Not implemented there; fhirpath.js has neither `repeatAll()` nor the `ascii` format |
+| `min()`, `max()`, `toDate()`, `repeatAll()`, `lastIndexOf()`, regular expression flags, `encode('ascii')`, `combine()`'s `preserveOrder`; `ofType(System.Any)` | not known functions or formats; System.Any no type; `combine()` of two arguments refused | | Not implemented there; fhirpath.js has neither `repeatAll()`, the `ascii` format nor `preserveOrder` |
 
 ## Decisions taken where the specification is silent
 

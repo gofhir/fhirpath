@@ -826,9 +826,9 @@ func TestAdditionalSubsettingFunctions(t *testing.T) {
 	t.Run("single empty", func(t *testing.T) {
 		fn, _ := Get("single")
 
-		_, err := fn.Fn(ctx, types.Collection{}, nil)
-		if err == nil {
-			t.Error("expected error for empty collection")
+		result, err := fn.Fn(ctx, types.Collection{}, nil)
+		if err != nil || !result.Empty() {
+			t.Errorf("single() of an empty collection = %v, %v; want empty", result, err)
 		}
 	})
 

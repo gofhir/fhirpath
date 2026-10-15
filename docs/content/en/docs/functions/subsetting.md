@@ -142,6 +142,7 @@ result, _ := fhirpath.Evaluate(patient, "Patient.name.take(100)")
 
 - If `n` is greater than the collection size, all elements are returned.
 - If `n` is zero or negative, returns an empty collection.
+- A `num` of more than one item ends the evaluation with an error.
 - Returns an empty collection if the input is empty.
 
 ---
@@ -181,13 +182,14 @@ result, _ := fhirpath.Evaluate(patient, "Patient.name.skip(0)")
 
 - If `n` is greater than or equal to the collection size, returns an empty collection.
 - If `n` is zero or negative, all elements are returned.
+- A `num` of more than one item ends the evaluation with an error.
 - Returns an empty collection if the input is empty.
 
 ---
 
 ## single
 
-Returns the single element from the input collection. If the collection does not contain exactly one element, an error is raised.
+Returns the single element from the input collection, or empty if the input is empty. If the collection contains more than one element, an error is raised.
 
 **Signature:**
 
@@ -195,7 +197,7 @@ Returns the single element from the input collection. If the collection does not
 single() : Collection
 ```
 
-**Return Type:** `Collection` (containing exactly one element)
+**Return Type:** `Collection` (containing at most one element)
 
 **Examples:**
 
@@ -212,9 +214,10 @@ result, err := fhirpath.Evaluate(patient, "Patient.name.single()")
 
 **Edge Cases / Notes:**
 
-- Returns an error of type `ErrSingletonExpected` if the collection contains zero or more than one element.
-- Use this function when you expect exactly one result and want to enforce that constraint.
-- This is stricter than `first()`, which silently returns empty or the first element.
+- Returns an empty collection if the input is empty.
+- Returns an error of type `ErrSingletonExpected` if the collection contains more than one element.
+- Use this function when you expect at most one result and want to enforce that constraint.
+- This is stricter than `first()`, which silently returns the first of several elements.
 
 ---
 
