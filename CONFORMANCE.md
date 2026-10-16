@@ -41,8 +41,8 @@ the libraries, part ways, it decides in this order:
 
 1. Where the two libraries give the same coherent answer, it gives that one.
    Where they part ways, it gives the answer of the one the text bears out:
-   `hasValue()` on a complex value is false, as the text and fhirpath.js have
-   it, where the Java engine answers true. Two cases give the Java engine's
+   `hasValue()` on a complex value is false, as R4's text and fhirpath.js have
+   it, where the Java engine answers true and R5's text empty. Two cases give the Java engine's
    answer, the validator's, instead: where the text says nothing, and where
    the validator reaches a published constraint's verdict through that
    answer, so that following the text would accept or reject a resource the
@@ -245,10 +245,11 @@ sort either, here or in fhirpath.js; earlier releases returned them in input
 order. A collection of one item is returned as it is, its key never evaluated,
 as in fhirpath.js.
 
-### Seven R5 cases that need something outside the engine
+### R5 cases that need something outside the engine
 
-Four `HTMLChecks` cases and three `TerminologyTests` cases fail in the R5 suite
-for reasons that have nothing to do with the language.
+Three `TerminologyTests` cases fail in the R5 suite for want of a terminology
+server, and two `HTMLChecks` cases for want of the checker `htmlChecks()`
+asks, which the caller brings. A third `HTMLChecks` case does not parse.
 
 They are listed as known failures rather than skipped, because they run: the
 engine reaches them, answers, and answers wrongly. That is different from the
@@ -257,11 +258,24 @@ reported separately, outside the denominator — there is nothing to grade. A ca
 that runs and fails belongs in the number.
 
 **`htmlChecks()`** validates that a `Narrative.div` holds XHTML FHIR permits —
-the element list, no scripts, no external references. It is not implemented: it
-needs an XHTML parser and FHIR's own list of what is allowed, neither of which
-belongs in an expression engine that has no other reason to read markup.
+the element list, no scripts, no external references. That needs an XHTML
+parser and FHIR's own list of what is allowed, neither of which belongs in an
+expression engine that has no other reason to read markup, so the caller
+brings them: `WithHTMLChecker` (or `eval.Context.SetHTMLChecker`) hands the
+engine an `HTMLChecker`, which it asks about a single xhtml element, and
+about a single string: fhirpath.js and the HL7 validator both check a string
+too, a FHIR `string` or a literal, `'<b>x</b>'.htmlChecks()` true and a
+`<button>` false, though R5's text makes it empty, "empty on any other kind of
+element, or a collection of xhtml elements". On a `code` the two part,
+fhirpath.js checking it and the validator answering empty, and the text's
+empty stays. Anything else, and more than one item, is empty, R4's "undefined
+( null )". What a value is comes from its type, so without a model a code read
+from the resource is a string. Without a checker, a single xhtml element or
+string ends the evaluation with an error, rather than pass a narrative nobody
+read; up to 1.14.7 the function did not exist. fhirpath.js carries a checker
+of its own, and the HL7 validator its own.
 
-One of the four runs into something else first. `htmlTest01` asks for
+One of the three runs into something else first. `htmlTest01` asks for
 `text.div.htmlChecks()`, and that does not parse at all:
 
     text.div        // parser errors: mismatched input 'div'
@@ -276,10 +290,11 @@ for. Whether to accept more keywords as identifiers than the grammar lists is a
 question worth its own answer, and not one to settle by loosening the parser
 until a test passes.
 
-The other three read a `Parameters` resource instead —
-`%resource.parameter.where(name='goodHtml').value.htmlChecks()` — which parses
-cleanly and fails only for the missing function. So `div` accounts for one case,
-not four, and implementing `htmlChecks()` alone would close three of them.
+The other two read a `Parameters` resource instead —
+`%resource.parameter.where(name='goodHtml').value.htmlChecks()` — whose value
+is a `valueString`, which the engine hands to the checker, as both reference
+engines check it; the suite gives none. A fourth, `htmlTest04`, asks for
+empty on a value that is no HTML at all, an integer, and passes.
 
 **`%terminologies`** is the environment variable FHIR defines for reaching a
 terminology server: `expand`, `validateVS`, `translate` and the rest. It is
@@ -423,7 +438,7 @@ The areas are taken in the order published constraints use them, counted over
 the 610 distinct constraint expressions of the R4, R4B and R5 core and the IGs
 in the validator's package cache: existence first (`exists` in 353 of them,
 `empty` in 168, `count` in 50, `all` in 43), then Boolean logic, equality and
-comparison, filtering, strings, collections.
+comparison, filtering, strings, collections, the FHIR functions.
 
 | Area | Requirements | Cases | Pass, R4 and R5 | Alone against fhirpath.js and Java |
 |---|---|---|---|---|
@@ -433,6 +448,7 @@ comparison, filtering, strings, collections.
 | filtering-projection | 40 | 114 | all, 112 in R4 and 114 in R5 | none where the other two answer; `repeatAll()` and `System.Any`, which both refuse |
 | strings | 88 | 317 | 316 | on two points, each as 3.0.0 states: characters counted as Unicode scalar values, and `encode('hex')` in lower case |
 | collections | 35 | 173 | 173 | none where the other two answer; `combine(other, preserveOrder)`, which both refuse |
+| fhir-functions | 56 | 196 | 160 of 168 in R4, 172 of 185 in R5 | none where the other two answer, `htmlChecks()` on a narrative or a string aside, which takes a checker here; `subsumes()`, `subsumedBy()`, `checkModifiers()`, `elementDefinition()`, `trace()`'s projection and `%'vs-…'`, which both refuse |
 
 **Existence.** One gap, closed: a criteria that evaluates to more than one
 item, `(1 | 2).exists(true | false)` or `Patient.name.exists(given)` on a name
@@ -572,6 +588,98 @@ fhirpath.js is wrong with a negative `num`: `take(-1)` keeps all but the last
 item and `skip(-1)` the last alone, where "If num is less than or equal to
 0" `take()` returns empty, and "If `num` is less than or equal to zero, the
 input collection is simply returned" by `skip()`.
+
+### FHIR functions
+
+What FHIR's FHIRPath page adds, R4's and R5's: `extension()`, `hasValue()`,
+`getValue()`, `resolve()`, `conformsTo()`, `memberOf()`, `subsumes()`,
+`subsumedBy()`, `htmlChecks()`, `checkModifiers()`, `elementDefinition()`,
+`slice()`, `comparable()`, `lowBoundary()` and `highBoundary()` on decimals,
+the FHIR type model, `%resource`, `%rootResource`, `%context`, `%ucum`,
+`%sct`, `%loinc`, `%vs-` and `%ext-`, and `trace()`. Where the two pages
+part, R4 ending the evaluation where R5 answers empty, the cases are written
+per version. Gaps closed:
+
+- Six functions did not exist: `subsumes()`, `subsumedBy()`, `htmlChecks()`,
+  `checkModifiers()`, `elementDefinition()` and `slice()`. Each now answers
+  what its text settles without anything outside the engine: equivalence by
+  `system` and `code` for subsumption, "for Coding values, equivalence is
+  defined based on the code and system elements only", empty on what is no
+  single xhtml element or string, the input back when every `modifierExtension` is
+  named, empty for an empty input or an unresolvable structure under R5. For
+  the rest each asks the caller: an `eval.Subsumer`, which a
+  `TerminologyService` may also be, for a hierarchy, and an `HTMLChecker`
+  for xhtml; see [R5 cases that need something outside the engine](#r5-cases-that-need-something-outside-the-engine).
+  Element and structure definitions are not the engine's, so
+  `elementDefinition()` of an element and `slice()` with a structure that is
+  a URI end the evaluation with an error. fhirpath.js and the Java engine
+  both raise an error on `subsumes()`, `subsumedBy()`, `checkModifiers()` and
+  `elementDefinition()`, so this engine answers alone there.
+- `conformsTo()` of more than one item ended the evaluation under R5 too,
+  where R5 says "If the input is not a single item ... the result is empty".
+- `memberOf()` of a value set that is no URI was empty under R4 too, where R4
+  says "If the valueset cannot be resolved as a uri to a value set, an error
+  is thrown". A URI with no terminology service to ask stays empty, unknown,
+  under both: the published constraints that use `memberOf()` would
+  otherwise fail wherever no server is configured.
+- `trace()`'s projection was evaluated once, from the scope the call sits in,
+  not "with respect to each of the items in the input collection" (2.0.0), so
+  `(1 | 2).trace('x', $this * 10)` ended in an error. fhirpath.js and the Java
+  engine raise one too. It is evaluated whether or not a logger is set, as
+  it was before, so an error in it ends the evaluation either way.
+- `comparable()` did not read a number as a quantity of unit `'1'`, so
+  3.0.0's `1.comparable(2)` was false, and ended the evaluation for an input
+  of several items, where "either input is not a single Quantity value, the
+  result is empty".
+- [Static analysis](#static-analysis) rejected an expression opening with a
+  supertype of its context's type, `DomainResource.text` on a Patient, which
+  2.0.0 allows: the name "must resolve to the type of the context (or a
+  supertype)".
+
+`hasValue()` of a System value of a primitive type, `'a'.hasValue()`, is now
+true, as fhirpath.js and the Java engine both answer, against both pages'
+text, which speaks of FHIR primitives alone, R4 then false and R5 empty. It
+was false, a decision recorded as following the text; rule 1 reverses it.
+The cases written to the text fail on purpose: 008-e, R4's not true, and
+009-e, R5's empty. So does R5's "Otherwise, the return value is empty"
+elsewhere: for a primitive with no value, several items or an empty input
+all three engines answer false (009-a, c, d), and for a complex value
+fhirpath.js and this engine answer false where the Java engine answers true
+(009-b), as [Measured, and not followed](#measured-and-not-followed) argues.
+
+The other cases that fail on purpose: a primitive's value is not among its
+`children()`, as [A primitive's value is not a child](#a-primitives-value-is-not-a-child)
+records, and `true.comparable(1 'mg')` is false, as all three engines answer,
+where 3.0.0 makes it empty. `htmlChecks()` on a narrative, 053, needs a
+checker the cases do not give.
+
+The cases leave open what the text does not settle, among them the System
+type a FHIR `date` maps to: FHIR's table says `System.DateTime`, while
+FHIRPath has a `System.Date` that is no subtype of it. This engine maps it to
+`System.Date`; fhirpath.js says it is neither, and the Java engine says it is
+both. `%resource` inside a contained resource, which FHIR's pages and 3.0.0
+define differently, and `lowBoundary()` on integers and dates, where R5's
+page and 3.0.0 part, are left open too.
+
+Where the text asks for what only a service could tell, the engine answers
+empty, unknown, without one: `subsumes()` of two codes that are not
+equivalent, where the text says "and false otherwise", and of codes from
+different code systems, where R4, and R5 for `subsumedBy()`, say "a run-time
+error is thrown" unless "the relationships between the code systems" are
+"well-defined", which only a terminology service knows. `memberOf()` whose
+service fails for an item is empty too, not false; up to 1.14.7 it was
+false. `checkModifiers()` under R5 ends the evaluation on an empty modifier
+whatever its input, reading "an error is thrown, including if modifier is
+empty" as a rule on the argument, not on the check. Under R5, `memberOf()` of
+several items still answers whether any is a member, where R5 says "the input
+is empty or has more than one value, the return value is empty": constraints
+such as `code.coding.memberOf(...)` would change their verdict, and neither
+reference engine answers it offline to measure against.
+
+fhirpath.js does not define `%resource`, `%rootResource`, `%sct`, `%loinc`,
+`%vs-` or `%ext-` unless the caller passes them, gives `'a'.getValue()` as
+`a`, and answers `htmlChecks()` on a `code`. The Java engine's coherent
+answers set aside are under [Measured, and not followed](#measured-and-not-followed).
 
 ## Static analysis
 
@@ -1471,7 +1579,7 @@ keeps its own answer.
 | Ordering quantities in commensurable units: `4 'm' > 4 'cm'` | false, and `4 'm' <= 4 'cm'` true | true, false, as fhirpath.js answers | The numbers compared without their units, though `4 'm' = 400 'cm'` |
 | `2 years = 2 year` | empty | true, as fhirpath.js answers | The plural and the singular of one calendar keyword |
 | An Age in UCUM `'a'` against calendar years: `Observation.extension.value = 41 years` | false, `> 40 years` empty | true, true, as fhirpath.js answers | FHIR maps UCUM `'a'` to the calendar `year`: see [Rules the FHIRPath suite does not reach](#rules-the-fhirpath-suite-does-not-reach) |
-| An Integer against a quantity: `23 = 23 '1'`, `2 < 3 '1'` | false, empty | true, true | 2.0.0's implicit conversion to Quantity, as above |
+| An Integer against a quantity: `23 = 23 '1'`, `2 < 3 '1'`; `2 '1'.comparable(3)`, `1.comparable(2)` | false, empty; false, false | true, true; true, true, as fhirpath.js answers | 2.0.0's implicit conversion to Quantity, as above; 3.0.0 gives both `comparable()` examples as true |
 | DateTime literals to the minute, `@2012-01-01T10:30 = @2012-01-01T10:30`; `2 years > 1 year`; `Patient.telecom.rank < 2`, a positiveInt against an Integer | an exception | the answer, as fhirpath.js gives it | An exception |
 | Date and time arithmetic by an amount past the calendar or the int range: `@2020-01-01 + 18446744073709551617 days`, `@2020-01-01 + 7980 years`, `@T10:00 + 9223372036854775807 hours` | wraps, `@2020-01-02`; no bound on the year, `10000-01-01`; `@T09:00`. fhirpath.js answers `NaN-NaN-NaN` and `10000-01-01` | an error, "If the resulting year is out of range, an error is thrown"; `@T17:00`, the amount modulo a day. A clock amount within the calendar but past what Go's `time.Duration` holds, about 292 years, shifts too: `@2020-01-01T10:00:00Z + 3000000 hours` is `@2362-03-29T10:00:00Z`. A date component on a time is an error whatever its amount, `+ 0 days` and `+ 0.5 days` included: "This includes attempting to add date components to a Time". Amounts are Go `int`s, so on a 32-bit platform a clock amount past about 24 days in milliseconds is past the calendar too | Wraps past the range |
 | `$index` in `exists()`, `all()` and `where()`, a `where()` within `select()` among them: `(10 \| 20 \| 30).exists($index = 2)`, `Patient.name.where($index = 1)` | false, `all($index < 2)` true, `where($index = 1)` empty: 0 in every iteration, where `select()` sets it | true, false, the second name, as fhirpath.js answers | Not set there |
@@ -1487,6 +1595,14 @@ keeps its own answer.
 | `matchesFull()` with an empty input or argument | false | empty, as fhirpath.js answers | Empty in, empty out |
 | `skip()` and `take()` given a String: `Patient.telecom.use.skip('1')` | converts it, all but the first item | an error, as fhirpath.js raises | `num` is an Integer, and a String converts to one only through `toInteger()` |
 | `{}.single()`; `skip(-1)` | an exception | empty; the input, as "If `num` is less than or equal to zero, the input collection is simply returned" | An exception |
+| `getValue()`: `Patient.active.getValue()`; `extension({})` | an exception | `true`, as fhirpath.js answers; empty | An exception |
+| An undefined environment variable: `%fhirpathNoSuchVariable`, `` %`fhirpath-no-such-variable`.exists() `` | empty, false | an error, as fhirpath.js raises | 2.0.0: "Attempting to access an undefined environment variable will result in an error" |
+| `` %`ucum` `` against `%ucum` | empty, where `%ucum` is the url | the url, as fhirpath.js answers | Two spellings of one name, answered apart |
+| `conformsTo()` of more than one item: `Patient.name.conformsTo(...)` | false | an error in R4, empty in R5 | R4: "If the input contains more than one element, an error is thrown"; R5: "If the input is not a single item ... the result is empty" |
+| `memberOf()` and `slice()` with a value set or structure that is no URI, under R4: `memberOf('not a uri')`, `slice('not a uri', 'x')` | empty | an error | R4: "If the valueset cannot be resolved as a uri to a value set, an error is thrown", and of `slice()` "an error is thrown"; R5 makes both empty, as here |
+| `comparable()` with an empty operand or one of several items: `{}.comparable(1 'mg')`, `(1 'mg' \| 2 'mg').comparable(1 'mg')` | false | empty | 3.0.0: "If either or both inputs are empty, or either input is not a single Quantity value, the result is empty"; fhirpath.js raises an error |
+| `1 'Cel'.comparable(1 '[degF]')` | false | true, as fhirpath.js answers | 3.0.0's own example is true: both are temperatures |
+| `hasValue()` of a quantity: `1 'mg'.hasValue()` | true | false, as fhirpath.js answers | A quantity is no primitive, FHIR or System |
 | `encode('hex')` | upper case, `7A3F` | lower case, `7a3f` | 3.0.0: "hexadecimal characters (base 16) in lowercase"; fhirpath.js mixes the cases |
 | `min()`, `max()`, `toDate()`, `repeatAll()`, `lastIndexOf()`, regular expression flags, `encode('ascii')`, `combine()`'s `preserveOrder`; `ofType(System.Any)` | not known functions or formats; System.Any no type; `combine()` of two arguments refused | | Not implemented there; fhirpath.js has neither `repeatAll()`, the `ascii` format nor `preserveOrder` |
 
@@ -1518,8 +1634,8 @@ was reasoned or accidental.
 | Telling `FHIR.boolean` from `System.Boolean` | By case: FHIR names primitives in lower camel case, FHIRPath capitalizes its own | The suite requires `active.is(boolean)` true and `active.is(Boolean)` false. Complex types such as `Quantity` are spelled alike in both namespaces, so the rule applies to primitives only |
 | Type of a polymorphic element without a model | Taken from the field name, corrected to FHIR's casing | `valueOid` states the element is an `oid`; that is information in the document, not a guess. The value itself says whether the type is primitive or complex |
 | An element written as an empty object, `"name": {}` or an item `{}` of an array | An item of its collection that `exists()` and `empty()` answer as though it were not there | Where the HL7 validator answers over the specification text: see [An element that holds no value](#an-element-that-holds-no-value) |
-| A FHIR primitive's `value`, and `hasValue()`/`getValue()` | The System value the primitive holds, without its FHIR type or element. `hasValue()` is true only of a single FHIR primitive with a value: a complex value, or a primitive with only an id or extensions, has none, however the object was made. An object typed as a FHIR primitive, as a validator builds `"_family"` to evaluate it as the root, written `string`, `FHIR.string` or R4's `http://hl7.org/fhirpath/System.String`, is a primitive with no value; the element beside a primitive that has one is not | FHIR: "FHIR.string … has the properties id, extension, and also the implicit value property that is actually of type of System.String", so `birthDate.value is System.Date`. The HL7 validator answers `value` with a FHIR `string` of the text whatever the primitive's type; that is not what the text says. `hasValue()` on a complex value: see [Measured, and not followed](#measured-and-not-followed) |
-| What is a FHIR primitive, as opposed to a System value | By where the value came from: one read from the resource is a FHIR primitive, with or without a model, and even where the model types it a System one; a literal or a function's result is a System value | `'abc'.value` is empty and `'abc'.hasValue()` false with or without a model, as the text says, and so for `active.toBoolean()`. A primitive at a path the model does not know is still a FHIR primitive, so ele-1 holds on it. R4 gives `Resource.id`, `Element.id` and `Extension.url` the type code `System.String` and names their FHIR type, `id`, `string` and `uri`, in `structuredefinition-fhir-type`; the two parts of the definition disagree, and we follow the one that names the FHIR type, as the HL7 validator does, so `Patient.id.hasValue()` is true. Their type is the one the definitions name, where the model hands it: see [Where this engine follows the HL7 validator](#where-this-engine-follows-the-hl7-validator-over-the-specification-text) |
+| A FHIR primitive's `value`, and `hasValue()`/`getValue()` | The System value the primitive holds, without its FHIR type or element. `hasValue()` is true of a single FHIR primitive with a value, and of a single System value of a primitive type: a complex value, or a primitive with only an id or extensions, has none, however the object was made. An object typed as a FHIR primitive, as a validator builds `"_family"` to evaluate it as the root, written `string`, `FHIR.string` or R4's `http://hl7.org/fhirpath/System.String`, is a primitive with no value; the element beside a primitive that has one is not | FHIR: "FHIR.string … has the properties id, extension, and also the implicit value property that is actually of type of System.String", so `birthDate.value is System.Date`. The HL7 validator answers `value` with a FHIR `string` of the text whatever the primitive's type; that is not what the text says. `hasValue()` on a complex value: see [Measured, and not followed](#measured-and-not-followed) |
+| What is a FHIR primitive, as opposed to a System value | By where the value came from: one read from the resource is a FHIR primitive, with or without a model, and even where the model types it a System one; a literal or a function's result is a System value | `'abc'.value` and `'abc'.getValue()` are empty with or without a model, as the text says, and so for `active.toBoolean()`. `'abc'.hasValue()` is true, as fhirpath.js and the HL7 validator both answer, though the text speaks of FHIR primitives alone: the two agree on every System value of a primitive type, `1`, `true`, `@2020`, `@T10:00`, and `''`, which is a value, where only the validator answers false; a quantity is none. Up to 1.14.7 it was false. A primitive at a path the model does not know is still a FHIR primitive, so ele-1 holds on it. R4 gives `Resource.id`, `Element.id` and `Extension.url` the type code `System.String` and names their FHIR type, `id`, `string` and `uri`, in `structuredefinition-fhir-type`; the two parts of the definition disagree, and we follow the one that names the FHIR type, as the HL7 validator does, so `Patient.id.hasValue()` is true. Their type is the one the definitions name, where the model hands it: see [Where this engine follows the HL7 validator](#where-this-engine-follows-the-hl7-validator-over-the-specification-text) |
 | A primitive's value in `children()` and `descendants()` | Not a child | Where the HL7 validator answers over the specification text: see [A primitive's value is not a child](#a-primitives-value-is-not-a-child) |
 | `is()`, `as()` and `ofType()` on a System value | Only System types match, with a model or without one | A literal, a function's result or a primitive's value is a System value: `'abc'.is(String)` and `'abc'.is(System.string)` are true, `'abc'.is(string)` and `'abc'.is(FHIR.string)` false. Without a model only a value read from the resource is taken for what its type name might be in FHIR, so a literal or a function's result is never a FHIR string. `ofType(System.string)` still finds FHIR strings too: "ofType() does not have such restrictions" |
 | Order of `children()` and `descendants()` | With a model that implements `ElementOrder`, the order the element's definition lists its children in; otherwise as the JSON writes them | The text leaves it undefined — "using functions like first() on the result may return different results on different platforms" — and allows "the logical order implied by the object model", which is the order the HL7 validator's parser builds. JSON keys are unordered, so without it one instance written two ways answers `children().first()` two ways. A field the definition does not list comes last, as written, where HL7 rejects it; an array keeps its order; an object the model does not know, or whose type is only guessed from its fields, stays as written. A primitive's element, `_birthDate`, is ordered and its fields typed by its primitive's type, `date`: id, then extension; and every element's `extension` is an `Extension`, as `Element` defines it, where a model does not list a primitive type's elements. An instance already in the definition's order, as HL7 and HAPI write, costs no allocation |

@@ -72,7 +72,9 @@ func TestAFHIRPrimitiveHasAValueProperty(t *testing.T) {
 		{"Patient.name.given.first().getValue().is(FHIR.string)", "[false]", "[false]"},
 		{"Patient.name.given.last().hasValue()", "[false]", "[false]"},
 		{"Patient.name.given.hasValue()", "[false]", "[false]"},
-		{"'abc'.hasValue()", "[false]", "[false]"},
+		// A System value of a primitive type has a value too, as fhirpath.js
+		// and the HL7 validator answer; getValue() keeps to FHIR primitives
+		{"'abc'.hasValue()", "[true]", "[true]"},
 		{"'abc'.getValue()", "[]", "[]"},
 		// An element a model types a System type is still read from the
 		// resource; R4 names its FHIR type in structuredefinition-fhir-type.
@@ -82,12 +84,13 @@ func TestAFHIRPrimitiveHasAValueProperty(t *testing.T) {
 		{"Patient.id.type().namespace", "[System]", "[System]"},
 		// A function's result is a System value, even one that returns a
 		// value of the type its input already had.
-		{"Patient.active.toBoolean().hasValue()", "[false]", "[false]"},
+		{"Patient.active.toBoolean().hasValue()", "[true]", "[true]"},
 		{"Patient.active.toBoolean().value", "[]", "[]"},
 		{"Patient.active.toBoolean().type().namespace", "[System]", "[System]"},
-		{"Patient.birthDate.toDate().hasValue()", "[false]", "[false]"},
-		{"Patient.birthDate.toDateTime().hasValue()", "[false]", "[false]"},
-		{"Patient.birthDate.toString().hasValue()", "[false]", "[false]"},
+		{"Patient.birthDate.toDate().hasValue()", "[true]", "[true]"},
+		{"Patient.birthDate.toDateTime().hasValue()", "[true]", "[true]"},
+		{"Patient.birthDate.toString().hasValue()", "[true]", "[true]"},
+		{"Patient.birthDate.toString().getValue()", "[]", "[]"},
 	}
 
 	for _, tt := range tests {

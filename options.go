@@ -31,6 +31,10 @@ type EvalOptions struct {
 	// Model provides FHIR version-specific type metadata.
 	// When nil, the engine uses built-in heuristics.
 	Model Model
+
+	// HTMLChecker checks HTML for htmlChecks(). When nil, htmlChecks() on an
+	// xhtml element or a string ends the evaluation with an error.
+	HTMLChecker HTMLChecker
 }
 
 // DefaultOptions returns default evaluation options suitable for production.
@@ -102,6 +106,21 @@ func WithResolver(r ReferenceResolver) EvalOption {
 	}
 }
 
+// WithHTMLChecker sets the checker htmlChecks() asks.
+func WithHTMLChecker(hc HTMLChecker) EvalOption {
+	return func(o *EvalOptions) {
+		o.HTMLChecker = hc
+	}
+}
+
+// HTMLChecker checks HTML for htmlChecks(), which "returns true if the rules
+// around HTML usage are met, and false if they are not": a narrative's xhtml,
+// or a string, with no scripts, no external references, only the elements FHIR
+// permits. The rules
+// are FHIR's, so the caller, which validates the rest of the resource, brings
+// them.
+type HTMLChecker = eval.HTMLChecker
+
 // ReferenceResolver resolves FHIR references for the resolve() function.
 type ReferenceResolver interface {
 	// Resolve takes a reference string (e.g., "Patient/123") and returns the resource.
@@ -154,6 +173,10 @@ func configureContext(evalCtx *eval.Context, opts ...EvalOption) (configured *ev
 	// Set resolver if provided
 	if options.Resolver != nil {
 		evalCtx.SetResolver(newResolverAdapter(options.Resolver))
+	}
+
+	if options.HTMLChecker != nil {
+		evalCtx.SetHTMLChecker(options.HTMLChecker)
 	}
 
 	// Set model if provided

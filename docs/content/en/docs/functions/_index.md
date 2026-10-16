@@ -30,7 +30,7 @@ All functions operate on collections and return collections, following FHIRPath'
 | [Type Checking Functions]({{< relref "type-checking" >}}) | 3 | Type inspection: `is`, `as`, `ofType` |
 | [Temporal Functions]({{< relref "temporal" >}}) | 10 | Date/time operations: `now`, `today`, `timeOfDay`, `year`, `month`, `day`, `hour`, `minute`, `second`, `millisecond` |
 | [Utility Functions]({{< relref "utility" >}}) | 3 | Debugging and navigation: `trace`, `children`, `descendants` |
-| [FHIR®-Specific Functions]({{< relref "fhir-specific" >}}) | 8 | FHIR® extensions: `extension`, `hasExtension`, `resolve`, `memberOf`, `conformsTo`, `hasValue`, `getValue`, `getReferenceKey` |
+| [FHIR®-Specific Functions]({{< relref "fhir-specific" >}}) | 14 | FHIR® extensions: `extension`, `hasExtension`, `resolve`, `memberOf`, `conformsTo`, `subsumes`, `subsumedBy`, `htmlChecks`, `checkModifiers`, `elementDefinition`, `slice`, `hasValue`, `getValue`, `getReferenceKey` |
 | [Aggregate Functions]({{< relref "aggregate" >}}) | 5 | Reduction operations: `aggregate`, `sum`, `avg`, `min`, `max` |
 | [Boundary Functions]({{< relref "boundary" >}}) | 2 | Precision boundaries: `lowBoundary`, `highBoundary` |
 

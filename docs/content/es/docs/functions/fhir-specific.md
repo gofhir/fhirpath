@@ -229,24 +229,14 @@ memberOf(valueSetUrl : String) : Boolean
 **Ejemplos:**
 
 ```go
-// With a terminology service configured:
+// The terminology service is set on the evaluation context:
+ctx := eval.NewContext(resource)
+ctx.SetTerminologyService(myTermService)
+
 compiled := fhirpath.MustCompile(
     "Observation.code.memberOf('http://hl7.org/fhir/ValueSet/observation-codes')")
-result, _ := compiled.EvaluateWithOptions(resource,
-    fhirpath.WithTerminologyService(myTermService))
+result, _ := compiled.EvaluateWithContext(ctx)
 // true if the observation code is in the specified ValueSet
-
-compiled = fhirpath.MustCompile(
-    "Patient.gender.memberOf('http://hl7.org/fhir/ValueSet/administrative-gender')")
-result, _ = compiled.EvaluateWithOptions(resource,
-    fhirpath.WithTerminologyService(myTermService))
-// true if the gender code is in the administrative-gender ValueSet
-
-compiled = fhirpath.MustCompile(
-    "Condition.code.coding.memberOf('http://hl7.org/fhir/ValueSet/condition-code')")
-result, _ = compiled.EvaluateWithOptions(resource,
-    fhirpath.WithTerminologyService(myTermService))
-// true if any coding is in the condition-code ValueSet
 ```
 
 **Casos Limite / Notas:**
@@ -258,6 +248,7 @@ result, _ = compiled.EvaluateWithOptions(resource,
 - Devuelve `true` si algun elemento en la coleccion de entrada es miembro.
 - Devuelve `false` si los elementos fueron verificados pero ninguno es miembro.
 - Devuelve una coleccion vacia si la verificacion no puede realizarse (sin servicio de terminologia o errores).
+- Un value set que no es una URI, `memberOf('not a uri')`, es un error con las reglas de R4 y vacio con las de R5.
 
 ---
 
@@ -281,17 +272,13 @@ conformsTo(profileUrl : String) : Boolean
 **Ejemplos:**
 
 ```go
-// With a profile validator configured:
-compiled := fhirpath.MustCompile(
-    "conformsTo('http://hl7.org/fhir/StructureDefinition/Patient')")
-result, _ := compiled.EvaluateWithOptions(resource,
-    fhirpath.WithProfileValidator(myValidator))
-// true if the resource conforms to the Patient profile
+// The profile validator is set on the evaluation context:
+ctx := eval.NewContext(resource)
+ctx.SetProfileValidator(myValidator)
 
-compiled = fhirpath.MustCompile(
+compiled := fhirpath.MustCompile(
     "conformsTo('http://hl7.org/fhir/us/core/StructureDefinition/us-core-patient')")
-result, _ = compiled.EvaluateWithOptions(resource,
-    fhirpath.WithProfileValidator(myValidator))
+result, _ := compiled.EvaluateWithContext(ctx)
 // true if the resource conforms to US Core Patient profile
 ```
 
@@ -300,12 +287,138 @@ result, _ = compiled.EvaluateWithOptions(resource,
 - Opera sobre tipos complejos (`ObjectValue`) con datos JSON sin procesar disponibles.
 - Devuelve una coleccion vacia si la validacion no puede realizarse (sin validador, sin datos sin procesar o errores).
 - La validacion de perfiles puede involucrar llamadas de red dependiendo de la implementacion de su `ProfileValidator`.
+- Mas de un elemento es un error con las reglas de R4 y vacio con las de R5.
+
+## subsumes
+
+Devuelve `true` si el Coding o CodeableConcept de entrada es equivalente al dado, o lo subsume.
+
+**Firma:**
+```
+subsumes(code : Coding | CodeableConcept) : Boolean
+```
+
+**Tipo de Retorno:** `Boolean`
+
+**Ejemplos:**
+
+```go
+result, _ := fhirpath.Evaluate(observation, "Observation.category.subsumes(Observation.category.coding[0])")
+// true: a Coding is equivalent to itself, by system and code
+```
+
+**Casos Limite / Notas:**
+- La equivalencia no necesita terminologia: dos Coding son equivalentes cuando lo son su `system` y su `code`, y un CodeableConcept cuenta si alguno de sus Coding lo es.
+- Mas alla de la equivalencia, la funcion consulta al `TerminologyService` del contexto de evaluacion, si tambien implementa `eval.Subsumer`. Sin uno el resultado es vacio (desconocido).
+- Devuelve vacio si la entrada o el argumento estan vacios.
+- Mas de un elemento en cualquiera de los lados es un error con las reglas de R4 y vacio con las de R5.
+
+---
+
+## subsumedBy
+
+Devuelve `true` si el Coding o CodeableConcept de entrada es equivalente al dado, o esta subsumido por el. Es `subsumes()` con los lados invertidos, y por lo demas se comporta igual.
+
+**Firma:**
+```
+subsumedBy(code : Coding | CodeableConcept) : Boolean
+```
+
+**Tipo de Retorno:** `Boolean`
+
+---
+
+## htmlChecks
+
+Devuelve `true` si el xhtml de una narrativa, o una cadena, cumple las reglas de FHIR para HTML, y `false` si no.
+
+**Firma:**
+```
+htmlChecks() : Boolean
+```
+
+**Tipo de Retorno:** `Boolean`
+
+**Ejemplos:**
+
+```go
+compiled := fhirpath.MustCompile("text.`div`.htmlChecks()")
+result, _ := compiled.EvaluateWithOptions(patient,
+    fhirpath.WithModel(r4.FHIRPathModel()),
+    fhirpath.WithHTMLChecker(myChecker))
+// true if the narrative passes the checker
+```
+
+**Casos Limite / Notas:**
+- `div` es una palabra clave, asi que la narrativa se escribe `` text.`div` ``.
+- Las reglas son de FHIR, asi que las aporta quien llama: la funcion consulta al `HTMLChecker` dado con `WithHTMLChecker`, o fijado con `eval.Context.SetHTMLChecker`.
+- Una cadena tambien se revisa, un `string` FHIR o un literal, como la revisan fhirpath.js y el motor Java de HL7, aunque el texto de R5 la deja vacia. Un `code` no, como dice el texto; ahi los dos motores difieren.
+- Que es un valor lo dice el tipo que le da el modelo; sin modelo, un code leido del recurso es una cadena.
+- Devuelve vacio en cualquier otro tipo de elemento, y con mas de un elemento.
+- En un unico elemento xhtml o cadena sin checker, la evaluacion termina con un error.
+
+---
+
+## checkModifiers
+
+Devuelve la entrada si ningun elemento tiene una extension modificadora distinta de las nombradas, y termina la evaluacion con un error en otro caso.
+
+**Firma:**
+```
+checkModifiers(modifier : String) : Collection
+```
+
+**Tipo de Retorno:** `Collection`
+
+**Ejemplos:**
+
+```go
+result, _ := fhirpath.Evaluate(patient,
+    "Patient.checkModifiers('http://example.org/a,http://example.org/b').id")
+// the id, if Patient's modifierExtension urls are among those two
+```
+
+**Casos Limite / Notas:**
+- Los modificadores se dan como una cadena separada por comas o, como lo escribe R4, como una coleccion de cadenas.
+- Solo se revisa el `modifierExtension` propio de cada elemento, no el de sus hijos.
+- Un modificador vacio es un error con las reglas de R5.
+
+---
+
+## elementDefinition
+
+Devuelve la definicion de elemento FHIR de cada elemento de la entrada.
+
+**Firma:**
+```
+elementDefinition() : Collection
+```
+
+**Casos Limite / Notas:**
+- Devuelve vacio para una entrada vacia.
+- El motor no tiene las definiciones de elementos, asi que una entrada no vacia termina la evaluacion con un error.
+
+---
+
+## slice
+
+Devuelve los elementos de la entrada que coinciden con un slice de una definicion de estructura.
+
+**Firma:**
+```
+slice(structure : String, name : String) : Collection
+```
+
+**Casos Limite / Notas:**
+- Devuelve vacio para una entrada vacia.
+- Una estructura que no es una URI, o un argumento vacio, no se puede resolver: error con las reglas de R4, vacio con las de R5.
+- El motor no tiene las definiciones de estructura, asi que una estructura que es una URI termina la evaluacion con un error.
 
 ---
 
 ## hasValue
 
-Devuelve `true` si la entrada es un único primitivo FHIR con valor.
+Devuelve `true` si la entrada es un único primitivo FHIR con valor, o un único valor System de un tipo primitivo.
 
 **Firma:**
 ```
@@ -331,6 +444,7 @@ result, _ := fhirpath.Evaluate(patient, "Patient.birthDate.hasValue()")
 - Devuelve `false` para entrada vacia.
 - Devuelve `false` para mas de un elemento.
 - Un primitivo escrito con extensiones pero sin valor no tiene valor: `false`.
+- Un valor System de un tipo primitivo tiene valor, `'a'.hasValue()` es `true`, como responden fhirpath.js y el motor Java de HL7; una cantidad no lo tiene. `getValue()` de un valor System sigue vacio.
 - Un valor complejo no tiene valor: `false`, como define FHIR la funcion y responde fhirpath.js, mientras el motor Java de HL7 responde `true`. Ver [CONFORMANCE.md](https://github.com/gofhir/fhirpath/blob/main/CONFORMANCE.md#measured-and-not-followed).
 
 ---

@@ -427,9 +427,18 @@ func (c *compiledCall) evalOrdinary(e *Evaluator, fn FuncDef) interface{} {
 				continue
 			}
 
-			// Each argument is its own scope, so two of them may define the
-			// same name without colliding
-			result := e.inScope(arg)
+			// trace()'s projection is an expression, evaluated "with respect to
+			// each of the items in the input collection" (2.0.0), as select()'s
+			var result interface{}
+			if c.name == "trace" && i == 1 {
+				e.ctx.this = restore
+				result = e.evaluateSelect(restore, arg)
+				e.ctx.this = argThis
+			} else {
+				// Each argument is its own scope, so two of them may define
+				// the same name without colliding
+				result = e.inScope(arg)
+			}
 			if err, ok := result.(error); ok {
 				e.ctx.this = restore
 				return err

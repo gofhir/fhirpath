@@ -325,6 +325,34 @@ func main() {
 }
 ```
 
+## Subsunción y Chequeos de HTML
+
+`subsumes()` y `subsumedBy()` deciden la equivalencia por sí mismas, por
+`system` y `code`. Para una jerarquía consultan al `TerminologyService`, cuando
+también implementa `eval.Subsumer`:
+
+```go
+type Subsumer interface {
+    // Subsumes reports whether source subsumes given. Both come as memberOf()
+    // passes a code: a Coding or CodeableConcept as a map.
+    Subsumes(ctx context.Context, source, given interface{}) (bool, error)
+}
+```
+
+`htmlChecks()` consulta a un `HTMLChecker`, dado con `fhirpath.WithHTMLChecker`
+o fijado con `eval.Context.SetHTMLChecker`, sobre un único elemento xhtml o
+una cadena:
+
+```go
+type HTMLChecker interface {
+    // HTMLChecks reports whether the HTML passes FHIR's checks.
+    HTMLChecks(ctx context.Context, html string) (bool, error)
+}
+```
+
+Sin checker, `htmlChecks()` sobre un elemento xhtml o una cadena termina la
+evaluación con un error; sobre cualquier otra cosa es vacío.
+
 ## Comportamiento Cuando los Servicios No Están Configurados
 
 | Escenario                       | memberOf() devuelve   | conformsTo() devuelve  |
@@ -334,6 +362,7 @@ func main() {
 | El código es miembro / conforma | `[true]`              | `[true]`               |
 | El código no es miembro / no conforma | `[false]`        | `[false]`              |
 | La entrada está vacía           | colección vacía       | colección vacía        |
+| El value set no es URI, reglas R4 | error               |                        |
 
 Este comportamiento sigue el tratamiento de la especificación FHIRPath para resultados desconocidos:
 cuando el sistema no puede determinar la respuesta, devuelve una colección vacía en lugar

@@ -68,6 +68,10 @@ type analyzer struct {
 	// path, while BackboneElement — the type it nominally has — has no
 	// elements of its own at all.
 	path string
+
+	// atRoot is set while the first name of an expression is checked, the one
+	// place a supertype of the context may stand for it.
+	atRoot bool
 }
 
 func (a *analyzer) fault(reason string, args ...interface{}) error {
@@ -187,6 +191,14 @@ func childExpression(node grammar.IExpressionContext, i int) (child grammar.IExp
 func (a *analyzer) term(node grammar.ITermContext, contextType string) (string, error) {
 	switch term := node.(type) {
 	case *grammar.InvocationTermContext:
+		// The first name of an expression may restate its context's type; a
+		// function there is no name, and its arguments are expressions of
+		// their own
+		if _, isMember := term.Invocation().(*grammar.MemberInvocationContext); isMember {
+			outer := a.atRoot
+			a.atRoot = true
+			defer func() { a.atRoot = outer }()
+		}
 		return a.invocation(term.Invocation(), contextType, contextType)
 
 	case *grammar.ParenthesizedTermContext:
@@ -252,9 +264,7 @@ func (a *analyzer) member(name, inputType string) (string, error) {
 		return unknownType, nil
 	}
 
-	// An expression may open with the name of the type it is evaluated against,
-	// which is a restatement of the context rather than navigation
-	if name == inputType {
+	if a.restatesContext(name, inputType) {
 		a.path = inputType
 		return inputType, nil
 	}
@@ -316,6 +326,18 @@ func (a *analyzer) member(name, inputType string) (string, error) {
 	}
 
 	return unknownType, a.fault("%s has no element %s", inputType, name)
+}
+
+// restatesContext reports whether a name restates the context rather than
+// navigating from it. An expression may open with the name of the type it is
+// evaluated against, or with a supertype of it, DomainResource.text on a
+// Patient: the name "must resolve to the type of the context (or a
+// supertype)" (2.0.0). The context keeps its own type.
+func (a *analyzer) restatesContext(name, inputType string) bool {
+	if name == inputType {
+		return true
+	}
+	return a.atRoot && a.model.IsSubtype(inputType, name)
 }
 
 // choiceBase reports whether a name is a choice element written with its type
@@ -388,7 +410,8 @@ func (a *analyzer) function(node grammar.IFunctionContext, inputType, contextTyp
 	switch name {
 	// The input passes through unchanged
 	case "where", "first", "last", "tail", "skip", "take", "single",
-		"distinct", "intersect", "exclude", "union", "combine", "trace":
+		"distinct", "intersect", "exclude", "union", "combine", "trace",
+		"checkModifiers", "slice":
 		return inputType, nil
 
 	// A type is named in the call, and the result takes it
@@ -404,7 +427,8 @@ func (a *analyzer) function(node grammar.IFunctionContext, inputType, contextTyp
 		"contains", "startsWith", "endsWith", "matches", "matchesFull",
 		"convertsToBoolean", "convertsToInteger", "convertsToDecimal",
 		"convertsToString", "convertsToDate", "convertsToDateTime",
-		"convertsToTime", "convertsToQuantity", "conformsTo", "memberOf":
+		"convertsToTime", "convertsToQuantity", "conformsTo", "memberOf",
+		"subsumes", "subsumedBy", "htmlChecks", "comparable":
 		return types.TypeNameBoolean, nil
 
 	case "count", "length", "indexOf", "lastIndexOf", "toInteger", "precision":

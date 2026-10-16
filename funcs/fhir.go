@@ -1,6 +1,7 @@
 package funcs
 
 import (
+	neturl "net/url"
 	"strings"
 
 	"github.com/gofhir/fhirpath/eval"
@@ -627,6 +628,14 @@ func fnMemberOf(ctx *eval.Context, input types.Collection, args []interface{}) (
 		return types.Collection{}, nil
 	}
 
+	// R4: "If the valueset cannot be resolved as a uri to a value set, an error
+	// is thrown"; R5 makes it empty. A string that is no URI resolves
+	// to nothing, service or not; one that is decides only with a service
+	if !ctx.EnforcesR5Rules() && !isURI(valueSetURL) {
+		return nil, eval.NewEvalError(eval.ErrInvalidArguments,
+			"memberOf(): %q cannot be resolved as a uri to a value set", valueSetURL)
+	}
+
 	// Get the terminology service
 	ts := ctx.GetTerminologyService()
 	if ts == nil {
@@ -635,32 +644,30 @@ func fnMemberOf(ctx *eval.Context, input types.Collection, args []interface{}) (
 		return types.Collection{}, nil
 	}
 
-	// Process each item in the input
+	// Any member makes it true. A service that could not answer for an item
+	// leaves it unknown, empty, unless another item is a member: an error is
+	// no "not a member"
+	unknown := false
 	for _, item := range input {
-		// Convert the FHIRPath value to a form the terminology service can understand
 		codeValue := extractCodeValue(item)
 		if codeValue == nil {
 			continue
 		}
 
-		// Check membership
 		isMember, err := ts.MemberOf(ctx.Context(), codeValue, valueSetURL)
 		if err != nil {
-			// On error, return empty (unknown)
+			unknown = true
 			continue
 		}
-
 		if isMember {
 			return types.Collection{types.NewBoolean(true)}, nil
 		}
 	}
 
-	// If we processed at least one item and none were members, return false
-	if !input.Empty() {
-		return types.Collection{types.NewBoolean(false)}, nil
+	if unknown {
+		return types.Collection{}, nil
 	}
-
-	return types.Collection{}, nil
+	return types.Collection{types.NewBoolean(false)}, nil
 }
 
 // extractCodeValue extracts a code value from a FHIRPath value for terminology validation.
@@ -758,7 +765,12 @@ func fnConformsTo(ctx *eval.Context, input types.Collection, args []interface{})
 	if input.Empty() {
 		return types.Collection{}, nil
 	}
+	// R5: "If the input is not a single item, the structure is empty, or the
+	// structure cannot be resolved to a valid profile, the result is empty"
 	if len(input) > 1 {
+		if ctx.EnforcesR5Rules() {
+			return types.Collection{}, nil
+		}
 		return nil, eval.NewEvalError(eval.ErrSingletonExpected,
 			"conformsTo() takes a single element, got %d", len(input))
 	}
@@ -833,4 +845,16 @@ func unresolvedProfile(ctx *eval.Context, profileURL string) (types.Collection, 
 	}
 	return nil, eval.NewEvalError(eval.ErrInvalidArguments,
 		"conformsTo(): %q cannot be resolved to a valid profile", profileURL)
+}
+
+// isURI reports whether s is a URI at all, absolute or relative: one with
+// whitespace, or that does not parse, names no value set or structure, with
+// or without a service to ask. ValueSet/123 is one, which a caller's service
+// may resolve.
+func isURI(s string) bool {
+	if strings.ContainsAny(s, " \t\r\n") {
+		return false
+	}
+	_, err := neturl.Parse(s)
+	return err == nil
 }

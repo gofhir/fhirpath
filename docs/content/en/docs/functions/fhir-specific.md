@@ -229,24 +229,14 @@ memberOf(valueSetUrl : String) : Boolean
 **Examples:**
 
 ```go
-// With a terminology service configured:
+// The terminology service is set on the evaluation context:
+ctx := eval.NewContext(resource)
+ctx.SetTerminologyService(myTermService)
+
 compiled := fhirpath.MustCompile(
     "Observation.code.memberOf('http://hl7.org/fhir/ValueSet/observation-codes')")
-result, _ := compiled.EvaluateWithOptions(resource,
-    fhirpath.WithTerminologyService(myTermService))
+result, _ := compiled.EvaluateWithContext(ctx)
 // true if the observation code is in the specified ValueSet
-
-compiled = fhirpath.MustCompile(
-    "Patient.gender.memberOf('http://hl7.org/fhir/ValueSet/administrative-gender')")
-result, _ = compiled.EvaluateWithOptions(resource,
-    fhirpath.WithTerminologyService(myTermService))
-// true if the gender code is in the administrative-gender ValueSet
-
-compiled = fhirpath.MustCompile(
-    "Condition.code.coding.memberOf('http://hl7.org/fhir/ValueSet/condition-code')")
-result, _ = compiled.EvaluateWithOptions(resource,
-    fhirpath.WithTerminologyService(myTermService))
-// true if any coding is in the condition-code ValueSet
 ```
 
 **Edge Cases / Notes:**
@@ -258,6 +248,7 @@ result, _ = compiled.EvaluateWithOptions(resource,
 - Returns `true` if any element in the input collection is a member.
 - Returns `false` if elements were checked but none are members.
 - Returns empty collection if the check cannot be performed (no terminology service or errors).
+- A value set that is no URI, `memberOf('not a uri')`, is an error under R4 rules ("If the valueset cannot be resolved as a uri to a value set, an error is thrown") and empty under R5's.
 
 ---
 
@@ -281,17 +272,13 @@ conformsTo(profileUrl : String) : Boolean
 **Examples:**
 
 ```go
-// With a profile validator configured:
-compiled := fhirpath.MustCompile(
-    "conformsTo('http://hl7.org/fhir/StructureDefinition/Patient')")
-result, _ := compiled.EvaluateWithOptions(resource,
-    fhirpath.WithProfileValidator(myValidator))
-// true if the resource conforms to the Patient profile
+// The profile validator is set on the evaluation context:
+ctx := eval.NewContext(resource)
+ctx.SetProfileValidator(myValidator)
 
-compiled = fhirpath.MustCompile(
+compiled := fhirpath.MustCompile(
     "conformsTo('http://hl7.org/fhir/us/core/StructureDefinition/us-core-patient')")
-result, _ = compiled.EvaluateWithOptions(resource,
-    fhirpath.WithProfileValidator(myValidator))
+result, _ := compiled.EvaluateWithContext(ctx)
 // true if the resource conforms to US Core Patient profile
 ```
 
@@ -300,12 +287,138 @@ result, _ = compiled.EvaluateWithOptions(resource,
 - Operates on complex types (`ObjectValue`) with raw JSON data available.
 - Returns empty collection if validation cannot be performed (no validator, no raw data, or errors).
 - Profile validation may involve network calls depending on the implementation of your `ProfileValidator`.
+- More than one item is an error under R4 rules and empty under R5's.
+
+## subsumes
+
+Returns `true` if the input Coding or CodeableConcept is equivalent to, or subsumes, the given one.
+
+**Signature:**
+```
+subsumes(code : Coding | CodeableConcept) : Boolean
+```
+
+**Return Type:** `Boolean`
+
+**Examples:**
+
+```go
+result, _ := fhirpath.Evaluate(observation, "Observation.category.subsumes(Observation.category.coding[0])")
+// true: a Coding is equivalent to itself, by system and code
+```
+
+**Edge Cases / Notes:**
+- Equivalence needs no terminology: two Codings are equivalent when their `system` and `code` are, and a CodeableConcept counts if any of its Codings does.
+- Beyond equivalence, the function asks the `TerminologyService` set on the evaluation context, if it also implements `eval.Subsumer`. Without one the result is empty (unknown).
+- Returns empty if the input or the argument is empty.
+- More than one item on either side is an error under R4 rules and empty under R5's ("If either the input or the code parameter are not single value collections, the return value is empty").
+
+---
+
+## subsumedBy
+
+Returns `true` if the input Coding or CodeableConcept is equivalent to, or subsumed by, the given one. It is `subsumes()` with the two sides swapped, and behaves the same way otherwise.
+
+**Signature:**
+```
+subsumedBy(code : Coding | CodeableConcept) : Boolean
+```
+
+**Return Type:** `Boolean`
+
+---
+
+## htmlChecks
+
+Returns `true` if a narrative's xhtml, or a string, meets FHIR's rules for HTML, and `false` if it does not.
+
+**Signature:**
+```
+htmlChecks() : Boolean
+```
+
+**Return Type:** `Boolean`
+
+**Examples:**
+
+```go
+compiled := fhirpath.MustCompile("text.`div`.htmlChecks()")
+result, _ := compiled.EvaluateWithOptions(patient,
+    fhirpath.WithModel(r4.FHIRPathModel()),
+    fhirpath.WithHTMLChecker(myChecker))
+// true if the narrative passes the checker
+```
+
+**Edge Cases / Notes:**
+- `div` is a keyword, so the narrative is written `` text.`div` ``.
+- The rules are FHIR's, so the caller brings them: the function asks the `HTMLChecker` given with `WithHTMLChecker`, or set with `eval.Context.SetHTMLChecker`.
+- A string is checked too, a FHIR `string` or a literal, as fhirpath.js and HL7's Java engine both check it, though R5's text makes it empty. A `code` is not, as the text says; the two engines part there.
+- What a value is comes from the type the model gives it; without a model, a code read from the resource is a string.
+- Returns empty on any other kind of element, and on more than one item.
+- On a single xhtml element or string with no checker given, the evaluation ends with an error.
+
+---
+
+## checkModifiers
+
+Returns the input if no item has a modifier extension other than those named, and ends the evaluation with an error otherwise.
+
+**Signature:**
+```
+checkModifiers(modifier : String) : Collection
+```
+
+**Return Type:** `Collection`
+
+**Examples:**
+
+```go
+result, _ := fhirpath.Evaluate(patient,
+    "Patient.checkModifiers('http://example.org/a,http://example.org/b').id")
+// the id, if Patient's modifierExtension urls are among those two
+```
+
+**Edge Cases / Notes:**
+- The modifiers are given as a comma-separated string, or, as R4 writes it, as a collection of strings.
+- Only the items' own `modifierExtension` is checked, not their children's.
+- An empty modifier is an error under R5 rules.
+
+---
+
+## elementDefinition
+
+Returns the FHIR element definition of each item of the input.
+
+**Signature:**
+```
+elementDefinition() : Collection
+```
+
+**Edge Cases / Notes:**
+- Returns empty for an empty input.
+- The engine does not hold element definitions, so a non-empty input ends the evaluation with an error.
+
+---
+
+## slice
+
+Returns the items of the input that match a slice of a structure definition.
+
+**Signature:**
+```
+slice(structure : String, name : String) : Collection
+```
+
+**Edge Cases / Notes:**
+- Returns empty for an empty input.
+- A structure that is no URI, or an empty argument, cannot be resolved: an error under R4 rules, empty under R5's.
+- The engine does not hold structure definitions, so a structure that is a URI ends the evaluation with an error.
 
 ---
 
 ## hasValue
 
-Returns `true` if the input is a single FHIR primitive that has a value.
+Returns `true` if the input is a single FHIR primitive that has a value, or a single System value of a primitive type.
 
 **Signature:**
 ```
@@ -331,6 +444,7 @@ result, _ := fhirpath.Evaluate(patient, "Patient.birthDate.hasValue()")
 - Returns `false` for empty input.
 - Returns `false` for more than one item.
 - A primitive written with extensions but no value has none: `false`.
+- A System value of a primitive type has one, `'a'.hasValue()` is `true`, as fhirpath.js and HL7's Java engine answer; a quantity has none. `getValue()` of a System value stays empty.
 - A complex value has none: `false`, as FHIR defines the function and fhirpath.js answers, where HL7's Java engine answers `true`. See [CONFORMANCE.md](https://github.com/gofhir/fhirpath/blob/main/CONFORMANCE.md#measured-and-not-followed).
 
 ---

@@ -45,6 +45,23 @@ type TerminologyService interface {
 	MemberOf(ctx context.Context, code interface{}, valueSetURL string) (bool, error)
 }
 
+// Subsumer is what a TerminologyService implements when it can also tell
+// subsumption, for subsumes() and subsumedBy(). source and given are given as
+// MemberOf's code is: a Coding or CodeableConcept as a map.
+type Subsumer interface {
+	// Subsumes reports whether source subsumes given.
+	Subsumes(ctx context.Context, source, given interface{}) (bool, error)
+}
+
+// HTMLChecker checks HTML for htmlChecks(): a narrative's xhtml, or a string
+// holding HTML, against FHIR's rules, no scripts, no external references, only
+// the elements FHIR permits. It is the caller's, as the rules are FHIR's and
+// not the language's.
+type HTMLChecker interface {
+	// HTMLChecks reports whether the HTML passes FHIR's checks.
+	HTMLChecks(ctx context.Context, html string) (bool, error)
+}
+
 // ProfileValidator handles profile conformance validation.
 type ProfileValidator interface {
 	// ConformsTo checks if a resource conforms to the specified profile.
@@ -90,6 +107,7 @@ type Context struct {
 	resolver           Resolver
 	terminologyService TerminologyService
 	profileValidator   ProfileValidator
+	htmlChecker        HTMLChecker
 	model              Model  // FHIR version-specific model data (nil = use heuristics)
 	path               string // the root's FHIR path, given with SetPath (e.g., "Patient.name")
 	data               []byte // the root as read by NewContext, to read again under a model's type
@@ -305,6 +323,16 @@ func (c *Context) SetProfileValidator(pv ProfileValidator) {
 // GetProfileValidator returns the profile validator.
 func (c *Context) GetProfileValidator() ProfileValidator {
 	return c.profileValidator
+}
+
+// SetHTMLChecker sets the checker htmlChecks() asks.
+func (c *Context) SetHTMLChecker(hc HTMLChecker) {
+	c.htmlChecker = hc
+}
+
+// GetHTMLChecker returns the checker htmlChecks() asks.
+func (c *Context) GetHTMLChecker() HTMLChecker {
+	return c.htmlChecker
 }
 
 // SetModel sets the FHIR model for version-specific type resolution.
