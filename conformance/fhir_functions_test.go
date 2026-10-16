@@ -83,6 +83,7 @@ func TestFHIRFunctionsAnswerAsTheirVersionSays(t *testing.T) {
 		{"r4", "@2020.hasValue()", "[true]"},
 		{"r4", "1 'mg'.hasValue()", "[false]"},
 		{"r4", "('a' | 'b').hasValue()", "[false]"},
+		{"r4", "''.hasValue()", "[true]"},
 		{"r4", "'a'.getValue()", "[]"},
 	} {
 		got, err := evaluateIn(t, tt.version, tt.expr)
@@ -97,17 +98,19 @@ func TestFHIRFunctionsAnswerAsTheirVersionSays(t *testing.T) {
 	}
 }
 
-type htmlChecker struct{ calls int }
+// htmlChecker passes the xhtml unless it holds forbidden, and fails when
+// told to.
+type htmlChecker struct {
+	calls int
+	fail  bool
+}
 
 func (c *htmlChecker) HTMLChecks(_ context.Context, xhtml string) (bool, error) {
 	c.calls++
-	if strings.Contains(xhtml, "<script") {
-		return false, nil
+	if c.fail {
+		return false, errors.New("checker failed")
 	}
-	if strings.Contains(xhtml, "broken") {
-		return false, errors.New("broken checker")
-	}
-	return true, nil
+	return !strings.Contains(xhtml, "forbidden"), nil
 }
 
 // htmlChecks() asks the caller's checker about a single xhtml element, and
@@ -130,6 +133,19 @@ func TestHTMLChecksAsksTheCallersChecker(t *testing.T) {
 	}
 	if checker.calls != 1 {
 		t.Errorf("the checker was asked %d times, want once", checker.calls)
+	}
+
+	// The checker's verdict is the answer, and its failure ends the evaluation
+	forbidden := []byte(`{"resourceType":"Patient","text":{"status":"generated",` +
+		`"div":"<div xmlns=\"http://www.w3.org/1999/xhtml\">forbidden</div>"}}`)
+	result, err := fhirpath.MustCompile("Patient.text.`div`.htmlChecks()").EvaluateWithOptions(forbidden,
+		fhirpath.WithModel(r5.FHIRPathModel()), fhirpath.WithHTMLChecker(&htmlChecker{}))
+	if err != nil || result.String() != "[false]" {
+		t.Errorf("htmlChecks() of a narrative the checker refuses = %v, %v; want [false]", result, err)
+	}
+	if _, err := evaluateIn(t, "r5", "Patient.text.`div`.htmlChecks()",
+		fhirpath.WithHTMLChecker(&htmlChecker{fail: true})); err == nil {
+		t.Error("htmlChecks() with a failing checker: no error, want one")
 	}
 }
 
