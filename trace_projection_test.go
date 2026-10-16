@@ -18,8 +18,9 @@ func (r *traceRecorder) Log(entry funcs.TraceEntry) { r.entries = append(r.entri
 // nothing and (1 | 2).trace('x', $this * 10) ended in an error.
 func TestTraceProjectsEachItem(t *testing.T) {
 	recorder := &traceRecorder{}
+	previous := funcs.GetTraceLogger()
 	funcs.SetTraceLogger(recorder)
-	defer funcs.SetTraceLogger(funcs.NullTraceLogger{})
+	defer funcs.SetTraceLogger(previous)
 
 	doc := []byte(`{"resourceType":"Patient","name":[{"given":["A","B"]},{"given":["C"]}]}`)
 	for expr, want := range map[string]string{

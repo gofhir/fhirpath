@@ -191,11 +191,15 @@ func childExpression(node grammar.IExpressionContext, i int) (child grammar.IExp
 func (a *analyzer) term(node grammar.ITermContext, contextType string) (string, error) {
 	switch term := node.(type) {
 	case *grammar.InvocationTermContext:
-		// The first name of an expression may restate its context's type
-		a.atRoot = true
-		result, err := a.invocation(term.Invocation(), contextType, contextType)
-		a.atRoot = false
-		return result, err
+		// The first name of an expression may restate its context's type; a
+		// function there is no name, and its arguments are expressions of
+		// their own
+		if _, isMember := term.Invocation().(*grammar.MemberInvocationContext); isMember {
+			outer := a.atRoot
+			a.atRoot = true
+			defer func() { a.atRoot = outer }()
+		}
+		return a.invocation(term.Invocation(), contextType, contextType)
 
 	case *grammar.ParenthesizedTermContext:
 		return a.expression(term.Expression(), contextType)
