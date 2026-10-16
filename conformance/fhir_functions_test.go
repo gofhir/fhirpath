@@ -204,6 +204,10 @@ func TestAnalysisAcceptsASupertypeAtTheRoot(t *testing.T) {
 		{"DomainResource.nonexistent.exists()", true},
 		{"Observation.status.exists()", true},
 		{"name.DomainResource.exists()", true},
+		// a FHIR function that returns its input keeps its type
+		{"Patient.checkModifiers('http://example.org/a').name.family.exists()", false},
+		{"Patient.checkModifiers('http://example.org/a').nmae.exists()", true},
+		{"Patient.name.slice('http://example.org/s', 'x').nmae.exists()", true},
 	} {
 		err := fhirpath.MustCompile(tt.expr).Analyze(r4.FHIRPathModel(), "Patient")
 		if (err != nil) != tt.fault {

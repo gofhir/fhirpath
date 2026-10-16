@@ -398,7 +398,8 @@ func (a *analyzer) function(node grammar.IFunctionContext, inputType, contextTyp
 	switch name {
 	// The input passes through unchanged
 	case "where", "first", "last", "tail", "skip", "take", "single",
-		"distinct", "intersect", "exclude", "union", "combine", "trace":
+		"distinct", "intersect", "exclude", "union", "combine", "trace",
+		"checkModifiers", "slice":
 		return inputType, nil
 
 	// A type is named in the call, and the result takes it
@@ -414,7 +415,8 @@ func (a *analyzer) function(node grammar.IFunctionContext, inputType, contextTyp
 		"contains", "startsWith", "endsWith", "matches", "matchesFull",
 		"convertsToBoolean", "convertsToInteger", "convertsToDecimal",
 		"convertsToString", "convertsToDate", "convertsToDateTime",
-		"convertsToTime", "convertsToQuantity", "conformsTo", "memberOf":
+		"convertsToTime", "convertsToQuantity", "conformsTo", "memberOf",
+		"subsumes", "subsumedBy", "htmlChecks", "comparable":
 		return types.TypeNameBoolean, nil
 
 	case "count", "length", "indexOf", "lastIndexOf", "toInteger", "precision":
