@@ -10,8 +10,8 @@ github.com/gofhir/models/r4b/v2 v2.10.0 h1:PiFaKubGL7fgbk1rEFZJYCz10dvTGWnTIN07p
 github.com/gofhir/models/r4b/v2 v2.10.0/go.mod h1:UvaUIByPp3qDebUIr6ONUms5x6eoeVK4saUUa4kMSAg=
 github.com/gofhir/models/r5/v2 v2.10.0 h1:hsjFcwvfgFokh/GeMvQMOQj+hH7TMJSlurW2kGK/Wdg=
 github.com/gofhir/models/r5/v2 v2.10.0/go.mod h1:S7qi0RQ72EMfONoZWGhq3P6/bufVzD0rB2XkjtarGf8=
-github.com/gofhir/ucum/v4 v4.2.0 h1:ougEnTQv42vXQmWkxS7qd7nIaSG7MHm4sHqhO3RFrIM=
-github.com/gofhir/ucum/v4 v4.2.0/go.mod h1:hk/uAUDzD7UFymbMrIglysUzUtfSeqLN5prsmf9yIbM=
+github.com/gofhir/ucum/v4 v4.3.0 h1:bxr1FAe+vX+ITFr7/yvyj4uttnhsmYL8HnYJgdXJ8hE=
+github.com/gofhir/ucum/v4 v4.3.0/go.mod h1:hk/uAUDzD7UFymbMrIglysUzUtfSeqLN5prsmf9yIbM=
 github.com/pmezard/go-difflib v1.0.0 h1:4DBwDE0NGyQoBHbLQYPwSUPoCMWR5BEzIk/f1lZbAQM=
 github.com/pmezard/go-difflib v1.0.0/go.mod h1:iKH77koFhYxTK1pcRnkKkqfTogsbg7gZNVY4sRDYZ/4=
 github.com/shopspring/decimal v1.4.0 h1:bxl37RwXBklmTi0C79JfXCEBD1cqqHt0bbgBAGFp81k=

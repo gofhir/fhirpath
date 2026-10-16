@@ -109,11 +109,11 @@ sum, _ := fhirpath.Evaluate(empty, "500 'mg' + 500 'mg'")
 fmt.Println("500 mg + 500 mg:", sum)
 // Output: 500 mg + 500 mg: [1000 'mg']
 
-// Subtraction: las unidades conmensurables se convierten a la unidad del operando
-// izquierdo, que es también la unidad del resultado
+// Subtraction: las unidades conmensurables se convierten a la unidad más
+// granular, que es también la unidad del resultado
 diff, _ := fhirpath.Evaluate(empty, "1 'kg' - 200 'g'")
 fmt.Println("1 kg - 200 g:", diff)
-// Output: 1 kg - 200 g: [0.8 kg]
+// Output: 1 kg - 200 g: [800 'g']
 
 // Multiplication by a number
 product, _ := fhirpath.Evaluate(empty, "250 'mg' * 4")

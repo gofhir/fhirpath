@@ -198,6 +198,28 @@ func IsValueless(v Value) bool {
 	return ok && o.Valueless()
 }
 
+// IsValuelessQuantity reports a FHIR Quantity written without a value, its
+// unit alone: Quantity.value is optional, and such a quantity holds no amount
+// to compute with, as a primitive with no value holds none.
+func IsValuelessQuantity(v Value) bool {
+	o, ok := v.(*ObjectValue)
+	if !ok {
+		return false
+	}
+	if _, hasValue := o.Get("value"); hasValue {
+		return false
+	}
+	// The type a model gives decides; without one a quantity with no value is
+	// told by its fields, and inferred as a Coding when it carries a system
+	// and a code, as a Coding's: only a unit marks it
+	t := o.Type()
+	if t != typeObject && t != "Coding" {
+		return quantityTypes[t]
+	}
+	_, hasUnit := o.stringField("unit")
+	return hasUnit
+}
+
 // SingletonBoolean applies the FHIRPath "Singleton Evaluation of Collections"
 // rule for operations that expect a Boolean input: a single Boolean node
 // evaluates to its value, and a single node of any other type evaluates to

@@ -46,8 +46,9 @@ func QuantityPair(left, right types.Value) (lq, rq types.Quantity, ok bool, err 
 // a Quantity of unit '1', as comparing the two asks: 2.0.0 makes Integer and
 // Decimal to Quantity implicit conversions, toQuantity() giving "the default
 // unit ('1')", and 3.0.0 gives 23 = 23 '1' and 23 ~ 23 '1' as true. ok is
-// false unless one side is a number and the other a quantity. Arithmetic
-// does not take this: 2 + 3 'mg' stays an error.
+// false unless one side is a number and the other a quantity. +, - and /
+// take it too, as fhirpath.js does and 3.0.0's own 2 + 2 '1' and 60 / 1 's'
+// read it; 2 + 3 'mg', whose units do not combine, is empty.
 func numberAndQuantity(left, right types.Value) (lq, rq types.Quantity, ok bool) {
 	if n, isNumber := types.UnitOne(left); isNumber {
 		if q, isQuantity, err := AsQuantity(right); isQuantity && err == nil {
@@ -168,12 +169,8 @@ func shiftTemporal(left, right types.Value, subtract bool) (types.Value, bool, e
 
 // Add performs addition on two values.
 func Add(left, right types.Value) (types.Value, error) {
-	// FHIR quantity objects: route through Quantity arithmetic.
-	if lq, rq, ok, err := quantityOperands(left, right); err != nil || ok {
-		if err != nil {
-			return nil, err
-		}
-		return lq.Add(rq)
+	if result, ok, err := additiveQuantities(left, right, types.Quantity.Add); ok {
+		return result, err
 	}
 
 	// Date and DateTime take a duration on the right
@@ -209,14 +206,28 @@ func Add(left, right types.Value) (types.Value, error) {
 	return nil, InvalidOperationError("+", left.Type(), right.Type())
 }
 
-// Subtract performs subtraction on two values.
-func Subtract(left, right types.Value) (types.Value, error) {
-	// FHIR quantity objects: route through Quantity arithmetic.
+// additiveQuantities applies + or - where a FHIR Quantity is among the
+// operands, or a number stands beside a quantity, which is one of unit '1':
+// 2 + 2 '1' is 4 '1'. ok is false for any other pair.
+func additiveQuantities(left, right types.Value, op func(types.Quantity, types.Quantity) (types.Quantity, error)) (types.Value, bool, error) {
 	if lq, rq, ok, err := quantityOperands(left, right); err != nil || ok {
 		if err != nil {
-			return nil, err
+			return nil, true, err
 		}
-		return lq.Subtract(rq)
+		result, err := op(lq, rq)
+		return result, true, err
+	}
+	if lq, rq, ok := numberAndQuantity(left, right); ok {
+		result, err := op(lq, rq)
+		return result, true, err
+	}
+	return nil, false, nil
+}
+
+// Subtract performs subtraction on two values.
+func Subtract(left, right types.Value) (types.Value, error) {
+	if result, ok, err := additiveQuantities(left, right, types.Quantity.Subtract); ok {
+		return result, err
 	}
 
 	// Date and DateTime take a duration on the right
@@ -250,7 +261,7 @@ func Subtract(left, right types.Value) (types.Value, error) {
 
 // Multiply performs multiplication on two values.
 func Multiply(left, right types.Value) (types.Value, error) {
-	// Quantity * Quantity combines the units: 2 'cm' by 2 'm' is 0.04 'm2'
+	// Quantity * Quantity combines the units: 2 'cm' by 2 'm' is 400 'cm2'
 	if lq, rq, ok, err := bothQuantities(left, right); err != nil || ok {
 		if err != nil {
 			return nil, err
@@ -306,6 +317,12 @@ func Divide(left, right types.Value) (types.Value, error) {
 		}
 	}
 
+	// A number divided by a quantity is one of unit '1': 60 / 1 's' is
+	// 60 's-1', which 3.0.0 writes 60 '/s'
+	if lq, rq, ok := numberAndQuantity(left, right); ok {
+		return lq.DivideQuantity(rq)
+	}
+
 	// Convert both to Decimal for division
 	var lDec, rDec types.Decimal
 	switch l := left.(type) {
@@ -337,7 +354,7 @@ func Divide(left, right types.Value) (types.Value, error) {
 // The specification does not treat this as an error: "12 / 0 // empty ({ })",
 // and likewise for div and mod. Callers translate this sentinel into an empty
 // collection, the same way an incommensurable unit comparison is translated.
-var ErrDivideByZero = errors.New("division by zero")
+var ErrDivideByZero = types.ErrDivideByZero
 
 // IntegerDivide performs truncated division (div operator).
 //
@@ -424,6 +441,14 @@ func Negate(value types.Value) (types.Value, error) {
 	case types.Quantity:
 		// A quantity negates by its value, keeping its unit: -5.5 'mg'
 		return v.Negate(), nil
+	case *types.ObjectValue:
+		// A FHIR Quantity negates as the quantity it maps to
+		if q, ok, err := AsQuantity(v); err != nil || ok {
+			if err != nil {
+				return nil, err
+			}
+			return q.Negate(), nil
+		}
 	}
 	return nil, NewEvalError(ErrType, "cannot negate %s", value.Type())
 }
@@ -513,6 +538,12 @@ func Equal(left, right types.Collection) types.Collection {
 // a primitive written with no value; see types.Collection.Valueless.
 func noValue(operand types.Collection) bool {
 	return operand.Empty() || operand.Valueless()
+}
+
+// noAmount is noValue for the operators that compute with a number or a
+// quantity, for which a FHIR Quantity written with no value has none either.
+func noAmount(operand types.Collection) bool {
+	return noValue(operand) || len(operand) == 1 && types.IsValuelessQuantity(operand[0])
 }
 
 // equal is Equal with the error it can end in.

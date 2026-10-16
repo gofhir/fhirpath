@@ -38,7 +38,8 @@ result, _ := fhirpath.Evaluate(resource, "(42).abs()")
 **Edge Cases / Notes:**
 
 - Preserves the input type: `Integer` input returns `Integer`, `Decimal` input returns `Decimal`.
-- Returns empty collection if the input is empty or not numeric.
+- Returns an empty collection if the input is empty.
+- An input that is not a number or a quantity ends the evaluation with an error, as fhirpath.js and HL7's Java engine both refuse it. A FHIR Quantity is read as a quantity.
 
 ---
 
@@ -71,7 +72,9 @@ result, _ := fhirpath.Evaluate(resource, "(5).ceiling()")
 
 - If the input is already an `Integer`, it is returned unchanged.
 - Always rounds toward positive infinity.
-- Returns empty collection if the input is empty or not numeric.
+- Returns an empty collection if the input is empty.
+- An input that is not a number or a quantity ends the evaluation with an error, as fhirpath.js and HL7's Java engine both refuse it.
+- A `Quantity` is rounded by its value and keeps its unit: `1.1 'cm'.ceiling()` is `2 'cm'`, as FHIRPath 3.0.0 has it and fhirpath.js answers.
 
 ---
 
@@ -104,7 +107,9 @@ result, _ := fhirpath.Evaluate(resource, "(7).floor()")
 
 - If the input is already an `Integer`, it is returned unchanged.
 - Always rounds toward negative infinity.
-- Returns empty collection if the input is empty or not numeric.
+- Returns an empty collection if the input is empty.
+- An input that is not a number or a quantity ends the evaluation with an error, as fhirpath.js and HL7's Java engine both refuse it.
+- A `Quantity` is rounded by its value and keeps its unit: `1.1 'cm'.floor()` is `1 'cm'`, as FHIRPath 3.0.0 has it and fhirpath.js answers.
 
 ---
 
@@ -137,7 +142,9 @@ result, _ := fhirpath.Evaluate(resource, "(5).truncate()")
 
 - Unlike `floor`, `truncate` always rounds toward zero. For negative values, `truncate(-3.9)` returns `-3` while `floor(-3.9)` returns `-4`.
 - If the input is already an `Integer`, it is returned unchanged.
-- Returns empty collection if the input is empty or not numeric.
+- Returns an empty collection if the input is empty.
+- An input that is not a number or a quantity ends the evaluation with an error, as fhirpath.js and HL7's Java engine both refuse it.
+- A `Quantity` is rounded by its value and keeps its unit: `1.1 'cm'.truncate()` is `1 'cm'`, as FHIRPath 3.0.0 has it and fhirpath.js answers.
 
 ---
 
@@ -175,11 +182,14 @@ result, _ := fhirpath.Evaluate(resource, "(2.345).round(1)")
 **Edge Cases / Notes:**
 
 - If no precision is specified, defaults to `0` (rounds to nearest integer).
-- If the input is an `Integer`, it is returned unchanged.
-- A negative precision ends the evaluation with an error, as FHIRPath 3.0.0 requires: "the number of digits of precision must be >= 0".
-- For a `Decimal`, a precision of more than 1000 places is beyond the decimals this engine holds, and the result is empty.
+- An `Integer` input is returned as a `Decimal`, as the signature `round([precision : Integer]) : Decimal` has it.
+- A negative precision rounds left of the point, `15.round(-1)` is `20`, as fhirpath.js and HL7's Java engine both answer, though FHIRPath 3.0.0 says "the number of digits of precision must be >= 0".
+- A precision that is not an `Integer` ends the evaluation with an error; an empty one gives an empty result.
+- A precision of more than 1000 places is beyond the decimals this engine holds, and the result is empty, whatever the input.
 - Rounds half away from zero, which is how this engine reads the traditional round 3.0.0 describes: `2.5.round()` is `3`, `(-2.5).round()` is `-3`.
-- Returns empty collection if the input is empty or not numeric.
+- Returns an empty collection if the input is empty.
+- An input that is not a number or a quantity ends the evaluation with an error, as fhirpath.js and HL7's Java engine both refuse it.
+- A `Quantity` is rounded by its value and keeps its unit: `1.5 'mg'.round()` is `2 'mg'`, as FHIRPath 3.0.0 has it and fhirpath.js answers.
 
 ---
 
@@ -212,7 +222,8 @@ result, _ := fhirpath.Evaluate(resource, "(2).exp()")
 
 - Always returns a `Decimal`, even if the input is an `Integer`.
 - Uses Go's `math.Exp` function.
-- Returns empty collection if the input is empty or not numeric.
+- Returns an empty collection if the input is empty.
+- An input that is not a number ends the evaluation with an error, as fhirpath.js and HL7's Java engine both refuse it.
 
 ---
 
@@ -245,7 +256,8 @@ result, _ := fhirpath.Evaluate(resource, "(10).ln()")
 
 - Returns empty collection if the input value is less than or equal to zero.
 - Always returns a `Decimal`.
-- Returns empty collection if the input is empty or not numeric.
+- Returns an empty collection if the input is empty.
+- An input that is not a number ends the evaluation with an error, as fhirpath.js and HL7's Java engine both refuse it.
 
 ---
 
@@ -282,10 +294,11 @@ result, _ := fhirpath.Evaluate(resource, "(27).log(3)")
 
 **Edge Cases / Notes:**
 
-- Returns empty collection if the input value is less than or equal to zero.
-- Returns empty collection if the base is less than or equal to zero, or equals `1`.
+- An input less than or equal to zero ends the evaluation with an error, as FHIRPath 3.0.0 says.
+- A base less than or equal to zero ends the evaluation with an error too; a base of `1` gives an empty result.
 - Computed as `ln(value) / ln(base)`.
-- Returns empty collection if the input is empty or not numeric.
+- Returns an empty collection if the input is empty.
+- An input that is not a number ends the evaluation with an error, as fhirpath.js and HL7's Java engine both refuse it. A base that is not a number, `16.log('2')`, or of more than one item, is an error too.
 
 ---
 
@@ -324,7 +337,8 @@ result, _ := fhirpath.Evaluate(resource, "(10).power(0)")
 
 - Always returns a `Decimal` value.
 - Returns empty collection if the result is `NaN` or `Inf` (e.g., `0.power(-1)`).
-- Returns empty collection if the input is empty or not numeric.
+- Returns an empty collection if the input is empty.
+- An input that is not a number ends the evaluation with an error, as fhirpath.js and HL7's Java engine both refuse it. An exponent that is not a number, or of more than one item, is an error too.
 
 ---
 
@@ -358,4 +372,5 @@ result, _ := fhirpath.Evaluate(resource, "(0).sqrt()")
 - Returns empty collection if the input value is negative.
 - Always returns a `Decimal`.
 - Equivalent to `power(0.5)`.
-- Returns empty collection if the input is empty or not numeric.
+- Returns an empty collection if the input is empty.
+- An input that is not a number ends the evaluation with an error, as fhirpath.js and HL7's Java engine both refuse it.

@@ -15,10 +15,10 @@ Los operadores aritméticos trabajan con valores `Integer`, `Decimal` y (donde s
 |----------|------|------------|-------------|-------------|
 | `+` | Suma | Integer, Decimal, String, Date, DateTime, Quantity | Integer, Decimal, String, Quantity | Varía (ver abajo) |
 | `-` | Resta | Integer, Decimal, Date, DateTime, Quantity | Integer, Decimal, Quantity | Varía |
-| `*` | Multiplicación | Integer, Decimal | Integer, Decimal | Integer o Decimal |
-| `/` | División | Integer, Decimal | Integer, Decimal | Decimal (siempre) |
-| `div` | División entera | Integer | Integer | Integer |
-| `mod` | Módulo | Integer | Integer | Integer |
+| `*` | Multiplicación | Integer, Decimal, Quantity | Integer, Decimal, Quantity | Integer, Decimal o Quantity |
+| `/` | División | Integer, Decimal, Quantity | Integer, Decimal, Quantity | Decimal o Quantity |
+| `div` | División entera | Integer, Decimal | Integer, Decimal | Integer o Decimal |
+| `mod` | Módulo | Integer, Decimal | Integer, Decimal | Integer o Decimal |
 
 **Promoción de tipo:** Cuando un operando es `Integer` y el otro es `Decimal`, el `Integer` se promueve a `Decimal` automáticamente.
 
@@ -33,12 +33,19 @@ Los operadores aritméticos trabajan con valores `Integer`, `Decimal` y (donde s
 @2024-01-15T10:00:00Z - 2 hours  --> @2024-01-15T08:00:00Z
 ```
 
-**Aritmética de Quantity:** Las cantidades con la misma unidad pueden sumarse o restarse:
+**Aritmética de Quantity:** Las cantidades pueden sumarse, restarse, multiplicarse y dividirse:
 
 ```text
-10 'mg' + 5 'mg'  --> 15 'mg'
-10 'mg' - 3 'mg'  --> 7 'mg'
+10 'mg' + 5 'mg'      --> 15 'mg'
+3 'm' + 3 'cm'        --> 303 'cm'      (la unidad más granular)
+60 's' + 2 minutes    --> 180 seconds   (una duración de calendario y una UCUM: unidades de calendario)
+12 'cm' * 3 'cm'      --> 36 'cm2'      (las unidades de los propios operandos)
+12 'cm2' / 3 'cm'     --> 4 'cm'
+2 + 2 '1'             --> 4 '1'         (un número junto a una cantidad tiene la unidad '1')
 ```
+
+- Las unidades que no se combinan dan vacío: `2 'mg' + 3 'm'`, una duración de calendario en `*` o `/` (`12 day * 45 'm'`), una unidad "especial" como `'Cel'` con otra unidad, y una cantidad dividida por cero.
+- Una Quantity FHIR escrita con unidad y sin valor es vacía.
 
 **Propagación vacía:** Si alguno de los operandos está vacío, los operadores aritméticos retornan vacío.
 

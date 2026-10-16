@@ -1554,9 +1554,9 @@ func TestQuantityArithmetic(t *testing.T) {
 		// Quantity with empty unit
 		{"quantity plus quantity empty unit", 5, "", 3, "", "8", false, false},
 
-		// Commensurable units are converted into the left operand's unit
+		// Commensurable units are converted into the more granular unit
 		{"quantity plus commensurable unit", 5, "mg", 3, "g", "3005 'mg'", false, false},
-		{"quantity minus commensurable unit", 2, "g", 500, "mg", "1.5 'g'", true, false},
+		{"quantity minus commensurable unit", 2, "g", 500, "mg", "1500 'mg'", true, false},
 
 		// Units of different dimensions cannot be combined
 		{"quantity plus incompatible units", 5, "mg", 3, "m", "", false, true},

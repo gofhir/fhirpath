@@ -1,0 +1,24 @@
+REQ-MATH-018/REQ-MATH-018-b deliberate when-200-and-300-disagree power() on Integers is a Decimal, as 3.0.0 has it and as the Java engine returns it (10.power(10) is 1.0E+10 there); the case follows 2.0.0's Integer result, and fhirpath.js's true comes from typing a value by whether it has a fraction
+REQ-MATH-018/REQ-MATH-018-c deliberate when-200-and-300-disagree power() on Integers is a Decimal, as 3.0.0 has it and as the Java engine returns it; the case follows 2.0.0's Integer result
+REQ-MATH-021/REQ-MATH-021-a deliberate when-200-and-300-disagree power() on Integers is a Decimal here, so 2.power(31) is 2147483648, as both references answer; the case follows 2.0.0, under which the Integer result overflows 32 bits
+REQ-MATH-021/REQ-MATH-021-b deliberate when-200-and-300-disagree power() on Integers is a Decimal here, so 10.power(10) is 10000000000, as both references answer; the case follows 2.0.0's 32-bit Integer result
+REQ-MATH-025/REQ-MATH-025-a deliberate math round() with a negative precision rounds left of the point, 3.14159.round(-1) is 0, as fhirpath.js and the Java engine both answer; the case follows both versions' "must be >= 0 or the evaluation will end and signal an error"
+REQ-MATH-025/REQ-MATH-025-b deliberate math round() with a negative precision rounds left of the point, 15.round(-1) is 20, as fhirpath.js and the Java engine (2E+1) both answer; the case follows both versions' error sentence
+REQ-MATH-025/REQ-MATH-025-c deliberate math round() with a negative precision rounds left of the point, 125.5.round(-2) is 100, as fhirpath.js and the Java engine (1E+2) both answer; the case follows both versions' error sentence
+REQ-MATH-049/REQ-MATH-049-a deliberate integer-is-64-bits-here-and-there-is-no-long Integer is 64 bits, so 2147483647 + 1 is 2147483648, as fhirpath.js answers (the Java engine wraps); the case follows the 32-bit range
+REQ-MATH-049/REQ-MATH-049-b deliberate integer-is-64-bits-here-and-there-is-no-long Integer is 64 bits, so the difference does not overflow, as fhirpath.js answers; the case follows the 32-bit range
+REQ-MATH-049/REQ-MATH-049-c deliberate integer-is-64-bits-here-and-there-is-no-long Integer is 64 bits, so 65536 * 65536 does not overflow, as fhirpath.js answers; the case follows the 32-bit range
+REQ-MATH-049/REQ-MATH-049-d deliberate integer-is-64-bits-here-and-there-is-no-long Integer is 64 bits, so the quotient does not overflow, as fhirpath.js answers; the case follows the 32-bit range
+REQ-MATH-049/REQ-MATH-049-e deliberate integer-is-64-bits-here-and-there-is-no-long Integer is 64 bits, so 2147483647 * 2 does not overflow, as fhirpath.js answers; the case follows the 32-bit range
+REQ-MATH-057/REQ-MATH-057-a deliberate integer-is-64-bits-here-and-there-is-no-long Integer is 64 bits, so negating -2^31 can be represented, as fhirpath.js answers; the case follows the 32-bit range
+REQ-MATH-067/REQ-MATH-067-a deliberate integer-is-64-bits-here-and-there-is-no-long toLong is not implemented, Integer being 64 bits already
+REQ-MATH-067/REQ-MATH-067-b deliberate integer-is-64-bits-here-and-there-is-no-long toLong is not implemented, Integer being 64 bits already
+REQ-MATH-067/REQ-MATH-067-c deliberate integer-is-64-bits-here-and-there-is-no-long toLong is not implemented, Integer being 64 bits already
+REQ-MATH-067/REQ-MATH-067-d deliberate integer-is-64-bits-here-and-there-is-no-long toLong is not implemented, Integer being 64 bits already
+REQ-MATH-067/REQ-MATH-067-e deliberate integer-is-64-bits-here-and-there-is-no-long toLong is not implemented, Integer being 64 bits already
+REQ-MATH-067/REQ-MATH-067-f deliberate integer-is-64-bits-here-and-there-is-no-long toLong is not implemented, Integer being 64 bits already; 9223372036854775807 + 1 is empty here as the case expects
+REQ-MATH-067/REQ-MATH-067-g deliberate integer-is-64-bits-here-and-there-is-no-long toLong is not implemented, Integer being 64 bits already
+REQ-MATH-072/REQ-MATH-072-a deliberate integer-is-64-bits-here-and-there-is-no-long toLong is not implemented, Integer being 64 bits already
+REQ-MATH-072/REQ-MATH-072-b deliberate integer-is-64-bits-here-and-there-is-no-long toLong is not implemented, Integer being 64 bits already
+REQ-MATH-072/REQ-MATH-072-c deliberate integer-is-64-bits-here-and-there-is-no-long toLong is not implemented, Integer being 64 bits already
+REQ-MATH-072/REQ-MATH-072-d deliberate integer-is-64-bits-here-and-there-is-no-long toLong is not implemented, Integer being 64 bits already

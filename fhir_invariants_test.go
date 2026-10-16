@@ -256,7 +256,8 @@ func TestQuantityObjectComparison(t *testing.T) {
 		assertStringResult(t, evalOrFatal(t, simpleJSON, "(250 'mg' * 4).toString()"), "1000 'mg'")
 		assertStringResult(t, evalOrFatal(t, simpleJSON, "(4 * 250 'mg').toString()"), "1000 'mg'")
 		assertStringResult(t, evalOrFatal(t, simpleJSON, "(1 'g' / 4).toString()"), "0.25 'g'")
-		assertStringResult(t, evalOrFatal(t, simpleJSON, "(1 'kg' - 200 'g').toString()"), "0.8 'kg'")
+		// in the more granular unit, "the most granular unit of either input"
+		assertStringResult(t, evalOrFatal(t, simpleJSON, "(1 'kg' - 200 'g').toString()"), "800 'g'")
 	})
 
 	t.Run("quantity literals with incommensurable units", func(t *testing.T) {
