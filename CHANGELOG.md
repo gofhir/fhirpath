@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.0](https://github.com/gofhir/fhirpath/compare/v1.14.7...v1.15.0) (2026-10-16)
+
+
+### Features
+
+* FHIR functions subsumes, subsumedBy, htmlChecks, checkModifiers, elementDefinition and slice, and each FHIR function as its version's page says ([#195](https://github.com/gofhir/fhirpath/issues/195)) ([5a723da](https://github.com/gofhir/fhirpath/commit/5a723dad1a8a2555dffe886ef58b75e9f2db635d))
+
 ## [1.14.7](https://github.com/gofhir/fhirpath/compare/v1.14.6...v1.14.7) (2026-10-15)
 
 
