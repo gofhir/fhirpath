@@ -32,8 +32,8 @@ type EvalOptions struct {
 	// When nil, the engine uses built-in heuristics.
 	Model Model
 
-	// HTMLChecker checks a narrative's xhtml for htmlChecks(). When nil,
-	// htmlChecks() on an xhtml element ends the evaluation with an error.
+	// HTMLChecker checks HTML for htmlChecks(). When nil, htmlChecks() on an
+	// xhtml element or a string ends the evaluation with an error.
 	HTMLChecker HTMLChecker
 }
 
@@ -106,16 +106,17 @@ func WithResolver(r ReferenceResolver) EvalOption {
 	}
 }
 
-// WithHTMLChecker sets the checker htmlChecks() asks about an xhtml element.
+// WithHTMLChecker sets the checker htmlChecks() asks.
 func WithHTMLChecker(hc HTMLChecker) EvalOption {
 	return func(o *EvalOptions) {
 		o.HTMLChecker = hc
 	}
 }
 
-// HTMLChecker checks the xhtml of a narrative for htmlChecks(), which "returns
-// true if the rules around HTML usage are met, and false if they are not": no
-// scripts, no external references, only the elements FHIR permits. The rules
+// HTMLChecker checks HTML for htmlChecks(), which "returns true if the rules
+// around HTML usage are met, and false if they are not": a narrative's xhtml,
+// or a string, with no scripts, no external references, only the elements FHIR
+// permits. The rules
 // are FHIR's, so the caller, which validates the rest of the resource, brings
 // them.
 type HTMLChecker = eval.HTMLChecker

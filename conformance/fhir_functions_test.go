@@ -43,12 +43,18 @@ func TestFHIRFunctionsAnswerAsTheirVersionSays(t *testing.T) {
 		{"r4", "Patient.maritalStatus.coding[0].subsumedBy(Patient.maritalStatus)", "[true]"},
 		{"r4", "Patient.maritalStatus.coding[0].subsumes(Patient.maritalStatus.coding[1])", "[]"},
 		{"r4", "{}.subsumes(Patient.maritalStatus)", "[]"},
+		// what is no Coding or CodeableConcept stands for no code
+		{"r4", "Patient.subsumes(Patient.maritalStatus)", "[]"},
+		{"r4", "Patient.name.first().subsumes(Patient.maritalStatus)", "[]"},
 		{"r4", "Patient.maritalStatus.coding.subsumes(Patient.maritalStatus)", "error"},
 		{"r5", "Patient.maritalStatus.coding.subsumes(Patient.maritalStatus)", "[]"},
-		// htmlChecks(): empty on what is no single xhtml element
+		// htmlChecks(): empty on what is no single xhtml element or string;
+		// without a checker, one of those ends the evaluation
 		{"r5", "Patient.text.status.htmlChecks()", "[]"},
 		{"r5", "Patient.text.`div`.combine(Patient.text.`div`).htmlChecks()", "[]"},
 		{"r5", "Patient.text.`div`.htmlChecks()", "error"},
+		{"r5", "'<b>x</b>'.htmlChecks()", "error"},
+		{"r4", "1.htmlChecks()", "[]"},
 		// checkModifiers(): the input, or an error for a modifier not allowed
 		{"r4", "Patient.checkModifiers('http://example.org/a').id", "[p]"},
 		{"r5", "Patient.checkModifiers('http://example.org/b,http://example.org/a').id", "[p]"},
@@ -113,15 +119,19 @@ func (c *htmlChecker) HTMLChecks(_ context.Context, xhtml string) (bool, error) 
 	return !strings.Contains(xhtml, "forbidden"), nil
 }
 
-// htmlChecks() asks the caller's checker about a single xhtml element, and
-// nothing else.
+// htmlChecks() asks the caller's checker about a single xhtml element or
+// string, as fhirpath.js and the HL7 validator check both, and about nothing
+// else: not a code, on which the two part, nor several items.
 func TestHTMLChecksAsksTheCallersChecker(t *testing.T) {
 	checker := &htmlChecker{}
 	for expr, want := range map[string]string{
-		"Patient.text.`div`.htmlChecks()":    "[true]",
-		"Patient.text.status.htmlChecks()":   "[]",
-		"Patient.htmlChecks()":               "[]",
-		"Patient.descendants().htmlChecks()": "[]",
+		"Patient.text.`div`.htmlChecks()":          "[true]",
+		"Patient.name.first().family.htmlChecks()": "[true]",
+		"'<b>forbidden</b>'.htmlChecks()":          "[false]",
+		"Patient.text.status.htmlChecks()":         "[]",
+		"Patient.gender.htmlChecks()":              "[]",
+		"Patient.htmlChecks()":                     "[]",
+		"Patient.descendants().htmlChecks()":       "[]",
 	} {
 		got, err := evaluateIn(t, "r5", expr, fhirpath.WithHTMLChecker(checker))
 		if err != nil {
@@ -131,8 +141,8 @@ func TestHTMLChecksAsksTheCallersChecker(t *testing.T) {
 			t.Errorf("%s = %s, want %s", expr, got, want)
 		}
 	}
-	if checker.calls != 1 {
-		t.Errorf("the checker was asked %d times, want once", checker.calls)
+	if checker.calls != 3 {
+		t.Errorf("the checker was asked %d times, want 3", checker.calls)
 	}
 
 	// The checker's verdict is the answer, and its failure ends the evaluation
@@ -146,6 +156,25 @@ func TestHTMLChecksAsksTheCallersChecker(t *testing.T) {
 	if _, err := evaluateIn(t, "r5", "Patient.text.`div`.htmlChecks()",
 		fhirpath.WithHTMLChecker(&htmlChecker{fail: true})); err == nil {
 		t.Error("htmlChecks() with a failing checker: no error, want one")
+	}
+}
+
+// failingService cannot answer membership.
+type failingService struct{}
+
+func (failingService) MemberOf(context.Context, interface{}, string) (bool, error) {
+	return false, errors.New("service down")
+}
+
+// memberOf() of a code the service could not answer for is unknown, empty,
+// not "not a member". Up to 1.14.7 it was false.
+func TestMemberOfIsUnknownWhenTheServiceFails(t *testing.T) {
+	ctx := eval.NewContext(fhirFunctionsPatient)
+	ctx.SetTerminologyService(failingService{})
+	result, err := fhirpath.MustCompile("Patient.gender.memberOf('http://hl7.org/fhir/ValueSet/administrative-gender')").
+		EvaluateWithContext(ctx)
+	if err != nil || result.String() != "[]" {
+		t.Errorf("memberOf() with a failing service = %v, %v; want []", result, err)
 	}
 }
 
@@ -204,6 +233,8 @@ func TestAnalysisAcceptsASupertypeAtTheRoot(t *testing.T) {
 		{"DomainResource.nonexistent.exists()", true},
 		{"Observation.status.exists()", true},
 		{"name.DomainResource.exists()", true},
+		{"Patient.contained.ofType(Patient).DomainResource.text.exists()", true},
+		{"Patient.where(DomainResource.text.exists()).exists()", false},
 		// a FHIR function that returns its input keeps its type
 		{"Patient.checkModifiers('http://example.org/a').name.family.exists()", false},
 		{"Patient.checkModifiers('http://example.org/a').nmae.exists()", true},

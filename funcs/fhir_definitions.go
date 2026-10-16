@@ -82,13 +82,18 @@ func subsumption(ctx *eval.Context, name string, input types.Collection, args []
 }
 
 // codings are the Codings a value stands for: itself, a Coding, or those of a
-// CodeableConcept.
+// CodeableConcept. Anything else, a Quantity with a system and a code among
+// them, is no "Coding-valued element", and stands for none.
 func codings(v types.Value) []*types.ObjectValue {
 	obj, ok := v.(*types.ObjectValue)
 	if !ok {
 		return nil
 	}
-	if coding := obj.GetCollection("coding"); len(coding) > 0 {
+	switch obj.Type() {
+	case "Coding":
+		return []*types.ObjectValue{obj}
+	case "CodeableConcept":
+		coding := obj.GetCollection("coding")
 		result := make([]*types.ObjectValue, 0, len(coding))
 		for _, c := range coding {
 			if o, ok := c.(*types.ObjectValue); ok {
@@ -96,9 +101,6 @@ func codings(v types.Value) []*types.ObjectValue {
 			}
 		}
 		return result
-	}
-	if _, ok := obj.Get("code"); ok {
-		return []*types.ObjectValue{obj}
 	}
 	return nil
 }
@@ -134,24 +136,32 @@ func stringField(obj *types.ObjectValue, field string) (string, bool) {
 // fnHTMLChecks: R5 "When invoked on a single xhtml element returns true if the
 // rules around HTML usage are met, and false if they are not. The return value
 // is empty on any other kind of element, or a collection of xhtml elements";
-// R4 makes it "undefined ( null )", the empty collection. An element is xhtml
-// by the type a model gives it. The rules are FHIR's, so the caller's
-// eval.HTMLChecker applies them; without one the element has no answer, and
-// the evaluation ends rather than pass a narrative it never read.
+// R4 makes it "undefined ( null )", the empty collection. A string is checked
+// too, as fhirpath.js and the HL7 validator both check it, a FHIR string or a
+// literal; a code, which the two part on, is not, as the text says. What a
+// value is comes from its type, so without a model a code read as a string is
+// checked. The rules are FHIR's, so the caller's eval.HTMLChecker applies
+// them; without one there is no answer, and the evaluation ends rather than
+// pass a narrative it never read.
 func fnHTMLChecks(ctx *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
 	if len(input) != 1 {
 		return types.Collection{}, nil
 	}
-	xhtml, ok := input[0].(types.String)
-	if !ok || xhtml.Type() != "xhtml" {
+	value, ok := input[0].(types.String)
+	if !ok {
+		return types.Collection{}, nil
+	}
+	switch value.Type() {
+	case "xhtml", "string", types.TypeNameString:
+	default:
 		return types.Collection{}, nil
 	}
 	checker := ctx.GetHTMLChecker()
 	if checker == nil {
 		return nil, eval.NewEvalError(eval.ErrInvalidOperation,
-			"htmlChecks() needs an HTML checker to apply FHIR's rules for xhtml; none was given")
+			"htmlChecks() needs an HTML checker to apply FHIR's rules for HTML; none was given")
 	}
-	passes, err := checker.HTMLChecks(ctx.Context(), xhtml.Value())
+	passes, err := checker.HTMLChecks(ctx.Context(), value.Value())
 	if err != nil {
 		return nil, eval.NewEvalError(eval.ErrInvalidOperation, "htmlChecks(): %v", err)
 	}

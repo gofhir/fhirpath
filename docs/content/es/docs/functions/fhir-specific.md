@@ -330,7 +330,7 @@ subsumedBy(code : Coding | CodeableConcept) : Boolean
 
 ## htmlChecks
 
-Devuelve `true` si el xhtml de una narrativa cumple las reglas de FHIR para HTML, y `false` si no.
+Devuelve `true` si el xhtml de una narrativa, o una cadena, cumple las reglas de FHIR para HTML, y `false` si no.
 
 **Firma:**
 ```
@@ -352,9 +352,10 @@ result, _ := compiled.EvaluateWithOptions(patient,
 **Casos Limite / Notas:**
 - `div` es una palabra clave, asi que la narrativa se escribe `` text.`div` ``.
 - Las reglas son de FHIR, asi que las aporta quien llama: la funcion consulta al `HTMLChecker` dado con `WithHTMLChecker`, o fijado con `eval.Context.SetHTMLChecker`.
-- Un elemento es xhtml por el tipo que le da el modelo; sin modelo ninguno lo es.
+- Una cadena tambien se revisa, un `string` FHIR o un literal, como la revisan fhirpath.js y el motor Java de HL7, aunque el texto de R5 la deja vacia. Un `code` no, como dice el texto; ahi los dos motores difieren.
+- Que es un valor lo dice el tipo que le da el modelo; sin modelo, un code leido del recurso es una cadena.
 - Devuelve vacio en cualquier otro tipo de elemento, y con mas de un elemento.
-- En un unico elemento xhtml sin checker, la evaluacion termina con un error.
+- En un unico elemento xhtml o cadena sin checker, la evaluacion termina con un error.
 
 ---
 

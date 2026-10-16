@@ -340,17 +340,18 @@ type Subsumer interface {
 ```
 
 `htmlChecks()` consulta a un `HTMLChecker`, dado con `fhirpath.WithHTMLChecker`
-o fijado con `eval.Context.SetHTMLChecker`, sobre un único elemento xhtml:
+o fijado con `eval.Context.SetHTMLChecker`, sobre un único elemento xhtml o
+una cadena:
 
 ```go
 type HTMLChecker interface {
-    // HTMLChecks reports whether the xhtml passes FHIR's checks.
-    HTMLChecks(ctx context.Context, xhtml string) (bool, error)
+    // HTMLChecks reports whether the HTML passes FHIR's checks.
+    HTMLChecks(ctx context.Context, html string) (bool, error)
 }
 ```
 
-Sin checker, `htmlChecks()` sobre un elemento xhtml termina la evaluación con
-un error; sobre cualquier otra cosa es vacío.
+Sin checker, `htmlChecks()` sobre un elemento xhtml o una cadena termina la
+evaluación con un error; sobre cualquier otra cosa es vacío.
 
 ## Comportamiento Cuando los Servicios No Están Configurados
 

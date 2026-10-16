@@ -644,32 +644,30 @@ func fnMemberOf(ctx *eval.Context, input types.Collection, args []interface{}) (
 		return types.Collection{}, nil
 	}
 
-	// Process each item in the input
+	// Any member makes it true. A service that could not answer for an item
+	// leaves it unknown, empty, unless another item is a member: an error is
+	// no "not a member"
+	unknown := false
 	for _, item := range input {
-		// Convert the FHIRPath value to a form the terminology service can understand
 		codeValue := extractCodeValue(item)
 		if codeValue == nil {
 			continue
 		}
 
-		// Check membership
 		isMember, err := ts.MemberOf(ctx.Context(), codeValue, valueSetURL)
 		if err != nil {
-			// On error, return empty (unknown)
+			unknown = true
 			continue
 		}
-
 		if isMember {
 			return types.Collection{types.NewBoolean(true)}, nil
 		}
 	}
 
-	// If we processed at least one item and none were members, return false
-	if !input.Empty() {
-		return types.Collection{types.NewBoolean(false)}, nil
+	if unknown {
+		return types.Collection{}, nil
 	}
-
-	return types.Collection{}, nil
+	return types.Collection{types.NewBoolean(false)}, nil
 }
 
 // extractCodeValue extracts a code value from a FHIRPath value for terminology validation.

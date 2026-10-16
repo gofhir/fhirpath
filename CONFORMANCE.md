@@ -248,9 +248,8 @@ as in fhirpath.js.
 ### R5 cases that need something outside the engine
 
 Three `TerminologyTests` cases fail in the R5 suite for want of a terminology
-server, and `htmlChecks()` needs a checker the caller brings. The three
-`HTMLChecks` cases that fail do not reach one: each asks what the text
-answers otherwise, as below.
+server, and two `HTMLChecks` cases for want of the checker `htmlChecks()`
+asks, which the caller brings. A third `HTMLChecks` case does not parse.
 
 They are listed as known failures rather than skipped, because they run: the
 engine reaches them, answers, and answers wrongly. That is different from the
@@ -263,14 +262,18 @@ the element list, no scripts, no external references. That needs an XHTML
 parser and FHIR's own list of what is allowed, neither of which belongs in an
 expression engine that has no other reason to read markup, so the caller
 brings them: `WithHTMLChecker` (or `eval.Context.SetHTMLChecker`) hands the
-engine an `HTMLChecker`, which it asks about a single xhtml element. What the
-text settles without one, the engine answers itself: R5 "The return value is
-empty on any other kind of element, or a collection of xhtml elements", R4
-"undefined ( null )", and an element is xhtml by the type a model gives it.
-Without a checker, a single xhtml element ends the evaluation with an error,
-rather than pass a narrative nobody read; up to 1.14.7 the function did not
-exist. fhirpath.js carries a checker of its own, and the HL7 validator its
-own.
+engine an `HTMLChecker`, which it asks about a single xhtml element, and
+about a single string: fhirpath.js and the HL7 validator both check a string
+too, a FHIR `string` or a literal, `'<b>x</b>'.htmlChecks()` true and a
+`<button>` false, though R5's text makes it empty, "empty on any other kind of
+element, or a collection of xhtml elements". On a `code` the two part,
+fhirpath.js checking it and the validator answering empty, and the text's
+empty stays. Anything else, and more than one item, is empty, R4's "undefined
+( null )". What a value is comes from its type, so without a model a code read
+from the resource is a string. Without a checker, a single xhtml element or
+string ends the evaluation with an error, rather than pass a narrative nobody
+read; up to 1.14.7 the function did not exist. fhirpath.js carries a checker
+of its own, and the HL7 validator its own.
 
 One of the three runs into something else first. `htmlTest01` asks for
 `text.div.htmlChecks()`, and that does not parse at all:
@@ -289,10 +292,9 @@ until a test passes.
 
 The other two read a `Parameters` resource instead —
 `%resource.parameter.where(name='goodHtml').value.htmlChecks()` — whose value
-is a `valueString`, no xhtml element. R5's text makes that empty; the suite
-expects true and false, as fhirpath.js answers by checking any string as
-xhtml, a `code` among them. A fourth, `htmlTest04`, asks for empty on a value that is no
-HTML at all, and passes.
+is a `valueString`, which the engine hands to the checker, as both reference
+engines check it; the suite gives none. A fourth, `htmlTest04`, asks for
+empty on a value that is no HTML at all, an integer, and passes.
 
 **`%terminologies`** is the environment variable FHIR defines for reaching a
 terminology server: `expand`, `validateVS`, `translate` and the rest. It is
@@ -446,7 +448,7 @@ comparison, filtering, strings, collections, the FHIR functions.
 | filtering-projection | 40 | 114 | all, 112 in R4 and 114 in R5 | none where the other two answer; `repeatAll()` and `System.Any`, which both refuse |
 | strings | 88 | 317 | 316 | on two points, each as 3.0.0 states: characters counted as Unicode scalar values, and `encode('hex')` in lower case |
 | collections | 35 | 173 | 173 | none where the other two answer; `combine(other, preserveOrder)`, which both refuse |
-| fhir-functions | 56 | 196 | 160 of 168 in R4, 172 of 185 in R5 | none where the other two answer, `htmlChecks()` on a narrative aside, which takes a checker here; `subsumes()`, `subsumedBy()`, `checkModifiers()`, `elementDefinition()`, `trace()`'s projection and `%'vs-…'`, which both refuse |
+| fhir-functions | 56 | 196 | 160 of 168 in R4, 172 of 185 in R5 | none where the other two answer, `htmlChecks()` on a narrative or a string aside, which takes a checker here; `subsumes()`, `subsumedBy()`, `checkModifiers()`, `elementDefinition()`, `trace()`'s projection and `%'vs-…'`, which both refuse |
 
 **Existence.** One gap, closed: a criteria that evaluates to more than one
 item, `(1 | 2).exists(true | false)` or `Patient.name.exists(given)` on a name
@@ -603,7 +605,7 @@ per version. Gaps closed:
   what its text settles without anything outside the engine: equivalence by
   `system` and `code` for subsumption, "for Coding values, equivalence is
   defined based on the code and system elements only", empty on what is no
-  single xhtml element, the input back when every `modifierExtension` is
+  single xhtml element or string, the input back when every `modifierExtension` is
   named, empty for an empty input or an unresolvable structure under R5. For
   the rest each asks the caller: an `eval.Subsumer`, which a
   `TerminologyService` may also be, for a hierarchy, and an `HTMLChecker`
@@ -623,7 +625,8 @@ per version. Gaps closed:
 - `trace()`'s projection was evaluated once, from the scope the call sits in,
   not "with respect to each of the items in the input collection" (2.0.0), so
   `(1 | 2).trace('x', $this * 10)` ended in an error. fhirpath.js and the Java
-  engine raise one too.
+  engine raise one too. It is evaluated whether or not a logger is set, as
+  it was before, so an error in it ends the evaluation either way.
 - `comparable()` did not read a number as a quantity of unit `'1'`, so
   3.0.0's `1.comparable(2)` was false, and ended the evaluation for an input
   of several items, where "either input is not a single Quantity value, the
@@ -657,6 +660,21 @@ FHIRPath has a `System.Date` that is no subtype of it. This engine maps it to
 both. `%resource` inside a contained resource, which FHIR's pages and 3.0.0
 define differently, and `lowBoundary()` on integers and dates, where R5's
 page and 3.0.0 part, are left open too.
+
+Where the text asks for what only a service could tell, the engine answers
+empty, unknown, without one: `subsumes()` of two codes that are not
+equivalent, where the text says "and false otherwise", and of codes from
+different code systems, where R4, and R5 for `subsumedBy()`, say "a run-time
+error is thrown" unless "the relationships between the code systems" are
+"well-defined", which only a terminology service knows. `memberOf()` whose
+service fails for an item is empty too, not false; up to 1.14.7 it was
+false. `checkModifiers()` under R5 ends the evaluation on an empty modifier
+whatever its input, reading "an error is thrown, including if modifier is
+empty" as a rule on the argument, not on the check. Under R5, `memberOf()` of
+several items still answers whether any is a member, where R5 says "the input
+is empty or has more than one value, the return value is empty": constraints
+such as `code.coding.memberOf(...)` would change their verdict, and neither
+reference engine answers it offline to measure against.
 
 fhirpath.js does not define `%resource`, `%rootResource`, `%sct`, `%loinc`,
 `%vs-` or `%ext-` unless the caller passes them, gives `'a'.getValue()` as

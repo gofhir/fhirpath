@@ -53,13 +53,13 @@ type Subsumer interface {
 	Subsumes(ctx context.Context, source, given interface{}) (bool, error)
 }
 
-// HTMLChecker checks the xhtml of a narrative for htmlChecks(): that it is
-// valid xhtml holding only what FHIR permits there, no scripts, no external
-// references. It is the caller's, as the rules are FHIR's and not the
-// language's.
+// HTMLChecker checks HTML for htmlChecks(): a narrative's xhtml, or a string
+// holding HTML, against FHIR's rules, no scripts, no external references, only
+// the elements FHIR permits. It is the caller's, as the rules are FHIR's and
+// not the language's.
 type HTMLChecker interface {
-	// HTMLChecks reports whether the xhtml passes FHIR's checks.
-	HTMLChecks(ctx context.Context, xhtml string) (bool, error)
+	// HTMLChecks reports whether the HTML passes FHIR's checks.
+	HTMLChecks(ctx context.Context, html string) (bool, error)
 }
 
 // ProfileValidator handles profile conformance validation.
@@ -325,7 +325,7 @@ func (c *Context) GetProfileValidator() ProfileValidator {
 	return c.profileValidator
 }
 
-// SetHTMLChecker sets the checker htmlChecks() asks about an xhtml element.
+// SetHTMLChecker sets the checker htmlChecks() asks.
 func (c *Context) SetHTMLChecker(hc HTMLChecker) {
 	c.htmlChecker = hc
 }

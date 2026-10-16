@@ -330,7 +330,7 @@ subsumedBy(code : Coding | CodeableConcept) : Boolean
 
 ## htmlChecks
 
-Returns `true` if a narrative's xhtml meets FHIR's rules for HTML, and `false` if it does not.
+Returns `true` if a narrative's xhtml, or a string, meets FHIR's rules for HTML, and `false` if it does not.
 
 **Signature:**
 ```
@@ -352,9 +352,10 @@ result, _ := compiled.EvaluateWithOptions(patient,
 **Edge Cases / Notes:**
 - `div` is a keyword, so the narrative is written `` text.`div` ``.
 - The rules are FHIR's, so the caller brings them: the function asks the `HTMLChecker` given with `WithHTMLChecker`, or set with `eval.Context.SetHTMLChecker`.
-- An element is xhtml by the type the model gives it; without a model no element is.
+- A string is checked too, a FHIR `string` or a literal, as fhirpath.js and HL7's Java engine both check it, though R5's text makes it empty. A `code` is not, as the text says; the two engines part there.
+- What a value is comes from the type the model gives it; without a model, a code read from the resource is a string.
 - Returns empty on any other kind of element, and on more than one item.
-- On a single xhtml element with no checker given, the evaluation ends with an error.
+- On a single xhtml element or string with no checker given, the evaluation ends with an error.
 
 ---
 

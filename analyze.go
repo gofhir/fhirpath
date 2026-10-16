@@ -68,6 +68,10 @@ type analyzer struct {
 	// path, while BackboneElement — the type it nominally has — has no
 	// elements of its own at all.
 	path string
+
+	// atRoot is set while the first name of an expression is checked, the one
+	// place a supertype of the context may stand for it.
+	atRoot bool
 }
 
 func (a *analyzer) fault(reason string, args ...interface{}) error {
@@ -187,7 +191,11 @@ func childExpression(node grammar.IExpressionContext, i int) (child grammar.IExp
 func (a *analyzer) term(node grammar.ITermContext, contextType string) (string, error) {
 	switch term := node.(type) {
 	case *grammar.InvocationTermContext:
-		return a.invocation(term.Invocation(), contextType, contextType)
+		// The first name of an expression may restate its context's type
+		a.atRoot = true
+		result, err := a.invocation(term.Invocation(), contextType, contextType)
+		a.atRoot = false
+		return result, err
 
 	case *grammar.ParenthesizedTermContext:
 		return a.expression(term.Expression(), contextType)
@@ -325,7 +333,7 @@ func (a *analyzer) restatesContext(name, inputType string) bool {
 	if name == inputType {
 		return true
 	}
-	return (a.path == "" || a.path == inputType) && a.model.IsSubtype(inputType, name)
+	return a.atRoot && a.model.IsSubtype(inputType, name)
 }
 
 // choiceBase reports whether a name is a choice element written with its type

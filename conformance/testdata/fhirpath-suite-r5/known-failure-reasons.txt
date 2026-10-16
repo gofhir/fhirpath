@@ -12,8 +12,8 @@
 # in known-failures.txt needs no line: it passes once the model is supplied, and
 # what the model decides is written in CONFORMANCE.md.
 HTMLChecks/htmlTest01  suite-defect  r5-cases-that-need-something-outside-the-engine  text.div does not parse: div is integer division and the grammar admits only as, contains, in and is as identifiers, so the narrative is reached as text.`div`
-HTMLChecks/htmlTest02  suite-defect  r5-cases-that-need-something-outside-the-engine  the value is a valueString, no xhtml element, which R5 makes empty ("empty on any other kind of element"); the suite expects true, as fhirpath.js answers by checking any string as xhtml
-HTMLChecks/htmlTest03  suite-defect  r5-cases-that-need-something-outside-the-engine  the value is a valueString, no xhtml element, which R5 makes empty ("empty on any other kind of element"); the suite expects false, as fhirpath.js answers by checking any string as xhtml
+HTMLChecks/htmlTest02  needs-external  r5-cases-that-need-something-outside-the-engine  htmlChecks() of a string asks the caller's HTMLChecker, which the suite does not give; fhirpath.js and the Java engine both check a string, true here
+HTMLChecks/htmlTest03  needs-external  r5-cases-that-need-something-outside-the-engine  htmlChecks() of a string asks the caller's HTMLChecker, which the suite does not give; fhirpath.js and the Java engine both check a string, false here
 HighBoundary/HighBoundaryDateTimeMillisecond1  suite-defect  remaining-gaps  expects the minute held at zero; the greatest value the hour can hold is 08:59:59.999, the time fhirpath.js reaches too (without the offset)
 HighBoundary/HighBoundaryDateTimeMillisecond3  suite-defect  remaining-gaps  expects the minute held at zero; the greatest value the hour can hold is 08:59:59.999, the time fhirpath.js reaches too (without the offset)
 HighBoundary/HighBoundaryDecimal15  suite-defect  remaining-gaps  the expected value contradicts the specification's worked examples; fhirpath.js answers as this engine does
