@@ -73,11 +73,15 @@ func TestDecimalRange(t *testing.T) {
 		// each unit's scale; a value past its range has no answer there
 		"(" + ext("large") + " * " + ext("large") + ").exists()": "false",
 		widestQ + " / " + widestQ:                                "EMPTY",
-		"2 'Cel' * 1 'm'":                                        "275.15 'K.m'",
-		// A value too small for float64 is zero there, as it always was
-		"(" + ext("finest") + ".toQuantity() * 1 '1') = 0 '1'": "true",
-		// A logarithm of infinity over another is no number
-		ext("widest") + ".log(" + ext("widest") + ")": "EMPTY",
+		// A special unit does not combine: 3.0.0 "Attempting to operate on
+		// quantities with invalid or "special" units will result in empty"
+		"2 'Cel' * 1 'm'": "EMPTY",
+		// A quantity of unit '1' scales exactly, as a number does, where float64
+		// held a value this small as zero
+		"(" + ext("finest") + ".toQuantity() * 1 '1') = " + ext("finest") + ".toQuantity()": "true",
+		// A logarithm is read from a decimal's digits and exponent, not through
+		// a float64 that holds the widest as infinity
+		ext("widest") + ".log(" + ext("widest") + ")": "1",
 		// A converted value is held to the range
 		widestQ + ".toQuantity('mm')": "EMPTY",
 		// A zero at a scale past the bound is zero
@@ -110,13 +114,26 @@ func TestDecimalRange(t *testing.T) {
 	}
 }
 
-// TestRoundNegativePrecision checks the rule round() states: "the number of
+// TestRoundNegativePrecision checks round() left of the point, as fhirpath.js
+// and the HL7 validator both round, though the text says "the number of
 // digits of precision must be >= 0 or the evaluation will end and signal an
-// error". Rounding to ten million places left of the point also took seconds.
+// error". Rounding to ten million places left of the point took seconds; it
+// is zero, found without rounding there.
 func TestRoundNegativePrecision(t *testing.T) {
-	for _, expr := range []string{"2.5.round(-1)", "1.5.round(-10000000)"} {
-		if _, err := Evaluate([]byte(`{"resourceType":"Basic"}`), expr); err == nil {
-			t.Errorf("%s: expected an error", expr)
+	start := time.Now()
+	for expr, want := range map[string]string{
+		"15.round(-1)":              "20",
+		"125.5.round(-2)":           "100",
+		"2.5.round(-1)":             "0",
+		"1.5.round(-10000000)":      "0",
+		"15.round(-1) is Decimal":   "true",
+		"1.5 'cm'.round(-10000000)": "0 'cm'",
+	} {
+		if got := evaluateScalar(t, expr, simpleJSON); got != want {
+			t.Errorf("%s = %s, want %s", expr, got, want)
 		}
+	}
+	if elapsed := time.Since(start); elapsed > 5*time.Second {
+		t.Errorf("took %s", elapsed)
 	}
 }

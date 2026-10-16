@@ -15,10 +15,10 @@ Arithmetic operators work on `Integer`, `Decimal`, and (where noted) `Quantity`,
 |----------|------|------------|-------------|-------------|
 | `+` | Addition | Integer, Decimal, String, Date, DateTime, Quantity | Integer, Decimal, String, Quantity | Varies (see below) |
 | `-` | Subtraction | Integer, Decimal, Date, DateTime, Quantity | Integer, Decimal, Quantity | Varies |
-| `*` | Multiplication | Integer, Decimal | Integer, Decimal | Integer or Decimal |
-| `/` | Division | Integer, Decimal | Integer, Decimal | Decimal (always) |
-| `div` | Integer division | Integer | Integer | Integer |
-| `mod` | Modulo | Integer | Integer | Integer |
+| `*` | Multiplication | Integer, Decimal, Quantity | Integer, Decimal, Quantity | Integer, Decimal or Quantity |
+| `/` | Division | Integer, Decimal, Quantity | Integer, Decimal, Quantity | Decimal or Quantity |
+| `div` | Integer division | Integer, Decimal | Integer, Decimal | Integer or Decimal |
+| `mod` | Modulo | Integer, Decimal | Integer, Decimal | Integer or Decimal |
 
 **Type promotion:** When one operand is `Integer` and the other is `Decimal`, the `Integer` is promoted to `Decimal` automatically.
 
@@ -33,12 +33,19 @@ Arithmetic operators work on `Integer`, `Decimal`, and (where noted) `Quantity`,
 @2024-01-15T10:00:00Z - 2 hours  --> @2024-01-15T08:00:00Z
 ```
 
-**Quantity arithmetic:** Quantities with the same unit can be added or subtracted:
+**Quantity arithmetic:** Quantities can be added, subtracted, multiplied and divided:
 
 ```text
-10 'mg' + 5 'mg'  --> 15 'mg'
-10 'mg' - 3 'mg'  --> 7 'mg'
+10 'mg' + 5 'mg'      --> 15 'mg'
+3 'm' + 3 'cm'        --> 303 'cm'      (the more granular unit)
+60 's' + 2 minutes    --> 180 seconds   (a calendar and a UCUM duration: calendar units)
+12 'cm' * 3 'cm'      --> 36 'cm2'      (the operands' own units)
+12 'cm2' / 3 'cm'     --> 4 'cm'
+2 + 2 '1'             --> 4 '1'         (a number beside a quantity has the unit '1')
 ```
+
+- Units that do not combine give empty: `2 'mg' + 3 'm'`, a calendar duration in `*` or `/` (`12 day * 45 'm'`), a "special" unit such as `'Cel'` with another unit, and a quantity divided by zero.
+- A FHIR Quantity written with a unit and no value is empty.
 
 **Empty propagation:** If either operand is empty, arithmetic operators return empty.
 

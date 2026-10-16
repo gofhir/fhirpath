@@ -438,7 +438,7 @@ The areas are taken in the order published constraints use them, counted over
 the 610 distinct constraint expressions of the R4, R4B and R5 core and the IGs
 in the validator's package cache: existence first (`exists` in 353 of them,
 `empty` in 168, `count` in 50, `all` in 43), then Boolean logic, equality and
-comparison, filtering, strings, collections, the FHIR functions.
+comparison, filtering, strings, collections, the FHIR functions, math.
 
 | Area | Requirements | Cases | Pass, R4 and R5 | Alone against fhirpath.js and Java |
 |---|---|---|---|---|
@@ -449,6 +449,7 @@ comparison, filtering, strings, collections, the FHIR functions.
 | strings | 88 | 317 | 316 | on two points, each as 3.0.0 states: characters counted as Unicode scalar values, and `encode('hex')` in lower case |
 | collections | 35 | 173 | 173 | none where the other two answer; `combine(other, preserveOrder)`, which both refuse |
 | fhir-functions | 56 | 196 | 160 of 168 in R4, 172 of 185 in R5 | none where the other two answer, `htmlChecks()` on a narrative or a string aside, which takes a checker here; `subsumes()`, `subsumedBy()`, `checkModifiers()`, `elementDefinition()`, `trace()`'s projection and `%'vs-…'`, which both refuse |
+| math | 72 | 404 | 380 | on `10.log(0)`, which both answer 0, on Decimal arithmetic exact to the eighth place and beyond, which both lose, and on the type of a computed number, `(2 * 1.0) is Decimal`, which each gets wrong its own way; the cases written for 2.0.0's 32-bit Integer and 3.0.0's Long fail on purpose |
 
 **Existence.** One gap, closed: a criteria that evaluates to more than one
 item, `(1 | 2).exists(true | false)` or `Patient.name.exists(given)` on a name
@@ -482,8 +483,8 @@ records.
   `23 = 23 '1'` was false and `2 < 3 '1'` an error. 2.0.0 makes both
   conversions to Quantity implicit, `toQuantity()` giving "the default unit
   ('1')", and 3.0.0 gives `23 = 23 '1'` and `23 ~ 23 '1'` as true. Both now
-  convert, under `=`, `~` and ordering, not under arithmetic: `2 + 3 '1'` stays
-  an error. The two references part here: fhirpath.js converts under `=` and
+  convert, under `=`, `~` and ordering, and since the math area under
+  arithmetic too: see [Math](#math). The two references part here: fhirpath.js converts under `=` and
   ordering and not under `~`, and the Java engine converts under none, `=`
   false and `<` empty; this engine follows the text, also under `~`, where it
   stands against both. A number is no quantity of another dimension:
@@ -680,6 +681,106 @@ fhirpath.js does not define `%resource`, `%rootResource`, `%sct`, `%loinc`,
 `%vs-` or `%ext-` unless the caller passes them, gives `'a'.getValue()` as
 `a`, and answers `htmlChecks()` on a `code`. The Java engine's coherent
 answers set aside are under [Measured, and not followed](#measured-and-not-followed).
+
+### Math
+
+The Math functions, `abs()`, `ceiling()`, `exp()`, `floor()`, `ln()`,
+`log()`, `power()`, `round()`, `sqrt()` and `truncate()`, and the operators
+`*`, `/`, `+`, `-`, `div`, `mod` and unary `+` and `-`, on numbers and
+quantities. Published constraints barely use them, `+` in 18 expressions and
+most of those on strings. Gaps closed:
+
+- A Math function given what is no number, `'-5'.abs()` or `true.ceiling()`,
+  or a number argument that is none, `16.log('2')`, or of several items,
+  `2.power(2 | 3)`, answered empty or read the first item. Each now ends the
+  evaluation, as fhirpath.js and the Java engine both refuse such an input:
+  the input is "not compatible with the expected type".
+- `ceiling()`, `floor()`, `round()` and `truncate()` refused a quantity,
+  which 3.0.0 defines them on: `1.1 'cm'.ceiling()` is `2 'cm'`, as
+  fhirpath.js answers; the Java engine answers empty. `abs()` reads a FHIR
+  Quantity too.
+- `log()` of 0 or a negative number, or to such a base, was empty, where 3.0.0
+  says "the evaluation will end and signal an error"; a base of 1 stays empty.
+  `10.log(0)` ends with the error, where both references answer 0, a
+  floating-point accident: ln 0 is minus infinity.
+- `round()` of an Integer returned an Integer; "round([precision : Integer])
+  : Decimal".
+- A leading `+` took any value; `+'a'` now ends the evaluation, as `-'a'` does.
+  `-` and `+` take a FHIR Quantity, `-Observation.value`, which `-` refused.
+- `+` and `-` between quantities in commensurable units gave the left
+  operand's unit, where 2.0.0 says "The unit of the result will be the most
+  granular unit of either input": `3 'm' + 3 'cm'` is `303 'cm'`, and on a
+  tie the left operand's, as 3.0.0 chooses. The operand that is converted
+  loses the zeros conversion leaves, the other keeps its precision:
+  `2.00 'mg' + 1 'g'` is `1002.00 'mg'`. A calendar duration with a UCUM one
+  is in the calendar, 3.0.0: "When the operands come from different
+  time-valued unit systems, the result is expressed in calendar units", so
+  `60 's' + 2 minutes` is `180 seconds` and `1 minute - 30 's'` `30 seconds`,
+  where 3.0.0's own subtraction example, `0.5 minute`, takes the coarser unit
+  against its addition rules; the two are equal.
+- A quantity divided by zero ended the evaluation, where `/` answers empty
+  for a zero divisor; `*` and `/` with a calendar duration, `12 day * 45 'm'`,
+  ended it too, where 3.0.0 says "Multiplication involving calendar units
+  (apart from the UCUM default unit `'1'`) will return empty". A quantity of
+  unit `'1'` scales the other, as a number does: `2 day * 3 '1'` is `6 day`.
+- A special unit, Cel or [degF], was converted in arithmetic, where 3.0.0 says
+  "Attempting to operate on quantities with invalid or "special" units will
+  result in empty"; comparison and `~` still convert them. Between two in the
+  same unit, `1 'Cel' + 1 'Cel'`, or with a number, the text leaves it open,
+  and they compute.
+- A FHIR Quantity written with a unit and no value, which FHIR allows, holds
+  no amount: the operators and the Math functions read it as empty, as they
+  read a primitive with no value.
+
+Two consequences of those rules, where an error used to tell an author
+something: `aggregate($total + $this, 0)` over quantities is empty, `0` and a
+quantity in `'mg'` not combining, where it ended the evaluation; starting from
+`0 'mg'` adds them. And FHIR maps a FHIR Quantity's UCUM `s`, `min`, `h` or
+`d` to the calendar's keyword, so `10 'mL/s' * Observation.value`, with a
+value in `s`, is empty, a calendar duration in `*`, where `10 'mL/s' * 2 's'`
+is `20 'mL'`.
+
+A year or a month added to a smaller calendar unit is answered by 2.0.0's
+factors, which give `1 year` as "`12 months` or `365 days`", in the finer unit: `1 year +
+1 day` is `366 day`, `1 year + 12 months` `24 months`. 3.0.0's trial-use
+note says "Quantity addition with month or year units requires explicit
+conversion, otherwise the result is empty", a change rather than a fix; the
+cases are written to 2.0.0, and the question stays open.
+
+Units cost the operators more than they did: `+` and `-` between two units
+convert one of each unit to the other's to find the finer before converting
+an operand, and `*` and `/` check each unit for a special one first. Numbers, which constraints compute with, take
+none of this.
+
+Three decisions taken with the maintainer, each by rule 1:
+
+- A number beside a quantity in arithmetic is a quantity of unit `'1'`,
+  `2 + 2 '1'` is `4 '1'` and `60 / 1 's'` is `60 's-1'`, 3.0.0's `60 '/s'`, as fhirpath.js
+  answers and 3.0.0's own examples read it; the Java engine raises an error.
+  Up to 1.15.0 only comparison converted.
+- `round()` with a negative precision rounds left of the point,
+  `15.round(-1)` is `20`, as fhirpath.js and the Java engine both answer,
+  though both versions say "the number of digits of precision must be >= 0
+  or the evaluation will end and signal an error". Up to 1.15.0 it ended the
+  evaluation. The cases written to the text, 025, fail on purpose.
+- `power()` on Integers stays a Decimal, as recorded under
+  [When 2.0.0 and 3.0.0 disagree](#when-200-and-300-disagree): 3.0.0 and the
+  Java engine have it, and fhirpath.js's Integer comes from typing a value by
+  whether it has a fraction, which says nothing of the operator.
+
+The cases written for 2.0.0's 32-bit Integer and for 3.0.0's Long fail on
+purpose: see [Integer is 64 bits here, and there is no Long](#integer-is-64-bits-here-and-there-is-no-long).
+`*` and `/` between quantities gave UCUM's base units, `12 'cm' * 3 'cm'` as
+`0.0036 'm2'`, where 2.0.0's own examples give `36 'cm2'` and `4.0 'cm'`. The
+unit comes from `gofhir/ucum`, which from 4.3.0 writes a product in the
+operands' own units: the same atom adds its exponents, and written with two
+prefixes it takes the finer, so `2 'cm' * 2 'm'` is `400 'cm2'`. Both
+references give a base unit.
+
+Of the results where this engine alone differs from both references, most
+are checks of a computed value's type, `(1 + 2) is Integer`, on which the two
+agree by unrelated defects: fhirpath.js types a value by whether it has a
+fraction, and the Java engine answers false for any computed value.
 
 ## Static analysis
 
@@ -1593,6 +1694,14 @@ keeps its own answer.
 | `decode()` of bytes that are no UTF-8: `'ff'.decode('hex')` | the replacement character | empty; fhirpath.js raises "URI malformed" | "If the content being decoded is not a valid UTF-8 value, the result will be empty" (3.0.0) |
 | `substring(3, {})`, `substring(3, 0)`, `''.upper()`, `''.lower()` | empty | `defg`, `''`, `''`, `''`, as fhirpath.js answers | An empty length is no length, and the empty string is a string |
 | `matchesFull()` with an empty input or argument | false | empty, as fhirpath.js answers | Empty in, empty out |
+| A Math function on what is no number: `'-5'.abs()`, `true.ceiling()`, `1 'cm'.exp()` | empty | an error, as fhirpath.js raises | The input is "not compatible with the expected type" |
+| A Math function's number argument given a String: `16.log('2')`, `2.power('3')`, `3.14159.round('1')` | converts it: `4.0`, `8.0`, `3.1` | an error, as fhirpath.js raises | An Integer or a Decimal is expected, and a String converts to one only explicitly, as for `skip()` |
+| `ceiling()`, `floor()`, `round()` and `truncate()` of a quantity: `1.1 'cm'.ceiling()` | empty | `2 'cm'`, as fhirpath.js answers | 3.0.0 defines each on a Quantity, its unit kept |
+| `0 / 0` | `0` | empty | "12 / 0 // empty ({ })" |
+| A calendar duration in `*` and `/`: `12 day * 45 'm'`, `2 weeks * 3 days` | in seconds: `46656000 'm.s'`, `313528320000 's2'` | empty | 3.0.0: "Multiplication involving calendar units (apart from the UCUM default unit `'1'`) will return empty" |
+| Decimal arithmetic at eight places and beyond: `0.00000001 + 0.00000001 = 0.00000002`, `5.5 div 0.7 = 7`, `5.5 mod 0.7 = 0.6`, `0.00000005.round(7) = 0.0000001` | false | true, as fhirpath.js answers | Decimals add, divide and round as decimals; the validator's own answer differs from the exact one in its last places |
+| `+` and `-` between literal quantities: `3 'cm' + 2 'cm'`, `5 'mg' - 2 'mg'` | an exception, and empty | `5 'cm'`, `3 'mg'`, as fhirpath.js answers | An exception, and two answers that cannot both hold |
+| `is Integer` and `is Decimal` on a computed value: `(1 + 2) is Integer`, `2.5.power(2) is Decimal` | false | true, as fhirpath.js answers | Every computed number is of one of the two types; fhirpath.js reads which from the value itself, `(2 * 1.0) is Decimal` false there, where the result of a Decimal operand is a Decimal |
 | `skip()` and `take()` given a String: `Patient.telecom.use.skip('1')` | converts it, all but the first item | an error, as fhirpath.js raises | `num` is an Integer, and a String converts to one only through `toInteger()` |
 | `{}.single()`; `skip(-1)` | an exception | empty; the input, as "If `num` is less than or equal to zero, the input collection is simply returned" | An exception |
 | `getValue()`: `Patient.active.getValue()`; `extension({})` | an exception | `true`, as fhirpath.js answers; empty | An exception |
@@ -1614,7 +1723,7 @@ was reasoned or accidental.
 | Question | Decision | Why |
 |---|---|---|
 | `Integer` range, and `Long` | 64 bits, with no separate `Long` type | The specification's `Integer` is 32 bits and its `Long` — STU content — is 64. An `int64` Integer already spans that range, and FHIR's own `integer64` says the values occur. See above |
-| The range of a Decimal | Up to 1000 digits before the point, and none further than 1000 places after it. A value beyond, read from the input, written as a literal, from a string by `toDecimal()`, as a FHIR Quantity's value, or reached by arithmetic, `round()` or a unit conversion, is an overflow and reads as empty; a FHIR Quantity whose value overflows is still there, an object, but compares as nothing: `=` and `<` against a quantity empty, `~` false unless the two are written alike, and it sorts as an empty key. A function computed in float64 whose result is infinite, `1000.exp()`, overflows the same way, as does a product or quotient of quantities, which the UCUM library computes in float64 with each unit's scale, where an operand or the result is past float64's range. `round()` with a negative precision ends the evaluation with an error, as 3.0.0 says | "Implementations can provide support for larger decimals and higher precision, but must provide at least the range and precision defined here", (-10^28+1)/10^8 to (10^28-1)/10^8, and "Operations that cause arithmetic overflow or underflow will result in empty". FHIR's decimal allows an exponent of nine digits, so the bound is the engine's. A decimal is held exactly, so one written `1E8227822` was a number of eight million digits: every comparison wrote them out, half a second for each `=`, more than five for `round()`, and more than eight for `~`; a zero written `0E2000000000` was two billion zeroes. What it costs: a range check on each decimal read or computed, which counts digits only near the bound; arithmetic over 500 values measures no different from before |
+| The range of a Decimal | Up to 1000 digits before the point, and none further than 1000 places after it. A value beyond, read from the input, written as a literal, from a string by `toDecimal()`, as a FHIR Quantity's value, or reached by arithmetic, `round()` or a unit conversion, is an overflow and reads as empty; a FHIR Quantity whose value overflows is still there, an object, but compares as nothing: `=` and `<` against a quantity empty, `~` false unless the two are written alike, and it sorts as an empty key. A function computed in float64 whose result is infinite, `1000.exp()`, overflows the same way, as does a product or quotient of quantities, which the UCUM library computes in float64 with each unit's scale, where an operand or the result is past float64's range. `round()` with a negative precision past the bound rounds to zero, found without rounding there; see [Math](#math) | "Implementations can provide support for larger decimals and higher precision, but must provide at least the range and precision defined here", (-10^28+1)/10^8 to (10^28-1)/10^8, and "Operations that cause arithmetic overflow or underflow will result in empty". FHIR's decimal allows an exponent of nine digits, so the bound is the engine's. A decimal is held exactly, so one written `1E8227822` was a number of eight million digits: every comparison wrote them out, half a second for each `=`, more than five for `round()`, and more than eight for `~`; a zero written `0E2000000000` was two billion zeroes. What it costs: a range check on each decimal read or computed, which counts digits only near the bound; arithmetic over 500 values measures no different from before |
 | Max precision for `lowBoundary`/`highBoundary` | An implementation limit, documented in the function | 3.0.0 says explicitly: above "the maximum possible precision of the implementation", return empty. FHIR caps decimal at 18 digits |
 | `sort` direction syntax | Accept both `desc`/`asc` and the leading `-` | 3.0.0 defines `desc`; the suite tests `-` and marks those cases as prototype |
 | `type()` completeness | Emit `SimpleTypeInfo` and `ClassInfo`; omit `ClassInfo.element`, `ListTypeInfo`, `TupleTypeInfo` | They need element enumeration and declared cardinality, which the `Model` interface does not expose. Reading them off the instance would describe the value, not the type |

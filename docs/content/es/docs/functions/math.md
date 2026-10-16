@@ -38,7 +38,8 @@ result, _ := fhirpath.Evaluate(resource, "(42).abs()")
 **Casos Limite / Notas:**
 
 - Preserva el tipo de entrada: una entrada `Integer` devuelve `Integer`, una entrada `Decimal` devuelve `Decimal`.
-- Devuelve una coleccion vacia si la entrada esta vacia o no es numerica.
+- Devuelve una coleccion vacia si la entrada esta vacia.
+- Una entrada que no es un numero ni una cantidad termina la evaluacion con un error, como la rechazan fhirpath.js y el motor Java de HL7. Una Quantity FHIR se lee como cantidad.
 
 ---
 
@@ -71,7 +72,9 @@ result, _ := fhirpath.Evaluate(resource, "(5).ceiling()")
 
 - Si la entrada ya es un `Integer`, se devuelve sin cambios.
 - Siempre redondea hacia infinito positivo.
-- Devuelve una coleccion vacia si la entrada esta vacia o no es numerica.
+- Devuelve una coleccion vacia si la entrada esta vacia.
+- Una entrada que no es un numero ni una cantidad termina la evaluacion con un error, como la rechazan fhirpath.js y el motor Java de HL7.
+- Una `Quantity` se redondea por su valor y conserva su unidad: `1.1 'cm'.ceiling()` es `2 'cm'`, como lo define FHIRPath 3.0.0 y responde fhirpath.js.
 
 ---
 
@@ -104,7 +107,9 @@ result, _ := fhirpath.Evaluate(resource, "(7).floor()")
 
 - Si la entrada ya es un `Integer`, se devuelve sin cambios.
 - Siempre redondea hacia infinito negativo.
-- Devuelve una coleccion vacia si la entrada esta vacia o no es numerica.
+- Devuelve una coleccion vacia si la entrada esta vacia.
+- Una entrada que no es un numero ni una cantidad termina la evaluacion con un error, como la rechazan fhirpath.js y el motor Java de HL7.
+- Una `Quantity` se redondea por su valor y conserva su unidad: `1.1 'cm'.floor()` es `1 'cm'`, como lo define FHIRPath 3.0.0 y responde fhirpath.js.
 
 ---
 
@@ -137,7 +142,9 @@ result, _ := fhirpath.Evaluate(resource, "(5).truncate()")
 
 - A diferencia de `floor`, `truncate` siempre redondea hacia cero. Para valores negativos, `truncate(-3.9)` devuelve `-3` mientras que `floor(-3.9)` devuelve `-4`.
 - Si la entrada ya es un `Integer`, se devuelve sin cambios.
-- Devuelve una coleccion vacia si la entrada esta vacia o no es numerica.
+- Devuelve una coleccion vacia si la entrada esta vacia.
+- Una entrada que no es un numero ni una cantidad termina la evaluacion con un error, como la rechazan fhirpath.js y el motor Java de HL7.
+- Una `Quantity` se redondea por su valor y conserva su unidad: `1.1 'cm'.truncate()` es `1 'cm'`, como lo define FHIRPath 3.0.0 y responde fhirpath.js.
 
 ---
 
@@ -175,11 +182,14 @@ result, _ := fhirpath.Evaluate(resource, "(2.345).round(1)")
 **Casos Limite / Notas:**
 
 - Si no se especifica la precision, el valor por defecto es `0` (redondea al entero mas cercano).
-- Si la entrada es un `Integer`, se devuelve sin cambios.
-- Una precision negativa termina la evaluacion con un error, como exige FHIRPath 3.0.0: "the number of digits of precision must be >= 0".
-- Para un `Decimal`, una precision de mas de 1000 lugares excede los decimales que este motor maneja, y el resultado es vacio.
+- Una entrada `Integer` se devuelve como `Decimal`, como dice la firma `round([precision : Integer]) : Decimal`.
+- Una precision negativa redondea a la izquierda del punto, `15.round(-1)` es `20`, como responden fhirpath.js y el motor Java de HL7, aunque FHIRPath 3.0.0 dice "the number of digits of precision must be >= 0".
+- Una precision que no es `Integer` termina la evaluacion con un error; una vacia da un resultado vacio.
+- Una precision de mas de 1000 lugares excede los decimales que este motor maneja, y el resultado es vacio, sea cual sea la entrada.
 - Redondea la mitad alejandose de cero, que es como este motor lee el redondeo tradicional que describe 3.0.0: `2.5.round()` es `3`, `(-2.5).round()` es `-3`.
-- Devuelve una coleccion vacia si la entrada esta vacia o no es numerica.
+- Devuelve una coleccion vacia si la entrada esta vacia.
+- Una entrada que no es un numero ni una cantidad termina la evaluacion con un error, como la rechazan fhirpath.js y el motor Java de HL7.
+- Una `Quantity` se redondea por su valor y conserva su unidad: `1.5 'mg'.round()` es `2 'mg'`, como lo define FHIRPath 3.0.0 y responde fhirpath.js.
 
 ---
 
@@ -212,7 +222,8 @@ result, _ := fhirpath.Evaluate(resource, "(2).exp()")
 
 - Siempre devuelve un `Decimal`, incluso si la entrada es un `Integer`.
 - Utiliza la funcion `math.Exp` de Go.
-- Devuelve una coleccion vacia si la entrada esta vacia o no es numerica.
+- Devuelve una coleccion vacia si la entrada esta vacia.
+- Una entrada que no es un numero termina la evaluacion con un error, como la rechazan fhirpath.js y el motor Java de HL7.
 
 ---
 
@@ -245,7 +256,8 @@ result, _ := fhirpath.Evaluate(resource, "(10).ln()")
 
 - Devuelve una coleccion vacia si el valor de entrada es menor o igual a cero.
 - Siempre devuelve un `Decimal`.
-- Devuelve una coleccion vacia si la entrada esta vacia o no es numerica.
+- Devuelve una coleccion vacia si la entrada esta vacia.
+- Una entrada que no es un numero termina la evaluacion con un error, como la rechazan fhirpath.js y el motor Java de HL7.
 
 ---
 
@@ -282,10 +294,11 @@ result, _ := fhirpath.Evaluate(resource, "(27).log(3)")
 
 **Casos Limite / Notas:**
 
-- Devuelve una coleccion vacia si el valor de entrada es menor o igual a cero.
-- Devuelve una coleccion vacia si la base es menor o igual a cero, o igual a `1`.
+- Una entrada menor o igual a cero termina la evaluacion con un error, como dice FHIRPath 3.0.0.
+- Una base menor o igual a cero tambien termina con un error; una base de `1` da un resultado vacio.
 - Se calcula como `ln(valor) / ln(base)`.
-- Devuelve una coleccion vacia si la entrada esta vacia o no es numerica.
+- Devuelve una coleccion vacia si la entrada esta vacia.
+- Una entrada que no es un numero termina la evaluacion con un error, como la rechazan fhirpath.js y el motor Java de HL7. Una base que no es un numero, `16.log('2')`, o de mas de un elemento, tambien es un error.
 
 ---
 
@@ -324,7 +337,8 @@ result, _ := fhirpath.Evaluate(resource, "(10).power(0)")
 
 - Siempre devuelve un valor `Decimal`.
 - Devuelve una coleccion vacia si el resultado es `NaN` o `Inf` (por ejemplo, `0.power(-1)`).
-- Devuelve una coleccion vacia si la entrada esta vacia o no es numerica.
+- Devuelve una coleccion vacia si la entrada esta vacia.
+- Una entrada que no es un numero termina la evaluacion con un error, como la rechazan fhirpath.js y el motor Java de HL7. Un exponente que no es un numero, o de mas de un elemento, tambien es un error.
 
 ---
 
@@ -358,4 +372,5 @@ result, _ := fhirpath.Evaluate(resource, "(0).sqrt()")
 - Devuelve una coleccion vacia si el valor de entrada es negativo.
 - Siempre devuelve un `Decimal`.
 - Equivalente a `power(0.5)`.
-- Devuelve una coleccion vacia si la entrada esta vacia o no es numerica.
+- Devuelve una coleccion vacia si la entrada esta vacia.
+- Una entrada que no es un numero termina la evaluacion con un error, como la rechazan fhirpath.js y el motor Java de HL7.

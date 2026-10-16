@@ -192,6 +192,14 @@ func measureStep(from, to string) (decimal.Decimal, error) {
 	return step, nil
 }
 
+// Special reports a unit on a scale with no single factor, one with an
+// offset such as Cel or [degF], or a logarithmic one such as [pH]: FHIRPath's
+// "special" units, which arithmetic does not combine.
+func Special(code string) bool {
+	_, err := Factor(code, code)
+	return NotLinear(err)
+}
+
 // NotLinear reports the error Factor returns for a unit with no factor, on a
 // scale with an offset such as Cel, or a logarithmic one.
 func NotLinear(err error) bool {
@@ -212,7 +220,8 @@ func Unscale(value decimal.Decimal, factor *big.Rat) (decimal.Decimal, error) {
 }
 
 // Multiply combines two quantities, returning the value and the unit of the
-// product — 2 'cm' by 2 'm' is 0.04 'm2'.
+// product in the operands' own units — 12 'cm' by 3 'cm' is 36 'cm2', and
+// 2 'cm' by 2 'm' is 400 'cm2'.
 func Multiply(leftValue decimal.Decimal, leftUnit string, rightValue decimal.Decimal, rightUnit string) (decimal.Decimal, string, error) {
 	return combine(leftValue, leftUnit, rightValue, rightUnit, false)
 }

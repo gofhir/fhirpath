@@ -23,7 +23,8 @@ func TestEqualityOfCollectionsWithAnUnknownPair(t *testing.T) {
 // '1', as 2.0.0's implicit conversions and 3.0.0's examples have it:
 // 23 = 23 '1' and 23 ~ 23 '1' are true. A number is no quantity of another
 // dimension, so 2 = 2 'mg' is false, and its order against one is unknown.
-// Arithmetic does not convert.
+// +, - and / convert too, as fhirpath.js does and 3.0.0's 2 + 2 '1' and
+// 60 / 1 's' read it; up to 1.15.0 they did not.
 func TestANumberComparesWithAQuantityOfUnitOne(t *testing.T) {
 	for expr, want := range map[string]string{
 		"23 = 23 '1'":    "true",
@@ -46,8 +47,15 @@ func TestANumberComparesWithAQuantityOfUnitOne(t *testing.T) {
 			t.Errorf("%s = %s, want %s", expr, got, want)
 		}
 	}
-	if _, err := Evaluate(simpleJSON, "2 + 3 '1'"); err == nil {
-		t.Error("2 + 3 '1': no error, want arithmetic not to convert")
+	for expr, want := range map[string]string{
+		"2 + 3 '1'":            "5 '1'",
+		"5 '1' - 2":            "3 '1'",
+		"60 / 1 's' = 60 '/s'": "true",
+		"2 + 3 'mg'":           "EMPTY",
+	} {
+		if got := evaluateScalar(t, expr, simpleJSON); got != want {
+			t.Errorf("%s = %s, want %s", expr, got, want)
+		}
 	}
 }
 

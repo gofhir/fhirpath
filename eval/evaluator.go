@@ -1811,7 +1811,7 @@ func (e *Evaluator) VisitPolarityExpression(ctx *grammar.PolarityExpressionConte
 
 // applyPolarity applies a leading + or -.
 func applyPolarity(col types.Collection, negate bool) interface{} {
-	if noValue(col) {
+	if noAmount(col) {
 		return types.Collection{}
 	}
 	if len(col) != 1 {
@@ -1831,6 +1831,11 @@ func applyPolarity(col types.Collection, negate bool) interface{} {
 		return types.Collection{negated}
 	}
 
+	// A leading + takes what - takes, a number or a quantity, and leaves it
+	// as it is: +'a' is an error, as -'a' is
+	if _, err := Negate(col[0]); err != nil && !isOverflow(err) {
+		return NewEvalError(ErrType, "cannot apply unary + to %s", col[0].Type())
+	}
 	return col
 }
 
@@ -1854,7 +1859,7 @@ func (e *Evaluator) VisitMultiplicativeExpression(ctx *grammar.MultiplicativeExp
 // applyMultiplicative applies *, /, div and mod.
 func applyMultiplicative(leftCol, rightCol types.Collection, op string) interface{} {
 	// Empty propagation, a primitive with no value being empty
-	if noValue(leftCol) || noValue(rightCol) {
+	if noAmount(leftCol) || noAmount(rightCol) {
 		return types.Collection{}
 	}
 
@@ -1879,8 +1884,10 @@ func applyMultiplicative(leftCol, rightCol types.Collection, op string) interfac
 
 	if err != nil {
 		// A zero divisor is not an error: "12 / 0 // empty ({ })", and the same
-		// for div and mod
-		if errors.Is(err, ErrDivideByZero) || isOverflow(err) {
+		// for div and mod. Quantities whose units do not combine under * and /,
+		// a calendar duration or a special unit among them, are empty too, as
+		// under + and -
+		if errors.Is(err, ErrDivideByZero) || errors.Is(err, types.ErrIncompatibleUnits) || isOverflow(err) {
 			return types.Collection{}
 		}
 		return err
@@ -1928,7 +1935,7 @@ func applyAdditive(leftCol, rightCol types.Collection, op string) interface{} {
 	}
 
 	// Empty propagation for + and -, a primitive with no value being empty
-	if noValue(leftCol) || noValue(rightCol) {
+	if noAmount(leftCol) || noAmount(rightCol) {
 		return types.Collection{}
 	}
 
@@ -2014,7 +2021,7 @@ func (e *Evaluator) VisitInequalityExpression(ctx *grammar.InequalityExpressionC
 // applyInequality applies <, <=, > and >=.
 func applyInequality(leftCol, rightCol types.Collection, op string) interface{} {
 	// Empty propagation, a primitive with no value being empty
-	if noValue(leftCol) || noValue(rightCol) {
+	if noAmount(leftCol) || noAmount(rightCol) {
 		return types.Collection{}
 	}
 

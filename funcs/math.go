@@ -53,21 +53,21 @@ func init() {
 		Name:    "log",
 		MinArgs: 1,
 		MaxArgs: 1,
-		Fn:      singleInput("log", fnLog),
+		Fn:      singleInput("log", singleArgs("log", fnLog)),
 	})
 
 	Register(FuncDef{
 		Name:    "power",
 		MinArgs: 1,
 		MaxArgs: 1,
-		Fn:      singleInput("power", fnPower),
+		Fn:      singleInput("power", singleArgs("power", fnPower)),
 	})
 
 	Register(FuncDef{
 		Name:    "round",
 		MinArgs: 0,
 		MaxArgs: 1,
-		Fn:      singleInput("round", fnRound),
+		Fn:      singleInput("round", singleArgs("round", fnRound)),
 	})
 
 	Register(FuncDef{
@@ -114,9 +114,15 @@ func init() {
 	})
 }
 
+// The Math functions take numbers, and the rounding ones and abs() a
+// Quantity too, whose unit they keep; any other input, a String, a Boolean or
+// a date, is "not compatible with the expected type" and ends the evaluation,
+// as fhirpath.js and the HL7 validator both refuse it. A number argument is
+// read the same way: an Integer or a Decimal, not a String to convert.
+
 // fnAbs returns the absolute value.
 func fnAbs(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
-	if input.Empty() {
+	if noNumber(input) {
 		return types.Collection{}, nil
 	}
 
@@ -133,141 +139,218 @@ func fnAbs(_ *eval.Context, input types.Collection, _ []interface{}) (types.Coll
 		// Through the decimal's own absolute value rather than a float, which
 		// would round: abs() must not change the number it is given
 		return types.Collection{types.NewDecimalFromDecimal(v.Value().Abs())}, nil
-	case types.Quantity:
-		// "abs() : Integer | Decimal | Quantity" — the unit is carried through
-		return types.Collection{v.Abs()}, nil
-	default:
+	}
+	// "abs() : Integer | Decimal | Quantity" — the unit is carried through,
+	// a FHIR Quantity's too
+	q, err := quantityInput("abs", input[0])
+	if err != nil {
+		return nil, err
+	}
+	return types.Collection{q.Abs()}, nil
+}
+
+// noNumber reports an input or argument with nothing to compute: empty, a
+// primitive written with no value, or a FHIR Quantity with a unit and no
+// value, which the operators read as empty too.
+func noNumber(c types.Collection) bool {
+	return c.Empty() || types.IsValueless(c[0]) || types.IsValuelessQuantity(c[0])
+}
+
+// quantityInput reads the input of a function that takes a Quantity besides
+// numbers: a quantity, or a FHIR Quantity; anything else is the wrong type.
+func quantityInput(name string, v types.Value) (types.Quantity, error) {
+	q, ok, err := eval.AsQuantity(v)
+	if err != nil {
+		return types.Quantity{}, err
+	}
+	if !ok {
+		return types.Quantity{}, eval.TypeError("Integer, Decimal or Quantity", v.Type(), name)
+	}
+	return q, nil
+}
+
+// numberInput reads the input of a function on numbers alone.
+func numberInput(name string, v types.Value) (float64, error) {
+	switch n := v.(type) {
+	case types.Integer:
+		return float64(n.Value()), nil
+	case types.Decimal:
+		return n.Value().InexactFloat64(), nil
+	}
+	return 0, eval.TypeError("Integer or Decimal", v.Type(), name)
+}
+
+// numberSign returns the sign of an Integer or a Decimal, read from the
+// number itself.
+func numberSign(v types.Value) int {
+	switch n := v.(type) {
+	case types.Integer:
+		return cmpInt64(n.Value(), 0)
+	case types.Decimal:
+		return n.Value().Sign()
+	}
+	return 0
+}
+
+// numberArgument reads a function's number argument. empty is true where it
+// evaluates to nothing, which makes the result empty.
+func numberArgument(name string, arg interface{}) (value float64, empty bool, err error) {
+	c, ok := arg.(types.Collection)
+	if !ok || noNumber(c) {
+		return 0, true, nil
+	}
+	value, err = numberInput(name, c[0])
+	return value, false, err
+}
+
+// wholeOf applies a rounding to a whole number, ceiling(), floor() or
+// truncate(): an Integer is its own, a Decimal gives an Integer, and a
+// Quantity a Quantity in its unit, as 3.0.0 has it and fhirpath.js answers.
+func wholeOf(name string, input types.Collection, whole func(decimal.Decimal) decimal.Decimal) (types.Collection, error) {
+	if noNumber(input) {
 		return types.Collection{}, nil
 	}
+	switch v := input[0].(type) {
+	case types.Integer:
+		return types.Collection{v}, nil
+	case types.Decimal:
+		return wholeInteger(whole(v.Value()))
+	}
+	q, err := quantityInput(name, input[0])
+	if err != nil {
+		return nil, err
+	}
+	return quantityResult(whole(q.Value()), q.Unit()), nil
+}
+
+// quantityResult is a rounded quantity, at its natural scale as a rounded
+// Decimal is, 1.5 'mg'.round(2) being 1.5 'mg', and empty past the decimals
+// this engine holds, as arithmetic overflows.
+func quantityResult(value decimal.Decimal, unit string) types.Collection {
+	natural, err := decimal.NewFromString(value.String())
+	if err != nil {
+		return types.Collection{}
+	}
+	q, ok := types.WithinRange(types.NewQuantityFromDecimal(natural, unit))
+	if !ok {
+		return types.Collection{}
+	}
+	return types.Collection{q}
 }
 
 // fnCeiling returns the smallest integer >= input.
 func fnCeiling(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
-	if input.Empty() {
-		return types.Collection{}, nil
-	}
-
-	switch v := input[0].(type) {
-	case types.Integer:
-		return types.Collection{v}, nil
-	case types.Decimal:
-		return wholeInteger(v.Value().Ceil())
-	default:
-		return types.Collection{}, nil
-	}
-}
-
-// fnExp returns e raised to the power of input.
-func fnExp(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
-	if input.Empty() {
-		return types.Collection{}, nil
-	}
-
-	var val float64
-	switch v := input[0].(type) {
-	case types.Integer:
-		val = float64(v.Value())
-	case types.Decimal:
-		val = v.Value().InexactFloat64()
-	default:
-		return types.Collection{}, nil
-	}
-
-	return floatResult(math.Exp(val)), nil
+	return wholeOf("ceiling", input, decimal.Decimal.Ceil)
 }
 
 // fnFloor returns the largest integer <= input.
 func fnFloor(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
-	if input.Empty() {
-		return types.Collection{}, nil
-	}
+	return wholeOf("floor", input, decimal.Decimal.Floor)
+}
 
-	switch v := input[0].(type) {
-	case types.Integer:
-		return types.Collection{v}, nil
-	case types.Decimal:
-		return wholeInteger(v.Value().Floor())
-	default:
+// fnTruncate returns the integer part (truncates toward zero).
+func fnTruncate(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
+	return wholeOf("truncate", input, func(d decimal.Decimal) decimal.Decimal { return d.Truncate(0) })
+}
+
+// fnExp returns e raised to the power of input.
+func fnExp(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
+	if noNumber(input) {
 		return types.Collection{}, nil
 	}
+	val, err := numberInput("exp", input[0])
+	if err != nil {
+		return nil, err
+	}
+	return floatResult(math.Exp(val)), nil
 }
 
 // fnLn returns the natural logarithm.
 func fnLn(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
-	if input.Empty() {
+	if noNumber(input) {
 		return types.Collection{}, nil
 	}
-
-	var val float64
-	switch v := input[0].(type) {
-	case types.Integer:
-		val = float64(v.Value())
-	case types.Decimal:
-		val = v.Value().InexactFloat64()
-	default:
+	if _, err := numberInput("ln", input[0]); err != nil {
+		return nil, err
+	}
+	if numberSign(input[0]) <= 0 {
 		return types.Collection{}, nil
 	}
-
-	if val <= 0 {
-		return types.Collection{}, nil
-	}
-
-	return floatResult(math.Log(val)), nil
+	return floatResult(naturalLog(input[0])), nil
 }
 
-// fnLog returns the logarithm with the given base.
-func fnLog(_ *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
-	if input.Empty() || len(args) == 0 {
-		return types.Collection{}, nil
-	}
+// smallestNormal is the smallest positive normal float64, 2^-1022.
+const smallestNormal = 0x1p-1022
 
-	var val float64
-	switch v := input[0].(type) {
+// naturalLog returns the natural logarithm of a positive Integer or Decimal,
+// read from its digits and exponent rather than through a float64, which
+// holds a decimal far below its range as zero: ln of 0.(340 zeros)1 is about
+// -785.
+func naturalLog(v types.Value) float64 {
+	var d decimal.Decimal
+	switch n := v.(type) {
 	case types.Integer:
-		val = float64(v.Value())
+		d = decimal.NewFromInt(n.Value())
 	case types.Decimal:
-		val = v.Value().InexactFloat64()
-	default:
+		d = n.Value()
+	}
+	// Where a float64 holds it, its own logarithm, which is exact where it can
+	// be: 16.log(2) is 4
+	if f := d.InexactFloat64(); f >= smallestNormal && !math.IsInf(f, 0) {
+		return math.Log(f)
+	}
+	// Otherwise d is m × 10^e with m in [1, 10)
+	e := int64(d.Exponent()) + int64(d.NumDigits()) - 1
+	m := d.Shift(int32(-e)).InexactFloat64() //nolint:gosec // e is bounded by the decimals this engine holds
+	return math.Log(m) + float64(e)*math.Ln10
+}
+
+// fnLog returns the logarithm with the given base. 3.0.0: "If the input is 0
+// or negative, the evaluation will end and signal an error to the calling
+// environment", and the same of the base argument.
+func fnLog(_ *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
+	if noNumber(input) || len(args) == 0 {
 		return types.Collection{}, nil
 	}
-
-	base, err := toFloat(args[0])
-	if err != nil {
+	if _, err := numberInput("log", input[0]); err != nil {
+		return nil, err
+	}
+	_, empty, err := numberArgument("log", args[0])
+	if err != nil || empty {
+		return types.Collection{}, err
+	}
+	// Positive as written, not as a float holds it: a decimal far below
+	// float64's range is still above zero
+	baseValue := args[0].(types.Collection)[0]
+	if numberSign(input[0]) <= 0 || numberSign(baseValue) <= 0 {
+		return nil, eval.NewEvalError(eval.ErrInvalidArguments,
+			"log() takes a positive input and base, got %s and %s", input[0], baseValue)
+	}
+	// A base of 1 divides by ln 1, which is zero
+	lnBase := naturalLog(baseValue)
+	if lnBase == 0 {
 		return types.Collection{}, nil
 	}
-
-	if val <= 0 || base <= 0 || base == 1 {
-		return types.Collection{}, nil
-	}
-
-	result := math.Log(val) / math.Log(base)
-	return floatResult(result), nil
+	return floatResult(naturalLog(input[0]) / lnBase), nil
 }
 
 // fnPower returns input raised to the given power.
 func fnPower(_ *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
-	if input.Empty() || len(args) == 0 {
+	if noNumber(input) || len(args) == 0 {
 		return types.Collection{}, nil
 	}
-
-	var base float64
-	switch v := input[0].(type) {
-	case types.Integer:
-		base = float64(v.Value())
-	case types.Decimal:
-		base = v.Value().InexactFloat64()
-	default:
-		return types.Collection{}, nil
-	}
-
-	exp, err := toFloat(args[0])
+	base, err := numberInput("power", input[0])
 	if err != nil {
-		return types.Collection{}, nil
+		return nil, err
+	}
+	exp, empty, err := numberArgument("power", args[0])
+	if err != nil || empty {
+		return types.Collection{}, err
 	}
 
 	result := math.Pow(base, exp)
 
-	// Check for invalid results
+	// A result with no number, (-1).power(0.5), is empty
 	if math.IsNaN(result) || math.IsInf(result, 0) {
 		return types.Collection{}, nil
 	}
@@ -275,90 +358,71 @@ func fnPower(_ *eval.Context, input types.Collection, args []interface{}) (types
 	return floatResult(result), nil
 }
 
-// fnRound rounds to the specified number of decimal places.
+// fnRound rounds to the specified number of decimal places, an Integer as a
+// Decimal: "round([precision : Integer]) : Decimal". A negative precision
+// rounds left of the point, 15.round(-1) is 20, as fhirpath.js and the HL7
+// validator both answer, though the text makes it an error.
 func fnRound(_ *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
-	if input.Empty() {
+	if noNumber(input) {
 		return types.Collection{}, nil
 	}
 
 	precision := int32(0)
 	if len(args) > 0 {
-		p, err := toInteger(args[0])
-		if err != nil {
+		c, _ := args[0].(types.Collection)
+		if noNumber(c) {
 			return types.Collection{}, nil
 		}
-		// "the number of digits of precision must be >= 0 or the evaluation
-		// will end and signal an error"; rounding 1.5 to ten million places
-		// left of the point took seconds besides
-		if p < 0 {
-			return nil, eval.NewEvalError(eval.ErrInvalidArguments, "round() precision must be >= 0, got %d", p)
+		p, ok := c[0].(types.Integer)
+		if !ok {
+			return nil, eval.TypeError("Integer", c[0].Type(), "round")
 		}
-		// Limit precision to reasonable bounds to avoid overflow
-		if p > math.MaxInt32 {
-			p = math.MaxInt32
-		} else if p < math.MinInt32 {
-			p = math.MinInt32
+		// More places than this engine's decimals hold, either way: past them
+		// to the right is an overflow; to the left every value rounds to zero,
+		// found without rounding 1.5 to ten million places, which took seconds
+		switch {
+		case p.Value() > int64(types.DecimalDigits):
+			return types.Collection{}, nil
+		case p.Value() < -int64(types.DecimalDigits):
+			precision = -types.DecimalDigits - 1
+		default:
+			precision = int32(p.Value()) //nolint:gosec // bounded just above
 		}
-		precision = int32(p)
 	}
 
+	var value decimal.Decimal
 	switch v := input[0].(type) {
 	case types.Integer:
-		return types.Collection{v}, nil
+		value = decimal.NewFromInt(v.Value())
 	case types.Decimal:
-		// More places than this engine's decimals hold is an overflow, found
-		// before writing them out
-		if precision > types.DecimalDigits {
-			return types.Collection{}, nil
-		}
-		rounded := v.Value().Round(precision)
-		d, err := types.NewDecimal(rounded.String())
-		if err != nil {
-			return types.Collection{}, nil
-		}
-		return types.Collection{d}, nil
+		value = v.Value()
 	default:
+		q, err := quantityInput("round", input[0])
+		if err != nil {
+			return nil, err
+		}
+		return quantityResult(q.Value().Round(precision), q.Unit()), nil
+	}
+	d, err := types.NewDecimal(value.Round(precision).String())
+	if err != nil {
 		return types.Collection{}, nil
 	}
+	return types.Collection{d}, nil
 }
 
 // fnSqrt returns the square root.
 func fnSqrt(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
-	if input.Empty() {
+	if noNumber(input) {
 		return types.Collection{}, nil
 	}
-
-	var val float64
-	switch v := input[0].(type) {
-	case types.Integer:
-		val = float64(v.Value())
-	case types.Decimal:
-		val = v.Value().InexactFloat64()
-	default:
-		return types.Collection{}, nil
+	val, err := numberInput("sqrt", input[0])
+	if err != nil {
+		return nil, err
 	}
-
 	if val < 0 {
 		return types.Collection{}, nil
 	}
-
 	return floatResult(math.Sqrt(val)), nil
-}
-
-// fnTruncate returns the integer part (truncates toward zero).
-func fnTruncate(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
-	if input.Empty() {
-		return types.Collection{}, nil
-	}
-
-	switch v := input[0].(type) {
-	case types.Integer:
-		return types.Collection{v}, nil
-	case types.Decimal:
-		return wholeInteger(v.Value().Truncate(0))
-	default:
-		return types.Collection{}, nil
-	}
 }
 
 // wholeInteger answers a whole decimal as the Integer ceiling(), floor() and
@@ -371,29 +435,6 @@ func wholeInteger(whole decimal.Decimal) (types.Collection, error) {
 		return types.Collection{}, nil
 	}
 	return types.Collection{i}, nil
-}
-
-// toFloat converts an argument to float64.
-func toFloat(arg interface{}) (float64, error) {
-	switch v := arg.(type) {
-	case types.Collection:
-		if v.Empty() {
-			return 0, eval.NewEvalError(eval.ErrType, "expected number, got empty collection")
-		}
-		return toFloat(v[0])
-	case types.Integer:
-		return float64(v.Value()), nil
-	case types.Decimal:
-		return v.Value().InexactFloat64(), nil
-	case int64:
-		return float64(v), nil
-	case float64:
-		return v, nil
-	case decimal.Decimal:
-		return v.InexactFloat64(), nil
-	default:
-		return 0, eval.NewEvalError(eval.ErrType, "expected number")
-	}
 }
 
 // fnSum returns the sum of all numeric values in the collection.

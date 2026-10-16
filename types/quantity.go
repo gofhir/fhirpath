@@ -20,6 +20,11 @@ import (
 // the whole expression.
 var ErrIncompatibleUnits = errors.New("incompatible units")
 
+// ErrDivideByZero reports a division whose divisor is zero, which the
+// specification answers with empty, not an error: "12 / 0 // empty ({ })".
+// Callers translate it into an empty collection.
+var ErrDivideByZero = errors.New("division by zero")
+
 // Quantity represents a FHIRPath quantity value with a numeric value and unit.
 type Quantity struct {
 	value decimal.Decimal
@@ -641,39 +646,101 @@ func dropTrailingZeros(d decimal.Decimal) decimal.Decimal {
 	return normalized
 }
 
-// Add adds two quantities.
-// Commensurable units are converted into the left operand's unit, which is also
-// the unit of the result: 1 'g' + 500 'mg' is 1.5 'g'.
+// Add adds two quantities in the more granular of their units: "The unit of
+// the result will be the most granular unit of either input" (2.0.0), 3 'm' +
+// 3 'cm' is 303 'cm', and where neither is, the left operand's, as 3.0.0
+// chooses. A special unit, Cel or [degF], does not combine with another unit:
+// "Attempting to operate on quantities with invalid or "special" units will
+// result in empty", ErrIncompatibleUnits. Two in the same unit add, 1 'Cel' +
+// 1 'Cel' being 2 'Cel', which the text leaves open.
 func (q Quantity) Add(other Quantity) (Quantity, error) {
-	rhs, err := other.valueIn(q)
+	unit, lhs, rhs, err := q.inFinerUnit(other)
 	if err != nil {
 		return Quantity{}, err
 	}
-	return Quantity{value: q.value.Add(rhs), unit: q.resultUnit(other)}, nil
+	sum := lhs.Add(rhs)
+	return Quantity{value: sum, unit: q.acrossTimeSystems(other, unit, sum)}, nil
 }
 
 // Subtract subtracts two quantities.
 // Units are handled as in [Quantity.Add].
 func (q Quantity) Subtract(other Quantity) (Quantity, error) {
-	rhs, err := other.valueIn(q)
+	unit, lhs, rhs, err := q.inFinerUnit(other)
 	if err != nil {
 		return Quantity{}, err
 	}
-	return Quantity{value: q.value.Sub(rhs), unit: q.resultUnit(other)}, nil
+	difference := lhs.Sub(rhs)
+	return Quantity{value: difference, unit: q.acrossTimeSystems(other, unit, difference)}, nil
 }
 
-// resultUnit returns the unit an arithmetic result carries: the left operand's,
-// unless it is unitless.
-func (q Quantity) resultUnit(other Quantity) string {
-	if q.unit == "" {
-		return other.unit
+// acrossTimeSystems names the unit of a sum of a calendar duration and a UCUM
+// one in the calendar: "When the operands come from different time-valued
+// unit systems, the result is expressed in calendar units" (3.0.0), so
+// 60 's' + 2 minutes is 180 seconds. Any other sum keeps unit.
+func (q Quantity) acrossTimeSystems(other Quantity, unit string, value decimal.Decimal) string {
+	if isCalendarUnit(q.unit) == isCalendarUnit(other.unit) || isCalendarUnit(unit) {
+		return unit
 	}
-	return q.unit
+	keyword, ok := ucumCodeToCalendar[unit]
+	if !ok {
+		return unit
+	}
+	if value.Abs().Equal(decimal.NewFromInt(1)) {
+		return keyword
+	}
+	return keyword + "s"
+}
+
+// inFinerUnit returns the unit addition takes, and both values in it. A
+// quantity without a unit takes the other's.
+func (q Quantity) inFinerUnit(other Quantity) (unit string, lhs, rhs decimal.Decimal, err error) {
+	switch {
+	case q.unit == other.unit || other.unit == "":
+		return q.unit, q.value, other.value, nil
+	case q.unit == "":
+		return other.unit, q.value, other.value, nil
+	case isSpecialUnit(q.unit) || isSpecialUnit(other.unit):
+		return "", decimal.Decimal{}, decimal.Decimal{}, fmt.Errorf("%w: %s and %s", ErrIncompatibleUnits, q.unit, other.unit)
+	}
+	// One of other's unit, in q's: below one, other's unit is the finer
+	step, err := Quantity{value: decimal.NewFromInt(1), unit: other.unit}.valueIn(q)
+	if err != nil {
+		return "", decimal.Decimal{}, decimal.Decimal{}, err
+	}
+	// Only the operand converted loses the zeros conversion leaves; the other
+	// keeps the precision it was written with: 2.00 'mg' + 1 'g' is 1002.00 'mg'
+	if step.LessThan(decimal.NewFromInt(1)) {
+		lhs, err = q.valueIn(other)
+		return other.unit, dropTrailingZeros(lhs), other.value, err
+	}
+	rhs, err = other.valueIn(q)
+	return q.unit, q.value, dropTrailingZeros(rhs), err
+}
+
+// isSpecialUnit reports a unit on a scale with no single factor, Cel or
+// [degF], one of UCUM's "special" units on non-ratio scales. A calendar
+// keyword is none.
+func isSpecialUnit(unit string) bool {
+	return unit != "" && !isCalendarUnit(unit) && ucum.Special(convertibleUnit(unit))
 }
 
 // MultiplyQuantity multiplies two quantities, combining their units:
-// 2 'cm' by 2 'm' is 0.04 'm2'.
+// 2 'cm' by 2 'm' is 400 'cm2', in the operands' own units, the finer prefix
+// where an atom carries two.
 func (q Quantity) MultiplyQuantity(other Quantity) (Quantity, error) {
+	// A quantity of the default unit '1' scales the other, as a number does,
+	// a calendar duration or a special unit among them: "Multiplication
+	// involving calendar units (apart from the UCUM default unit '1') will
+	// return empty"
+	if other.unit == DefaultQuantityUnit {
+		return q.Multiply(other.value), nil
+	}
+	if q.unit == DefaultQuantityUnit {
+		return other.Multiply(q.value), nil
+	}
+	if isSpecialUnit(q.unit) || isSpecialUnit(other.unit) {
+		return Quantity{}, fmt.Errorf("%w: %s and %s", ErrIncompatibleUnits, q.unit, other.unit)
+	}
 	value, unit, err := ucum.Multiply(q.value, q.unit, other.value, other.unit)
 	if err != nil {
 		return Quantity{}, combineError(err, q.unit, other.unit)
@@ -685,7 +752,14 @@ func (q Quantity) MultiplyQuantity(other Quantity) (Quantity, error) {
 // 4 'g' by 2 'm' is 2 'g.m-1'.
 func (q Quantity) DivideQuantity(other Quantity) (Quantity, error) {
 	if other.value.IsZero() {
-		return Quantity{}, fmt.Errorf("division by zero")
+		return Quantity{}, ErrDivideByZero
+	}
+	// Divided by the default unit '1', a quantity is divided by a number
+	if other.unit == DefaultQuantityUnit {
+		return q.Divide(other.value)
+	}
+	if isSpecialUnit(q.unit) || isSpecialUnit(other.unit) {
+		return Quantity{}, fmt.Errorf("%w: %s and %s", ErrIncompatibleUnits, q.unit, other.unit)
 	}
 	value, unit, err := ucum.Divide(q.value, q.unit, other.value, other.unit)
 	if err != nil {
@@ -711,7 +785,7 @@ func (q Quantity) Multiply(factor decimal.Decimal) Quantity {
 // Divide divides the quantity by a number.
 func (q Quantity) Divide(divisor decimal.Decimal) (Quantity, error) {
 	if divisor.IsZero() {
-		return Quantity{}, fmt.Errorf("division by zero")
+		return Quantity{}, ErrDivideByZero
 	}
 	return Quantity{value: dropTrailingZeros(q.value.Div(divisor)), unit: q.unit}, nil
 }
