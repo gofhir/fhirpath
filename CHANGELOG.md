@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.15.1](https://github.com/gofhir/fhirpath/compare/v1.15.0...v1.15.1) (2026-10-16)
+
+
+### Bug Fixes
+
+* the Math functions refuse what is no number, round quantities, and arithmetic takes the unit the text names ([#197](https://github.com/gofhir/fhirpath/issues/197)) ([74cbcda](https://github.com/gofhir/fhirpath/commit/74cbcdab746f9baf5307adee23b7fd34b18707ae)), closes [#167](https://github.com/gofhir/fhirpath/issues/167)
+
 ## [1.15.0](https://github.com/gofhir/fhirpath/compare/v1.14.7...v1.15.0) (2026-10-16)
 
 
