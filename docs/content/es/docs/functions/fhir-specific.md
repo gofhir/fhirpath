@@ -245,10 +245,10 @@ result, _ := compiled.EvaluateWithContext(ctx)
   - **String** -- se trata como un valor de codigo simple.
   - **Objeto Coding** -- extrae los campos `system`, `code`, `version` y `display`.
   - **Objeto CodeableConcept** -- extrae el arreglo `coding` y el campo `text`.
-- Devuelve `true` si algun elemento en la coleccion de entrada es miembro.
-- Devuelve `false` si los elementos fueron verificados pero ninguno es miembro.
+- Devuelve `true` si el unico elemento de la entrada es miembro, y `false` si no lo es. Un CodeableConcept es miembro cuando lo es alguno de sus codigos.
+- Una entrada vacia, o de mas de un elemento (como `code.coding.memberOf(...)` sobre un concepto con dos Coding), devuelve vacio sin consultar el servicio, tambien con las reglas de R4: R5 dice "the input is empty or has more than one value, the return value is empty", y fhirpath.js y el motor Java de HL7 responden asi tambien en R4.
 - Devuelve una coleccion vacia si la verificacion no puede realizarse (sin servicio de terminologia o errores).
-- Un value set que no es una URI, `memberOf('not a uri')`, es un error con las reglas de R4 y vacio con las de R5.
+- Un value set que no es una URI, `memberOf('not a uri')`, es un error con las reglas de R4 para un unico elemento de entrada y vacio con las de R5.
 
 ---
 

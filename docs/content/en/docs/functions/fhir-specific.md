@@ -245,10 +245,10 @@ result, _ := compiled.EvaluateWithContext(ctx)
   - **String** -- treated as a simple code value.
   - **Coding object** -- extracts `system`, `code`, `version`, and `display` fields.
   - **CodeableConcept object** -- extracts the `coding` array and `text` field.
-- Returns `true` if any element in the input collection is a member.
-- Returns `false` if elements were checked but none are members.
+- Returns `true` if the single input item is a member, and `false` if it is not. A CodeableConcept is a member when any of its codes is.
+- An empty input, or one of more than one item (such as `code.coding.memberOf(...)` on a concept with two codings), returns empty without asking the service, under R4 rules too: R5 says "the input is empty or has more than one value, the return value is empty", and fhirpath.js and HL7's Java engine both answer so under R4.
 - Returns empty collection if the check cannot be performed (no terminology service or errors).
-- A value set that is no URI, `memberOf('not a uri')`, is an error under R4 rules ("If the valueset cannot be resolved as a uri to a value set, an error is thrown") and empty under R5's.
+- A value set that is no URI, `memberOf('not a uri')`, is an error under R4 rules for a single input item ("If the valueset cannot be resolved as a uri to a value set, an error is thrown") and empty under R5's.
 
 ---
 

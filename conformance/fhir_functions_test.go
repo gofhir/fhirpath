@@ -178,6 +178,52 @@ func TestMemberOfIsUnknownWhenTheServiceFails(t *testing.T) {
 	}
 }
 
+// statusService knows two codes, final and M, as members of every value set,
+// and a concept as a member when any of its codings is.
+type statusService struct{}
+
+func (statusService) MemberOf(_ context.Context, code interface{}, _ string) (bool, error) {
+	m, _ := code.(map[string]interface{})
+	codings, _ := m["coding"].([]map[string]interface{})
+	for _, c := range append(codings, m) {
+		if c["code"] == "final" || c["code"] == "M" {
+			return true, nil
+		}
+	}
+	return false, nil
+}
+
+// memberOf() of several items is empty under both versions, as R5 says and
+// fhirpath.js and the Java engine both answer against tx.fhir.org under R4
+// too, even where one item is a member.
+func TestMemberOfOfSeveralItemsIsEmpty(t *testing.T) {
+	for _, tt := range []struct {
+		model      eval.Model
+		expr, want string
+	}{
+		{r4.FHIRPathModel(), "'final'.memberOf('http://hl7.org/fhir/ValueSet/observation-status')", "[true]"},
+		{r4.FHIRPathModel(), "'bogus'.memberOf('http://hl7.org/fhir/ValueSet/observation-status')", "[false]"},
+		{r4.FHIRPathModel(), "('final' | 'bogus').memberOf('http://hl7.org/fhir/ValueSet/observation-status')", "[]"},
+		{r5.FHIRPathModel(), "('bogus' | 'final').memberOf('http://hl7.org/fhir/ValueSet/observation-status')", "[]"},
+		{r5.FHIRPathModel(), "'final'.memberOf('http://hl7.org/fhir/ValueSet/observation-status')", "[true]"},
+		// a concept of two codings is one item, a member when any coding is;
+		// its codings are two
+		{r4.FHIRPathModel(), "Patient.maritalStatus.memberOf('http://hl7.org/fhir/ValueSet/marital-status')", "[true]"},
+		{r4.FHIRPathModel(), "Patient.maritalStatus.coding.memberOf('http://hl7.org/fhir/ValueSet/marital-status')", "[]"},
+		{r4.FHIRPathModel(), "Patient.maritalStatus.coding[1].memberOf('http://hl7.org/fhir/ValueSet/marital-status')", "[false]"},
+		// several items are empty before the value set is looked at
+		{r4.FHIRPathModel(), "('a' | 'b').memberOf('not a uri')", "[]"},
+	} {
+		ctx := eval.NewContext(fhirFunctionsPatient)
+		ctx.SetModel(tt.model)
+		ctx.SetTerminologyService(statusService{})
+		result, err := fhirpath.MustCompile(tt.expr).EvaluateWithContext(ctx)
+		if err != nil || result.String() != tt.want {
+			t.Errorf("%s = %v, %v; want %s", tt.expr, result, err, tt.want)
+		}
+	}
+}
+
 type subsumer struct{}
 
 func (subsumer) MemberOf(context.Context, interface{}, string) (bool, error) { return false, nil }

@@ -608,9 +608,13 @@ func fnGetReferenceKey(ctx *eval.Context, input types.Collection, args []interfa
 
 // fnMemberOf checks if a code, Coding, or CodeableConcept is a member of a ValueSet.
 // Usage: code.memberOf('http://hl7.org/fhir/ValueSet/example')
-// Returns true if the code is in the ValueSet, false if not, empty if cannot be determined.
+// Returns true if the code is in the ValueSet, false if not, empty if the input is
+// not a single item or it cannot be determined.
 func fnMemberOf(ctx *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
-	if input.Empty() {
+	// R5: "the input is empty or has more than one value, the return value is
+	// empty". R4 says nothing of several items; fhirpath.js and the Java
+	// engine both answer empty under it too, asking no terminology service
+	if len(input) != 1 {
 		return types.Collection{}, nil
 	}
 
@@ -639,35 +643,21 @@ func fnMemberOf(ctx *eval.Context, input types.Collection, args []interface{}) (
 	// Get the terminology service
 	ts := ctx.GetTerminologyService()
 	if ts == nil {
-		// Without a terminology service, we can't validate membership
-		// Return empty collection (unknown) as per FHIRPath spec
+		// Without a terminology service membership is unknown, empty
 		return types.Collection{}, nil
 	}
 
-	// Any member makes it true. A service that could not answer for an item
-	// leaves it unknown, empty, unless another item is a member: an error is
+	// A service that could not answer leaves it unknown, empty: an error is
 	// no "not a member"
-	unknown := false
-	for _, item := range input {
-		codeValue := extractCodeValue(item)
-		if codeValue == nil {
-			continue
-		}
-
-		isMember, err := ts.MemberOf(ctx.Context(), codeValue, valueSetURL)
-		if err != nil {
-			unknown = true
-			continue
-		}
-		if isMember {
-			return types.Collection{types.NewBoolean(true)}, nil
-		}
+	codeValue := extractCodeValue(input[0])
+	if codeValue == nil {
+		return types.Collection{types.NewBoolean(false)}, nil
 	}
-
-	if unknown {
+	isMember, err := ts.MemberOf(ctx.Context(), codeValue, valueSetURL)
+	if err != nil {
 		return types.Collection{}, nil
 	}
-	return types.Collection{types.NewBoolean(false)}, nil
+	return types.Collection{types.NewBoolean(isMember)}, nil
 }
 
 // extractCodeValue extracts a code value from a FHIRPath value for terminology validation.
