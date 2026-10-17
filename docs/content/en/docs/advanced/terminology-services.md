@@ -73,7 +73,7 @@ The `memberOf()` function is called on a code, Coding, or CodeableConcept elemen
 
 ```fhirpath
 // Check if a patient's marital status is in a specific ValueSet.
-Patient.maritalStatus.coding.memberOf('http://hl7.org/fhir/ValueSet/marital-status')
+Patient.maritalStatus.memberOf('http://hl7.org/fhir/ValueSet/marital-status')
 
 // Check a simple code value.
 Observation.status.memberOf('http://hl7.org/fhir/ValueSet/observation-status')
@@ -84,7 +84,8 @@ When evaluated:
 1. The library extracts the code information from the input element.
 2. It calls `TerminologyService.MemberOf()` with the extracted code data and the
    ValueSet URL.
-3. The function returns `true` if the code is a member, `false` if not.
+3. The function returns `true` if the single input item is a member, `false` if not.
+   An input of more than one item is empty, and the service is not asked.
 4. If no `TerminologyService` is configured, the function returns an empty collection.
 
 ## Using conformsTo()
@@ -305,7 +306,7 @@ func main() {
 
     // Compile the expression.
     expr := fhirpath.MustCompile(
-        "Patient.maritalStatus.coding.memberOf('http://hl7.org/fhir/ValueSet/marital-status')",
+        "Patient.maritalStatus.memberOf('http://hl7.org/fhir/ValueSet/marital-status')",
     )
 
     // Create an eval.Context with the services attached.
@@ -361,6 +362,7 @@ evaluation with an error; on anything else it is empty.
 | Code is a member / conforms     | `[true]`           | `[true]`             |
 | Code is not a member / does not conform | `[false]`  | `[false]`            |
 | Input is empty                  | empty collection   | empty collection     |
+| Input has more than one item    | empty collection   | error under R4 rules, empty under R5's |
 | Value set is no URI, R4 rules   | error              |                      |
 
 This behavior follows the FHIRPath specification's treatment of unknown results:

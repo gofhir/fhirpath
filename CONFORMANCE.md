@@ -637,6 +637,16 @@ per version. Gaps closed:
   is thrown". A URI with no terminology service to ask stays empty, unknown,
   under both: the published constraints that use `memberOf()` would
   otherwise fail wherever no server is configured.
+- `memberOf()` of several items answered whether any was a member, where R5
+  says "the input is empty or has more than one value, the return value is
+  empty". It is now empty, under R4 too, which says nothing of several items:
+  measured against tx.fhir.org, fhirpath.js and the Java engine both answer
+  `('final' | 'bogus').memberOf(...)` and `category.memberOf(...)` over two
+  categories empty under both versions, and true or false for one item. The
+  two constraints in R5's core that use `memberOf()`, exs-1 and opd-3, call
+  it on an element of at most one item, and those of the IGs in the
+  validator's package cache call it per item or on a single element, so no
+  verdict of theirs changes.
 - `trace()`'s projection was evaluated once, from the scope the call sits in,
   not "with respect to each of the items in the input collection" (2.0.0), so
   `(1 | 2).trace('x', $this * 10)` ended in an error. fhirpath.js and the Java
@@ -685,11 +695,7 @@ error is thrown" unless "the relationships between the code systems" are
 service fails for an item is empty too, not false; up to 1.14.7 it was
 false. `checkModifiers()` under R5 ends the evaluation on an empty modifier
 whatever its input, reading "an error is thrown, including if modifier is
-empty" as a rule on the argument, not on the check. Under R5, `memberOf()` of
-several items still answers whether any is a member, where R5 says "the input
-is empty or has more than one value, the return value is empty": constraints
-such as `code.coding.memberOf(...)` would change their verdict, and neither
-reference engine answers it offline to measure against.
+empty" as a rule on the argument, not on the check.
 
 fhirpath.js does not define `%resource`, `%rootResource`, `%sct`, `%loinc`,
 `%vs-` or `%ext-` unless the caller passes them, gives `'a'.getValue()` as
