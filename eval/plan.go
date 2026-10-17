@@ -106,7 +106,7 @@ func compileNavigation(tree antlr.ParseTree) (Node, bool) {
 	case *grammar.TotalInvocationContext:
 		return func(e *Evaluator) interface{} {
 			if e.ctx.total != nil {
-				return types.Collection{e.ctx.total}
+				return e.ctx.total
 			}
 			return types.Collection{}
 		}, true

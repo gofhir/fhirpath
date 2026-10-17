@@ -46,6 +46,8 @@ result, _ := fhirpath.Evaluate(resource, "('a' | 'b' | 'c').aggregate($total + $
   - `$this` -- el elemento actual que se esta procesando.
   - `$total` -- el resultado acumulado hasta el momento.
 - Si no se proporciona valor `init`, `$total` comienza como una coleccion vacia.
+- `$total` es el resultado completo del agregador, cada uno de sus elementos: `(1 | 2 | 3).aggregate($total | $this, {}).count()` es `3`.
+- `init` se evalua en el contexto externo, como dice FHIRPath 3.0.0: dentro de `select()`, su `$this` es el elemento en que esta `select()`.
 - Esta funcion requiere un manejo especial en el evaluador para el soporte adecuado de lambda/expresion.
 - Esto es equivalente a una operacion funcional `fold` o `reduce`.
 - Devuelve el valor `init` (o vacio) si la coleccion de entrada esta vacia.
@@ -73,13 +75,18 @@ result, _ := fhirpath.Evaluate(resource, "(1.5 | 2.5 | 3.0).sum()")
 // 7.0 (Decimal)
 
 result, _ := fhirpath.Evaluate(resource, "{}.sum()")
-// 0 (empty collection sums to 0)
+// { } (vacio - la suma de nada es vacia)
+
+result, _ := fhirpath.Evaluate(resource, "(1 'mg' | 2 'mg').sum()")
+// 3 'mg' (Quantity)
 ```
 
 **Casos Limite / Notas:**
-- Una coleccion vacia devuelve `0` (como `Integer`).
+- Una coleccion vacia devuelve una coleccion vacia: "If the input collection is empty (`{ }`), the result is empty." (FHIRPath 3.0.0).
+- Las cantidades se suman como `+` suma dos cantidades, una Quantity FHIR incluida, en la unidad mas granular; cantidades cuyas unidades no se combinan dan una coleccion vacia. Un numero junto a ellas es un elemento de otro tipo.
+- Un elemento sin nada que sumar, un primitivo sin valor o una Quantity FHIR sin valor, hace vacio el resultado.
 - Si todos los elementos son `Integer`, el resultado es `Integer`. Si algun elemento es `Decimal`, el resultado es `Decimal`.
-- Devuelve una coleccion vacia si algun elemento no es numerico (segun la especificacion FHIRPath).
+- Elementos de tipos distintos, como `1` y `'a'`, terminan la evaluacion con un error: "All items in the input collection SHALL be the same type, otherwise an exception is thrown". Integers y Decimals juntos se suman como Decimal.
 - Soporta cancelacion para colecciones grandes mediante verificacion de contexto.
 - Utiliza aritmetica decimal precisa mediante la biblioteca `shopspring/decimal`.
 
@@ -110,9 +117,10 @@ result, _ := fhirpath.Evaluate(resource, "(5).avg()")
 ```
 
 **Casos Limite / Notas:**
-- Siempre devuelve un `Decimal`, incluso si todas las entradas son `Integer`.
+- Devuelve un `Decimal` para numeros, incluso si todas las entradas son `Integer`, y una `Quantity` para cantidades.
 - Devuelve una coleccion vacia si la entrada esta vacia.
-- Devuelve una coleccion vacia si algun elemento no es numerico.
+- Tambien promedia cantidades, como Quantity: `(1 'cm' | 2 'cm').avg()` es `1.5 'cm'`.
+- Elementos de tipos distintos terminan la evaluacion con un error, como en `sum()`.
 - Se calcula como `sum() / count()` usando aritmetica decimal precisa.
 - Soporta cancelacion para colecciones grandes.
 
@@ -193,10 +201,10 @@ result, _ := fhirpath.Evaluate(resource, "(@2024-01-01 | @2024-06-15 | @2024-03-
 
 | Funcion | Entrada | Coleccion Vacia | Elementos No Numericos | Tipo de Retorno |
 |---------|---------|-----------------|------------------------|-----------------|
-| `sum()` | Numerico | `0` | Coleccion vacia | `Integer` o `Decimal` |
-| `avg()` | Numerico | Coleccion vacia | Coleccion vacia | `Decimal` |
-| `min()` | Cualquier comparable | Coleccion vacia | Coleccion vacia | Mismo que la entrada |
-| `max()` | Cualquier comparable | Coleccion vacia | Coleccion vacia | Mismo que la entrada |
+| `sum()` | Numerico o Quantity | Coleccion vacia | Error | `Integer`, `Decimal` o `Quantity` |
+| `avg()` | Numerico o Quantity | Coleccion vacia | Error | `Decimal` o `Quantity` |
+| `min()` | Cualquier comparable | Coleccion vacia | Error | Mismo que la entrada |
+| `max()` | Cualquier comparable | Coleccion vacia | Error | Mismo que la entrada |
 | `aggregate()` | Cualquiera | Valor `init` | N/A (logica personalizada) | Cualquiera |
 
 ### Uso de aggregate para Calculos Personalizados

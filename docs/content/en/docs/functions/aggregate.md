@@ -46,6 +46,8 @@ result, _ := fhirpath.Evaluate(resource, "('a' | 'b' | 'c').aggregate($total + $
   - `$this` -- the current element being processed.
   - `$total` -- the accumulated result so far.
 - If no `init` value is provided, `$total` starts as an empty collection.
+- `$total` is the aggregator's whole result, every item of it: `(1 | 2 | 3).aggregate($total | $this, {}).count()` is `3`.
+- `init` is evaluated on the outer context, as FHIRPath 3.0.0 says: inside `select()`, its `$this` is the item `select()` is at.
 - This function requires special handling in the evaluator for proper lambda/expression support.
 - This is equivalent to a functional `fold` or `reduce` operation.
 - Returns the `init` value (or empty) if the input collection is empty.
@@ -73,13 +75,18 @@ result, _ := fhirpath.Evaluate(resource, "(1.5 | 2.5 | 3.0).sum()")
 // 7.0 (Decimal)
 
 result, _ := fhirpath.Evaluate(resource, "{}.sum()")
-// 0 (empty collection sums to 0)
+// { } (empty - the sum of nothing is empty)
+
+result, _ := fhirpath.Evaluate(resource, "(1 'mg' | 2 'mg').sum()")
+// 3 'mg' (Quantity)
 ```
 
 **Edge Cases / Notes:**
-- An empty collection returns `0` (as an `Integer`).
+- An empty collection returns an empty collection: "If the input collection is empty (`{ }`), the result is empty." (FHIRPath 3.0.0).
+- Quantities sum as `+` adds two quantities, a FHIR Quantity included, in the more granular unit; quantities whose units do not combine give an empty collection. A number beside them is an item of another type.
+- An item with nothing to add, a primitive with no value or a FHIR Quantity with no value, makes the result empty.
 - If all elements are `Integer`, the result is `Integer`. If any element is `Decimal`, the result is `Decimal`.
-- Returns an empty collection if any element is non-numeric (per FHIRPath specification).
+- Items of different types, such as `1` and `'a'`, end the evaluation with an error: "All items in the input collection SHALL be the same type, otherwise an exception is thrown". Integers and Decimals together sum as a Decimal.
 - Supports cancellation for large collections via context checking.
 - Uses precise decimal arithmetic via the `shopspring/decimal` library.
 
@@ -110,9 +117,10 @@ result, _ := fhirpath.Evaluate(resource, "(5).avg()")
 ```
 
 **Edge Cases / Notes:**
-- Always returns a `Decimal`, even if all inputs are `Integer`.
+- Returns a `Decimal` for numbers, even if all inputs are `Integer`, and a `Quantity` for quantities.
 - Returns an empty collection if the input is empty.
-- Returns an empty collection if any element is non-numeric.
+- Averages quantities too, as a Quantity: `(1 'cm' | 2 'cm').avg()` is `1.5 'cm'`.
+- Items of different types end the evaluation with an error, as for `sum()`.
 - Computed as `sum() / count()` using precise decimal arithmetic.
 - Supports cancellation for large collections.
 
@@ -193,10 +201,10 @@ result, _ := fhirpath.Evaluate(resource, "(@2024-01-01 | @2024-06-15 | @2024-03-
 
 | Function | Input | Empty Collection | Non-Numeric Elements | Return Type |
 |----------|-------|------------------|---------------------|-------------|
-| `sum()` | Numeric | `0` | Empty collection | `Integer` or `Decimal` |
-| `avg()` | Numeric | Empty collection | Empty collection | `Decimal` |
-| `min()` | Any comparable | Empty collection | Empty collection | Same as input |
-| `max()` | Any comparable | Empty collection | Empty collection | Same as input |
+| `sum()` | Numeric or Quantity | Empty collection | Error | `Integer`, `Decimal` or `Quantity` |
+| `avg()` | Numeric or Quantity | Empty collection | Error | `Decimal` or `Quantity` |
+| `min()` | Any comparable | Empty collection | Error | Same as input |
+| `max()` | Any comparable | Empty collection | Error | Same as input |
 | `aggregate()` | Any | `init` value | N/A (custom logic) | Any |
 
 ### Using aggregate for Custom Calculations
