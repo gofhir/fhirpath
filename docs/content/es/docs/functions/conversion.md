@@ -123,7 +123,7 @@ result, _ := fhirpath.Evaluate(resource, "(1).convertsToBoolean()")
 
 **Casos Limite / Notas:**
 
-- Devuelve `false` para entrada vacia.
+- Devuelve una coleccion vacia para entrada vacia, como dice la especificacion ("If the input collection is empty, the result is empty").
 - Devuelve `false` para valores `Integer` distintos de `0` y `1`.
 
 ---
@@ -147,7 +147,6 @@ toInteger() : Integer
 | `Integer`       | Se devuelve tal cual                              |
 | `Boolean`       | `true` se convierte en `1`, `false` se convierte en `0` |
 | `String`        | Se analiza como un entero con signo de 64 bits    |
-| `Decimal`       | Devuelve la parte entera (truncamiento)           |
 
 **Ejemplos:**
 
@@ -159,14 +158,14 @@ result, _ := fhirpath.Evaluate(resource, "true.toInteger()")
 // 1
 
 result, _ := fhirpath.Evaluate(resource, "(3.7).toInteger()")
-// 3
+// { } (vacio - un Decimal no se convierte a Integer)
 ```
 
 **Casos Limite / Notas:**
 
 - Devuelve una coleccion vacia si la entrada no puede convertirse (por ejemplo, `'abc'.toInteger()`).
 - Devuelve una coleccion vacia si la entrada esta vacia.
-- Para entrada `Decimal`, la parte fraccionaria se descarta (truncamiento hacia cero).
+- Un `Decimal` no se convierte, entero o no: la especificacion lista Integer, String y Boolean. `toLong()` (FHIRPath 3.0.0) lee lo mismo que `toInteger()`; el Integer de este motor ya es de 64 bits.
 
 ---
 
@@ -197,9 +196,37 @@ result, _ := fhirpath.Evaluate(resource, "true.convertsToInteger()")
 
 **Casos Limite / Notas:**
 
-- Devuelve `false` para entrada vacia.
-- Devuelve `true` para valores `Decimal` (siempre pueden truncarse).
+- Devuelve una coleccion vacia para entrada vacia, como dice la especificacion ("If the input collection is empty, the result is empty").
+- Devuelve `false` para valores `Decimal`, que `toInteger()` no convierte. `convertsToLong()` responde lo mismo.
 - Devuelve `false` para cadenas que no son enteros validos.
+
+---
+
+## toLong
+
+Convierte la entrada a un entero, como lo hace `toInteger()` (FHIRPath 3.0.0).
+
+**Firma:**
+
+```text
+toLong() : Integer
+```
+
+**Casos Limite / Notas:**
+
+- El `Long` de 3.0.0 es un entero de 64 bits, que el `Integer` de este motor ya es, asi que `toLong()` lee lo mismo que `toInteger()` y devuelve un `Integer`: `'5000000000'.toLong()` es `5000000000`. No hay tipo `Long`, asi que `is System.Long` es falso.
+
+---
+
+## convertsToLong
+
+Devuelve `true` si la entrada puede convertirse con `toLong()`, como responde `convertsToInteger()` (FHIRPath 3.0.0).
+
+**Firma:**
+
+```text
+convertsToLong() : Boolean
+```
 
 ---
 
@@ -222,7 +249,7 @@ toDecimal() : Decimal
 | `Decimal`       | Se devuelve tal cual                                |
 | `Integer`       | Se convierte a Decimal                              |
 | `Boolean`       | `true` se convierte en `1.0`, `false` se convierte en `0.0` |
-| `String`        | Se analiza como un numero decimal                   |
+| `String`        | Se analiza cuando tiene la forma `(\+|-)?\d+(\.\d+)?` |
 
 **Ejemplos:**
 
@@ -272,7 +299,7 @@ result, _ := fhirpath.Evaluate(resource, "(42).convertsToDecimal()")
 
 **Casos Limite / Notas:**
 
-- Devuelve `false` para entrada vacia.
+- Devuelve una coleccion vacia para entrada vacia, como dice la especificacion ("If the input collection is empty, the result is empty").
 - `Integer`, `Decimal` y `Boolean` siempre se convierten a Decimal.
 
 ---
@@ -315,6 +342,7 @@ result, _ := fhirpath.Evaluate(resource, "(3.14).toString()")
 
 - Devuelve una coleccion vacia si la entrada esta vacia.
 - Todos los tipos primitivos pueden convertirse a cadena usando su representacion `.String()`.
+- Una Quantity FHIR se escribe como la cantidad que representa: `185 '[lb_av]'`. Una duracion de calendario se escribe con su palabra sin comillas, `1 week`, como lo define FHIRPath 3.0.0.
 
 ---
 
@@ -345,9 +373,9 @@ result, _ := fhirpath.Evaluate(resource, "'hello'.convertsToString()")
 
 **Casos Limite / Notas:**
 
-- Devuelve `false` para entrada vacia.
+- Devuelve una coleccion vacia para entrada vacia, como dice la especificacion ("If the input collection is empty, the result is empty").
 - Devuelve `true` para todos los tipos primitivos (`String`, `Boolean`, `Integer`, `Decimal`).
-- Devuelve `false` para tipos complejos (objetos).
+- Devuelve `false` para tipos complejos (objetos), salvo una Quantity FHIR, que se convierte en el texto de la cantidad que representa.
 
 ---
 
@@ -358,7 +386,7 @@ Convierte la entrada a un valor Date.
 **Firma:**
 
 ```text
-toDate() : Date
+toDate([format : String]) : Date
 ```
 
 **Tipo de Retorno:** `Date`
@@ -390,6 +418,7 @@ result, _ := fhirpath.Evaluate(resource, "'not-a-date'.toDate()")
 - Devuelve una coleccion vacia si la entrada esta vacia.
 - Para entrada `DateTime`, devuelve la fecha que indica, hasta el dia como maximo: `@2012T.toDate()` es `@2012`.
 - Una cadena que no es un dia del calendario, como `'2021-02-30'`, da una coleccion vacia.
+- Con un formato (FHIRPath 3.0.0, uso de prueba), una cadena se lee segun esa plantilla: `'15-01-2024'.toDate('dd-MM-yyyy')` es `@2024-01-15`. Los codigos que se leen son `yyyy`, `yy`, `MM`, `M`, `dd`, `d`, `HH`, `H`, `hh`, `h`, `mm`, `m`, `ss`, `s`, `S` (uno por digito fraccionario), `a` (AM/PM) y `Z` (un offset como `+0200` o `Z`); cualquier otro caracter debe coincidir consigo mismo. Los nombres de mes localizados `MMM` y `MMMM` y una zona por nombre `z` no se leen, y una plantilla que los use da una coleccion vacia. Lo mismo vale para `toDateTime()`, `convertsToDate()` y `convertsToDateTime()`. El formato se ignora cuando la entrada no es una cadena.
 
 ---
 
@@ -400,7 +429,7 @@ Devuelve `true` si la entrada puede convertirse a Date usando `toDate()`.
 **Firma:**
 
 ```text
-convertsToDate() : Boolean
+convertsToDate([format : String]) : Boolean
 ```
 
 **Tipo de Retorno:** `Boolean`
@@ -420,7 +449,7 @@ result, _ := fhirpath.Evaluate(resource, "(42).convertsToDate()")
 
 **Casos Limite / Notas:**
 
-- Devuelve `false` para entrada vacia.
+- Devuelve una coleccion vacia para entrada vacia, como dice la especificacion ("If the input collection is empty, the result is empty").
 - Responde lo mismo que `toDate()`: `true` para un `Date`, un `DateTime` o una cadena que nombra un dia del calendario; `false` para `'2021-02-30'`.
 
 ---
@@ -432,7 +461,7 @@ Convierte la entrada a un valor DateTime.
 **Firma:**
 
 ```text
-toDateTime() : DateTime
+toDateTime([format : String]) : DateTime
 ```
 
 **Tipo de Retorno:** `DateTime`
@@ -454,7 +483,7 @@ result, _ := fhirpath.Evaluate(resource, "(42).toDateTime()")
 
 - Devuelve una coleccion vacia si la entrada no puede convertirse.
 - Devuelve una coleccion vacia si la entrada esta vacia.
-- Actualmente acepta entrada `String` para la conversion.
+- Acepta un `DateTime`, un `Date` o una cadena; con un formato, la cadena se lee segun esa plantilla, como describe `toDate()`.
 
 ---
 
@@ -465,7 +494,7 @@ Devuelve `true` si la entrada puede convertirse a DateTime usando `toDateTime()`
 **Firma:**
 
 ```text
-convertsToDateTime() : Boolean
+convertsToDateTime([format : String]) : Boolean
 ```
 
 **Tipo de Retorno:** `Boolean`
@@ -482,8 +511,8 @@ result, _ := fhirpath.Evaluate(resource, "(42).convertsToDateTime()")
 
 **Casos Limite / Notas:**
 
-- Devuelve `false` para entrada vacia.
-- Devuelve `true` para entrada `String` (verificacion basica de tipo).
+- Devuelve una coleccion vacia para entrada vacia, como dice la especificacion ("If the input collection is empty, the result is empty").
+- Responde lo mismo que la funcion de conversion: `true` para una cadena que se convierte, `false` para una que no.
 
 ---
 
@@ -516,7 +545,7 @@ result, _ := fhirpath.Evaluate(resource, "(42).toTime()")
 
 - Devuelve una coleccion vacia si la entrada no puede convertirse.
 - Devuelve una coleccion vacia si la entrada esta vacia.
-- Actualmente acepta entrada `String` para la conversion.
+- Acepta un `Time` o una cadena. Una cadena se escribe sin la `T` con que abre un literal: `'T14:34:28'.toTime()` es vacio.
 
 ---
 
@@ -544,8 +573,8 @@ result, _ := fhirpath.Evaluate(resource, "(42).convertsToTime()")
 
 **Casos Limite / Notas:**
 
-- Devuelve `false` para entrada vacia.
-- Devuelve `true` para entrada `String` (verificacion basica de tipo).
+- Devuelve una coleccion vacia para entrada vacia, como dice la especificacion ("If the input collection is empty, the result is empty").
+- Responde lo mismo que la funcion de conversion: `true` para una cadena que se convierte, `false` para una que no.
 
 ---
 
@@ -594,6 +623,7 @@ result, _ := fhirpath.Evaluate(resource, "(3.14).toQuantity()")
 - Devuelve una coleccion vacia si la entrada no puede convertirse.
 - Devuelve una coleccion vacia si la entrada esta vacia.
 - El analisis de cadenas soporta notacion de unidades UCUM.
+- Un argumento de unidad vacio, `toQuantity({})`, da una coleccion vacia; una unidad que no es cadena, o de mas de un elemento, termina la evaluacion con un error.
 
 ---
 
@@ -630,6 +660,6 @@ result, _ := fhirpath.Evaluate(resource, "'not-a-quantity'.convertsToQuantity()"
 
 **Casos Limite / Notas:**
 
-- Devuelve `false` para entrada vacia.
+- Devuelve una coleccion vacia para entrada vacia, como dice la especificacion ("If the input collection is empty, the result is empty").
 - `Integer` y `Decimal` siempre se convierten a Quantity.
 - Cuando se especifica una unidad objetivo, verifica la compatibilidad de unidades UCUM entre las unidades de origen y destino usando normalizacion.

@@ -427,11 +427,11 @@ func (a *analyzer) function(node grammar.IFunctionContext, inputType, contextTyp
 		"contains", "startsWith", "endsWith", "matches", "matchesFull",
 		"convertsToBoolean", "convertsToInteger", "convertsToDecimal",
 		"convertsToString", "convertsToDate", "convertsToDateTime",
-		"convertsToTime", "convertsToQuantity", "conformsTo", "memberOf",
+		"convertsToTime", "convertsToQuantity", "convertsToLong", "conformsTo", "memberOf",
 		"subsumes", "subsumedBy", "htmlChecks", "comparable":
 		return types.TypeNameBoolean, nil
 
-	case "count", "length", "indexOf", "lastIndexOf", "toInteger", "precision":
+	case "count", "length", "indexOf", "lastIndexOf", "toInteger", "toLong", "precision":
 		return types.TypeNameInteger, nil
 
 	case "toString", "join", "substring", "upper", "lower", "replace",

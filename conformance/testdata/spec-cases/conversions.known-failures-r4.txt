@@ -1,0 +1,7 @@
+# Spec cases this engine does not pass yet; see testdata/spec-cases/README.md.
+# One "group/test" per line. Maintained by TestSpecCases; regenerate with
+#   go test -run TestSpecCases -update-known-failures
+# Every line needs a reason in the area's known-failure-reasons.txt.
+REQ-CONVERSIONS-032/REQ-CONVERSIONS-032-c
+REQ-CONVERSIONS-056/REQ-CONVERSIONS-056-a
+REQ-CONVERSIONS-056/REQ-CONVERSIONS-056-b

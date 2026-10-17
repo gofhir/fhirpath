@@ -11,14 +11,3 @@ REQ-MATH-049/REQ-MATH-049-c deliberate integer-is-64-bits-here-and-there-is-no-l
 REQ-MATH-049/REQ-MATH-049-d deliberate integer-is-64-bits-here-and-there-is-no-long Integer is 64 bits, so the quotient does not overflow, as fhirpath.js answers; the case follows the 32-bit range
 REQ-MATH-049/REQ-MATH-049-e deliberate integer-is-64-bits-here-and-there-is-no-long Integer is 64 bits, so 2147483647 * 2 does not overflow, as fhirpath.js answers; the case follows the 32-bit range
 REQ-MATH-057/REQ-MATH-057-a deliberate integer-is-64-bits-here-and-there-is-no-long Integer is 64 bits, so negating -2^31 can be represented, as fhirpath.js answers; the case follows the 32-bit range
-REQ-MATH-067/REQ-MATH-067-a deliberate integer-is-64-bits-here-and-there-is-no-long toLong is not implemented, Integer being 64 bits already
-REQ-MATH-067/REQ-MATH-067-b deliberate integer-is-64-bits-here-and-there-is-no-long toLong is not implemented, Integer being 64 bits already
-REQ-MATH-067/REQ-MATH-067-c deliberate integer-is-64-bits-here-and-there-is-no-long toLong is not implemented, Integer being 64 bits already
-REQ-MATH-067/REQ-MATH-067-d deliberate integer-is-64-bits-here-and-there-is-no-long toLong is not implemented, Integer being 64 bits already
-REQ-MATH-067/REQ-MATH-067-e deliberate integer-is-64-bits-here-and-there-is-no-long toLong is not implemented, Integer being 64 bits already
-REQ-MATH-067/REQ-MATH-067-f deliberate integer-is-64-bits-here-and-there-is-no-long toLong is not implemented, Integer being 64 bits already; 9223372036854775807 + 1 is empty here as the case expects
-REQ-MATH-067/REQ-MATH-067-g deliberate integer-is-64-bits-here-and-there-is-no-long toLong is not implemented, Integer being 64 bits already
-REQ-MATH-072/REQ-MATH-072-a deliberate integer-is-64-bits-here-and-there-is-no-long toLong is not implemented, Integer being 64 bits already
-REQ-MATH-072/REQ-MATH-072-b deliberate integer-is-64-bits-here-and-there-is-no-long toLong is not implemented, Integer being 64 bits already
-REQ-MATH-072/REQ-MATH-072-c deliberate integer-is-64-bits-here-and-there-is-no-long toLong is not implemented, Integer being 64 bits already
-REQ-MATH-072/REQ-MATH-072-d deliberate integer-is-64-bits-here-and-there-is-no-long toLong is not implemented, Integer being 64 bits already

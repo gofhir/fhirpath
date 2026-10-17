@@ -1,0 +1,3 @@
+REQ-CONVERSIONS-032/REQ-CONVERSIONS-032-c deliberate integer-is-64-bits-here-and-there-is-no-long there is no System.Long: toLong() is toInteger() under another name and gives a 64-bit Integer, so '123'.toLong() is System.Integer, not System.Long
+REQ-CONVERSIONS-056/REQ-CONVERSIONS-056-a deliberate when-200-and-300-disagree a calendar duration is written without quotes, 4 days, as 3.0.0's example, the official suite (1 week.toString() is '1 week'), fhirpath.js and the Java engine all have it; the case follows 2.0.0's quoted format
+REQ-CONVERSIONS-056/REQ-CONVERSIONS-056-b deliberate when-200-and-300-disagree a calendar duration is written without quotes, as 3.0.0, the official suite, fhirpath.js and the Java engine have it; the case follows 2.0.0's quoted format

@@ -26,7 +26,7 @@ All functions operate on collections and return collections, following FHIRPath'
 | [Filtering Functions]({{< relref "filtering" >}}) | 4 | Collection filtering: `where`, `select`, `repeat`, `ofType` |
 | [Subsetting Functions]({{< relref "subsetting" >}}) | 8 | Collection slicing: `first`, `last`, `tail`, `take`, `skip`, `single`, `intersect`, `exclude` |
 | [Combining Functions]({{< relref "combining" >}}) | 2 | Merging collections: `union`, `combine` |
-| [Conversion Functions]({{< relref "conversion" >}}) | 17 | Type conversion: `iif`, `toBoolean`, `toInteger`, `toDecimal`, `toString`, `toDate`, `toDateTime`, `toTime`, `toQuantity`, and `convertsTo*` variants |
+| [Conversion Functions]({{< relref "conversion" >}}) | 19 | Type conversion: `iif`, `toBoolean`, `toInteger`, `toLong`, `toDecimal`, `toString`, `toDate`, `toDateTime`, `toTime`, `toQuantity`, and `convertsTo*` variants |
 | [Type Checking Functions]({{< relref "type-checking" >}}) | 3 | Type inspection: `is`, `as`, `ofType` |
 | [Temporal Functions]({{< relref "temporal" >}}) | 10 | Date/time operations: `now`, `today`, `timeOfDay`, `year`, `month`, `day`, `hour`, `minute`, `second`, `millisecond` |
 | [Utility Functions]({{< relref "utility" >}}) | 3 | Debugging and navigation: `trace`, `children`, `descendants` |
