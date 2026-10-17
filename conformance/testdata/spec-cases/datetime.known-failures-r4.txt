@@ -1,0 +1,12 @@
+# Spec cases this engine does not pass yet; see testdata/spec-cases/README.md.
+# One "group/test" per line. Maintained by TestSpecCases; regenerate with
+#   go test -run TestSpecCases -update-known-failures
+# Every line needs a reason in the area's known-failure-reasons.txt.
+REQ-DATETIME-025/REQ-DATETIME-025-a
+REQ-DATETIME-025/REQ-DATETIME-025-b
+REQ-DATETIME-025/REQ-DATETIME-025-c
+REQ-DATETIME-025/REQ-DATETIME-025-d
+REQ-DATETIME-025/REQ-DATETIME-025-e
+REQ-DATETIME-025/REQ-DATETIME-025-f
+REQ-DATETIME-037/REQ-DATETIME-037-b
+REQ-DATETIME-038/REQ-DATETIME-038-b

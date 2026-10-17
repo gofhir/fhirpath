@@ -205,9 +205,18 @@ this engine does, which is the greatest value the hour can hold.
 
 Where the suite and the specification's examples disagree about timezones, the
 suite is followed: it expects `@2014-01-01T08.lowBoundary(17)` to carry `+14:00`,
-the offset that makes the instant earliest, while the specification's example
-shows no offset at all. The suite's reading is the stricter one — a boundary
-should bound — and fhirpath.js omits the offset, so it fails that case.
+the offset that makes the instant earliest, while 3.0.0's example shows no
+offset at all. The suite's reading is the stricter one — a boundary should
+bound — and it is FHIR R5's own: "the lowBoundary of 2010-10-10 is
+2010-10-10T00:00:00.000+14:00". The HL7 validator adds the offsets too, and
+fhirpath.js omits them. What decides it is a published constraint: R5's per-1
+is `start.lowBoundary() <= end.highBoundary()`, and on a period from
+`2001-05-06` to `2001-05-06T10:10:10Z` both reference engines answer true.
+This engine orders a DateTime with no offset against one with an offset only
+where the caller places it (see
+[A default timezone offset is the caller's policy](#a-default-timezone-offset-is-the-callers-policy-not-the-engines)),
+so a boundary without one would make per-1 fail a valid period; with the
+widest offsets it holds. Measured while working the datetime spec cases.
 
 ### An empty sort key is the lowest value
 
@@ -438,7 +447,7 @@ The areas are taken in the order published constraints use them, counted over
 the 610 distinct constraint expressions of the R4, R4B and R5 core and the IGs
 in the validator's package cache: existence first (`exists` in 353 of them,
 `empty` in 168, `count` in 50, `all` in 43), then Boolean logic, equality and
-comparison, filtering, strings, collections, the FHIR functions, math.
+comparison, filtering, strings, collections, the FHIR functions, math, date and time.
 
 | Area | Requirements | Cases | Pass, R4 and R5 | Alone against fhirpath.js and Java |
 |---|---|---|---|---|
@@ -449,6 +458,7 @@ comparison, filtering, strings, collections, the FHIR functions, math.
 | strings | 88 | 317 | 316 | on two points, each as 3.0.0 states: characters counted as Unicode scalar values, and `encode('hex')` in lower case |
 | collections | 35 | 173 | 173 | none where the other two answer; `combine(other, preserveOrder)`, which both refuse |
 | fhir-functions | 56 | 196 | 160 of 168 in R4, 172 of 185 in R5 | none where the other two answer, `htmlChecks()` on a narrative or a string aside, which takes a checker here; `subsumes()`, `subsumedBy()`, `checkModifiers()`, `elementDefinition()`, `trace()`'s projection and `%'vs-…'`, which both refuse |
+| datetime | 68 | 345 | 337 | on `duration()` and `difference()`, which both refuse, and on a Date past year 9999, which both write as `10000-12-31`; a Date plus a time unit and the offset of an unzoned boundary fail on purpose |
 | math | 72 | 404 | 380 | on `10.log(0)`, which both answer 0, on Decimal arithmetic exact to the eighth place and beyond, which both lose, and on the type of a computed number, `(2 * 1.0) is Decimal`, which each gets wrong its own way; the cases written for 2.0.0's 32-bit Integer and 3.0.0's Long fail on purpose |
 
 **Existence.** One gap, closed: a criteria that evaluates to more than one
@@ -781,6 +791,36 @@ Of the results where this engine alone differs from both references, most
 are checks of a computed value's type, `(1 + 2) is Integer`, on which the two
 agree by unrelated defects: fhirpath.js types a value by whether it has a
 fraction, and the Java engine answers false for any computed value.
+
+### Date and time
+
+Date, DateTime and Time arithmetic with calendar durations and UCUM time
+quantities, `now()`, `today()` and `timeOfDay()`, 3.0.0's component functions
+(`yearOf()` to `millisecondOf()`, `timezoneOffsetOf()`, `dateOf()`,
+`timeOf()`), `duration()` and `difference()`, and the temporal boundaries and
+`precision()`. No gap: the engine answered each case as its text, or as a
+decision recorded before.
+
+Two cases fail on purpose. A Date plus a time unit, `@2014-01-01 + 1 hour`,
+leaves the Date as it is, as fhirpath.js and the HL7 validator both answer,
+where 3.0.0 makes it an error: see the row on a quantity finer than the value
+under [Decisions taken where the specification is silent](#decisions-taken-where-the-specification-is-silent).
+And the boundary of a DateTime with no offset carries `+14:00` or `-12:00`, as
+FHIR R5's page, the validator and the official suite have it, where 3.0.0's
+example writes none: see [Remaining gaps](#remaining-gaps), where per-1 decides
+it.
+
+The UCUM codes `'wk'`, `'d'`, `'h'` and `'min'` shift a Date or a DateTime as
+the calendar's week, day, hour and minute, as 3.0.0 has them and both
+reference engines answer; 2.0.0 lists them as equivalent to the calendar
+units and also calls a definite duration above seconds an error. `'a'` and
+`'mo'` stay errors, as 3.0.0's year and month rows say.
+
+`duration()` and `difference()` both reference engines refuse, so this engine
+answers alone there, as 3.0.0 defines them. fhirpath.js writes an offset as
+`-00:00`, refuses the quoted keywords `'month'` and `'day'`, reads
+`@0001 - 1 year` as 1900 and has no `precision()`; the validator's coherent
+answers set aside are under [Measured, and not followed](#measured-and-not-followed).
 
 ## Static analysis
 
@@ -1682,7 +1722,7 @@ keeps its own answer.
 | An Age in UCUM `'a'` against calendar years: `Observation.extension.value = 41 years` | false, `> 40 years` empty | true, true, as fhirpath.js answers | FHIR maps UCUM `'a'` to the calendar `year`: see [Rules the FHIRPath suite does not reach](#rules-the-fhirpath-suite-does-not-reach) |
 | An Integer against a quantity: `23 = 23 '1'`, `2 < 3 '1'`; `2 '1'.comparable(3)`, `1.comparable(2)` | false, empty; false, false | true, true; true, true, as fhirpath.js answers | 2.0.0's implicit conversion to Quantity, as above; 3.0.0 gives both `comparable()` examples as true |
 | DateTime literals to the minute, `@2012-01-01T10:30 = @2012-01-01T10:30`; `2 years > 1 year`; `Patient.telecom.rank < 2`, a positiveInt against an Integer | an exception | the answer, as fhirpath.js gives it | An exception |
-| Date and time arithmetic by an amount past the calendar or the int range: `@2020-01-01 + 18446744073709551617 days`, `@2020-01-01 + 7980 years`, `@T10:00 + 9223372036854775807 hours` | wraps, `@2020-01-02`; no bound on the year, `10000-01-01`; `@T09:00`. fhirpath.js answers `NaN-NaN-NaN` and `10000-01-01` | an error, "If the resulting year is out of range, an error is thrown"; `@T17:00`, the amount modulo a day. A clock amount within the calendar but past what Go's `time.Duration` holds, about 292 years, shifts too: `@2020-01-01T10:00:00Z + 3000000 hours` is `@2362-03-29T10:00:00Z`. A date component on a time is an error whatever its amount, `+ 0 days` and `+ 0.5 days` included: "This includes attempting to add date components to a Time". Amounts are Go `int`s, so on a 32-bit platform a clock amount past about 24 days in milliseconds is past the calendar too | Wraps past the range |
+| Date and time arithmetic by an amount past the calendar or the int range: `@2020-01-01 + 18446744073709551617 days`, `@2020-01-01 + 7980 years`, `@T10:00 + 9223372036854775807 hours` | wraps, `@2020-01-02`; no bound on the year, `10000-01-01`; `@T09:00`. fhirpath.js answers `NaN-NaN-NaN` and `10000-01-01` | an error, "If the resulting year is out of range, an error is thrown"; `@T17:00`, the amount modulo a day. A clock amount within the calendar but past what Go's `time.Duration` holds, about 292 years, shifts too: `@2020-01-01T10:00:00Z + 3000000 hours` is `@2362-03-29T10:00:00Z`. A date component on a time is an error whatever its amount, `+ 0 days` and `+ 0.5 days` included: "This includes attempting to add date components to a Time". Amounts are Go `int`s, so on a 32-bit platform a clock amount past about 24 days in milliseconds is past the calendar too | Wraps past the range; a Date past year 9999, which the type does not hold and the text makes an error. `@9999-12-31 + 1 year` is `10000-12-31` in both reference engines |
 | `$index` in `exists()`, `all()` and `where()`, a `where()` within `select()` among them: `(10 \| 20 \| 30).exists($index = 2)`, `Patient.name.where($index = 1)` | false, `all($index < 2)` true, `where($index = 1)` empty: 0 in every iteration, where `select()` sets it | true, false, the second name, as fhirpath.js answers | Not set there |
 | `subsetOf()` and `supersetOf()` with decimals written to other precisions: `1.0.subsetOf(1.00 \| 2.0)` | false | true, as fhirpath.js answers | Membership is by `=`, under which "trailing zeroes after the decimal are ignored" |
 | `distinct()`, `isDistinct()`, `subsetOf()` and `repeat()` over dates at different precisions: `@2012.combine(@2012-01)`, `@2012.subsetOf(@2012-01)`, `1.repeat(@2012.combine(@2012-01)).count()` | `distinct().count()` 0, `isDistinct()` empty, `subsetOf()` true, `repeat()` 1 | 2, true, false, 2, as fhirpath.js answers | No item kept of two, neither said equal; a member of what holds no equal to it. 3.0.0: an empty `=` is not a match |
@@ -1702,6 +1742,10 @@ keeps its own answer.
 | Decimal arithmetic at eight places and beyond: `0.00000001 + 0.00000001 = 0.00000002`, `5.5 div 0.7 = 7`, `5.5 mod 0.7 = 0.6`, `0.00000005.round(7) = 0.0000001` | false | true, as fhirpath.js answers | Decimals add, divide and round as decimals; the validator's own answer differs from the exact one in its last places |
 | `+` and `-` between literal quantities: `3 'cm' + 2 'cm'`, `5 'mg' - 2 'mg'` | an exception, and empty | `5 'cm'`, `3 'mg'`, as fhirpath.js answers | An exception, and two answers that cannot both hold |
 | `is Integer` and `is Decimal` on a computed value: `(1 + 2) is Integer`, `2.5.power(2) is Decimal` | false | true, as fhirpath.js answers | Every computed number is of one of the two types; fhirpath.js reads which from the value itself, `(2 * 1.0) is Decimal` false there, where the result of a Decimal operand is a Decimal |
+| A partial date shifted at full precision: `@2016 + 365 days`, `@2026-02 + 4 weeks`, `@2014 - 23 months`, `@2014-01-01 - 1 second` | `2016`, `2026-03`, `2012`, `2013-12-31` | `2017`, `2026-02`, `2013`, `2014-01-01`, as fhirpath.js answers | 3.0.0's own examples: the duration is converted to the value's precision first, `@2014 - 1 month // @2014` |
+| Time arithmetic gaining a precision: `@T10:30 + 45 minutes` | `11:15:00` | `11:15`, as fhirpath.js answers | The result keeps the precision of the value |
+| A negative quantity added as its magnitude: `@2014-03-31 + (-1 month)`, `@2014-06-15 - (-2 years)` | `2014-04-30`, `2012-06-15` | `2014-02-28`, `2016-06-15`, as fhirpath.js answers | Adding a negative amount moves back |
+| `is Date`, `is DateTime` and `is Time` on a computed value: `(@2014-01-01 + 1 day) is Date`, `now() is DateTime` | false | true, as fhirpath.js answers | As for `is Integer` on a computed number, above |
 | `skip()` and `take()` given a String: `Patient.telecom.use.skip('1')` | converts it, all but the first item | an error, as fhirpath.js raises | `num` is an Integer, and a String converts to one only through `toInteger()` |
 | `{}.single()`; `skip(-1)` | an exception | empty; the input, as "If `num` is less than or equal to zero, the input collection is simply returned" | An exception |
 | `getValue()`: `Patient.active.getValue()`; `extension({})` | an exception | `true`, as fhirpath.js answers; empty | An exception |
@@ -1713,7 +1757,7 @@ keeps its own answer.
 | `1 'Cel'.comparable(1 '[degF]')` | false | true, as fhirpath.js answers | 3.0.0's own example is true: both are temperatures |
 | `hasValue()` of a quantity: `1 'mg'.hasValue()` | true | false, as fhirpath.js answers | A quantity is no primitive, FHIR or System |
 | `encode('hex')` | upper case, `7A3F` | lower case, `7a3f` | 3.0.0: "hexadecimal characters (base 16) in lowercase"; fhirpath.js mixes the cases |
-| `min()`, `max()`, `toDate()`, `repeatAll()`, `lastIndexOf()`, regular expression flags, `encode('ascii')`, `combine()`'s `preserveOrder`; `ofType(System.Any)` | not known functions or formats; System.Any no type; `combine()` of two arguments refused | | Not implemented there; fhirpath.js has neither `repeatAll()`, the `ascii` format nor `preserveOrder` |
+| `timeOfDay()`, `yearOf()` and the other component functions, `duration()`, `difference()`, `min()`, `max()`, `toDate()`, `repeatAll()`, `lastIndexOf()`, regular expression flags, `encode('ascii')`, `combine()`'s `preserveOrder`; `ofType(System.Any)` | not known functions or formats; System.Any no type; `combine()` of two arguments refused | | Not implemented there; fhirpath.js has neither `repeatAll()`, the `ascii` format nor `preserveOrder` |
 
 ## Decisions taken where the specification is silent
 
@@ -1730,7 +1774,7 @@ was reasoned or accidental.
 | `type()` results per element | One per input element | 3.0.0 states this, then contradicts it in its own `ListTypeInfo` example |
 | `min()` and `max()` over items some of which have no order | The item that orders against every other and stands below, or above, them all; empty where no item does. `(@2019 | @2020-01-01T10Z | @2020-01-01T10:30Z).min()` is `@2019`, and `.max()` empty. Items `<` refuses, `1` and `'a'`, end the evaluation | The specification defines the aggregates by "the Comparison Operators for the type of value being aggregated", which answer empty for such a pair, and says "All items in the input collection SHALL be the same type, otherwise an exception is thrown". Skipping such pairs answered by input order, the same value as both minimum and maximum. fhirpath.js skips them too; it gives `.max()` above as `@2020-01-01T10Z` |
 | A date off the calendar or a time off the clock | Not a date or a time: `@2021-02-30`, `@2021-13-01`, `@T24:00` and an offset beyond ±14:00 are parse errors; `'2021-02-30'.toDate()` is empty and `convertsToDate()` false; in the input, such a string is read as the string it is, of the type its element declares, so comparing it with a date, as `per-1` does, is the type error comparing any string with a date is, as in fhirpath.js. A leap second, `23:59:60`, which FHIR's dateTime, instant and time allow, is read, as fhirpath.js and the HL7 validator read it, and held as the validator holds it: a DateTime as the second after it, so `@2016-12-31T23:59:60Z = @2017-01-01T00:00:00Z` and `> @2016-12-31T23:59:59Z` are true and a second later is `00:00:01`, written back as it was, its components too: `toDate()` is `2016-12-31`, the day it falls on, and `secondOf()` 60, as fhirpath.js answers, where the validator raises an exception, and compared at a coarser precision it is within its day and its minute, `> @2016-12-31` empty, as fhirpath.js answers, where the validator answers true; a Time as written, a shift of nothing leaving it so, after `@T23:59:59` and equal to no other, a second later `00:00:01`. fhirpath.js reads it as neither, `> 23:59:59Z` false and a second later `00:00:00`. A leap second needs a day to fall on, and one within FHIRPath's range: `@2012T12:30:60` and `@9999-12-31T23:59:60Z`, whose next second is in year 10000, are no DateTime. Up to 1.14.1 it was refused, and a FHIR instant written with one compared as a string. Arithmetic past year 9999 or before year 1 ends the evaluation with an error, as 3.0.0 asks | FHIRPath's Date runs "@0001-01-01 to @9999-12-31" and its Time "@T00:00:00.000 to @T23:59:59.999"; fhirpath.js rejects such literals too. A leap second is past that end, and both engines read it all the same, as FHIR, whose data it is, allows it. Accepted as written, February 30 was compared as itself component by component and as March 2 at an offset, where time.Date normalizes it, which made equality intransitive |
-| A quantity finer than the date, time or date/time it shifts | Converted to the value's precision first, truncating toward zero, at 12 months or 365 days to a year and 30 days to a month: `@2016 + 365 days` is `@2017`, `@2026-02 + 4 weeks` is `@2026-02`, `@2000 - 1 day` is `@2000`, `@T10 - 30 minutes` is `@T10`. Seconds and milliseconds are one precision: a value written to the second is shifted to the millisecond and the millisecond then dropped, so `@2000-01-01T00:00:00 - 1 'ms'` is `@1999-12-31T23:59:59`, and there a remainder of less than a second rounds down rather than toward zero | 3.0.0: "converting the time-valued quantity to the highest precision in the partial (truncating any decimal fraction) and then adding", with these examples. Shifting at full precision and dropping the finer components afterwards moved a value a whole unit back for any subtraction, `@2000 - 1 day` to `@1999`. Seconds and milliseconds are one precision in comparison too, and fhirpath.js also moves into the previous second, though it keeps the millisecond, `09:59:59.999` |
+| A quantity finer than the date, time or date/time it shifts | Converted to the value's precision first, truncating toward zero, at 12 months or 365 days to a year and 30 days to a month: `@2016 + 365 days` is `@2017`, `@2026-02 + 4 weeks` is `@2026-02`, `@2000 - 1 day` is `@2000`, `@T10 - 30 minutes` is `@T10`. Seconds and milliseconds are one precision: a value written to the second is shifted to the millisecond and the millisecond then dropped, so `@2000-01-01T00:00:00 - 1 'ms'` is `@1999-12-31T23:59:59`, and there a remainder of less than a second rounds down rather than toward zero. A Date takes a time unit the same way, `@2014-01-01 + 1 hour` being `@2014-01-01`, as fhirpath.js and the HL7 validator both answer, by rule 1, though 3.0.0's table gives hours and finer to DateTime and Time alone and makes "an unsupported unit for the type" an error | 3.0.0: "converting the time-valued quantity to the highest precision in the partial (truncating any decimal fraction) and then adding", with these examples. Shifting at full precision and dropping the finer components afterwards moved a value a whole unit back for any subtraction, `@2000 - 1 day` to `@1999`. Seconds and milliseconds are one precision in comparison too, and fhirpath.js also moves into the previous second, though it keeps the millisecond, `09:59:59.999` |
 | Comparing temporals written at two different offsets | As the instants they start at, "converted to a common timezone offset", as fhirpath.js and the HL7 validator compare them: `@2020-01-01T10+05:30` is 04:30 at UTC, so it is after `@2020-01-01T04Z` and `04:29Z`, before `05Z`, unequal to `04Z`, and equal to `@2020-01-01T11+06:30`. The same instant at different precisions has no answer, as at one offset: `@2020-01-01T10+05:30 = @2020-01-01T04:30Z` is empty. An offset follows a time and nothing else, as in the grammar and in FHIR's dateTime, so `'2020-01-01+05:00'` is no DateTime and `toDateTime()` of it is empty | Up to 1.14.1 they compared as the spans of time they name, the hour from 04:30 to 05:30, and two that overlapped had no order: `> 04Z` was empty where both engines answer true. Measured with validator 6.10.2 and fhirpath.js 5.2.0. Where the two part ways, a different precision on each side, `10+05:30 < 04:31Z` (fhirpath.js false, the validator true) and `10:15+05:30 > 04Z` (fhirpath.js empty, the validator true), this engine orders the instants, as the validator does. `=` between two at different offsets, where the validator raises an exception, answers as fhirpath.js: false for two instants, empty for one instant at two precisions |
 | Comparing a temporal that carries a timezone offset with one that does not | No answer — empty, reported as `ErrOffsetMismatch`. Under `~`, which always answers, false, as for values at different precisions, and `union()`, `distinct()` and `in` hold the two as different values. A Date compares with a DateTime at the same precision, `@2020-01-01 ~ @2020-01-01T` true, as it converts to one | The default offset is a policy the specification leaves to the caller, and FHIR requires the offset where it matters, so a bare value is a literal or invalid data. See below |
 | Temporal comparison across precisions | Component by component, stopping at the first difference; empty only when everything shared matches | Not a judgement call — the spec states it, and it is why `now() > today()` is empty while `now() > @1974-12-25` is true |
