@@ -1,0 +1,1219 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tests name="conversions" description="Literals and conversions. The literal syntax of every type: Boolean, String with its escapes and the backslash before a non-escape character, Integer (the minus sign being the unary operator), Decimal (no exponent), Date, Time and DateTime with partial precision, the T suffix and timezone offsets, Quantity with UCUM units and the calendar duration keywords singular and plural, the empty collection, and literals the pinned grammar refuses (double quotes, an unterminated string, exponents, a missing year, an offset on a Time, an unknown or capitalised keyword). The implicit conversions of the Conversion table (Integer to Decimal, Integer and Decimal to Quantity with unit '1', Date to DateTime) and their absence where the table has none. The conversion functions toBoolean, toInteger, toLong (3.0.0, STU), toDecimal, toQuantity with and without a unit (a calendar duration keyword as the unit and the calendar conversion factors included), toString, toDate and toDateTime (with 3.0.0's format argument, STU), toTime and every convertsToX: what converts, what each conversion yields, what does not convert (empty for toX, false for convertsToX), more than one input item (error) and an empty input (empty); and FHIR primitives and FHIR Quantity converted as the System types the R4 and R5 pages map them to. Where 2.0.0 and 3.0.0 differ the case follows 2.0.0, except where 3.0.0 fixes a defect of 2.0.0 (toQuantity(unit) returning a Boolean, toString returning false, the doubled backslash of the sign in the integer and decimal regexes) or defines what 2.0.0 does not (toLong, the unit '1' of a unitless quantity string, toDate of a DateTime without timezone normalisation, the format argument, the unary minus on a String). Left out because the text does not settle them: Long literals (the pinned grammar has no L suffix), integer literals and integer strings outside the Integer range, decimals beyond the stated range and precision, fractional seconds beyond milliseconds, date and time literals and strings with an impossible component (month 13, 30 February, hour 25) and whether the failure is a parse or a run-time error, week and ordinal dates, a quantity literal whose unit is not valid UCUM, a time string with an offset, a date-only string given to toDateTime (such as '2015-02-04', with no T at all) or a datetime string ending in T, the timezone offset and the precision of a toDateTime(format) result when the template has no Z code and stops before the seconds, a quantity string whose unquoted word is not a calendar keyword or is capitalised, the trailing zeros and the number of fraction digits toString writes for a Decimal, how toString writes the value of a quantity from an integer literal, a Z offset and a DateTime that ends at the year with T, the unit spelling 3.0.0 uses for a calendar quantity in toString, conversions between different units without UCUM support, convertsToQuantity with a unit commensurable with the input's but different from it (true where the implementation converts, false where it may not), the FHIR integer64 and time primitives (no suite input holds one), convertsToQuantity and toDate with an empty argument beyond the general rule, a unit or format argument that is not a String, toInteger of a Long outside the Integer range, convertsToLong of a string outside 64 bits, and the format codes 3.0.0 makes optional. iif, and the operators already covered by the math and equality-comparison areas, are not repeated.">
+
+  <!-- Literals: Boolean and String -->
+
+  <group name="REQ-CONVERSIONS-001" description="true and false are the Boolean literals">
+    <source spec="fhirpath-2.0.0" section="Boolean" strength="DEFINITION">The `Boolean` type represents the logical Boolean values `true` and `false`.</source>
+    <source spec="fhirpath-3.0.0" section="Boolean" strength="DEFINITION">The `Boolean` type represents the logical Boolean values `true` and `false`.</source>
+    <source spec="fhirpath-2.0.0" section="Literals" strength="EXAMPLE">Boolean: true, false</source>
+    <test name="REQ-CONVERSIONS-001-a"><expression>true</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-001-b"><expression>false</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-001-c"><expression>true is System.Boolean</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-001-d"><expression>false is System.Boolean</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-002" description="A String literal is enclosed in single quotes; double quotes or a missing closing quote do not parse">
+    <source spec="fhirpath-2.0.0" section="String" strength="DEFINITION">String literals are surrounded by single-quotes and may use `\`-escapes to escape quotes and represent Unicode characters:</source>
+    <source spec="fhirpath-3.0.0" section="String" strength="DEFINITION">String literals are surrounded by single-quotes and may use `\`-escapes to escape quotes and represent Unicode characters:</source>
+    <source spec="fhirpath-2.0.0" section="Literals" strength="DEFINITION">|Strings of any character enclosed within single-ticks (`'`)</source>
+    <source spec="fhirpath-2.0.0" section="Literals" strength="EXAMPLE">String: 'test string', 'urn:oid:3.4.5.6.7.8'</source>
+    <source spec="fhirpath-2.0.0" section="Formal Syntax" strength="DEFINITION">Note: If there are discrepancies between this documentation and the grammar included at the above link, the grammar is considered the source of truth.</source>
+    <test name="REQ-CONVERSIONS-002-a"><expression>'test string'</expression><output type="string">test string</output></test>
+    <test name="REQ-CONVERSIONS-002-b"><expression>'urn:oid:3.4.5.6.7.8' is System.String</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-002-c"><expression invalid="syntax">"test string"</expression></test>
+    <test name="REQ-CONVERSIONS-002-d"><expression invalid="syntax">'test string</expression></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-003" description="Each escape of the String table stands for its character: single quote, double quote, backtick, carriage return, line feed, tab, form feed and backslash">
+    <source spec="fhirpath-2.0.0" section="String" strength="DEFINITION">|`\'`|Single-quote</source>
+    <source spec="fhirpath-2.0.0" section="String" strength="DEFINITION">|`\"`|Double-quote</source>
+    <source spec="fhirpath-2.0.0" section="String" strength="DEFINITION">|`\``|Backtick</source>
+    <source spec="fhirpath-2.0.0" section="String" strength="DEFINITION">|`\r`|Carriage Return</source>
+    <source spec="fhirpath-2.0.0" section="String" strength="DEFINITION">|`\n`|Line Feed</source>
+    <source spec="fhirpath-2.0.0" section="String" strength="DEFINITION">|`\t`|Tab</source>
+    <source spec="fhirpath-2.0.0" section="String" strength="DEFINITION">|`\f`|Form Feed</source>
+    <source spec="fhirpath-2.0.0" section="String" strength="DEFINITION">|`\\`|Backslash</source>
+    <source spec="fhirpath-2.0.0" section="String" strength="DEFINITION">|`\uXXXX`|Unicode character, where XXXX is the hexadecimal representation of the character</source>
+    <source spec="fhirpath-3.0.0" section="String" strength="DEFINITION">| `\'` | Single-quote |</source>
+    <source spec="fhirpath-3.0.0" section="String" strength="DEFINITION">| `` \` `` | Backtick |</source>
+    <source spec="fhirpath-3.0.0" section="String" strength="DEFINITION">| `\f` | Form Feed |</source>
+    <test name="REQ-CONVERSIONS-003-a"><expression>'\''.length()</expression><output type="integer">1</output></test>
+    <test name="REQ-CONVERSIONS-003-b"><expression>'\"' = '"'</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-003-c"><expression>'\`' = '`'</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-003-d"><expression>'\r' = '\u000D'</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-003-e"><expression>'\n' = '\u000A'</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-003-f"><expression>'\t' = '\u0009'</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-003-g"><expression>'\f' = '\u000C'</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-003-h"><expression>'\\'.length()</expression><output type="integer">1</output></test>
+    <test name="REQ-CONVERSIONS-003-i"><expression>'a\'b'.length()</expression><output type="integer">3</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-004" description="A backslash before a character that starts no escape sequence is dropped, as the text's examples show (\/ is not in the table, so it is such a sequence)">
+    <source spec="fhirpath-2.0.0" section="String" strength="DEFINITION">No other escape sequences besides those listed above are recognized.</source>
+    <source spec="fhirpath-2.0.0" section="String" strength="DEFINITION">If a `\` is used at the beginning of a non-escape sequence, it will be ignored and will not appear in the sequence.</source>
+    <source spec="fhirpath-2.0.0" section="String" strength="EXAMPLE">define TestEscape1: '\p' // 'p'</source>
+    <source spec="fhirpath-2.0.0" section="String" strength="EXAMPLE">define TestEscape2: '\\p' // '\p'</source>
+    <source spec="fhirpath-2.0.0" section="String" strength="EXAMPLE">define TestEscape3: '\3' // '3'</source>
+    <source spec="fhirpath-2.0.0" section="String" strength="EXAMPLE">define TestEscape4: '\u005' // 'u005'</source>
+    <source spec="fhirpath-2.0.0" section="String" strength="EXAMPLE">define TestEscape5: '\' // ''</source>
+    <source spec="fhirpath-3.0.0" section="String" strength="EXAMPLE">'\u005' // 'u005' ; unicode escape sequences have 4 characters, not 3, hence not detected as an escaped sequence</source>
+    <source spec="fhirpath-3.0.0" section="String" strength="EXAMPLE">'\' // '' ; an empty string</source>
+    <test name="REQ-CONVERSIONS-004-a"><expression>'\p' = 'p'</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-004-b"><expression>'\\p'.length()</expression><output type="integer">2</output></test>
+    <test name="REQ-CONVERSIONS-004-c"><expression>'\3' = '3'</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-004-d"><expression>'\u005' = 'u005'</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-004-e"><expression>'\'.length()</expression><output type="integer">0</output></test>
+    <test name="REQ-CONVERSIONS-004-f"><expression>'\/' = '/'</expression><output type="boolean">true</output></test>
+  </group>
+
+  <!-- Literals: numbers -->
+
+  <group name="REQ-CONVERSIONS-005" description="An Integer literal is a sequence of digits; the minus sign is the unary operator, applied after invocation, so a negative literal must be parenthesised before a function call">
+    <source spec="fhirpath-2.0.0" section="Integer" strength="DEFINITION">The `Integer` type represents whole numbers in the range -2^31^ to 2^31^-1.</source>
+    <source spec="fhirpath-2.0.0" section="Integer" strength="DEFINITION">Note that the minus sign (`-`) in the representation of a negative integer is not part of the literal, it is the unary negation operator defined as part of FHIRPath syntax.</source>
+    <source spec="fhirpath-3.0.0" section="Integer" strength="DEFINITION">Note that the minus sign (`-`) in the representation of a negative integer is not part of the literal, it is the unary negation operator defined as part of FHIRPath syntax.</source>
+    <source spec="fhirpath-2.0.0" section="Literals" strength="DEFINITION">|Sequences of digits in the range 0..2^32^-1</source>
+    <source spec="fhirpath-2.0.0" section="Literals" strength="EXAMPLE">Integer: 0, 45</source>
+    <source spec="fhirpath-2.0.0" section="Operator precedence" strength="DEFINITION">Because the invocation operator (`.`) has a higher precedence than the unary negation (`-`), the unary negation will be applied to the result of the combine of 7 and 3, resulting in an error (because unary negation cannot be applied to a list):</source>
+    <source spec="fhirpath-2.0.0" section="Operator precedence" strength="EXAMPLE">-(7.combine(3)) // ERROR</source>
+    <source spec="fhirpath-2.0.0" section="Operator precedence" strength="EXAMPLE">(-7).combine(3) // { -7, 3 }</source>
+    <source spec="fhirpath-3.0.0" section="Unary operators (`+` and `-`)" strength="DEFINITION">The unary operators support a single item input operand of type Integer, Long, Decimal, or Quantity.</source>
+    <source spec="fhirpath-3.0.0" section="Unary operators (`+` and `-`)" strength="DEFINITION">Using with any incompatible type will end and signal an error to the calling environment.</source>
+    <test name="REQ-CONVERSIONS-005-a"><expression>0</expression><output type="integer">0</output></test>
+    <test name="REQ-CONVERSIONS-005-b"><expression>45</expression><output type="integer">45</output></test>
+    <test name="REQ-CONVERSIONS-005-c"><expression>-5</expression><output type="integer">-5</output></test>
+    <test name="REQ-CONVERSIONS-005-d"><expression>(-5) is System.Integer</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-005-e"><expression>007</expression><output type="integer">7</output></test>
+    <test name="REQ-CONVERSIONS-005-f"><expression>2147483647 is System.Integer</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-005-g"><expression invalid="execution">-7.combine(3)</expression></test>
+    <test name="REQ-CONVERSIONS-005-h"><expression>(-7).combine(3).where($this &lt; 0)</expression><output type="integer">-7</output></test>
+    <test name="REQ-CONVERSIONS-005-i"><expression invalid="execution">-5.toString()</expression></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-006" description="A Decimal literal is digits, a point and digits, with at least the 10^-8 step; exponential notation and a point without digits on either side do not parse">
+    <source spec="fhirpath-2.0.0" section="Decimal" strength="DEFINITION">The `Decimal` type represents real values in the range (-10^28^+1)/10^8^ to (10^28^-1)/10^8^ with a step size of 10^-8^.</source>
+    <source spec="fhirpath-2.0.0" section="Decimal" strength="SHALL">Implementations can provide support for larger decimals and higher precision, but must provide at least the range and precision defined here.</source>
+    <source spec="fhirpath-2.0.0" section="Decimal" strength="DEFINITION">Decimal literals cannot use exponential notation.</source>
+    <source spec="fhirpath-3.0.0" section="Decimal" strength="DEFINITION">Decimal literals cannot use exponential notation.</source>
+    <source spec="fhirpath-2.0.0" section="Literals" strength="DEFINITION">|Sequences of digits with a decimal point, in the range (-10^28^+1)/10^8^..(10^28^-1)/10^8^</source>
+    <source spec="fhirpath-2.0.0" section="Literals" strength="EXAMPLE">Decimal: 0.0, 3.14159265</source>
+    <source spec="fhirpath-2.0.0" section="Formal Syntax" strength="DEFINITION">Note: If there are discrepancies between this documentation and the grammar included at the above link, the grammar is considered the source of truth.</source>
+    <test name="REQ-CONVERSIONS-006-a"><expression>0.0 is System.Decimal</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-006-b"><expression>3.14159265 is System.Decimal</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-006-c"><expression>0.00000001 &gt; 0.0</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-006-d"><expression invalid="syntax">1.0e10</expression></test>
+    <test name="REQ-CONVERSIONS-006-e"><expression invalid="syntax">1e3</expression></test>
+    <test name="REQ-CONVERSIONS-006-f"><expression invalid="syntax">.5</expression></test>
+    <test name="REQ-CONVERSIONS-006-g"><expression invalid="syntax">5.</expression></test>
+  </group>
+
+  <!-- Literals: Date, Time, DateTime -->
+
+  <group name="REQ-CONVERSIONS-007" description="A Date literal is @ and YYYY-MM-DD, month and day optional; the year must be present">
+    <source spec="fhirpath-2.0.0" section="Date" strength="DEFINITION">A date literal begins with an `@`</source>
+    <source spec="fhirpath-2.0.0" section="Date" strength="DEFINITION">It uses the format **YYYY-MM-DD** format, though month and day parts are optional, and a separator is required between provided components</source>
+    <source spec="fhirpath-2.0.0" section="Date" strength="DEFINITION">Years must be present (e.g. `@-10-20` is not a valid Date in FHIRPath)</source>
+    <source spec="fhirpath-3.0.0" section="Date" strength="DEFINITION">Years must be present (e.g. `@-10-20` is not a valid Date in FHIRPath)</source>
+    <source spec="fhirpath-2.0.0" section="Date" strength="EXAMPLE">@2014-01-25</source>
+    <source spec="fhirpath-3.0.0" section="Date" strength="EXAMPLE">@2014-01 // partial date (year-month)</source>
+    <source spec="fhirpath-3.0.0" section="Date" strength="EXAMPLE">@2014    // partial date (year only)</source>
+    <source spec="fhirpath-2.0.0" section="Formal Syntax" strength="DEFINITION">Note: If there are discrepancies between this documentation and the grammar included at the above link, the grammar is considered the source of truth.</source>
+    <test name="REQ-CONVERSIONS-007-a"><expression>@2014-01-25</expression><output type="date">@2014-01-25</output></test>
+    <test name="REQ-CONVERSIONS-007-b"><expression>@2014-01</expression><output type="date">@2014-01</output></test>
+    <test name="REQ-CONVERSIONS-007-c"><expression>@2014</expression><output type="date">@2014</output></test>
+    <test name="REQ-CONVERSIONS-007-d"><expression>@2014-01-25 is System.Date</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-007-e"><expression>@2014 is System.Date</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-007-f"><expression invalid="syntax">@-10-20</expression></test>
+    <test name="REQ-CONVERSIONS-007-g"><expression invalid="syntax">@14-01-25</expression></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-008" description="A Time literal is @T and hh:mm:ss.fff, partial from the hour; it has no timezone offset, and one written after it does not parse (the grammar, the source of truth, overrides the Lexical Elements table that shows an offset)">
+    <source spec="fhirpath-2.0.0" section="Time" strength="DEFINITION">A time begins with a `@T`</source>
+    <source spec="fhirpath-2.0.0" section="Time" strength="DEFINITION">It uses the **Thh:mm:ss.fff** format</source>
+    <source spec="fhirpath-2.0.0" section="Time" strength="DEFINITION">Time values in FHIRPath do not have a timezone or timezone offset.</source>
+    <source spec="fhirpath-3.0.0" section="Time" strength="DEFINITION">Time values in FHIRPath do not have a timezone or timezone offset.</source>
+    <source spec="fhirpath-2.0.0" section="Literals" strength="DEFINITION">Time: @T14:34:28 (@ followed by ISO8601 compliant time beginning with T, no timezone offset)</source>
+    <source spec="fhirpath-2.0.0" section="Time" strength="EXAMPLE">@T12:00</source>
+    <source spec="fhirpath-3.0.0" section="Time" strength="EXAMPLE">@T14:30:14.559 // full Time including milliseconds</source>
+    <source spec="fhirpath-2.0.0" section="Formal Syntax" strength="DEFINITION">Note: If there are discrepancies between this documentation and the grammar included at the above link, the grammar is considered the source of truth.</source>
+    <test name="REQ-CONVERSIONS-008-a"><expression>@T12:00</expression><output type="time">@T12:00</output></test>
+    <test name="REQ-CONVERSIONS-008-b"><expression>@T14:30:14.559</expression><output type="time">@T14:30:14.559</output></test>
+    <test name="REQ-CONVERSIONS-008-c"><expression>@T14:34:28 is System.Time</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-008-d"><expression invalid="syntax">@T14:34:28Z</expression></test>
+    <test name="REQ-CONVERSIONS-008-e"><expression invalid="syntax">@T14:34:28+10:00</expression></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-009" description="A DateTime literal is a date, T and a time with an optional offset in which Z means +00:00; a T after a year, year-month or full date makes a partial DateTime, not a Date">
+    <source spec="fhirpath-2.0.0" section="DateTime" strength="DEFINITION">A datetime literal begins with an `@`</source>
+    <source spec="fhirpath-2.0.0" section="DateTime" strength="DEFINITION">It uses the **YYYY-MM-DDThh:mm:ss.fff(+|-)hh:mm** format</source>
+    <source spec="fhirpath-2.0.0" section="DateTime" strength="DEFINITION">**Z** is allowed as a synonym for the zero (+00:00) UTC offset.</source>
+    <source spec="fhirpath-2.0.0" section="DateTime" strength="DEFINITION">A `T` can be used at the end of any date (year, year-month, or year-month-day) to indicate a partial DateTime.</source>
+    <source spec="fhirpath-2.0.0" section="DateTime" strength="DEFINITION">The suffix `T` is allowed after a year, year-month, or year-month-day literal because without it, there would be no way to specify a partial DateTime with only a year, month, or day; the literal would always result in a Date value.</source>
+    <source spec="fhirpath-2.0.0" section="DateTime" strength="EXAMPLE">@2014-01-25T14:30:14.559</source>
+    <source spec="fhirpath-2.0.0" section="DateTime" strength="EXAMPLE">@2014-01-25T14:30:14.559Z // A date time with UTC timezone offset</source>
+    <source spec="fhirpath-2.0.0" section="DateTime" strength="EXAMPLE">@2014-01-25T14:30 // A partial DateTime with year, month, day, hour, and minute</source>
+    <source spec="fhirpath-2.0.0" section="DateTime" strength="EXAMPLE">@2014-03-25T // A partial DateTime with year, month, and day</source>
+    <source spec="fhirpath-2.0.0" section="DateTime" strength="EXAMPLE">@2014-01T // A partial DateTime with year and month</source>
+    <source spec="fhirpath-2.0.0" section="DateTime" strength="EXAMPLE">@2014T // A partial DateTime with only the year</source>
+    <source spec="fhirpath-2.0.0" section="Literals" strength="EXAMPLE">DateTime: @2015-02-04T14:34:28+09:00 (@ followed by ISO8601 compliant date/time)</source>
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">** `DateTime`: must be exactly the same, respecting the timezone offset (though +00:00 = -00:00 = Z)</source>
+    <test name="REQ-CONVERSIONS-009-a"><expression>@2014-01-25T14:30:14.559 is System.DateTime</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-009-b"><expression>@2014-01-25T14:30:14.559Z is System.DateTime</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-009-c"><expression>@2014-01-25T14:30</expression><output type="dateTime">@2014-01-25T14:30</output></test>
+    <test name="REQ-CONVERSIONS-009-d"><expression>@2014-03-25T is System.DateTime</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-009-e"><expression>@2014-01T is System.DateTime</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-009-f"><expression>@2014T is System.DateTime</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-009-g"><expression>@2014-03-25T is System.Date</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-009-h"><expression>@2014T is System.Date</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-009-i"><expression>@2015-02-04T14:34:28+09:00 is System.DateTime</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-009-j"><expression>@2014-01-25T14:30:14Z = @2014-01-25T14:30:14+00:00</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-010" description="An offset must have hours and minutes; +09 after a DateTime is no offset but the addition of the Integer 9, which date/time arithmetic refuses">
+    <source spec="fhirpath-2.0.0" section="DateTime" strength="DEFINITION">Timezone offset is optional, but if present the notation **(+|-)hh:mm** is used (so must include both minutes and hours)</source>
+    <source spec="fhirpath-3.0.0" section="DateTime" strength="DEFINITION">Timezone offset is optional, but if present the notation `(+|-)hh:mm`{:.formatted} is used (so must include both minutes and hours)</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Arithmetic" strength="DEFINITION">The left operand must be a `Date`, `DateTime`, or `Time` value, and the right operand must be a `Quantity` with a time-valued unit</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Arithmetic" strength="DEFINITION">If there is more than one item, or an item of an incompatible type, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <test name="REQ-CONVERSIONS-010-a"><expression invalid="execution">@2014-01-25T14:30:14+09</expression></test>
+    <test name="REQ-CONVERSIONS-010-b"><expression invalid="execution">@2014-01-25T14:30:14+0900</expression></test>
+  </group>
+
+  <!-- Literals: Quantity and the empty collection -->
+
+  <group name="REQ-CONVERSIONS-011" description="A Quantity literal is a number followed by a quoted UCUM unit or a calendar duration keyword, an integer value becoming a Decimal">
+    <source spec="fhirpath-2.0.0" section="Quantity" strength="DEFINITION">The `Quantity` literal is a number (integer or decimal), followed by a (single-quoted) string representing a valid Unified Code for Units of Measure &lt;&lt;UCUM&gt;&gt; unit or calendar duration keyword. If the value literal is an Integer, it will be implicitly converted to a Decimal in the resulting Quantity value:</source>
+    <source spec="fhirpath-2.0.0" section="Quantity" strength="EXAMPLE">4.5 'mg'</source>
+    <source spec="fhirpath-2.0.0" section="Quantity" strength="EXAMPLE">100 '[degF]'</source>
+    <source spec="fhirpath-2.0.0" section="Literals" strength="EXAMPLE">Quantity: 10 'mg', 4 days</source>
+    <source spec="fhirpath-3.0.0" section="Quantity" strength="EXAMPLE">2 years       // Calendar units</source>
+    <source spec="fhirpath-2.0.0" section="Quantity" strength="SHALL">Implementations shall support comparison and arithmetic operations on quantities with units where the units are the same.</source>
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">** `Decimal`: values must be equal, trailing zeroes after the decimal are ignored</source>
+    <test name="REQ-CONVERSIONS-011-a"><expression>4.5 'mg' is System.Quantity</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-011-b"><expression>100 '[degF]' is System.Quantity</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-011-c"><expression>10 'mg' is System.Quantity</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-011-d"><expression>4 days is System.Quantity</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-011-e"><expression>2 years is System.Quantity</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-011-f"><expression>10 'mg' = 10.0 'mg'</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-012" description="Every calendar duration keyword is accepted singular and plural, and both spell the same unit">
+    <source spec="fhirpath-2.0.0" section="Quantity" strength="DEFINITION">The `Quantity` type represents quantities with a specified unit, where the `value` component is defined as a `Decimal`, and the `unit` element is represented as a `String` that is required to be either a valid Unified Code for Units of Measure &lt;&lt;UCUM&gt;&gt; unit or one of the calendar duration keywords, singular or plural.</source>
+    <source spec="fhirpath-2.0.0" section="Time-valued Quantities" strength="DEFINITION">|`year`/`years` |`'year'` |`~ 1 'a'`</source>
+    <source spec="fhirpath-2.0.0" section="Time-valued Quantities" strength="DEFINITION">|`month`/`months` |`'month'` |`~ 1 'mo'`</source>
+    <source spec="fhirpath-2.0.0" section="Time-valued Quantities" strength="DEFINITION">|`week`/`weeks` |`'week'` |`~ 1 'wk'`</source>
+    <source spec="fhirpath-2.0.0" section="Time-valued Quantities" strength="DEFINITION">|`day`/`days` |`'day'` |`~ 1 'd'`</source>
+    <source spec="fhirpath-2.0.0" section="Time-valued Quantities" strength="DEFINITION">|`hour`/`hours` |`'hour'` |`~ 1 'h'`</source>
+    <source spec="fhirpath-2.0.0" section="Time-valued Quantities" strength="DEFINITION">|`minute`/`minutes` |`'minute'` |`~ 1 'min'`</source>
+    <source spec="fhirpath-2.0.0" section="Time-valued Quantities" strength="DEFINITION">|`second`/`seconds` |`'second'` |`= 1 's'`</source>
+    <source spec="fhirpath-2.0.0" section="Time-valued Quantities" strength="DEFINITION">|`millisecond`/`milliseconds` |`'millisecond'` |`= 1 'ms'`</source>
+    <source spec="fhirpath-2.0.0" section="Quantity" strength="SHALL">Implementations shall support comparison and arithmetic operations on quantities with units where the units are the same.</source>
+    <test name="REQ-CONVERSIONS-012-a"><expression>1 year = 1 years</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-012-b"><expression>2 months = 2 month</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-012-c"><expression>1 week = 1 weeks</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-012-d"><expression>4 days = 4 day</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-012-e"><expression>1 hour = 1 hours</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-012-f"><expression>1 minute = 1 minutes</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-012-g"><expression>1 second = 1 seconds</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-012-h"><expression>1 millisecond = 1 milliseconds</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-013" description="A word after a number that is not a calendar duration keyword, or a keyword written in another case, does not parse as a Quantity">
+    <source spec="fhirpath-2.0.0" section="Quantity" strength="DEFINITION">The `Quantity` literal is a number (integer or decimal), followed by a (single-quoted) string representing a valid Unified Code for Units of Measure &lt;&lt;UCUM&gt;&gt; unit or calendar duration keyword.</source>
+    <source spec="fhirpath-2.0.0" section="Case-Sensitivity" strength="DEFINITION">FHIRPath is a case-sensitive language, meaning that case is considered when matching keywords in the language.</source>
+    <source spec="fhirpath-2.0.0" section="Formal Syntax" strength="DEFINITION">Note: If there are discrepancies between this documentation and the grammar included at the above link, the grammar is considered the source of truth.</source>
+    <test name="REQ-CONVERSIONS-013-a"><expression invalid="syntax">4 fortnights</expression></test>
+    <test name="REQ-CONVERSIONS-013-b"><expression invalid="syntax">4 Days</expression></test>
+    <test name="REQ-CONVERSIONS-013-c"><expression invalid="syntax">1 YEAR</expression></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-014" description="{ } is the literal for the empty collection">
+    <source spec="fhirpath-2.0.0" section="Literals" strength="DEFINITION">|*Empty* (`{ }`)</source>
+    <source spec="fhirpath-2.0.0" section="Null and empty" strength="DEFINITION">In expressions, the empty collection is represented as `{ }`.</source>
+    <source spec="fhirpath-3.0.0" section="Null and empty" strength="DEFINITION">In expressions, the empty collection is represented as `{ }`.</source>
+    <test name="REQ-CONVERSIONS-014-a"><expression>{ }</expression></test>
+    <test name="REQ-CONVERSIONS-014-b"><expression>{ }.empty()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-014-c"><expression>{}.count()</expression><output type="integer">0</output></test>
+  </group>
+
+  <!-- Implicit conversions -->
+
+  <group name="REQ-CONVERSIONS-015" description="An Integer is implicitly converted to Decimal when an operator meets an Integer and a Decimal, as the Conversion section's example 5 + 10.0 shows">
+    <source spec="fhirpath-2.0.0" section="Conversion" strength="DEFINITION">Implicit conversion is performed when an operator or function is used with a compatible type.</source>
+    <source spec="fhirpath-2.0.0" section="Conversion" strength="EXAMPLE">5 + 10.0</source>
+    <source spec="fhirpath-2.0.0" section="Conversion" strength="DEFINITION">In the above expression, the addition operator expects either two Integers, or two Decimals, so implicit conversion is used to convert the integer to a decimal, resulting in decimal addition.</source>
+    <source spec="fhirpath-3.0.0" section="Conversion" strength="DEFINITION">In the above expression, the addition operator expects either two Integers, or two Decimals, so implicit conversion is used to convert the integer to a decimal, resulting in decimal addition.</source>
+    <source spec="fhirpath-2.0.0" section="Conversion" strength="DEFINITION">|*Integer* |Explicit |N/A |Implicit |Implicit |Explicit |- |- |-</source>
+    <test name="REQ-CONVERSIONS-015-a"><expression>5 + 10.0 = 15.0</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-015-b"><expression>(5 + 10.0) is System.Decimal</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-015-c"><expression>(10.0 + 5) is System.Decimal</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-015-d"><expression>(5 * 2.0) is System.Decimal</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-016" description="An Integer or Decimal is implicitly converted to a Quantity with unit '1' when an operator meets it with a Quantity">
+    <source spec="fhirpath-2.0.0" section="Conversion" strength="DEFINITION">|*Integer* |Explicit |N/A |Implicit |Implicit |Explicit |- |- |-</source>
+    <source spec="fhirpath-2.0.0" section="Conversion" strength="DEFINITION">|*Decimal* |Explicit |- |N/A |Implicit |Explicit |- |- |-</source>
+    <source spec="fhirpath-2.0.0" section="Conversion" strength="DEFINITION">Implicit - Values of the type in the From column will be implicitly converted to values of the type in the To column when necessary</source>
+    <source spec="fhirpath-3.0.0" section="Conversion" strength="DEFINITION">**Note:** When an integer, long or decimal is implicitly converted to a Quantity, the resulting quantity will have the UCUM default unit ('1').</source>
+    <source spec="fhirpath-2.0.0" section="Math" strength="DEFINITION">The math operators require each operand to be a single element. Both operands must be of the same type, or of compatible types according to the rules for implicit conversion.</source>
+    <source spec="fhirpath-2.0.0" section="+ (addition)" strength="DEFINITION">For Integer, Decimal, and quantity, adds the operands.</source>
+    <source spec="fhirpath-2.0.0" section="Quantity" strength="SHALL">Implementations shall support comparison and arithmetic operations on quantities with units where the units are the same.</source>
+    <test name="REQ-CONVERSIONS-016-a"><expression>(1.5 '1' + 1) = 2.5 '1'</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-016-b"><expression>(1 + 1.5 '1') is System.Quantity</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-016-c"><expression>(2.0 '1' - 0.5) = 1.5 '1'</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-017" description="A Date is implicitly converted to a DateTime when compared with one">
+    <source spec="fhirpath-2.0.0" section="Conversion" strength="DEFINITION">|*Date* |- |- |- |- |Explicit |N/A |Implicit |-</source>
+    <source spec="fhirpath-3.0.0" section="Conversion" strength="DEFINITION">|**Date** |- |- | *-*{:.stu-bg} |- |- |Explicit |N/A |Implicit |- |</source>
+    <source spec="fhirpath-2.0.0" section="Comparison" strength="DEFINITION">Both arguments must be of the same type (or implicitly convertible to the same type), and the evaluator will throw an error if the types differ.</source>
+    <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">If both operands are collections with a single item, they must be of the same type (or be implicitly convertible to the same type), and:</source>
+    <source spec="fhirpath-2.0.0" section="DateTime" strength="DEFINITION">A `T` can be used at the end of any date (year, year-month, or year-month-day) to indicate a partial DateTime.</source>
+    <source spec="fhirpath-2.0.0" section="toDateTime() : DateTime" strength="DEFINITION">the item is a Date, in which case the result is a DateTime with the year, month, and day of the Date, and the time components empty (not set to zero)</source>
+    <test name="REQ-CONVERSIONS-017-a"><expression>@2014-01-25 = @2014-01-25T</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-017-b"><expression>@2014-01 = @2014-01T</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-017-c"><expression>@2014-01-25 &lt; @2014-01-26T</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-017-d"><expression>@2014-01-26T &gt; @2014-01-25</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-018" description="No implicit conversion exists where the table has none or only an explicit one: a Boolean in arithmetic and a Time compared with a DateTime signal an error">
+    <source spec="fhirpath-2.0.0" section="Conversion" strength="DEFINITION">|*Boolean* |N/A |Explicit |Explicit |- |Explicit |- |- |-</source>
+    <source spec="fhirpath-2.0.0" section="Conversion" strength="DEFINITION">|*Time* |- |- |- |- |Explicit |- |- |N/A</source>
+    <source spec="fhirpath-2.0.0" section="Conversion" strength="DEFINITION">Explicit - Values of the type in the From column can be explicitly converted using a function defined in this section</source>
+    <source spec="fhirpath-2.0.0" section="Math" strength="DEFINITION">If there is more than one item, or an incompatible item, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-3.0.0" section="Math" strength="DEFINITION">If there is more than one item, or incompatible items, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-2.0.0" section="Comparison" strength="DEFINITION">Both arguments must be of the same type (or implicitly convertible to the same type), and the evaluator will throw an error if the types differ.</source>
+    <test name="REQ-CONVERSIONS-018-a"><expression invalid="execution">true + 1</expression></test>
+    <test name="REQ-CONVERSIONS-018-b"><expression invalid="execution">1.5 + true</expression></test>
+    <test name="REQ-CONVERSIONS-018-c"><expression invalid="execution">false * 2</expression></test>
+    <test name="REQ-CONVERSIONS-018-d"><expression invalid="execution">@T10:00 &lt; @2014-01-01T10:00</expression></test>
+  </group>
+
+  <!-- Conversion functions: the common rules -->
+
+  <group name="REQ-CONVERSIONS-019" description="Every conversion function signals an error when its input has more than one item, even when every item would convert">
+    <source spec="fhirpath-2.0.0" section="Conversion" strength="DEFINITION">The functions in this section operate on collections with a single item. If there is more than one item, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-3.0.0" section="Conversion" strength="DEFINITION">The functions in this section operate on collections with a single item. If there is more than one item, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-2.0.0" section="toBoolean() : Boolean" strength="DEFINITION">If the input collection contains multiple items, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <test name="REQ-CONVERSIONS-019-a"><expression invalid="execution">(1 | 0).toBoolean()</expression></test>
+    <test name="REQ-CONVERSIONS-019-b"><expression invalid="execution">(1 | 0).convertsToBoolean()</expression></test>
+    <test name="REQ-CONVERSIONS-019-c"><expression invalid="execution">(1 | 2).toInteger()</expression></test>
+    <test name="REQ-CONVERSIONS-019-d"><expression invalid="execution">(1 | 'a').convertsToInteger()</expression></test>
+    <test name="REQ-CONVERSIONS-019-e"><expression invalid="execution">(1 | 2).toDecimal()</expression></test>
+    <test name="REQ-CONVERSIONS-019-f"><expression invalid="execution">(1 | 2).convertsToDecimal()</expression></test>
+    <test name="REQ-CONVERSIONS-019-g"><expression invalid="execution">(1 | 2).toQuantity()</expression></test>
+    <test name="REQ-CONVERSIONS-019-h"><expression invalid="execution">(1 'mg' | 2 'mg').convertsToQuantity()</expression></test>
+    <test name="REQ-CONVERSIONS-019-i"><expression invalid="execution">('a' | 'b').toString()</expression></test>
+    <test name="REQ-CONVERSIONS-019-j"><expression invalid="execution">('a' | 'b').convertsToString()</expression></test>
+    <test name="REQ-CONVERSIONS-019-k"><expression invalid="execution">('2014-01-01' | '2014-01-02').toDate()</expression></test>
+    <test name="REQ-CONVERSIONS-019-l"><expression invalid="execution">(@2014-01-01 | @2014-01-02).convertsToDate()</expression></test>
+    <test name="REQ-CONVERSIONS-019-m"><expression invalid="execution">('2014-01-01T10:00' | '2014-01-02T10:00').toDateTime()</expression></test>
+    <test name="REQ-CONVERSIONS-019-n"><expression invalid="execution">(@2014-01-01T10:00 | @2014-01-02T10:00).convertsToDateTime()</expression></test>
+    <test name="REQ-CONVERSIONS-019-o"><expression invalid="execution">('10:00' | '11:00').toTime()</expression></test>
+    <test name="REQ-CONVERSIONS-019-p"><expression invalid="execution">(@T10:00 | @T11:00).convertsToTime()</expression></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-020" description="Every conversion function, convertsToX included, returns empty for an empty input">
+    <source spec="fhirpath-2.0.0" section="toBoolean() : Boolean" strength="DEFINITION">If the input collection is empty, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="toBoolean() : Boolean" strength="DEFINITION">If the input collection is empty, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="convertsToString() : Boolean" strength="EXAMPLE">{}.convertsToString() // empty ; no input collection</source>
+    <test name="REQ-CONVERSIONS-020-a"><expression>{}.toBoolean()</expression></test>
+    <test name="REQ-CONVERSIONS-020-b"><expression>{}.convertsToBoolean()</expression></test>
+    <test name="REQ-CONVERSIONS-020-c"><expression>{}.toInteger()</expression></test>
+    <test name="REQ-CONVERSIONS-020-d"><expression>{}.convertsToInteger()</expression></test>
+    <test name="REQ-CONVERSIONS-020-e"><expression>{}.toDecimal()</expression></test>
+    <test name="REQ-CONVERSIONS-020-f"><expression>{}.convertsToDecimal()</expression></test>
+    <test name="REQ-CONVERSIONS-020-g"><expression>{}.toQuantity()</expression></test>
+    <test name="REQ-CONVERSIONS-020-h"><expression>{}.toQuantity('mg')</expression></test>
+    <test name="REQ-CONVERSIONS-020-i"><expression>{}.convertsToQuantity()</expression></test>
+    <test name="REQ-CONVERSIONS-020-j"><expression>{}.toString()</expression></test>
+    <test name="REQ-CONVERSIONS-020-k"><expression>{}.convertsToString()</expression></test>
+    <test name="REQ-CONVERSIONS-020-l"><expression>{}.toDate()</expression></test>
+    <test name="REQ-CONVERSIONS-020-m"><expression>{}.convertsToDate()</expression></test>
+    <test name="REQ-CONVERSIONS-020-n"><expression>{}.toDateTime()</expression></test>
+    <test name="REQ-CONVERSIONS-020-o"><expression>{}.convertsToDateTime()</expression></test>
+    <test name="REQ-CONVERSIONS-020-p"><expression>{}.toTime()</expression></test>
+    <test name="REQ-CONVERSIONS-020-q"><expression>{}.convertsToTime()</expression></test>
+    <test name="REQ-CONVERSIONS-020-r" inputfile="patient-example.xml"><expression>Patient.link.toString()</expression></test>
+  </group>
+
+  <!-- toBoolean, convertsToBoolean -->
+
+  <group name="REQ-CONVERSIONS-021" description="toBoolean converts the String representations of the table, ignoring case: true, t, yes, y, 1, 1.0 to true and false, f, no, n, 0, 0.0 to false">
+    <source spec="fhirpath-2.0.0" section="toBoolean() : Boolean" strength="DEFINITION">the item is a String that is equal to one of the possible string representations of Boolean values</source>
+    <source spec="fhirpath-2.0.0" section="toBoolean() : Boolean" strength="DEFINITION">|*String* |`'true'`, `'t'`, `'yes'`, `'y'`, `'1'`, `'1.0'` |`true`</source>
+    <source spec="fhirpath-2.0.0" section="toBoolean() : Boolean" strength="DEFINITION">| |`'false'`, `'f'`, `'no'`, `'n'`, `'0'`, `'0.0'` |`false`</source>
+    <source spec="fhirpath-2.0.0" section="toBoolean() : Boolean" strength="DEFINITION">Note for the purposes of string representations, case is ignored (so that both `'T'` and `'t'` are considered `true`).</source>
+    <source spec="fhirpath-3.0.0" section="toBoolean() : Boolean" strength="DEFINITION">| **String** | `'true'`, `'t'`, `'yes'`, `'y'`, `'1'`, `'1.0'` | `true` |</source>
+    <source spec="fhirpath-3.0.0" section="toBoolean() : Boolean" strength="EXAMPLE">'true'.toBoolean()  // true</source>
+    <test name="REQ-CONVERSIONS-021-a"><expression>'true'.toBoolean()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-021-b"><expression>'t'.toBoolean()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-021-c"><expression>'yes'.toBoolean()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-021-d"><expression>'y'.toBoolean()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-021-e"><expression>'1'.toBoolean()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-021-f"><expression>'1.0'.toBoolean()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-021-g"><expression>'false'.toBoolean()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-021-h"><expression>'f'.toBoolean()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-021-i"><expression>'no'.toBoolean()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-021-j"><expression>'n'.toBoolean()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-021-k"><expression>'0'.toBoolean()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-021-l"><expression>'0.0'.toBoolean()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-021-m"><expression>'T'.toBoolean()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-021-n"><expression>'TRUE'.toBoolean()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-021-o"><expression>'Yes'.toBoolean()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-021-p"><expression>'F'.toBoolean()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-021-q"><expression>'NO'.toBoolean()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-021-r"><expression>'False'.toBoolean()</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-022" description="toBoolean converts the Integers 1 and 0 and the Decimals 1.0 and 0.0, or any decimal equal to them, to true and false">
+    <source spec="fhirpath-2.0.0" section="toBoolean() : Boolean" strength="DEFINITION">the item is an Integer and is equal to one of the possible integer representations of Boolean values</source>
+    <source spec="fhirpath-2.0.0" section="toBoolean() : Boolean" strength="DEFINITION">the item is a Decimal that is equal to one of the possible decimal representations of Boolean values</source>
+    <source spec="fhirpath-2.0.0" section="toBoolean() : Boolean" strength="DEFINITION">| *Integer* |`1` |`true`</source>
+    <source spec="fhirpath-2.0.0" section="toBoolean() : Boolean" strength="DEFINITION">| |`0` |`false`</source>
+    <source spec="fhirpath-2.0.0" section="toBoolean() : Boolean" strength="DEFINITION">| *Decimal* |`1.0` |`true`</source>
+    <source spec="fhirpath-2.0.0" section="toBoolean() : Boolean" strength="DEFINITION">| |`0.0` |`false`</source>
+    <source spec="fhirpath-3.0.0" section="toBoolean() : Boolean" strength="DEFINITION">| **Decimal** | `1.0` *(or decimal equivalent)* |`true` |</source>
+    <source spec="fhirpath-3.0.0" section="toBoolean() : Boolean" strength="DEFINITION">| | `0.0` *(or decimal equivalent)* | `false` |</source>
+    <source spec="fhirpath-3.0.0" section="toBoolean() : Boolean" strength="EXAMPLE">1.toBoolean()       // true</source>
+    <test name="REQ-CONVERSIONS-022-a"><expression>1.toBoolean()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-022-b"><expression>0.toBoolean()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-022-c"><expression>1.0.toBoolean()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-022-d"><expression>0.0.toBoolean()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-022-e"><expression>1.00.toBoolean()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-022-f"><expression>0.000.toBoolean()</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-023" description="toBoolean returns a Boolean unchanged">
+    <source spec="fhirpath-2.0.0" section="toBoolean() : Boolean" strength="DEFINITION">the item is a Boolean</source>
+    <source spec="fhirpath-3.0.0" section="toBoolean() : Boolean" strength="DEFINITION">If the input collection contains a single item, this function will return a single boolean if:</source>
+    <test name="REQ-CONVERSIONS-023-a"><expression>true.toBoolean()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-023-b"><expression>false.toBoolean()</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-024" description="toBoolean returns empty for a String, Integer or Decimal that is none of the representations, and for an item of any other type">
+    <source spec="fhirpath-2.0.0" section="toBoolean() : Boolean" strength="DEFINITION">If the item is not one the above types, or the item is a String, Integer, or Decimal, but is not equal to one of the possible values convertible to a Boolean, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="toBoolean() : Boolean" strength="DEFINITION">If the item is not one the above types, or the item is a String, Integer, or Decimal, but is not equal to one of the possible values convertible to a Boolean, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="toBoolean() : Boolean" strength="EXAMPLE">'hello'.toBoolean() // empty ({ }) ; not a recognized boolean representation</source>
+    <test name="REQ-CONVERSIONS-024-a"><expression>'hello'.toBoolean()</expression></test>
+    <test name="REQ-CONVERSIONS-024-b"><expression>'2'.toBoolean()</expression></test>
+    <test name="REQ-CONVERSIONS-024-c"><expression>'tru'.toBoolean()</expression></test>
+    <test name="REQ-CONVERSIONS-024-d"><expression>' true'.toBoolean()</expression></test>
+    <test name="REQ-CONVERSIONS-024-e"><expression>'1.00'.toBoolean()</expression></test>
+    <test name="REQ-CONVERSIONS-024-f"><expression>''.toBoolean()</expression></test>
+    <test name="REQ-CONVERSIONS-024-g"><expression>2.toBoolean()</expression></test>
+    <test name="REQ-CONVERSIONS-024-h"><expression>(-1).toBoolean()</expression></test>
+    <test name="REQ-CONVERSIONS-024-i"><expression>0.5.toBoolean()</expression></test>
+    <test name="REQ-CONVERSIONS-024-j"><expression>1.1.toBoolean()</expression></test>
+    <test name="REQ-CONVERSIONS-024-k"><expression>@2014-01-01.toBoolean()</expression></test>
+    <test name="REQ-CONVERSIONS-024-l"><expression>@2014-01-01T10:00.toBoolean()</expression></test>
+    <test name="REQ-CONVERSIONS-024-m"><expression>@T10:00.toBoolean()</expression></test>
+    <test name="REQ-CONVERSIONS-024-n"><expression>1 'mg'.toBoolean()</expression></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-025" description="convertsToBoolean is true for a Boolean and for every String, Integer and Decimal representation toBoolean accepts">
+    <source spec="fhirpath-2.0.0" section="convertsToBoolean() : Boolean" strength="DEFINITION">If the input collection contains a single item, this function will return true if:</source>
+    <source spec="fhirpath-2.0.0" section="convertsToBoolean() : Boolean" strength="DEFINITION">Possible values for Integer, Decimal, and String are described in the toBoolean() function.</source>
+    <source spec="fhirpath-2.0.0" section="toBoolean() : Boolean" strength="DEFINITION">Note for the purposes of string representations, case is ignored (so that both `'T'` and `'t'` are considered `true`).</source>
+    <source spec="fhirpath-3.0.0" section="convertsToBoolean() : Boolean" strength="EXAMPLE">'true'.convertsToBoolean() // true</source>
+    <test name="REQ-CONVERSIONS-025-a"><expression>'true'.convertsToBoolean()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-025-b"><expression>'F'.convertsToBoolean()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-025-c"><expression>'yes'.convertsToBoolean()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-025-d"><expression>'0.0'.convertsToBoolean()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-025-e"><expression>1.convertsToBoolean()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-025-f"><expression>0.convertsToBoolean()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-025-g"><expression>1.0.convertsToBoolean()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-025-h"><expression>0.0.convertsToBoolean()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-025-i"><expression>true.convertsToBoolean()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-025-j"><expression>false.convertsToBoolean()</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-026" description="convertsToBoolean is false for a String, Integer or Decimal that is none of the representations, and for an item of any other type">
+    <source spec="fhirpath-2.0.0" section="convertsToBoolean() : Boolean" strength="DEFINITION">If the item is not one of the above types, or the item is a String, Integer, or Decimal, but is not equal to one of the possible values convertible to a Boolean, the result is false.</source>
+    <source spec="fhirpath-3.0.0" section="convertsToBoolean() : Boolean" strength="DEFINITION">If the item is not one of the above types, or the item is a String, Integer, or Decimal, but is not equal to one of the possible values convertible to a Boolean, the result is `false`.</source>
+    <source spec="fhirpath-3.0.0" section="convertsToBoolean() : Boolean" strength="EXAMPLE">'abc'.convertsToBoolean()  // false ; not a recognized boolean representation</source>
+    <test name="REQ-CONVERSIONS-026-a"><expression>'abc'.convertsToBoolean()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-026-b"><expression>'hello'.convertsToBoolean()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-026-c"><expression>2.convertsToBoolean()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-026-d"><expression>0.5.convertsToBoolean()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-026-e"><expression>@2014-01-01.convertsToBoolean()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-026-f"><expression>1 'mg'.convertsToBoolean()</expression><output type="boolean">false</output></test>
+  </group>
+
+  <!-- toInteger, convertsToInteger -->
+
+  <group name="REQ-CONVERSIONS-027" description="toInteger returns an Integer unchanged, converts a String matching (\+|-)?\d+ (sign and leading zeros allowed), and converts true to 1 and false to 0 (the sign is cited from 3.0.0: 2.0.0 writes the regex with a doubled backslash, (\\+|-)?, which read literally matches backslashes, not a plus sign)">
+    <source spec="fhirpath-2.0.0" section="toInteger() : Integer" strength="DEFINITION">the item is an Integer</source>
+    <source spec="fhirpath-2.0.0" section="toInteger() : Integer" strength="DEFINITION">the item is a String and is convertible to an integer</source>
+    <source spec="fhirpath-2.0.0" section="toInteger() : Integer" strength="DEFINITION">the item is a Boolean, where `true` results in a 1 and `false` results in a 0.</source>
+    <source spec="fhirpath-2.0.0" section="toInteger() : Integer" strength="DEFINITION">If the item is a String, but the string is not convertible to an integer (using the regex format `(\\+|-)?\d+`), the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="toInteger() : Integer" strength="DEFINITION">If the item is a String, but the string is not convertible to an integer (using the regex format `(\+|-)?\d+`), the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="toInteger() : Integer" strength="EXAMPLE">'1'.toInteger()  // 1</source>
+    <test name="REQ-CONVERSIONS-027-a"><expression>5.toInteger()</expression><output type="integer">5</output></test>
+    <test name="REQ-CONVERSIONS-027-b"><expression>'1'.toInteger()</expression><output type="integer">1</output></test>
+    <test name="REQ-CONVERSIONS-027-c"><expression>'1'.toInteger() is System.Integer</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-027-d"><expression>'-12'.toInteger()</expression><output type="integer">-12</output></test>
+    <test name="REQ-CONVERSIONS-027-e"><expression>'+12'.toInteger()</expression><output type="integer">12</output></test>
+    <test name="REQ-CONVERSIONS-027-f"><expression>'007'.toInteger()</expression><output type="integer">7</output></test>
+    <test name="REQ-CONVERSIONS-027-g"><expression>true.toInteger()</expression><output type="integer">1</output></test>
+    <test name="REQ-CONVERSIONS-027-h"><expression>false.toInteger()</expression><output type="integer">0</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-028" description="toInteger returns empty for a String that does not match the integer regex as a whole: a decimal, surrounding spaces, an exponent, hexadecimal, a thousands separator, an empty string (3.0.0's example '1.0'.convertsToInteger() is false shows the regex must match the whole string)">
+    <source spec="fhirpath-2.0.0" section="toInteger() : Integer" strength="DEFINITION">If the item is a String, but the string is not convertible to an integer (using the regex format `(\\+|-)?\d+`), the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="toInteger() : Integer" strength="DEFINITION">If the item is a String, but the string is not convertible to an integer (using the regex format `(\+|-)?\d+`), the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="toInteger() : Integer" strength="EXAMPLE">'st'.toInteger() // empty ({ }) ; not convertible to an integer</source>
+    <source spec="fhirpath-3.0.0" section="convertsToInteger() : Boolean" strength="EXAMPLE">'1.0'.convertsToInteger() // false ; decimal strings are not convertible to integer</source>
+    <test name="REQ-CONVERSIONS-028-a"><expression>'st'.toInteger()</expression></test>
+    <test name="REQ-CONVERSIONS-028-b"><expression>'1.0'.toInteger()</expression></test>
+    <test name="REQ-CONVERSIONS-028-c"><expression>' 1'.toInteger()</expression></test>
+    <test name="REQ-CONVERSIONS-028-d"><expression>'1 '.toInteger()</expression></test>
+    <test name="REQ-CONVERSIONS-028-e"><expression>''.toInteger()</expression></test>
+    <test name="REQ-CONVERSIONS-028-f"><expression>'1e3'.toInteger()</expression></test>
+    <test name="REQ-CONVERSIONS-028-g"><expression>'0x1A'.toInteger()</expression></test>
+    <test name="REQ-CONVERSIONS-028-h"><expression>'1,000'.toInteger()</expression></test>
+    <test name="REQ-CONVERSIONS-028-i"><expression>'+-1'.toInteger()</expression></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-029" description="toInteger returns empty for an item that is not an Integer, String or Boolean, a Decimal included (the table defines no Decimal to Integer conversion)">
+    <source spec="fhirpath-2.0.0" section="toInteger() : Integer" strength="DEFINITION">If the item is not one the above types, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="toInteger() : Integer" strength="DEFINITION">If the item is not one the above types, the result is empty.</source>
+    <source spec="fhirpath-2.0.0" section="Conversion" strength="DEFINITION">|*Decimal* |Explicit |- |N/A |Implicit |Explicit |- |- |-</source>
+    <test name="REQ-CONVERSIONS-029-a"><expression>1.0.toInteger()</expression></test>
+    <test name="REQ-CONVERSIONS-029-b"><expression>1.5.toInteger()</expression></test>
+    <test name="REQ-CONVERSIONS-029-c"><expression>@2014-01-01.toInteger()</expression></test>
+    <test name="REQ-CONVERSIONS-029-d"><expression>@T10:00.toInteger()</expression></test>
+    <test name="REQ-CONVERSIONS-029-e"><expression>1 'mg'.toInteger()</expression></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-030" description="convertsToInteger is true for an Integer, a Boolean, and a String matching the integer regex">
+    <source spec="fhirpath-2.0.0" section="convertsToInteger() : Boolean" strength="DEFINITION">If the input collection contains a single item, this function will return true if:</source>
+    <source spec="fhirpath-2.0.0" section="convertsToInteger() : Boolean" strength="DEFINITION">the item is a String and is convertible to an Integer</source>
+    <source spec="fhirpath-3.0.0" section="convertsToInteger() : Boolean" strength="EXAMPLE">'1'.convertsToInteger()   // true</source>
+    <test name="REQ-CONVERSIONS-030-a"><expression>1.convertsToInteger()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-030-b"><expression>'1'.convertsToInteger()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-030-c"><expression>'-5'.convertsToInteger()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-030-d"><expression>true.convertsToInteger()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-030-e"><expression>false.convertsToInteger()</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-031" description="convertsToInteger is false for a String not matching the integer regex and for an item of any other type, a Decimal included">
+    <source spec="fhirpath-2.0.0" section="convertsToInteger() : Boolean" strength="DEFINITION">If the item is not one of the above types, or the item is a String, but is not convertible to an Integer (using the regex format `(\\+|-)?\d+`), the result is false.</source>
+    <source spec="fhirpath-3.0.0" section="convertsToInteger() : Boolean" strength="DEFINITION">If the item is not one of the above types, or the item is a String, but is not convertible to an Integer (using the regex format `(\+|-)?\d+`), the result is `false`.</source>
+    <source spec="fhirpath-3.0.0" section="convertsToInteger() : Boolean" strength="EXAMPLE">'1.0'.convertsToInteger() // false ; decimal strings are not convertible to integer</source>
+    <test name="REQ-CONVERSIONS-031-a"><expression>'1.0'.convertsToInteger()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-031-b"><expression>'a'.convertsToInteger()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-031-c"><expression>''.convertsToInteger()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-031-d"><expression>1.5.convertsToInteger()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-031-e"><expression>@2014-01-01.convertsToInteger()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-031-f"><expression>1 'mg'.convertsToInteger()</expression><output type="boolean">false</output></test>
+  </group>
+
+  <!-- toLong, convertsToLong (3.0.0 only, STU) -->
+
+  <group name="REQ-CONVERSIONS-032" description="toLong converts an Integer, a String matching the integer regex within 64 bits, and a Boolean (true 1, false 0) to a Long (3.0.0 only, STU; the cases avoid Long literals, which the pinned grammar does not have)">
+    <source spec="fhirpath-3.0.0" section="Long" strength="DEFINITION">The `Long` type represents whole numbers in the range -2&lt;sup&gt;63&lt;/sup&gt; to 2&lt;sup&gt;63&lt;/sup&gt;-1.</source>
+    <source spec="fhirpath-3.0.0" section="toLong() : Long" strength="DEFINITION">the item is an Integer or Long</source>
+    <source spec="fhirpath-3.0.0" section="toLong() : Long" strength="DEFINITION">the item is a String and is convertible to a 64 bit integer</source>
+    <source spec="fhirpath-3.0.0" section="toLong() : Long" strength="DEFINITION">the item is a Boolean, where `true` results in a 1 and `false` results in a 0.</source>
+    <source spec="fhirpath-3.0.0" section="toLong() : Long" strength="EXAMPLE">42.toLong()    // 42</source>
+    <source spec="fhirpath-3.0.0" section="toLong() : Long" strength="EXAMPLE">'123'.toLong() // 123</source>
+    <source spec="fhirpath-3.0.0" section="Conversion" strength="DEFINITION">|**Integer** |Explicit |N/A | *Implicit*{:.stu-bg} |Implicit |Implicit |Explicit |- |- |- |</source>
+    <source spec="fhirpath-3.0.0" section="toString() : String" strength="DEFINITION">|**Long** |`(-)?#0`{:.formatted}|</source>
+    <test name="REQ-CONVERSIONS-032-a"><expression>42.toLong() = 42</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-032-b"><expression>'123'.toLong() = 123</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-032-c"><expression>'123'.toLong() is System.Long</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-032-d"><expression>'+7'.toLong() = 7</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-032-e"><expression>'9223372036854775807'.toLong().toString()</expression><output type="string">9223372036854775807</output></test>
+    <test name="REQ-CONVERSIONS-032-f"><expression>'-9223372036854775808'.toLong().toString()</expression><output type="string">-9223372036854775808</output></test>
+    <test name="REQ-CONVERSIONS-032-g"><expression>true.toLong() = 1</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-032-h"><expression>false.toLong() = 0</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-033" description="toLong returns empty for a String that does not match the regex or exceeds 64 bits, and for an item of another type, a Decimal included (3.0.0 only, STU)">
+    <source spec="fhirpath-3.0.0" section="toLong() : Long" strength="DEFINITION">If the item is a String, but the string is not convertible to a 64 bit integer (using the regex format `(\+|-)?\d+`), the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="toLong() : Long" strength="DEFINITION">If the item is not one the above types, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="toLong() : Long" strength="EXAMPLE">'abc'.toLong() // empty ({ }) ; not convertible to a long</source>
+    <source spec="fhirpath-3.0.0" section="Long" strength="DEFINITION">The `Long` type represents whole numbers in the range -2&lt;sup&gt;63&lt;/sup&gt; to 2&lt;sup&gt;63&lt;/sup&gt;-1.</source>
+    <test name="REQ-CONVERSIONS-033-a"><expression>'abc'.toLong()</expression></test>
+    <test name="REQ-CONVERSIONS-033-b"><expression>'9223372036854775808'.toLong()</expression></test>
+    <test name="REQ-CONVERSIONS-033-c"><expression>'1.5'.toLong()</expression></test>
+    <test name="REQ-CONVERSIONS-033-d"><expression>1.5.toLong()</expression></test>
+    <test name="REQ-CONVERSIONS-033-e"><expression>@2014-01-01.toLong()</expression></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-034" description="convertsToLong is true for an Integer, a Boolean and a String convertible to a Long, false for a non-matching String and for other types (3.0.0 only, STU)">
+    <source spec="fhirpath-3.0.0" section="convertsToLong() : Boolean" strength="DEFINITION">the item is an Integer or Long</source>
+    <source spec="fhirpath-3.0.0" section="convertsToLong() : Boolean" strength="DEFINITION">the item is a String and is convertible to a Long</source>
+    <source spec="fhirpath-3.0.0" section="convertsToLong() : Boolean" strength="DEFINITION">the item is a Boolean</source>
+    <source spec="fhirpath-3.0.0" section="convertsToLong() : Boolean" strength="DEFINITION">If the item is not one of the above types, or the item is a String, but is not convertible to an Integer (using the regex format `(\+|-)?\d+`), the result is `false`.</source>
+    <source spec="fhirpath-3.0.0" section="convertsToLong() : Boolean" strength="EXAMPLE">'123'.convertsToLong() // true</source>
+    <source spec="fhirpath-3.0.0" section="convertsToLong() : Boolean" strength="EXAMPLE">'abc'.convertsToLong() // false</source>
+    <test name="REQ-CONVERSIONS-034-a"><expression>'123'.convertsToLong()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-034-b"><expression>'abc'.convertsToLong()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-034-c"><expression>42.convertsToLong()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-034-d"><expression>true.convertsToLong()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-034-e"><expression>'1.5'.convertsToLong()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-034-f"><expression>1.5.convertsToLong()</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-035" description="toLong and convertsToLong signal an error for more than one input item and return empty for an empty input (3.0.0 only, STU)">
+    <source spec="fhirpath-3.0.0" section="toLong() : Long" strength="DEFINITION">If the input collection contains multiple items, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-3.0.0" section="toLong() : Long" strength="DEFINITION">If the input collection is empty, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="convertsToLong() : Boolean" strength="DEFINITION">If the input collection is empty, the result is empty.</source>
+    <test name="REQ-CONVERSIONS-035-a"><expression invalid="execution">(1 | 2).toLong()</expression></test>
+    <test name="REQ-CONVERSIONS-035-b"><expression invalid="execution">('1' | '2').convertsToLong()</expression></test>
+    <test name="REQ-CONVERSIONS-035-c"><expression>{}.toLong()</expression></test>
+    <test name="REQ-CONVERSIONS-035-d"><expression>{}.convertsToLong()</expression></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-036" description="A Long is accepted by toInteger, toDecimal, toString and toQuantity and their convertsToX (3.0.0 only, STU)">
+    <source spec="fhirpath-3.0.0" section="toInteger() : Integer" strength="DEFINITION">the item is an Integer or Long</source>
+    <source spec="fhirpath-3.0.0" section="toInteger() : Integer" strength="EXAMPLE">42L.toInteger()  // 42 ; as an integer</source>
+    <source spec="fhirpath-3.0.0" section="toDecimal() : Decimal" strength="DEFINITION">the item is an Integer, Long or Decimal</source>
+    <source spec="fhirpath-3.0.0" section="toQuantity([unit : String]) : Quantity" strength="DEFINITION">the item is an Integer, Long or Decimal, where the resulting quantity will have the UCUM default unit (`'1'`)</source>
+    <source spec="fhirpath-3.0.0" section="toString() : String" strength="DEFINITION">the item in the input collection is an Integer, Long, Decimal, Date, Time, DateTime, or Quantity the output will contain its String representation *(as shown in the table below)*</source>
+    <source spec="fhirpath-3.0.0" section="toString() : String" strength="DEFINITION">|**Long** |`(-)?#0`{:.formatted}|</source>
+    <source spec="fhirpath-3.0.0" section="toString() : String" strength="EXAMPLE">`42L.toString()`{:.fhirpath} returns `42`</source>
+    <source spec="fhirpath-3.0.0" section="convertsToInteger() : Boolean" strength="DEFINITION">the item is an Integer or Long</source>
+    <source spec="fhirpath-3.0.0" section="convertsToString() : Boolean" strength="DEFINITION">the item is an Integer, Long, Decimal, Date, Time, or DateTime</source>
+    <test name="REQ-CONVERSIONS-036-a"><expression>'42'.toLong().toInteger()</expression><output type="integer">42</output></test>
+    <test name="REQ-CONVERSIONS-036-b"><expression>'42'.toLong().toDecimal() is System.Decimal</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-036-c"><expression>'42'.toLong().toString()</expression><output type="string">42</output></test>
+    <test name="REQ-CONVERSIONS-036-d"><expression>'42'.toLong().toQuantity() = 42 '1'</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-036-e"><expression>'42'.toLong().convertsToInteger()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-036-f"><expression>'42'.toLong().convertsToDecimal()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-036-g"><expression>'42'.toLong().convertsToString()</expression><output type="boolean">true</output></test>
+  </group>
+
+  <!-- toDecimal, convertsToDecimal -->
+
+  <group name="REQ-CONVERSIONS-037" description="toDecimal converts an Integer or Decimal, a String matching (\+|-)?\d+(\.\d+)?, and a Boolean (true 1.0, false 0.0) to a Decimal (the sign is cited from 3.0.0 for the reason given for toInteger)">
+    <source spec="fhirpath-2.0.0" section="toDecimal() : Decimal" strength="DEFINITION">the item is an Integer or Decimal</source>
+    <source spec="fhirpath-2.0.0" section="toDecimal() : Decimal" strength="DEFINITION">the item is a String and is convertible to a Decimal</source>
+    <source spec="fhirpath-2.0.0" section="toDecimal() : Decimal" strength="DEFINITION">the item is a Boolean, where `true` results in a `1.0` and `false` results in a `0.0`.</source>
+    <source spec="fhirpath-3.0.0" section="toDecimal() : Decimal" strength="DEFINITION">If the item is a String, but the string is not convertible to a Decimal (using the regex format `(\+|-)?\d+(\.\d+)?`), the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="toDecimal() : Decimal" strength="EXAMPLE">'1.1'.toDecimal() // 1.1</source>
+    <source spec="fhirpath-3.0.0" section="toDecimal() : Decimal" strength="EXAMPLE">'42'.toDecimal() // 42 (as a decimal value)</source>
+    <test name="REQ-CONVERSIONS-037-a"><expression>'1.1'.toDecimal() = 1.1</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-037-b"><expression>'42'.toDecimal() = 42.0</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-037-c"><expression>'42'.toDecimal() is System.Decimal</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-037-d"><expression>'-1.5'.toDecimal() = -1.5</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-037-e"><expression>'+1.5'.toDecimal() = 1.5</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-037-f"><expression>1.toDecimal() is System.Decimal</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-037-g"><expression>2.5.toDecimal() = 2.5</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-037-h"><expression>true.toDecimal() = 1.0</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-037-i"><expression>false.toDecimal() = 0.0</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-037-j"><expression>true.toDecimal() is System.Decimal</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-038" description="toDecimal returns empty for a String that does not match the decimal regex as a whole: a point without digits on one side, an exponent, two points, a comma, surrounding spaces, an empty string">
+    <source spec="fhirpath-2.0.0" section="toDecimal() : Decimal" strength="DEFINITION">If the item is a String, but the string is not convertible to a Decimal (using the regex format `(\\+|-)?\d+(\.\d+)?`), the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="toDecimal() : Decimal" strength="DEFINITION">If the item is a String, but the string is not convertible to a Decimal (using the regex format `(\+|-)?\d+(\.\d+)?`), the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="toDecimal() : Decimal" strength="EXAMPLE">'st'.toDecimal() // empty ({ }) ; not convertible to a decimal</source>
+    <source spec="fhirpath-3.0.0" section="convertsToDecimal() : Boolean" strength="EXAMPLE">'1.a'.convertsToDecimal() // false</source>
+    <test name="REQ-CONVERSIONS-038-a"><expression>'st'.toDecimal()</expression></test>
+    <test name="REQ-CONVERSIONS-038-b"><expression>'1.'.toDecimal()</expression></test>
+    <test name="REQ-CONVERSIONS-038-c"><expression>'.5'.toDecimal()</expression></test>
+    <test name="REQ-CONVERSIONS-038-d"><expression>'1e5'.toDecimal()</expression></test>
+    <test name="REQ-CONVERSIONS-038-e"><expression>'1.5.5'.toDecimal()</expression></test>
+    <test name="REQ-CONVERSIONS-038-f"><expression>'1,5'.toDecimal()</expression></test>
+    <test name="REQ-CONVERSIONS-038-g"><expression>' 1.5'.toDecimal()</expression></test>
+    <test name="REQ-CONVERSIONS-038-h"><expression>''.toDecimal()</expression></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-039" description="A String with an L suffix does not match the decimal regex, so toDecimal is empty and convertsToDecimal false, as both versions' regex says; 3.0.0's own examples ('42L'.toDecimal() // 42, '42L'.convertsToDecimal() // true) contradict its regex; the case follows 2.0.0, which has only the regex, and 3.0.0's examples are recorded as an open question">
+    <source spec="fhirpath-2.0.0" section="toDecimal() : Decimal" strength="DEFINITION">If the item is a String, but the string is not convertible to a Decimal (using the regex format `(\\+|-)?\d+(\.\d+)?`), the result is empty.</source>
+    <source spec="fhirpath-2.0.0" section="convertsToDecimal() : Boolean" strength="DEFINITION">If the item is not one of the above types, or is not convertible to a Decimal (using the regex format `(\\+|-)?\d+(\.\d+)?`), the result is false.</source>
+    <source spec="fhirpath-3.0.0" section="toDecimal() : Decimal" strength="DEFINITION">If the item is a String, but the string is not convertible to a Decimal (using the regex format `(\+|-)?\d+(\.\d+)?`), the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="convertsToDecimal() : Boolean" strength="DEFINITION">If the item is not one of the above types, or is not convertible to a Decimal (using the regex format `(\+|-)?\d+(\.\d+)?`), the result is `false`.</source>
+    <test name="REQ-CONVERSIONS-039-a"><expression>'42L'.toDecimal()</expression></test>
+    <test name="REQ-CONVERSIONS-039-b"><expression>'42L'.convertsToDecimal()</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-040" description="toDecimal returns empty for an item that is not an Integer, Decimal, String or Boolean">
+    <source spec="fhirpath-2.0.0" section="toDecimal() : Decimal" strength="DEFINITION">If the item is not one of the above types, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="toDecimal() : Decimal" strength="DEFINITION">If the item is not one of the above types, the result is empty.</source>
+    <test name="REQ-CONVERSIONS-040-a"><expression>@2014-01-01.toDecimal()</expression></test>
+    <test name="REQ-CONVERSIONS-040-b"><expression>@T10:00.toDecimal()</expression></test>
+    <test name="REQ-CONVERSIONS-040-c"><expression>1 'mg'.toDecimal()</expression></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-041" description="convertsToDecimal is true for an Integer, Decimal, Boolean, and a String matching the decimal regex">
+    <source spec="fhirpath-2.0.0" section="convertsToDecimal() : Boolean" strength="DEFINITION">the item is an Integer or Decimal</source>
+    <source spec="fhirpath-2.0.0" section="convertsToDecimal() : Boolean" strength="DEFINITION">the item is a String and is convertible to a Decimal</source>
+    <source spec="fhirpath-2.0.0" section="convertsToDecimal() : Boolean" strength="DEFINITION">the item is a Boolean</source>
+    <source spec="fhirpath-3.0.0" section="convertsToDecimal() : Boolean" strength="EXAMPLE">'1.0'.convertsToDecimal() // true</source>
+    <source spec="fhirpath-3.0.0" section="convertsToDecimal() : Boolean" strength="EXAMPLE">'42'.convertsToDecimal()  // true</source>
+    <test name="REQ-CONVERSIONS-041-a"><expression>'1.0'.convertsToDecimal()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-041-b"><expression>'42'.convertsToDecimal()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-041-c"><expression>1.convertsToDecimal()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-041-d"><expression>1.5.convertsToDecimal()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-041-e"><expression>true.convertsToDecimal()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-041-f"><expression>false.convertsToDecimal()</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-042" description="convertsToDecimal is false for a String not matching the decimal regex and for an item of any other type">
+    <source spec="fhirpath-2.0.0" section="convertsToDecimal() : Boolean" strength="DEFINITION">If the item is not one of the above types, or is not convertible to a Decimal (using the regex format `(\\+|-)?\d+(\.\d+)?`), the result is false.</source>
+    <source spec="fhirpath-3.0.0" section="convertsToDecimal() : Boolean" strength="EXAMPLE">'1.a'.convertsToDecimal() // false</source>
+    <test name="REQ-CONVERSIONS-042-a"><expression>'1.a'.convertsToDecimal()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-042-b"><expression>'st'.convertsToDecimal()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-042-c"><expression>@2014-01-01.convertsToDecimal()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-042-d"><expression>1 'mg'.convertsToDecimal()</expression><output type="boolean">false</output></test>
+  </group>
+
+  <!-- toQuantity, convertsToQuantity -->
+
+  <group name="REQ-CONVERSIONS-043" description="toQuantity gives an Integer or Decimal the unit '1', returns a Quantity unchanged, and converts true to 1.0 '1' and false to 0.0 '1' (the Boolean is cited from 3.0.0: 2.0.0's toQuantity accepts it, but its own Conversion table has no Boolean to Quantity conversion, which 3.0.0's table adds)">
+    <source spec="fhirpath-2.0.0" section="toQuantity([unit : String]) : Quantity" strength="DEFINITION">the item is an Integer, or Decimal, where the resulting quantity will have the default unit</source>
+    <source spec="fhirpath-2.0.0" section="toQuantity([unit : String]) : Quantity" strength="DEFINITION">the item is a Quantity</source>
+    <source spec="fhirpath-3.0.0" section="toQuantity([unit : String]) : Quantity" strength="DEFINITION">the item is an Integer, Long or Decimal, where the resulting quantity will have the UCUM default unit (`'1'`)</source>
+    <source spec="fhirpath-3.0.0" section="toQuantity([unit : String]) : Quantity" strength="DEFINITION">the item is a Boolean, where `true` results in the quantity `1.0 '1'`, and `false` results in the quantity `0.0 '1'`</source>
+    <source spec="fhirpath-3.0.0" section="Conversion" strength="DEFINITION">|**Boolean** |N/A |Explicit | *Explicit*{:.stu-bg} |Explicit |*Explicit*{:.stu-bg} |Explicit |- |- |- |</source>
+    <source spec="fhirpath-3.0.0" section="toQuantity([unit : String]) : Quantity" strength="EXAMPLE">42.toQuantity()         // 42 '1' ; A quantity with the UCUM default unit</source>
+    <test name="REQ-CONVERSIONS-043-a"><expression>42.toQuantity() = 42 '1'</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-043-b"><expression>42.toQuantity() is System.Quantity</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-043-c"><expression>1.5.toQuantity() = 1.5 '1'</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-043-d"><expression>5 'mg'.toQuantity() = 5 'mg'</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-043-e"><expression>4 days.toQuantity() = 4 days</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-043-f"><expression>true.toQuantity() = 1.0 '1'</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-043-g"><expression>false.toQuantity() = 0.0 '1'</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-044" description="toQuantity converts a String matching the quantity regex: a number, optional whitespace, then a quoted unit or a calendar keyword, or nothing, which gives the unit '1' (the unit '1' of a unitless string is 3.0.0's; 2.0.0 does not say)">
+    <source spec="fhirpath-2.0.0" section="toQuantity([unit : String]) : Quantity" strength="DEFINITION">the item is a String and is convertible to a Quantity</source>
+    <source spec="fhirpath-2.0.0" section="toQuantity([unit : String]) : Quantity" strength="DEFINITION">If the item is a String, but the string is not convertible to a Quantity using the following regex format:</source>
+    <source spec="fhirpath-2.0.0" section="toQuantity([unit : String]) : Quantity" strength="DEFINITION">(?'value'(\+|-)?\d+(\.\d+)?)\s*('(?'unit'[^']+)'|(?'time'[a-zA-Z]+))?</source>
+    <source spec="fhirpath-2.0.0" section="toQuantity([unit : String]) : Quantity" strength="EXAMPLE">'4 days'</source>
+    <source spec="fhirpath-2.0.0" section="toQuantity([unit : String]) : Quantity" strength="EXAMPLE">'10 \'mg[Hg]\''</source>
+    <source spec="fhirpath-3.0.0" section="toQuantity([unit : String]) : Quantity" strength="EXAMPLE">'4 days'.toQuantity()</source>
+    <source spec="fhirpath-3.0.0" section="toQuantity([unit : String]) : Quantity" strength="EXAMPLE">'10 \'mm[Hg]\''.toQuantity()</source>
+    <source spec="fhirpath-3.0.0" section="toQuantity([unit : String]) : Quantity" strength="DEFINITION">As with integer, long, and decimal, where the resulting quantity has no unit, it will have the UCUM default unit (`'1'`)</source>
+    <test name="REQ-CONVERSIONS-044-a"><expression>'4 days'.toQuantity() = 4 days</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-044-b"><expression>'10 \'mm[Hg]\''.toQuantity() = 10 'mm[Hg]'</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-044-c"><expression>'1.5 \'mg\''.toQuantity() = 1.5 'mg'</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-044-d"><expression>'5'.toQuantity() = 5 '1'</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-044-e"><expression>'4days'.toQuantity() = 4 days</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-044-f"><expression>'+2 \'mg\''.toQuantity() = 2 'mg'</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-044-g"><expression>'-1.5 \'mg\''.toQuantity() &lt; 0 'mg'</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-044-h"><expression>'1 year'.toQuantity() = 1 year</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-044-i"><expression>'4 days'.toQuantity() is System.Quantity</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-045" description="toQuantity returns empty for a String that does not match the quantity regex as a whole: no number, the unit before the number, a point without digits, an empty string (the whole-string reading is the one 3.0.0's examples show for the integer and decimal regexes)">
+    <source spec="fhirpath-2.0.0" section="toQuantity([unit : String]) : Quantity" strength="DEFINITION">If the item is a String, but the string is not convertible to a Quantity using the following regex format:</source>
+    <source spec="fhirpath-2.0.0" section="toQuantity([unit : String]) : Quantity" strength="DEFINITION">(?'value'(\+|-)?\d+(\.\d+)?)\s*('(?'unit'[^']+)'|(?'time'[a-zA-Z]+))?</source>
+    <source spec="fhirpath-2.0.0" section="toQuantity([unit : String]) : Quantity" strength="DEFINITION">then the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="toQuantity([unit : String]) : Quantity" strength="DEFINITION">If the item is not one of the above, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="convertsToDecimal() : Boolean" strength="EXAMPLE">'1.a'.convertsToDecimal() // false</source>
+    <test name="REQ-CONVERSIONS-045-a"><expression>'abc'.toQuantity()</expression></test>
+    <test name="REQ-CONVERSIONS-045-b"><expression>'mg 4'.toQuantity()</expression></test>
+    <test name="REQ-CONVERSIONS-045-c"><expression>'\'mg\''.toQuantity()</expression></test>
+    <test name="REQ-CONVERSIONS-045-d"><expression>'1.'.toQuantity()</expression></test>
+    <test name="REQ-CONVERSIONS-045-e"><expression>'.5 \'mg\''.toQuantity()</expression></test>
+    <test name="REQ-CONVERSIONS-045-f"><expression>''.toQuantity()</expression></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-046" description="toQuantity returns empty for an item that is not a number, Quantity, String or Boolean">
+    <source spec="fhirpath-2.0.0" section="toQuantity([unit : String]) : Quantity" strength="DEFINITION">If the item is not one of the above types, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="toQuantity([unit : String]) : Quantity" strength="DEFINITION">If the item is not one of the above, the result is empty.</source>
+    <test name="REQ-CONVERSIONS-046-a"><expression>@2014-01-01.toQuantity()</expression></test>
+    <test name="REQ-CONVERSIONS-046-b"><expression>@2014-01-01T10:00.toQuantity()</expression></test>
+    <test name="REQ-CONVERSIONS-046-c"><expression>@T10:00.toQuantity()</expression></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-047" description="toQuantity(unit) returns the quantity in the unit when it converts (to the same unit, always, a calendar duration keyword included) and empty when the units are not commensurable, the number's unit '1' included (3.0.0: 2.0.0 says toQuantity(unit) returns true or false, a defect for a function returning a Quantity; under 2.0.0 047-a and 047-e would be true)">
+    <source spec="fhirpath-3.0.0" section="toQuantity([unit : String]) : Quantity" strength="DEFINITION">If the `unit` argument is provided, it must be the string representation of a UCUM code (or a FHIRPath calendar duration keyword).</source>
+    <source spec="fhirpath-3.0.0" section="toQuantity([unit : String]) : Quantity" strength="DEFINITION">If the `unit` argument is provided and the input can be [**converted**](#unit-conversions), the result is the converted quantity, otherwise the result is empty.</source>
+    <source spec="fhirpath-2.0.0" section="Time-valued Quantities" strength="DEFINITION">|`day`/`days` |`'day'` |`~ 1 'd'`</source>
+    <source spec="fhirpath-3.0.0" section="Unit Conversions" strength="DEFINITION">If units are not commensurable, the result of conversion is empty (`{ }`).</source>
+    <source spec="fhirpath-3.0.0" section="toQuantity([unit : String]) : Quantity" strength="EXAMPLE">45.toQuantity('m')      // { } empty ; There is no conversion from the UCUM default unit to meters.</source>
+    <source spec="fhirpath-3.0.0" section="toQuantity([unit : String]) : Quantity" strength="EXAMPLE">24 'm'.toQuantity('kg') // empty ; there is no conversion between these units in UCUM</source>
+    <source spec="fhirpath-2.0.0" section="toQuantity([unit : String]) : Quantity" strength="DEFINITION">If the `unit` argument is provided, it must be the string representation of a UCUM code (or a FHIRPath calendar duration keyword), and is used to determine whether the input quantity can be converted to the given unit, according to the unit conversion rules specified by UCUM. If the input quantity can be converted, the result is true, otherwise, the result is false.</source>
+    <source spec="fhirpath-2.0.0" section="toQuantity([unit : String]) : Quantity" strength="MAY">Implementations are not required to support a complete UCUM implementation, and may return empty (`{ }`) when the `unit` argument is used and it is different than the input quantity unit.</source>
+    <test name="REQ-CONVERSIONS-047-a"><expression>5 'mg'.toQuantity('mg') = 5 'mg'</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-047-b"><expression>24 'm'.toQuantity('kg')</expression></test>
+    <test name="REQ-CONVERSIONS-047-c"><expression>45.toQuantity('m')</expression></test>
+    <test name="REQ-CONVERSIONS-047-d"><expression>5 'm'.toQuantity('g')</expression></test>
+    <test name="REQ-CONVERSIONS-047-e"><expression>'5 \'mg\''.toQuantity('mg') = 5 'mg'</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-047-f"><expression>4 days.toQuantity('day') = 4 days</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-048" description="toQuantity(unit) between commensurable units gives the converted quantity of the worked examples, or empty where the implementation does not convert units, never another value (each case accepts either; a conversion between a calendar unit and a UCUM duration is done in the source's unit system first, as 3.0.0, STU, defines and 2.0.0 does not say)">
+    <source spec="fhirpath-3.0.0" section="toQuantity([unit : String]) : Quantity" strength="EXAMPLE">52 'cm'.toQuantity('m') // 0.52 'm'</source>
+    <source spec="fhirpath-3.0.0" section="toQuantity([unit : String]) : Quantity" strength="EXAMPLE">1 'a'.toQuantity('d')   // 365.25 'd' ; UCUM conversion for definite durations</source>
+    <source spec="fhirpath-3.0.0" section="toQuantity([unit : String]) : Quantity" strength="EXAMPLE">1 'wk'.toQuantity('d')  // 7 'd' ; UCUM conversion for definite durations</source>
+    <source spec="fhirpath-3.0.0" section="Time-valued unit conversions" strength="DEFINITION">When explicitly converting between UCUM definite durations and calendar units of differing magnitudes (e.g. days and weeks), perform the conversion within the unit system of the source, then change the unit to the corresponding target unit:</source>
+    <source spec="fhirpath-3.0.0" section="Time-valued unit conversions" strength="EXAMPLE">7 days.toQuantity('wk')  // 7 days → 1 week → 1 'wk'</source>
+    <source spec="fhirpath-3.0.0" section="Time-valued unit conversions" strength="EXAMPLE">182.5 days.toQuantity('a') // 182.5 days → 0.5 year → 0.5 'a'</source>
+    <source spec="fhirpath-3.0.0" section="Unit Conversions" strength="MAY">**Note:** Implementations are not required to support a UCUM implementation, and may return empty (`{ }`) when the units are different, or not handled.</source>
+    <source spec="fhirpath-2.0.0" section="toQuantity([unit : String]) : Quantity" strength="MAY">Implementations are not required to support a complete UCUM implementation, and may return empty (`{ }`) when the `unit` argument is used and it is different than the input quantity unit.</source>
+    <test name="REQ-CONVERSIONS-048-a"><expression>(52 'cm'.toQuantity('m') = 0.52 'm') or 52 'cm'.toQuantity('m').empty()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-048-b"><expression>(1 'a'.toQuantity('d') = 365.25 'd') or 1 'a'.toQuantity('d').empty()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-048-c"><expression>(1 'wk'.toQuantity('d') = 7 'd') or 1 'wk'.toQuantity('d').empty()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-048-d"><expression>(7 days.toQuantity('wk') = 1 'wk') or 7 days.toQuantity('wk').empty()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-048-e"><expression>(182.5 days.toQuantity('a') = 0.5 'a') or 182.5 days.toQuantity('a').empty()</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-049" description="An empty unit or format argument gives an empty result by the general rule for single-input functions, and an argument of more than one item signals an error (the format argument of toDate is 3.0.0's, STU, so 049-c and 049-d rest on 3.0.0's own propagation, singleton and function-argument rules)">
+    <source spec="fhirpath-2.0.0" section="Propagation of empty results in expressions" strength="DEFINITION">If a single-input operator or function is passed an empty collection as an argument, the result is an empty collection</source>
+    <source spec="fhirpath-3.0.0" section="Propagation of empty results in expressions" strength="DEFINITION">If a single-input operator or function is passed an empty collection as an argument, the result is an empty collection</source>
+    <source spec="fhirpath-2.0.0" section="Singleton Evaluation of Collections" strength="DEFINITION">In general, when a collection is passed as an argument to a function or operator that expects a single item as input, the collection is implicitly converted to a singleton as follows:</source>
+    <source spec="fhirpath-2.0.0" section="Singleton Evaluation of Collections" strength="DEFINITION">The evaluation will end and signal an error to the calling environment</source>
+    <source spec="fhirpath-2.0.0" section="Functions" strength="DEFINITION">Correspondingly, arguments to the functions can be any FHIRPath expression, though functions taking a single item as input require these expressions to evaluate to a collection containing a single item of a specific type.</source>
+    <source spec="fhirpath-3.0.0" section="Singleton Evaluation of Collections" strength="DEFINITION">In general, when a collection is passed as an argument to a function or operator that expects a single item as input, the collection is implicitly converted to a singleton as follows:</source>
+    <source spec="fhirpath-3.0.0" section="Singleton Evaluation of Collections" strength="DEFINITION">The evaluation will end and signal an error to the calling environment</source>
+    <source spec="fhirpath-3.0.0" section="Functions" strength="DEFINITION">If a function expects the argument passed to a parameter to be a single value (e.g. `startsWith(prefix: String)`) and it is passed an argument that evaluates to a collection with multiple items, or to a collection with an item that is not of the required type (or cannot be converted to the required type), the evaluation of the expression will end and an error will be signaled to the calling environment.</source>
+    <source spec="fhirpath-3.0.0" section="toDate([format : string]) : Date" strength="DEFINITION">When the optional format parameter is provided, it is used as a [template](#format-codes) instead of the default format.</source>
+    <test name="REQ-CONVERSIONS-049-a"><expression>5 'mg'.toQuantity({})</expression></test>
+    <test name="REQ-CONVERSIONS-049-b"><expression invalid="execution">5 'mg'.toQuantity('mg' | 'g')</expression></test>
+    <test name="REQ-CONVERSIONS-049-c"><expression>'2024-01-15'.toDate({})</expression></test>
+    <test name="REQ-CONVERSIONS-049-d"><expression invalid="execution">'2024-01-15'.toDate('yyyy-MM-dd' | 'dd-MM-yyyy')</expression></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-050" description="convertsToQuantity is true for an Integer, Decimal, Quantity, Boolean, and a String matching the quantity regex">
+    <source spec="fhirpath-2.0.0" section="convertsToQuantity([unit : String]) : Boolean" strength="DEFINITION">the item is an Integer, Decimal, or Quantity</source>
+    <source spec="fhirpath-2.0.0" section="convertsToQuantity([unit : String]) : Boolean" strength="DEFINITION">the item is a String that is convertible to a Quantity</source>
+    <source spec="fhirpath-2.0.0" section="convertsToQuantity([unit : String]) : Boolean" strength="DEFINITION">the item is a Boolean</source>
+    <source spec="fhirpath-3.0.0" section="convertsToQuantity([unit : String]) : Boolean" strength="EXAMPLE">'1 day'.convertsToQuantity() // true</source>
+    <source spec="fhirpath-3.0.0" section="convertsToQuantity([unit : String]) : Boolean" strength="EXAMPLE">10 'mg'.convertsToQuantity() // true</source>
+    <test name="REQ-CONVERSIONS-050-a"><expression>'1 day'.convertsToQuantity()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-050-b"><expression>10 'mg'.convertsToQuantity()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-050-c"><expression>1.convertsToQuantity()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-050-d"><expression>1.5.convertsToQuantity()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-050-e"><expression>'5'.convertsToQuantity()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-050-f"><expression>'10 \'mm[Hg]\''.convertsToQuantity()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-050-g"><expression>true.convertsToQuantity()</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-051" description="convertsToQuantity is false for a String not matching the quantity regex and for an item of any other type">
+    <source spec="fhirpath-2.0.0" section="convertsToQuantity([unit : String]) : Boolean" strength="DEFINITION">If the item is not one of the above types, or is not convertible to a Quantity using the following regex format:</source>
+    <source spec="fhirpath-2.0.0" section="convertsToQuantity([unit : String]) : Boolean" strength="DEFINITION">then the result is false.</source>
+    <source spec="fhirpath-3.0.0" section="convertsToQuantity([unit : String]) : Boolean" strength="DEFINITION">If the item is not one of the above, the result is `false`.</source>
+    <test name="REQ-CONVERSIONS-051-a"><expression>'abc'.convertsToQuantity()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-051-b"><expression>''.convertsToQuantity()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-051-c"><expression>@2014-01-01.convertsToQuantity()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-051-d"><expression>@T10:00.convertsToQuantity()</expression><output type="boolean">false</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-052" description="convertsToQuantity(unit) is true when the input converts to the unit (the same unit, always) and false when the units are not commensurable (the 3.0.0 example writes a comma for the dot: 5 'm',convertsToQuantity('kg'))">
+    <source spec="fhirpath-2.0.0" section="convertsToQuantity([unit : String]) : Boolean" strength="DEFINITION">If the `unit` argument is provided, it must be the string representation of a UCUM code (or a FHIRPath calendar duration keyword), and is used to determine whether the input quantity can be converted to the given unit, according to the unit conversion rules specified by UCUM. If the input quantity can be converted, the result is true, otherwise, the result is false.</source>
+    <source spec="fhirpath-2.0.0" section="convertsToQuantity([unit : String]) : Boolean" strength="MAY">Implementations are not required to support a complete UCUM implementation, and may return false when the `unit` argument is used and it is different than the input quantity unit.</source>
+    <source spec="fhirpath-3.0.0" section="convertsToQuantity([unit : String]) : Boolean" strength="DEFINITION">If the `unit` argument is provided, it should be handled in the same way it is in the [toQuantity()](#fn-toquantity) function above, except that where an empty result would result, false is returned.</source>
+    <source spec="fhirpath-3.0.0" section="convertsToQuantity([unit : String]) : Boolean" strength="EXAMPLE">5 'm',convertsToQuantity('kg') // false ; the units meters and kilograms are not commensurate</source>
+    <test name="REQ-CONVERSIONS-052-a"><expression>5 'm'.convertsToQuantity('kg')</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-052-b"><expression>5 'mg'.convertsToQuantity('mg')</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-052-c"><expression>24 'm'.convertsToQuantity('kg')</expression><output type="boolean">false</output></test>
+  </group>
+
+  <!-- toString, convertsToString -->
+
+  <group name="REQ-CONVERSIONS-053" description="toString returns a String unchanged and writes a Boolean as true or false">
+    <source spec="fhirpath-2.0.0" section="toString() : String" strength="DEFINITION">the item in the input collection is a String</source>
+    <source spec="fhirpath-3.0.0" section="toString() : String" strength="DEFINITION">the item is a Boolean, where `true` results in `'true'` and `false` in `'false'`.</source>
+    <source spec="fhirpath-2.0.0" section="toString() : String" strength="DEFINITION">|*Boolean* |`true` or `false`</source>
+    <source spec="fhirpath-3.0.0" section="toString() : String" strength="EXAMPLE">|**Boolean** |`true` or `false`| `true.toString()`{:.fhirpath} returns `true`|</source>
+    <test name="REQ-CONVERSIONS-053-a"><expression>'abc'.toString()</expression><output type="string">abc</output></test>
+    <test name="REQ-CONVERSIONS-053-b"><expression>true.toString()</expression><output type="string">true</output></test>
+    <test name="REQ-CONVERSIONS-053-c"><expression>false.toString()</expression><output type="string">false</output></test>
+    <test name="REQ-CONVERSIONS-053-d"><expression>true.toString() is System.String</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-054" description="toString writes an Integer as its digits with a minus sign when negative, and a Decimal as the worked example 3.14 shows">
+    <source spec="fhirpath-2.0.0" section="toString() : String" strength="DEFINITION">the item in the input collection is an Integer, Decimal, Date, Time, DateTime, or Quantity the output will contain its String representation</source>
+    <source spec="fhirpath-2.0.0" section="toString() : String" strength="DEFINITION">|*Integer* |`(\\+\|-)?\d+`</source>
+    <source spec="fhirpath-2.0.0" section="toString() : String" strength="DEFINITION">|*Decimal* |`(\\+\|-)?\d+(.\d+)?`</source>
+    <source spec="fhirpath-3.0.0" section="toString() : String" strength="DEFINITION">|**Integer** |`(-)?#0`{:.formatted}|</source>
+    <source spec="fhirpath-3.0.0" section="toString() : String" strength="EXAMPLE">`42.toString()`{:.fhirpath} returns `42`</source>
+    <source spec="fhirpath-3.0.0" section="toString() : String" strength="DEFINITION">|**Decimal** |`(-)?#0.0#`{:.formatted}|</source>
+    <source spec="fhirpath-3.0.0" section="toString() : String" strength="EXAMPLE">`3.14.toString()`{:.fhirpath} returns `3.14`</source>
+    <test name="REQ-CONVERSIONS-054-a"><expression>42.toString()</expression><output type="string">42</output></test>
+    <test name="REQ-CONVERSIONS-054-b"><expression>0.toString()</expression><output type="string">0</output></test>
+    <test name="REQ-CONVERSIONS-054-c"><expression>(-5).toString()</expression><output type="string">-5</output></test>
+    <test name="REQ-CONVERSIONS-054-d"><expression>3.14.toString()</expression><output type="string">3.14</output></test>
+    <test name="REQ-CONVERSIONS-054-e"><expression>(-3.14).toString()</expression><output type="string">-3.14</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-055" description="toString writes a Quantity with a UCUM unit as its value, a space and the unit in single quotes; for a value from an integer literal only what 2.0.0's format and 3.0.0's example share is asserted (the digits, with or without a fraction of zeros), since 2.0.0 makes the value a Decimal and 3.0.0's format #0.0# contradicts its own example 53 'km'">
+    <source spec="fhirpath-2.0.0" section="toString() : String" strength="DEFINITION">|*Quantity* |`(\\+\|-)?\d+(.\d+)? &amp;#39;.*&amp;#39;`</source>
+    <source spec="fhirpath-2.0.0" section="Quantity" strength="DEFINITION">If the value literal is an Integer, it will be implicitly converted to a Decimal in the resulting Quantity value:</source>
+    <source spec="fhirpath-3.0.0" section="toString() : String" strength="DEFINITION">|**Quantity** |`(-)?#0.0# (('«unit»')|(«unit»))`{:.formatted} |</source>
+    <source spec="fhirpath-3.0.0" section="toString() : String" strength="EXAMPLE">`(53 'km').toString()`{:.fhirpath} returns `53 'km'` *(ucum units include quotes)*</source>
+    <test name="REQ-CONVERSIONS-055-a"><expression>(53 'km').toString().matches('^53(\\.0+)? \'km\'$')</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-055-b"><expression>(4.5 'mg').toString()</expression><output type="string">4.5 'mg'</output></test>
+    <test name="REQ-CONVERSIONS-055-c"><expression>100 '[degF]'.toString().matches('^100(\\.0+)? \'\\[degF\\]\'$')</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-056" description="Under 2.0.0 toString writes a calendar duration Quantity like any other, its unit in single quotes; 3.0.0 differs: it writes the keyword without quotes ((4 days).toString() returns 4 days), so under 3.0.0 these cases fail">
+    <source spec="fhirpath-2.0.0" section="toString() : String" strength="DEFINITION">|*Quantity* |`(\\+\|-)?\d+(.\d+)? &amp;#39;.*&amp;#39;`</source>
+    <source spec="fhirpath-2.0.0" section="Quantity" strength="DEFINITION">The `Quantity` type represents quantities with a specified unit, where the `value` component is defined as a `Decimal`, and the `unit` element is represented as a `String` that is required to be either a valid Unified Code for Units of Measure &lt;&lt;UCUM&gt;&gt; unit or one of the calendar duration keywords, singular or plural.</source>
+    <source spec="fhirpath-3.0.0" section="toString() : String" strength="EXAMPLE">`(4 days).toString()`{:.fhirpath} returns `4 days` *(calendar duration units don't include quotes)*</source>
+    <test name="REQ-CONVERSIONS-056-a"><expression>(4 days).toString().matches('^4(\\.0+)? \'.+\'$')</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-056-b"><expression>(1 year).toString().matches('^1(\\.0+)? \'.+\'$')</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-057" description="toString writes a Date as YYYY-MM-DD, only to the precision the value has">
+    <source spec="fhirpath-2.0.0" section="toString() : String" strength="DEFINITION">|*Date* |**YYYY-MM-DD**</source>
+    <source spec="fhirpath-2.0.0" section="toString() : String" strength="DEFINITION">Note that for partial dates and times, the result will only be specified to the level of precision in the value being converted.</source>
+    <source spec="fhirpath-3.0.0" section="toString() : String" strength="DEFINITION">Note that for partial dates and times, the result will only be specified to the level of precision in the value being converted.</source>
+    <source spec="fhirpath-3.0.0" section="toString() : String" strength="EXAMPLE">|**Date** |`yyyy-MM-DD`{:.formatted}| `@2020-01-01.toString()`{:.fhirpath} returns `2020-01-01`|</source>
+    <test name="REQ-CONVERSIONS-057-a"><expression>@2020-01-01.toString()</expression><output type="string">2020-01-01</output></test>
+    <test name="REQ-CONVERSIONS-057-b"><expression>@2014-01.toString()</expression><output type="string">2014-01</output></test>
+    <test name="REQ-CONVERSIONS-057-c"><expression>@2014.toString()</expression><output type="string">2014</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-058" description="toString writes a DateTime as YYYY-MM-DDThh:mm:ss.fff with its offset, only to the precision the value has">
+    <source spec="fhirpath-2.0.0" section="toString() : String" strength="DEFINITION">|*DateTime* |**YYYY-MM-DDThh:mm:ss.fff(+\|-)hh:mm**</source>
+    <source spec="fhirpath-2.0.0" section="toString() : String" strength="DEFINITION">Note that for partial dates and times, the result will only be specified to the level of precision in the value being converted.</source>
+    <source spec="fhirpath-3.0.0" section="toString() : String" strength="EXAMPLE">`@2020-01-01T10:00:00.000+10:00.toString()`{:.fhirpath} returns `2020-01-01T10:00:00.000+10:00`</source>
+    <test name="REQ-CONVERSIONS-058-a"><expression>@2020-01-01T10:00:00.000+10:00.toString()</expression><output type="string">2020-01-01T10:00:00.000+10:00</output></test>
+    <test name="REQ-CONVERSIONS-058-b"><expression>@2014-01-25T14:30:14.559-05:00.toString()</expression><output type="string">2014-01-25T14:30:14.559-05:00</output></test>
+    <test name="REQ-CONVERSIONS-058-c"><expression>@2014-01-25T14:30:14.toString()</expression><output type="string">2014-01-25T14:30:14</output></test>
+    <test name="REQ-CONVERSIONS-058-d"><expression>@2014-01-25T14:30.toString()</expression><output type="string">2014-01-25T14:30</output></test>
+    <test name="REQ-CONVERSIONS-058-e"><expression>@2014-01-25T14.toString()</expression><output type="string">2014-01-25T14</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-059" description="toString writes a Time as hh:mm:ss.fff, without offset (a Time has none), only to the precision the value has">
+    <source spec="fhirpath-2.0.0" section="toString() : String" strength="DEFINITION">|*Time* |**hh:mm:ss.fff(+\|-)hh:mm**</source>
+    <source spec="fhirpath-2.0.0" section="Time" strength="DEFINITION">Time values in FHIRPath do not have a timezone or timezone offset.</source>
+    <source spec="fhirpath-2.0.0" section="toString() : String" strength="DEFINITION">Note that for partial dates and times, the result will only be specified to the level of precision in the value being converted.</source>
+    <source spec="fhirpath-3.0.0" section="toString() : String" strength="EXAMPLE">|**Time** |`hh:mm:ss.fff`{:.formatted}| `@T10:30:00.000.toString()`{:.fhirpath} returns `10:30:00.000`&lt;br/&gt;`@T11:45.toString()`{:.fhirpath} returns `11:45`|</source>
+    <test name="REQ-CONVERSIONS-059-a"><expression>@T10:30:00.000.toString()</expression><output type="string">10:30:00.000</output></test>
+    <test name="REQ-CONVERSIONS-059-b"><expression>@T11:45.toString()</expression><output type="string">11:45</output></test>
+    <test name="REQ-CONVERSIONS-059-c"><expression>@T14:30:14.toString()</expression><output type="string">14:30:14</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-060" description="convertsToString is true for a String, Integer, Decimal, Date, Time, DateTime, Boolean and Quantity">
+    <source spec="fhirpath-2.0.0" section="convertsToString() : String" strength="DEFINITION">the item is a String</source>
+    <source spec="fhirpath-2.0.0" section="convertsToString() : String" strength="DEFINITION">the item is an Integer, Decimal, Date, Time, or DateTime</source>
+    <source spec="fhirpath-2.0.0" section="convertsToString() : String" strength="DEFINITION">the item is a Boolean</source>
+    <source spec="fhirpath-2.0.0" section="convertsToString() : String" strength="DEFINITION">the item is a Quantity</source>
+    <source spec="fhirpath-3.0.0" section="convertsToString() : Boolean" strength="EXAMPLE">@2025-01-15.convertsToString() // true</source>
+    <source spec="fhirpath-3.0.0" section="convertsToString() : Boolean" strength="EXAMPLE">1.convertsToString() // true</source>
+    <test name="REQ-CONVERSIONS-060-a"><expression>@2025-01-15.convertsToString()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-060-b"><expression>1.convertsToString()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-060-c"><expression>'a'.convertsToString()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-060-d"><expression>1.5.convertsToString()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-060-e"><expression>true.convertsToString()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-060-f"><expression>@2014-01-25T10:00.convertsToString()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-060-g"><expression>@T10:00.convertsToString()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-060-h"><expression>1 'mg'.convertsToString()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-060-i"><expression>4 days.convertsToString()</expression><output type="boolean">true</output></test>
+  </group>
+
+  <!-- toDate, convertsToDate -->
+
+  <group name="REQ-CONVERSIONS-061" description="toDate returns a Date unchanged, takes the date components of a DateTime as written (no timezone normalisation, which 3.0.0 states and 2.0.0 does not), and converts a YYYY-MM-DD String, partial strings giving partial dates">
+    <source spec="fhirpath-2.0.0" section="toDate() : Date" strength="DEFINITION">the item is a Date</source>
+    <source spec="fhirpath-2.0.0" section="toDate() : Date" strength="DEFINITION">the item is a DateTime</source>
+    <source spec="fhirpath-2.0.0" section="toDate() : Date" strength="DEFINITION">the item is a String and is convertible to a Date</source>
+    <source spec="fhirpath-3.0.0" section="toDate([format : string]) : Date" strength="DEFINITION">the item is a DateTime, in which case the year, month, and day components are extracted directly without timezone conversion/normalization</source>
+    <source spec="fhirpath-2.0.0" section="convertsToDate() : Boolean" strength="DEFINITION">If the item contains a partial date (e.g. `'2012-01'`), the result is a partial date.</source>
+    <source spec="fhirpath-3.0.0" section="toDate([format : string]) : Date" strength="EXAMPLE">@2024-01-15T23:30:00-05:00.toDate() // returns @2024-01-15</source>
+    <source spec="fhirpath-3.0.0" section="toDate([format : string]) : Date" strength="EXAMPLE">'2024-01-15'.toDate() // returns @2024-01-15</source>
+    <test name="REQ-CONVERSIONS-061-a"><expression>@2014-01-25.toDate()</expression><output type="date">@2014-01-25</output></test>
+    <test name="REQ-CONVERSIONS-061-b"><expression>@2024-01-15T23:30:00-05:00.toDate()</expression><output type="date">@2024-01-15</output></test>
+    <test name="REQ-CONVERSIONS-061-c"><expression>@2014-01-25T14:30.toDate()</expression><output type="date">@2014-01-25</output></test>
+    <test name="REQ-CONVERSIONS-061-d"><expression>@2014-01T.toDate()</expression><output type="date">@2014-01</output></test>
+    <test name="REQ-CONVERSIONS-061-e"><expression>'2024-01-15'.toDate()</expression><output type="date">@2024-01-15</output></test>
+    <test name="REQ-CONVERSIONS-061-f"><expression>'2012-01'.toDate()</expression><output type="date">@2012-01</output></test>
+    <test name="REQ-CONVERSIONS-061-g"><expression>'2012'.toDate()</expression><output type="date">@2012</output></test>
+    <test name="REQ-CONVERSIONS-061-h"><expression>'2024-01-15'.toDate() is System.Date</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-062" description="toDate returns empty for a String not in the YYYY-MM-DD format: words, other separators or orders, single-digit components, no separators, a time part, an empty string">
+    <source spec="fhirpath-2.0.0" section="toDate() : Date" strength="DEFINITION">If the item is a String, but the string is not convertible to a Date (using the format **YYYY-MM-DD**), the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="toDate([format : string]) : Date" strength="DEFINITION">If the item is a String, but the string is not convertible to a Date (using the default format `yyyy-MM-DD`{:.formatted}), the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="convertsToDate([format : string]) : Boolean" strength="EXAMPLE">'not-a-date'.convertsToDate() // false</source>
+    <test name="REQ-CONVERSIONS-062-a"><expression>'not-a-date'.toDate()</expression></test>
+    <test name="REQ-CONVERSIONS-062-b"><expression>'2024/01/15'.toDate()</expression></test>
+    <test name="REQ-CONVERSIONS-062-c"><expression>'15-01-2024'.toDate()</expression></test>
+    <test name="REQ-CONVERSIONS-062-d"><expression>'2024-1-15'.toDate()</expression></test>
+    <test name="REQ-CONVERSIONS-062-e"><expression>'20240115'.toDate()</expression></test>
+    <test name="REQ-CONVERSIONS-062-f"><expression>'2024-01-15T10:00:00'.toDate()</expression></test>
+    <test name="REQ-CONVERSIONS-062-g"><expression>''.toDate()</expression></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-063" description="toDate returns empty for an item that is not a Date, DateTime or String: a Time, a number, a Boolean, a Quantity">
+    <source spec="fhirpath-2.0.0" section="toDate() : Date" strength="DEFINITION">If the item is not one of the above types, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="toDate([format : string]) : Date" strength="DEFINITION">If the item is not one of the above types, the result is empty.</source>
+    <test name="REQ-CONVERSIONS-063-a"><expression>@T10:00.toDate()</expression></test>
+    <test name="REQ-CONVERSIONS-063-b"><expression>20240115.toDate()</expression></test>
+    <test name="REQ-CONVERSIONS-063-c"><expression>true.toDate()</expression></test>
+    <test name="REQ-CONVERSIONS-063-d"><expression>1 day.toDate()</expression></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-064" description="toDate(format) parses a String by the template made of the required format codes yyyy, MM and dd, other characters matching literally; a String that does not fit gives empty, and the format is ignored for an input that is not a String (3.0.0 only, STU)">
+    <source spec="fhirpath-3.0.0" section="toDate([format : string]) : Date" strength="DEFINITION">When the optional format parameter is provided, it is used as a [template](#format-codes) instead of the default format.</source>
+    <source spec="fhirpath-3.0.0" section="toDate([format : string]) : Date" strength="DEFINITION">If the input is not a string, the format parameter it ignored.</source>
+    <source spec="fhirpath-3.0.0" section="Date/DateTime String Format Codes" strength="DEFINITION">Any character in the format string parameter not represented by a format code is treated as a literal and must match exactly in the input string.</source>
+    <source spec="fhirpath-3.0.0" section="Date/DateTime String Format Codes" strength="DEFINITION">| yyyy | required | 4-digit year (e.g., 2024)</source>
+    <source spec="fhirpath-3.0.0" section="Date/DateTime String Format Codes" strength="DEFINITION">| MM   | required | 2-digit month of year (01=January, etc.)</source>
+    <source spec="fhirpath-3.0.0" section="Date/DateTime String Format Codes" strength="DEFINITION">| dd   | required | 2-digit day of month (01 through 31)</source>
+    <source spec="fhirpath-3.0.0" section="toDate([format : string]) : Date" strength="DEFINITION">If the item is a String, but the string is not convertible to a Date (using the default format `yyyy-MM-DD`{:.formatted}), the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="toDate([format : string]) : Date" strength="EXAMPLE">'15-01-2024'.toDate('dd-MM-yyyy') // returns @2024-01-15</source>
+    <source spec="fhirpath-3.0.0" section="convertsToDate([format : string]) : Boolean" strength="DEFINITION">When the optional format parameter is provided, it is used as a [template](#format-codes) instead of the default format.</source>
+    <test name="REQ-CONVERSIONS-064-a"><expression>'15-01-2024'.toDate('dd-MM-yyyy')</expression><output type="date">@2024-01-15</output></test>
+    <test name="REQ-CONVERSIONS-064-b"><expression>'2024/01/15'.toDate('yyyy/MM/dd')</expression><output type="date">@2024-01-15</output></test>
+    <test name="REQ-CONVERSIONS-064-c"><expression>'15-01-2024'.toDate('yyyy-MM-dd')</expression></test>
+    <test name="REQ-CONVERSIONS-064-d"><expression>@2024-01-15.toDate('dd-MM-yyyy')</expression><output type="date">@2024-01-15</output></test>
+    <test name="REQ-CONVERSIONS-064-e"><expression>'15-01-2024'.convertsToDate('dd-MM-yyyy')</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-065" description="convertsToDate is true for a Date, a DateTime and a String in the YYYY-MM-DD format, partial strings included, and false for other Strings and other types">
+    <source spec="fhirpath-2.0.0" section="convertsToDate() : Boolean" strength="DEFINITION">If the input collection contains a single item, this function will return true if:</source>
+    <source spec="fhirpath-2.0.0" section="convertsToDate() : Boolean" strength="DEFINITION">the item is a Date</source>
+    <source spec="fhirpath-2.0.0" section="convertsToDate() : Boolean" strength="DEFINITION">the item is a DateTime</source>
+    <source spec="fhirpath-2.0.0" section="convertsToDate() : Boolean" strength="DEFINITION">If the item is not one of the above types, or is not convertible to a Date (using the format **YYYY-MM-DD**), the result is false.</source>
+    <source spec="fhirpath-3.0.0" section="convertsToDate([format : string]) : Boolean" strength="EXAMPLE">'2015-02-04'.convertsToDate() // true</source>
+    <source spec="fhirpath-3.0.0" section="convertsToDate([format : string]) : Boolean" strength="EXAMPLE">'not-a-date'.convertsToDate() // false</source>
+    <test name="REQ-CONVERSIONS-065-a"><expression>'2015-02-04'.convertsToDate()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-065-b"><expression>'not-a-date'.convertsToDate()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-065-c"><expression>'2012-01'.convertsToDate()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-065-d"><expression>@2014-01-25.convertsToDate()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-065-e"><expression>@2014-01-25T10:00.convertsToDate()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-065-f"><expression>@T10:00.convertsToDate()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-065-g"><expression>1.convertsToDate()</expression><output type="boolean">false</output></test>
+  </group>
+
+  <!-- toDateTime, convertsToDateTime -->
+
+  <group name="REQ-CONVERSIONS-066" description="toDateTime returns a DateTime unchanged, converts a Date to a DateTime whose time components are empty (not zero), and converts a String in the DateTime format, keeping its offset and partial precision">
+    <source spec="fhirpath-2.0.0" section="toDateTime() : DateTime" strength="DEFINITION">the item is a DateTime</source>
+    <source spec="fhirpath-2.0.0" section="toDateTime() : DateTime" strength="DEFINITION">the item is a Date, in which case the result is a DateTime with the year, month, and day of the Date, and the time components empty (not set to zero)</source>
+    <source spec="fhirpath-2.0.0" section="toDateTime() : DateTime" strength="DEFINITION">the item is a String and is convertible to a DateTime</source>
+    <source spec="fhirpath-2.0.0" section="toDateTime() : DateTime" strength="DEFINITION">If the item contains a partial datetime (e.g. `'2012-01-01T10:00'`), the result is a partial datetime.</source>
+    <source spec="fhirpath-3.0.0" section="toDateTime([format : string]) : DateTime" strength="EXAMPLE">'2015-02-04T14:34:28Z'.toDateTime() // @2015-02-04T14:34:28Z</source>
+    <source spec="fhirpath-3.0.0" section="toDateTime([format : string]) : DateTime" strength="EXAMPLE">'2012-01-01T10:00'.toDateTime() // @2012-01-01T10:00 ; partial datetime is preserved</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Equality" strength="DEFINITION">If one input has a value for the precision and the other does not, the comparison stops and the result is empty (`{ }`); if neither input has a value for the precision, or the last precision has been reached, the comparison stops and the result is `true`.</source>
+    <test name="REQ-CONVERSIONS-066-a"><expression>@2014-01-25T14:30:14.toDateTime()</expression><output type="dateTime">@2014-01-25T14:30:14</output></test>
+    <test name="REQ-CONVERSIONS-066-b"><expression>'2012-01-01T10:00'.toDateTime()</expression><output type="dateTime">@2012-01-01T10:00</output></test>
+    <test name="REQ-CONVERSIONS-066-c"><expression>'2015-02-04T14:34:28.123'.toDateTime()</expression><output type="dateTime">@2015-02-04T14:34:28.123</output></test>
+    <test name="REQ-CONVERSIONS-066-d"><expression>'2015-02-04T14:34:28Z'.toDateTime() = @2015-02-04T14:34:28Z</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-066-e"><expression>'2015-02-04T14:34:28+10:00'.toDateTime() = @2015-02-04T14:34:28+10:00</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-066-f"><expression>@2014-01-25.toDateTime() is System.DateTime</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-066-g"><expression>@2014-01-25.toDateTime() = @2014-01-25T</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-066-h"><expression>@2014-01-25.toDateTime() = @2014-01-25T00:00:00</expression></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-067" description="toDateTime returns empty for a String not in the DateTime format: words, an offset without minutes, a space for the T, an empty string">
+    <source spec="fhirpath-2.0.0" section="toDateTime() : DateTime" strength="DEFINITION">If the item is a String, but the string is not convertible to a DateTime (using the format **YYYY-MM-DDThh:mm:ss.fff(+|-)hh:mm**), the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="toDateTime([format : string]) : DateTime" strength="DEFINITION">If the item is a String, but the string is not convertible to a DateTime (using the default format `yyyy-MM-DDThh:mm:ss.fff(+|-)hh:mm`{:.formatted}), the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="convertsToDateTime([format : string]) : Boolean" strength="EXAMPLE">'not a datetime'.convertsToDateTime() // false</source>
+    <source spec="fhirpath-2.0.0" section="DateTime" strength="DEFINITION">Timezone offset is optional, but if present the notation **(+|-)hh:mm** is used (so must include both minutes and hours)</source>
+    <test name="REQ-CONVERSIONS-067-a"><expression>'not a datetime'.toDateTime()</expression></test>
+    <test name="REQ-CONVERSIONS-067-b"><expression>'2015-02-04T14:34:28+10'.toDateTime()</expression></test>
+    <test name="REQ-CONVERSIONS-067-c"><expression>'2015-02-04 14:34:28'.toDateTime()</expression></test>
+    <test name="REQ-CONVERSIONS-067-d"><expression>''.toDateTime()</expression></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-068" description="toDateTime returns empty for an item that is not a DateTime, Date or String: a Time, a number, a Boolean">
+    <source spec="fhirpath-2.0.0" section="toDateTime() : DateTime" strength="DEFINITION">If the item is not one of the above types, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="toDateTime([format : string]) : DateTime" strength="DEFINITION">If the item is not one of the above types, the result is empty.</source>
+    <test name="REQ-CONVERSIONS-068-a"><expression>@T10:00.toDateTime()</expression></test>
+    <test name="REQ-CONVERSIONS-068-b"><expression>1.toDateTime()</expression></test>
+    <test name="REQ-CONVERSIONS-068-c"><expression>true.toDateTime()</expression></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-069" description="toDateTime(format) parses a String by a template of required format codes into a DateTime whose year, month, day, hour and minute are those the codes read, other characters matching literally, and ignores the format for an input that is not a String (3.0.0 only, STU; the offset and precision of the result are not asserted)">
+    <source spec="fhirpath-3.0.0" section="toDateTime([format : string]) : DateTime" strength="DEFINITION">the item is a DateTime</source>
+    <source spec="fhirpath-3.0.0" section="toDateTime([format : string]) : DateTime" strength="DEFINITION">the item is a String and is convertible to a DateTime</source>
+    <source spec="fhirpath-3.0.0" section="toDateTime([format : string]) : DateTime" strength="DEFINITION">When the optional format parameter is provided, it is used as a [template](#format-codes) instead of the default format.</source>
+    <source spec="fhirpath-3.0.0" section="toDateTime([format : string]) : DateTime" strength="DEFINITION">If the input is not a string, the format parameter it ignored.</source>
+    <source spec="fhirpath-3.0.0" section="Date/DateTime String Format Codes" strength="DEFINITION">Any character in the format string parameter not represented by a format code is treated as a literal and must match exactly in the input string.</source>
+    <source spec="fhirpath-3.0.0" section="Date/DateTime String Format Codes" strength="DEFINITION">| yyyy | required | 4-digit year (e.g., 2024)</source>
+    <source spec="fhirpath-3.0.0" section="Date/DateTime String Format Codes" strength="DEFINITION">| MM   | required | 2-digit month of year (01=January, etc.)</source>
+    <source spec="fhirpath-3.0.0" section="Date/DateTime String Format Codes" strength="DEFINITION">| HH   | required | 2-digit hour of day (00 through 23)</source>
+    <source spec="fhirpath-3.0.0" section="Date/DateTime String Format Codes" strength="DEFINITION">| mm   | required | 2-digit minute of hour (00 through 59)</source>
+    <source spec="fhirpath-3.0.0" section="Date/DateTime String Format Codes" strength="DEFINITION">| dd   | required | 2-digit day of month (01 through 31)</source>
+    <source spec="fhirpath-3.0.0" section="yearOf(): Integer" strength="DEFINITION">If the input collection contains a single Date or DateTime, this function will return the year component.</source>
+    <source spec="fhirpath-3.0.0" section="monthOf(): Integer" strength="DEFINITION">If the input collection contains a single Date or DateTime, this function will return the month component.</source>
+    <source spec="fhirpath-3.0.0" section="dayOf(): Integer" strength="DEFINITION">If the input collection contains a single Date or DateTime, this function will return the day component.</source>
+    <source spec="fhirpath-3.0.0" section="hourOf(): Integer" strength="DEFINITION">If the input collection contains a single DateTime or Time, this function will return the hour component.</source>
+    <source spec="fhirpath-3.0.0" section="hourOf(): Integer" strength="EXAMPLE">@2012-01-01T03:30:40.002-07:00.hourOf() // 3</source>
+    <source spec="fhirpath-3.0.0" section="minuteOf(): Integer" strength="DEFINITION">If the input collection contains a single DateTime or Time, this function will return the minute component.</source>
+    <test name="REQ-CONVERSIONS-069-a"><expression>'15/01/2024 10:30'.toDateTime('dd/MM/yyyy HH:mm').yearOf()</expression><output type="integer">2024</output></test>
+    <test name="REQ-CONVERSIONS-069-b"><expression>@2024-01-15T10:30.toDateTime('dd/MM/yyyy HH:mm') = @2024-01-15T10:30</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-069-c"><expression>'2024-01-15T10:30'.toDateTime('dd/MM/yyyy HH:mm')</expression></test>
+    <test name="REQ-CONVERSIONS-069-d"><expression>'15/01/2024 10:30'.toDateTime('dd/MM/yyyy HH:mm').monthOf()</expression><output type="integer">1</output></test>
+    <test name="REQ-CONVERSIONS-069-e"><expression>'15/01/2024 10:30'.toDateTime('dd/MM/yyyy HH:mm').dayOf()</expression><output type="integer">15</output></test>
+    <test name="REQ-CONVERSIONS-069-f"><expression>'15/01/2024 10:30'.toDateTime('dd/MM/yyyy HH:mm').hourOf()</expression><output type="integer">10</output></test>
+    <test name="REQ-CONVERSIONS-069-g"><expression>'15/01/2024 10:30'.toDateTime('dd/MM/yyyy HH:mm').minuteOf()</expression><output type="integer">30</output></test>
+    <test name="REQ-CONVERSIONS-069-h"><expression>'15/01/2024 10:30'.toDateTime('dd/MM/yyyy HH:mm') is System.DateTime</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-070" description="convertsToDateTime is true for a DateTime, a Date and a String in the DateTime format, and false for other Strings and other types">
+    <source spec="fhirpath-2.0.0" section="convertsToDateTime() : Boolean" strength="DEFINITION">the item is a DateTime</source>
+    <source spec="fhirpath-2.0.0" section="convertsToDateTime() : Boolean" strength="DEFINITION">the item is a Date</source>
+    <source spec="fhirpath-2.0.0" section="convertsToDateTime() : Boolean" strength="DEFINITION">If the item is not one of the above types, or is not convertible to a DateTime (using the format **YYYY-MM-DDThh:mm:ss.fff(+|-)hh:mm**), the result is false.</source>
+    <source spec="fhirpath-3.0.0" section="convertsToDateTime([format : string]) : Boolean" strength="EXAMPLE">'2015-02-04T14:34:28'.convertsToDateTime() // true</source>
+    <source spec="fhirpath-3.0.0" section="convertsToDateTime([format : string]) : Boolean" strength="EXAMPLE">'not a datetime'.convertsToDateTime() // false</source>
+    <test name="REQ-CONVERSIONS-070-a"><expression>'2015-02-04T14:34:28'.convertsToDateTime()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-070-b"><expression>'not a datetime'.convertsToDateTime()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-070-c"><expression>@2014-01-25.convertsToDateTime()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-070-d"><expression>@2014-01-25T10:00.convertsToDateTime()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-070-e"><expression>@T10:00.convertsToDateTime()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-070-f"><expression>1.convertsToDateTime()</expression><output type="boolean">false</output></test>
+  </group>
+
+  <!-- toTime, convertsToTime -->
+
+  <group name="REQ-CONVERSIONS-071" description="toTime returns a Time unchanged and converts a String in the hh:mm:ss.fff format, partial strings giving partial times">
+    <source spec="fhirpath-2.0.0" section="toTime() : Time" strength="DEFINITION">the item is a Time</source>
+    <source spec="fhirpath-2.0.0" section="toTime() : Time" strength="DEFINITION">the item is a String and is convertible to a Time</source>
+    <source spec="fhirpath-2.0.0" section="toTime() : Time" strength="DEFINITION">If the item contains a partial time (e.g. `'10:00'`), the result is a partial time.</source>
+    <source spec="fhirpath-3.0.0" section="toTime() : Time" strength="EXAMPLE">'14:34:28'.toTime() // 14:34:28</source>
+    <source spec="fhirpath-3.0.0" section="toTime() : Time" strength="EXAMPLE">'10:00'.toTime() // 10:00 ; partial time is preserved</source>
+    <test name="REQ-CONVERSIONS-071-a"><expression>'14:34:28'.toTime()</expression><output type="time">@T14:34:28</output></test>
+    <test name="REQ-CONVERSIONS-071-b"><expression>'10:00'.toTime()</expression><output type="time">@T10:00</output></test>
+    <test name="REQ-CONVERSIONS-071-c"><expression>'14:34:28.123'.toTime()</expression><output type="time">@T14:34:28.123</output></test>
+    <test name="REQ-CONVERSIONS-071-d"><expression>@T10:00.toTime()</expression><output type="time">@T10:00</output></test>
+    <test name="REQ-CONVERSIONS-071-e"><expression>'14:34:28'.toTime() is System.Time</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-072" description="toTime returns empty for a String not in the time format: words, a leading T, letters for separators, a single-digit hour, an empty string">
+    <source spec="fhirpath-2.0.0" section="toTime() : Time" strength="DEFINITION">If the item is a String, but the string is not convertible to a Time (using the format **hh:mm:ss.fff(+|-)hh:mm**), the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="toTime() : Time" strength="DEFINITION">If the item is a String, but the string is not convertible to a Time (using the format `hh:mm:ss.fff(+|-)hh:mm`{:.formatted}), the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="convertsToTime() : Boolean" strength="EXAMPLE">'not a time'.convertsToTime() // false</source>
+    <test name="REQ-CONVERSIONS-072-a"><expression>'not a time'.toTime()</expression></test>
+    <test name="REQ-CONVERSIONS-072-b"><expression>'T14:34:28'.toTime()</expression></test>
+    <test name="REQ-CONVERSIONS-072-c"><expression>'14h34'.toTime()</expression></test>
+    <test name="REQ-CONVERSIONS-072-d"><expression>'2:30'.toTime()</expression></test>
+    <test name="REQ-CONVERSIONS-072-e"><expression>''.toTime()</expression></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-073" description="toTime returns empty for an item that is not a Time or String, a DateTime included (the table defines no DateTime to Time conversion)">
+    <source spec="fhirpath-2.0.0" section="toTime() : Time" strength="DEFINITION">If the item is not one of the above types, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="toTime() : Time" strength="DEFINITION">If the item is not one of the above types, the result is empty.</source>
+    <source spec="fhirpath-2.0.0" section="Conversion" strength="DEFINITION">|*DateTime* |- |- |- |- |Explicit |Explicit |N/A |-</source>
+    <test name="REQ-CONVERSIONS-073-a"><expression>@2014-01-25T10:00.toTime()</expression></test>
+    <test name="REQ-CONVERSIONS-073-b"><expression>@2014-01-25.toTime()</expression></test>
+    <test name="REQ-CONVERSIONS-073-c"><expression>1.toTime()</expression></test>
+    <test name="REQ-CONVERSIONS-073-d"><expression>true.toTime()</expression></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-074" description="convertsToTime is true for a Time and a String in the time format, and false for other Strings and other types, a DateTime included">
+    <source spec="fhirpath-2.0.0" section="convertsToTime() : Boolean" strength="DEFINITION">If the item is not one of the above types, or is not convertible to a Time (using the format **hh:mm:ss.fff(+|-)hh:mm**), the result is false.</source>
+    <source spec="fhirpath-3.0.0" section="convertsToTime() : Boolean" strength="EXAMPLE">'14:34:28'.convertsToTime() // true</source>
+    <source spec="fhirpath-3.0.0" section="convertsToTime() : Boolean" strength="EXAMPLE">'not a time'.convertsToTime() // false</source>
+    <test name="REQ-CONVERSIONS-074-a"><expression>'14:34:28'.convertsToTime()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-074-b"><expression>'not a time'.convertsToTime()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-074-c"><expression>@T10:00.convertsToTime()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-074-d"><expression>@2014-01-25T10:00.convertsToTime()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-074-e"><expression>1.convertsToTime()</expression><output type="boolean">false</output></test>
+  </group>
+
+  <!-- FHIR -->
+
+  <group name="REQ-CONVERSIONS-075" description="FHIR primitives reach the conversion functions as the System types they map to: boolean as Boolean, string and code as String, positiveInt as Integer, decimal as Decimal (so toInteger does not take it), date and dateTime as DateTime (whose date-precision value toString writes as YYYY-MM-DD)">
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.boolean System.Boolean</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.string, FHIR.uri, FHIR.code, FHIR.oid, FHIR.id, FHIR.uuid, FHIR.sid, FHIR.markdown, FHIR.base64Binary System.String</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.integer, FHIR.unsignedInt, FHIR.positiveInt System.Integer</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.date, FHIR.dateTime, FHIR.instant System.DateTime</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.string, FHIR.uri, FHIR.code, FHIR.oid, FHIR.id, FHIR.uuid, FHIR.markdown, FHIR.base64Binary System.String</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.date, FHIR.dateTime, FHIR.instant System.DateTime</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.decimal System.Decimal</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.decimal System.Decimal</source>
+    <source spec="fhirpath-2.0.0" section="toString() : String" strength="DEFINITION">Note that for partial dates and times, the result will only be specified to the level of precision in the value being converted.</source>
+    <source spec="fhirpath-2.0.0" section="toDecimal() : Decimal" strength="DEFINITION">the item is an Integer or Decimal</source>
+    <source spec="fhirpath-2.0.0" section="toInteger() : Integer" strength="DEFINITION">If the item is not one the above types, the result is empty.</source>
+    <test name="REQ-CONVERSIONS-075-a" inputfile="patient-example.xml"><expression>Patient.active.toString()</expression><output type="string">true</output></test>
+    <test name="REQ-CONVERSIONS-075-b" inputfile="patient-example.xml"><expression>Patient.active.toInteger()</expression><output type="integer">1</output></test>
+    <test name="REQ-CONVERSIONS-075-c" inputfile="patient-example.xml"><expression>Patient.active.convertsToBoolean()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-075-d" inputfile="patient-example.xml"><expression>Patient.telecom[1].rank.toString()</expression><output type="string">1</output></test>
+    <test name="REQ-CONVERSIONS-075-e" inputfile="patient-example.xml"><expression>Patient.address.postalCode.toInteger()</expression><output type="integer">3999</output></test>
+    <test name="REQ-CONVERSIONS-075-f" inputfile="patient-example.xml"><expression>Patient.identifier.value.toDecimal() = 12345.0</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-075-g" inputfile="patient-example.xml"><expression>Patient.gender.toString()</expression><output type="string">male</output></test>
+    <test name="REQ-CONVERSIONS-075-h" inputfile="patient-example.xml"><expression>Patient.birthDate.toString()</expression><output type="string">1974-12-25</output></test>
+    <test name="REQ-CONVERSIONS-075-i" inputfile="patient-example.xml"><expression>Patient.birthDate.toDate()</expression><output type="date">@1974-12-25</output></test>
+    <test name="REQ-CONVERSIONS-075-j" inputfile="patient-example.xml"><expression>Patient.birthDate.convertsToDateTime()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-075-k" inputfile="patient-example.xml"><expression>Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').value.toString()</expression><output type="string">1974-12-25T14:35:45-05:00</output></test>
+    <test name="REQ-CONVERSIONS-075-l" inputfile="observation-example.xml"><expression>Observation.effective.toDate()</expression><output type="date">@2016-03-28</output></test>
+    <test name="REQ-CONVERSIONS-075-m" inputfile="observation-example.xml"><expression>Observation.value.value.toDecimal() = 185.0</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-075-n" inputfile="observation-example.xml"><expression>Observation.value.value.convertsToDecimal()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-075-o" inputfile="observation-example.xml"><expression>Observation.value.value.toInteger()</expression></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-076" description="A FHIR Quantity with a UCUM code, or an Age (a profile of Quantity, which FHIR treats as Quantity), reaches the conversion functions as a System.Quantity, its time-valued code mapped to a calendar unit ('a' to year)">
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.Quantity System.Quantity (see below)</source>
+    <source spec="fhir-r4" section="2.9.1.3 Use of FHIR Quantity" strength="DEFINITION">The Mapping from FHIR Quantity to FHIRPath System.Quantity can only be applied if the FHIR Quantity has a UCUM code - i.e. a system of http://unitsofmeasure.org , and a code is present.</source>
+    <source spec="fhir-r4" section="2.9.1.3 Use of FHIR Quantity" strength="DEFINITION">As part of the mapping, time-valued UCUM units are mapped to the calendar duration units defined in FHIRPath, according to the following map:</source>
+    <source spec="fhir-r4" section="2.9.1.3 Use of FHIR Quantity" strength="EXAMPLE">e.g. the FHIR Quantity 1 'a' would be implicitly converted to the FHIRPath System.Quantity 1 'year'.</source>
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">Profiled types are not allowed, so to select SimpleQuantity one would pass Quantity as an argument.</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.Quantity System.Quantity (see below)</source>
+    <source spec="fhir-r5" section="2.1.9.1.3 Use of FHIR Quantity" strength="DEFINITION">The Mapping from FHIR Quantity to FHIRPath System.Quantity can only be applied if the FHIR Quantity has a UCUM code - i.e. a system of http://unitsofmeasure.org , and a code is present.</source>
+    <source spec="fhir-r5" section="2.1.9.1.3 Use of FHIR Quantity" strength="DEFINITION">As part of the mapping, time-valued UCUM units are mapped to the calendar duration units defined in FHIRPath, according to the following map:</source>
+    <source spec="fhir-r5" section="2.1.9.1.3 Use of FHIR Quantity" strength="EXAMPLE">i.e. The FHIR Quantity 1 'a' would be implicitly converted to the FHIRPath System.Quantity 1 'year'.</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">Profiled types are not allowed, so to select SimpleQuantity one would pass Quantity as an argument.</source>
+    <source spec="fhirpath-2.0.0" section="toQuantity([unit : String]) : Quantity" strength="DEFINITION">the item is a Quantity</source>
+    <source spec="fhirpath-2.0.0" section="toString() : String" strength="DEFINITION">|*Quantity* |`(\\+\|-)?\d+(.\d+)? &amp;#39;.*&amp;#39;`</source>
+    <test name="REQ-CONVERSIONS-076-a" inputfile="observation-example.xml"><expression>Observation.value.toQuantity() = 185 '[lb_av]'</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-076-b" inputfile="observation-example.xml"><expression>Observation.value.convertsToQuantity()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-076-c" inputfile="observation-example.xml"><expression>Observation.value.toString().endsWith(' \'[lb_av]\'')</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-076-d" inputfile="observation-example.xml"><expression>Observation.extension('http://example.com/fhir/StructureDefinition/patient-age').value.toQuantity() = 41 years</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-077" description="A repeating FHIR element with more than one value makes a conversion function signal an error">
+    <source spec="fhirpath-2.0.0" section="Conversion" strength="DEFINITION">The functions in this section operate on collections with a single item. If there is more than one item, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-3.0.0" section="Conversion" strength="DEFINITION">The functions in this section operate on collections with a single item. If there is more than one item, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <test name="REQ-CONVERSIONS-077-a" inputfile="patient-example.xml"><expression invalid="execution">Patient.telecom.rank.toString()</expression></test>
+    <test name="REQ-CONVERSIONS-077-b" inputfile="patient-example.xml"><expression invalid="execution">Patient.name.given.toString()</expression></test>
+    <test name="REQ-CONVERSIONS-077-c" inputfile="patient-example.xml"><expression invalid="execution">Patient.name.given.convertsToString()</expression></test>
+    <test name="REQ-CONVERSIONS-077-d" inputfile="patient-example.xml"><expression invalid="execution">Patient.telecom.rank.toInteger()</expression></test>
+  </group>
+
+  <group name="REQ-CONVERSIONS-078" description="A FHIR complex value (a HumanName) is of no type any conversion function takes: each toX is empty and each convertsToX false (toString is cited from 3.0.0: 2.0.0 says its result is then false, a defect for a function returning a String)">
+    <source spec="fhirpath-3.0.0" section="toString() : String" strength="DEFINITION">If the item is not one of the above types, the result is empty.</source>
+    <source spec="fhirpath-2.0.0" section="toString() : String" strength="DEFINITION">If the item is not one of the above types, the result is false.</source>
+    <source spec="fhirpath-3.0.0" section="convertsToString() : Boolean" strength="EXAMPLE">Patient.name.first().convertsToString() // false ; not a type that supports toString() (assuming there was at least 1 name)</source>
+    <source spec="fhirpath-2.0.0" section="toBoolean() : Boolean" strength="DEFINITION">If the item is not one the above types, or the item is a String, Integer, or Decimal, but is not equal to one of the possible values convertible to a Boolean, the result is empty.</source>
+    <source spec="fhirpath-2.0.0" section="toInteger() : Integer" strength="DEFINITION">If the item is not one the above types, the result is empty.</source>
+    <source spec="fhirpath-2.0.0" section="toDate() : Date" strength="DEFINITION">If the item is not one of the above types, the result is empty.</source>
+    <source spec="fhirpath-2.0.0" section="convertsToInteger() : Boolean" strength="DEFINITION">If the item is not one of the above types, or the item is a String, but is not convertible to an Integer (using the regex format `(\\+|-)?\d+`), the result is false.</source>
+    <source spec="fhirpath-2.0.0" section="convertsToString() : String" strength="DEFINITION">If the item is not one of the above types, the result is false.</source>
+    <test name="REQ-CONVERSIONS-078-a" inputfile="patient-example.xml"><expression>Patient.name.first().toString()</expression></test>
+    <test name="REQ-CONVERSIONS-078-b" inputfile="patient-example.xml"><expression>Patient.name.first().convertsToString()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-078-c" inputfile="patient-example.xml"><expression>Patient.name.first().toBoolean()</expression></test>
+    <test name="REQ-CONVERSIONS-078-d" inputfile="patient-example.xml"><expression>Patient.name.first().convertsToBoolean()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-078-e" inputfile="patient-example.xml"><expression>Patient.name.first().toInteger()</expression></test>
+    <test name="REQ-CONVERSIONS-078-f" inputfile="patient-example.xml"><expression>Patient.name.first().convertsToInteger()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-078-g" inputfile="patient-example.xml"><expression>Patient.name.first().toDecimal()</expression></test>
+    <test name="REQ-CONVERSIONS-078-h" inputfile="patient-example.xml"><expression>Patient.name.first().convertsToDecimal()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-078-i" inputfile="patient-example.xml"><expression>Patient.name.first().toQuantity()</expression></test>
+    <test name="REQ-CONVERSIONS-078-j" inputfile="patient-example.xml"><expression>Patient.name.first().convertsToQuantity()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-078-k" inputfile="patient-example.xml"><expression>Patient.name.first().toDate()</expression></test>
+    <test name="REQ-CONVERSIONS-078-l" inputfile="patient-example.xml"><expression>Patient.name.first().convertsToDate()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-078-m" inputfile="patient-example.xml"><expression>Patient.name.first().toDateTime()</expression></test>
+    <test name="REQ-CONVERSIONS-078-n" inputfile="patient-example.xml"><expression>Patient.name.first().convertsToDateTime()</expression><output type="boolean">false</output></test>
+    <test name="REQ-CONVERSIONS-078-o" inputfile="patient-example.xml"><expression>Patient.name.first().toTime()</expression></test>
+    <test name="REQ-CONVERSIONS-078-p" inputfile="patient-example.xml"><expression>Patient.name.first().convertsToTime()</expression><output type="boolean">false</output></test>
+  </group>
+
+  <!-- toQuantity(unit): the calendar duration conversion factors -->
+
+  <group name="REQ-CONVERSIONS-079" description="toQuantity with a calendar duration keyword as the unit converts a calendar quantity by the factors of the table (a year is 12 months or 365 days, a month 30 days, a day 24 hours, an hour 60 minutes, a minute 60 seconds, and in 3.0.0 a week 7 days), or gives empty where the implementation does not convert units, never another value (each case accepts either; the week row is 3.0.0's, STU)">
+    <source spec="fhirpath-2.0.0" section="toQuantity([unit : String]) : Quantity" strength="DEFINITION">If the `unit` argument is provided, it must be the string representation of a UCUM code (or a FHIRPath calendar duration keyword), and is used to determine whether the input quantity can be converted to the given unit, according to the unit conversion rules specified by UCUM.</source>
+    <source spec="fhirpath-2.0.0" section="toQuantity([unit : String]) : Quantity" strength="DEFINITION">For calendar durations, FHIRPath defines the following conversion factors:</source>
+    <source spec="fhirpath-2.0.0" section="toQuantity([unit : String]) : Quantity" strength="DEFINITION">|`1 year` |`12 months` or `365 days`</source>
+    <source spec="fhirpath-2.0.0" section="toQuantity([unit : String]) : Quantity" strength="DEFINITION">|`1 month` |`30 days`</source>
+    <source spec="fhirpath-2.0.0" section="toQuantity([unit : String]) : Quantity" strength="DEFINITION">|`1 day` |`24 hours`</source>
+    <source spec="fhirpath-2.0.0" section="toQuantity([unit : String]) : Quantity" strength="DEFINITION">|`1 hour` |`60 minutes`</source>
+    <source spec="fhirpath-2.0.0" section="toQuantity([unit : String]) : Quantity" strength="DEFINITION">|`1 minute` |`60 seconds`</source>
+    <source spec="fhirpath-3.0.0" section="Time-valued unit conversions" strength="DEFINITION">FHIRPath defines the following conversion factors for calendar durations.</source>
+    <source spec="fhirpath-3.0.0" section="Time-valued unit conversions" strength="DEFINITION">| `1 week` | `7 days` | *`7 'd'` or `1 'wk'`* |</source>
+    <source spec="fhirpath-3.0.0" section="Time-valued unit conversions" strength="SHALL">If converting to/from years or months you shall use the shortest conversion chain possible (i.e. don't convert from days to months to years when you can go from direct days to years).</source>
+    <source spec="fhirpath-3.0.0" section="+ (addition)" strength="EXAMPLE">1 year.toQuantity('month') + 12 months // 24 months ; explicit conversion to months, then addition with the same unit</source>
+    <source spec="fhirpath-2.0.0" section="toQuantity([unit : String]) : Quantity" strength="MAY">Implementations are not required to support a complete UCUM implementation, and may return empty (`{ }`) when the `unit` argument is used and it is different than the input quantity unit.</source>
+    <source spec="fhirpath-3.0.0" section="Unit Conversions" strength="MAY">**Note:** Implementations are not required to support a UCUM implementation, and may return empty (`{ }`) when the units are different, or not handled.</source>
+    <test name="REQ-CONVERSIONS-079-a"><expression>(1 year.toQuantity('month') = 12 months) or 1 year.toQuantity('month').empty()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-079-b"><expression>(1 year.toQuantity('day') = 365 days) or 1 year.toQuantity('day').empty()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-079-c"><expression>(1 month.toQuantity('day') = 30 days) or 1 month.toQuantity('day').empty()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-079-d"><expression>(1 week.toQuantity('day') = 7 days) or 1 week.toQuantity('day').empty()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-079-e"><expression>(1 day.toQuantity('hour') = 24 hours) or 1 day.toQuantity('hour').empty()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-079-f"><expression>(1 hour.toQuantity('minute') = 60 minutes) or 1 hour.toQuantity('minute').empty()</expression><output type="boolean">true</output></test>
+    <test name="REQ-CONVERSIONS-079-g"><expression>(1 minute.toQuantity('second') = 60 seconds) or 1 minute.toQuantity('second').empty()</expression><output type="boolean">true</output></test>
+  </group>
+
+</tests>

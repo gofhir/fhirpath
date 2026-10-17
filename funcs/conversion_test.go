@@ -497,12 +497,13 @@ func TestAdditionalConversionFunctions(t *testing.T) {
 	t.Run("convertsToString empty", func(t *testing.T) {
 		fn, _ := Get("convertsToString")
 
+		// "If the input collection is empty, the result is empty"
 		result, err := fn.Fn(ctx, types.Collection{}, nil)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if result[0].(types.Boolean).Bool() {
-			t.Error("expected empty to not be convertible to string")
+		if !result.Empty() {
+			t.Errorf("convertsToString() of an empty input = %v, want empty", result)
 		}
 	})
 
@@ -768,8 +769,8 @@ func TestQuantityConversion(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		if result[0].(types.Boolean).Bool() {
-			t.Error("expected empty to not be convertible")
+		if !result.Empty() {
+			t.Errorf("convertsToQuantity() of an empty input = %v, want empty", result)
 		}
 	})
 

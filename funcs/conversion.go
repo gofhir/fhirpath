@@ -1,6 +1,7 @@
 package funcs
 
 import (
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -85,29 +86,29 @@ func init() {
 	Register(FuncDef{
 		Name:    "toDate",
 		MinArgs: 0,
-		MaxArgs: 0,
-		Fn:      singleInput("toDate", fnToDate),
+		MaxArgs: 1,
+		Fn:      singleInput("toDate", singleArgs("toDate", fnToDate)),
 	})
 
 	Register(FuncDef{
 		Name:    "convertsToDate",
 		MinArgs: 0,
-		MaxArgs: 0,
-		Fn:      singleInput("convertsToDate", fnConvertsToDate),
+		MaxArgs: 1,
+		Fn:      singleInput("convertsToDate", singleArgs("convertsToDate", fnConvertsToDate)),
 	})
 
 	Register(FuncDef{
 		Name:    "toDateTime",
 		MinArgs: 0,
-		MaxArgs: 0,
-		Fn:      singleInput("toDateTime", fnToDateTime),
+		MaxArgs: 1,
+		Fn:      singleInput("toDateTime", singleArgs("toDateTime", fnToDateTime)),
 	})
 
 	Register(FuncDef{
 		Name:    "convertsToDateTime",
 		MinArgs: 0,
-		MaxArgs: 0,
-		Fn:      singleInput("convertsToDateTime", fnConvertsToDateTime),
+		MaxArgs: 1,
+		Fn:      singleInput("convertsToDateTime", singleArgs("convertsToDateTime", fnConvertsToDateTime)),
 	})
 
 	Register(FuncDef{
@@ -128,14 +129,30 @@ func init() {
 		Name:    "toQuantity",
 		MinArgs: 0,
 		MaxArgs: 1,
-		Fn:      fnToQuantity,
+		Fn:      singleArgs("toQuantity", fnToQuantity),
 	})
 
 	Register(FuncDef{
 		Name:    "convertsToQuantity",
 		MinArgs: 0,
 		MaxArgs: 1,
-		Fn:      fnConvertsToQuantity,
+		Fn:      singleArgs("convertsToQuantity", fnConvertsToQuantity),
+	})
+
+	// 3.0.0's Long is a 64-bit integer, which this engine's Integer already is:
+	// toLong() and convertsToLong() read what toInteger() reads
+	Register(FuncDef{
+		Name:    "toLong",
+		MinArgs: 0,
+		MaxArgs: 0,
+		Fn:      singleInput("toLong", fnToInteger),
+	})
+
+	Register(FuncDef{
+		Name:    "convertsToLong",
+		MinArgs: 0,
+		MaxArgs: 0,
+		Fn:      singleInput("convertsToLong", fnConvertsToInteger),
 	})
 }
 
@@ -232,8 +249,9 @@ func fnToBoolean(_ *eval.Context, input types.Collection, _ []interface{}) (type
 
 // fnConvertsToBoolean returns true if the input can be converted to boolean.
 func fnConvertsToBoolean(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
+	// "If the input collection is empty, the result is empty"
 	if input.Empty() {
-		return types.Collection{types.NewBoolean(false)}, nil
+		return types.Collection{}, nil
 	}
 
 	item := input[0]
@@ -286,18 +304,18 @@ func fnToInteger(_ *eval.Context, input types.Collection, _ []interface{}) (type
 			return types.Collection{}, nil
 		}
 		return types.Collection{types.NewInteger(i)}, nil
-	case types.Decimal:
-		// One past the int64 range does not convert
-		return wholeInteger(v.Value())
 	default:
+		// A Decimal is not among what converts, 1.5 nor 185.0: "the item is
+		// an Integer ... a String ... a Boolean"
 		return types.Collection{}, nil
 	}
 }
 
 // fnConvertsToInteger returns true if the input can be converted to integer.
 func fnConvertsToInteger(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
+	// "If the input collection is empty, the result is empty"
 	if input.Empty() {
-		return types.Collection{types.NewBoolean(false)}, nil
+		return types.Collection{}, nil
 	}
 
 	item := input[0]
@@ -309,10 +327,6 @@ func fnConvertsToInteger(_ *eval.Context, input types.Collection, _ []interface{
 		return types.Collection{types.NewBoolean(true)}, nil
 	case types.String:
 		_, err := strconv.ParseInt(v.Value(), 10, 64)
-		return types.Collection{types.NewBoolean(err == nil)}, nil
-	case types.Decimal:
-		// As toInteger() converts it: not past the int64 range
-		_, err := types.IntegerFromDecimal(v.Value())
 		return types.Collection{types.NewBoolean(err == nil)}, nil
 	default:
 		return types.Collection{types.NewBoolean(false)}, nil
@@ -338,7 +352,10 @@ func fnToDecimal(_ *eval.Context, input types.Collection, _ []interface{}) (type
 		}
 		return types.Collection{types.NewDecimalFromInt(0)}, nil
 	case types.String:
-		d, err := types.NewDecimal(v.Value())
+		if !decimalString.MatchString(v.Value()) {
+			return types.Collection{}, nil
+		}
+		d, err := types.NewDecimal(canonicalNumber(v.Value()))
 		if err != nil {
 			return types.Collection{}, nil
 		}
@@ -348,10 +365,38 @@ func fnToDecimal(_ *eval.Context, input types.Collection, _ []interface{}) (type
 	}
 }
 
+// canonicalNumber writes a number string the way the number is written back,
+// "(-)?#0.0#": without a plus sign or leading zeros, so '+1.5' is 1.5 and
+// '00001.5' 1.5, as fhirpath.js answers.
+func canonicalNumber(text string) string {
+	sign := ""
+	switch {
+	case strings.HasPrefix(text, "+"):
+		text = text[1:]
+	case strings.HasPrefix(text, "-"):
+		sign, text = "-", text[1:]
+	}
+	trimmed := strings.TrimLeft(text, "0")
+	if trimmed == "" || trimmed[0] == '.' {
+		trimmed = "0" + trimmed
+	}
+	// Zero has no sign
+	if strings.Trim(trimmed, "0.") == "" {
+		sign = ""
+	}
+	return sign + trimmed
+}
+
+// decimalString is the form a string takes to convert to a Decimal:
+// "(\+|-)?\d+(\.\d+)?", so not '1.', '.5' or '1e5', which a decimal parser
+// reads.
+var decimalString = regexp.MustCompile(`^(\+|-)?\d+(\.\d+)?$`)
+
 // fnConvertsToDecimal returns true if the input can be converted to decimal.
 func fnConvertsToDecimal(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
+	// "If the input collection is empty, the result is empty"
 	if input.Empty() {
-		return types.Collection{types.NewBoolean(false)}, nil
+		return types.Collection{}, nil
 	}
 
 	item := input[0]
@@ -360,6 +405,9 @@ func fnConvertsToDecimal(_ *eval.Context, input types.Collection, _ []interface{
 	case types.Decimal, types.Integer, types.Boolean:
 		return types.Collection{types.NewBoolean(true)}, nil
 	case types.String:
+		if !decimalString.MatchString(v.Value()) {
+			return types.Collection{types.NewBoolean(false)}, nil
+		}
 		_, err := types.ParseDecimal(v.Value())
 		return types.Collection{types.NewBoolean(err == nil)}, nil
 	default:
@@ -373,10 +421,24 @@ func fnToString(_ *eval.Context, input types.Collection, _ []interface{}) (types
 		return types.Collection{}, nil
 	}
 
+	// A FHIR Quantity is written as the quantity it maps to
+	if q, ok := fhirQuantity(input[0]); ok {
+		return types.Collection{types.NewString(q.String())}, nil
+	}
 	if !convertsToString(input[0]) {
 		return types.Collection{}, nil
 	}
 	return types.Collection{types.NewString(input[0].String())}, nil
+}
+
+// fhirQuantity reads a FHIR Quantity as the System.Quantity it maps to.
+func fhirQuantity(v types.Value) (types.Quantity, bool) {
+	obj, ok := v.(*types.ObjectValue)
+	if !ok {
+		return types.Quantity{}, false
+	}
+	q, ok, err := eval.AsQuantity(obj)
+	return q, ok && err == nil
 }
 
 // convertsToString reports whether a value is one of the types toString()
@@ -396,17 +458,26 @@ func convertsToString(value types.Value) bool {
 
 // fnConvertsToString returns true if the input can be converted to string.
 func fnConvertsToString(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
+	// "If the input collection is empty, the result is empty"
 	if input.Empty() {
-		return types.Collection{types.NewBoolean(false)}, nil
+		return types.Collection{}, nil
 	}
 
-	return types.Collection{types.NewBoolean(convertsToString(input[0]))}, nil
+	_, isQuantity := fhirQuantity(input[0])
+	return types.Collection{types.NewBoolean(isQuantity || convertsToString(input[0]))}, nil
 }
 
 // fnToDate converts the input to a date.
-func fnToDate(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
+func fnToDate(_ *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
 	if input.Empty() {
 		return types.Collection{}, nil
+	}
+	template, given, empty, err := formatArgument("toDate", args)
+	if err != nil || empty {
+		return types.Collection{}, err
+	}
+	if s, ok := input[0].(types.String); ok && given {
+		return dateByTemplate(s.Value(), template), nil
 	}
 
 	switch v := input[0].(type) {
@@ -437,6 +508,9 @@ func fnToDate(_ *eval.Context, input types.Collection, _ []interface{}) (types.C
 // convertsToTime() do: true for a Date, a DateTime or a string that names a
 // day on the calendar, so not for 'abc' or '2021-02-30'.
 func fnConvertsToDate(ctx *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
+	if input.Empty() || emptyArgument(args) {
+		return types.Collection{}, nil
+	}
 	converted, err := fnToDate(ctx, input, args)
 	if err != nil {
 		return nil, err
@@ -445,9 +519,16 @@ func fnConvertsToDate(ctx *eval.Context, input types.Collection, args []interfac
 }
 
 // fnToDateTime converts the input to a datetime.
-func fnToDateTime(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
+func fnToDateTime(_ *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
 	if input.Empty() {
 		return types.Collection{}, nil
+	}
+	template, given, empty, err := formatArgument("toDateTime", args)
+	if err != nil || empty {
+		return types.Collection{}, err
+	}
+	if s, ok := input[0].(types.String); ok && given {
+		return dateTimeByTemplate(s.Value(), template), nil
 	}
 
 	switch v := input[0].(type) {
@@ -480,6 +561,9 @@ func fnToDateTime(_ *eval.Context, input types.Collection, _ []interface{}) (typ
 // Derived from toDateTime() rather than restated, so that the two cannot
 // disagree about what converts.
 func fnConvertsToDateTime(ctx *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
+	if input.Empty() || emptyArgument(args) {
+		return types.Collection{}, nil
+	}
 	converted, err := fnToDateTime(ctx, input, args)
 	if err != nil {
 		return nil, err
@@ -498,6 +582,11 @@ func fnToTime(_ *eval.Context, input types.Collection, _ []interface{}) (types.C
 		return systemResult(v), nil
 
 	case types.String:
+		// A time string is written without the T a literal opens with:
+		// 'T14:34:28' is no time
+		if strings.HasPrefix(v.Value(), "T") {
+			return types.Collection{}, nil
+		}
 		converted, err := types.NewTime(v.Value())
 		if err != nil {
 			return types.Collection{}, nil
@@ -510,6 +599,9 @@ func fnToTime(_ *eval.Context, input types.Collection, _ []interface{}) (types.C
 
 // fnConvertsToTime returns true if the input can be converted to time.
 func fnConvertsToTime(ctx *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
+	if input.Empty() {
+		return types.Collection{}, nil
+	}
 	converted, err := fnToTime(ctx, input, args)
 	if err != nil {
 		return nil, err
@@ -533,7 +625,20 @@ func fnToQuantity(_ *eval.Context, input types.Collection, args []interface{}) (
 		return types.Collection{}, nil
 	}
 
-	// Without a unit argument the quantity stands as it is
+	// Without a unit argument the quantity stands as it is; with an empty
+	// one there is no unit to convert to, and the result is empty
+	if len(args) > 0 {
+		if c, isCollection := args[0].(types.Collection); isCollection {
+			if c.Empty() {
+				return types.Collection{}, nil
+			}
+			// A unit is a String: an argument with "an item that is not of the
+			// required type" ends the evaluation (3.0.0)
+			if _, isString := c[0].(types.String); !isString {
+				return nil, eval.TypeError("String", c[0].Type(), "toQuantity")
+			}
+		}
+	}
 	unit, provided := quantityUnitArg(args)
 	if !provided {
 		return types.Collection{quantity}, nil
@@ -607,8 +712,10 @@ func quantityUnitArg(args []interface{}) (string, bool) {
 // fnConvertsToQuantity returns true if the input can be converted to quantity.
 // If a unit argument is provided, returns true only if the quantity can be converted to that unit.
 func fnConvertsToQuantity(ctx *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
-	if input.Empty() {
-		return types.Collection{types.NewBoolean(false)}, nil
+	// "If the input collection is empty, the result is empty", and so for an
+	// empty unit
+	if input.Empty() || emptyArgument(args) {
+		return types.Collection{}, nil
 	}
 
 	// Derived from toQuantity() rather than restated, so that the two cannot
@@ -632,4 +739,69 @@ func systemResult(value types.Value) types.Collection {
 		return types.Collection{system}
 	}
 	return types.Collection{value}
+}
+
+// formatArgument reads the optional format of toDate() and toDateTime():
+// whether one was given, and whether it evaluated to nothing. A format that is
+// no String ends the evaluation: an argument with "an item that is not of the
+// required type" does (3.0.0).
+func formatArgument(name string, args []interface{}) (template string, given, empty bool, err error) {
+	if len(args) == 0 {
+		return "", false, false, nil
+	}
+	c, ok := args[0].(types.Collection)
+	if !ok || c.Empty() {
+		return "", true, true, nil
+	}
+	s, ok := c[0].(types.String)
+	if !ok {
+		return "", true, false, eval.TypeError("String", c[0].Type(), name)
+	}
+	return s.Value(), true, false, nil
+}
+
+// dateByTemplate reads a string by a template as a Date, empty where it does
+// not match or names no day on the calendar.
+func dateByTemplate(value, template string) types.Collection {
+	f, ok := parseFormatted(value, template)
+	if !ok {
+		return types.Collection{}
+	}
+	text, ok := f.date()
+	if !ok {
+		return types.Collection{}
+	}
+	d, err := types.NewDate(text)
+	if err != nil {
+		return types.Collection{}
+	}
+	return types.Collection{d}
+}
+
+// dateTimeByTemplate reads a string by a template as a DateTime.
+func dateTimeByTemplate(value, template string) types.Collection {
+	f, ok := parseFormatted(value, template)
+	if !ok {
+		return types.Collection{}
+	}
+	text, ok := f.dateTime()
+	if !ok {
+		return types.Collection{}
+	}
+	dt, err := types.NewDateTime(text)
+	if err != nil {
+		return types.Collection{}
+	}
+	return types.Collection{dt}
+}
+
+// emptyArgument reports an argument that was given and evaluated to nothing:
+// "If a single-input operator or function is passed an empty collection as an
+// argument, the result is an empty collection".
+func emptyArgument(args []interface{}) bool {
+	if len(args) == 0 {
+		return false
+	}
+	c, ok := args[0].(types.Collection)
+	return ok && c.Empty()
 }

@@ -123,7 +123,7 @@ result, _ := fhirpath.Evaluate(resource, "(1).convertsToBoolean()")
 
 **Edge Cases / Notes:**
 
-- Returns `false` for empty input.
+- Returns an empty collection for empty input, as the specification says ("If the input collection is empty, the result is empty").
 - Returns `false` for `Integer` values other than `0` and `1`.
 
 ---
@@ -147,7 +147,6 @@ toInteger() : Integer
 | `Integer`   | Returns as-is                                     |
 | `Boolean`   | `true` becomes `1`, `false` becomes `0`           |
 | `String`    | Parsed as a 64-bit signed integer                 |
-| `Decimal`   | Returns the integer part (truncation)             |
 
 **Examples:**
 
@@ -159,14 +158,14 @@ result, _ := fhirpath.Evaluate(resource, "true.toInteger()")
 // 1
 
 result, _ := fhirpath.Evaluate(resource, "(3.7).toInteger()")
-// 3
+// { } (empty - a Decimal does not convert to an Integer)
 ```
 
 **Edge Cases / Notes:**
 
 - Returns empty collection if the input cannot be converted (e.g., `'abc'.toInteger()`).
 - Returns empty collection if the input is empty.
-- For `Decimal` input, the fractional part is discarded (truncation toward zero).
+- A `Decimal` does not convert, whole or not: the specification lists Integer, String and Boolean. `toLong()` (FHIRPath 3.0.0) reads what `toInteger()` reads; this engine's Integer is already 64 bits.
 
 ---
 
@@ -197,9 +196,37 @@ result, _ := fhirpath.Evaluate(resource, "true.convertsToInteger()")
 
 **Edge Cases / Notes:**
 
-- Returns `false` for empty input.
-- Returns `true` for `Decimal` values (they can always be truncated).
+- Returns an empty collection for empty input, as the specification says ("If the input collection is empty, the result is empty").
+- Returns `false` for `Decimal` values, which `toInteger()` does not convert. `convertsToLong()` answers the same.
 - Returns `false` for strings that are not valid integers.
+
+---
+
+## toLong
+
+Converts the input to an integer, as `toInteger()` does (FHIRPath 3.0.0).
+
+**Signature:**
+
+```text
+toLong() : Integer
+```
+
+**Edge Cases / Notes:**
+
+- 3.0.0's `Long` is a 64-bit integer, which this engine's `Integer` already is, so `toLong()` reads what `toInteger()` reads and returns an `Integer`: `'5000000000'.toLong()` is `5000000000`. There is no `Long` type, so `is System.Long` is false.
+
+---
+
+## convertsToLong
+
+Returns `true` if the input can be converted with `toLong()`, as `convertsToInteger()` answers (FHIRPath 3.0.0).
+
+**Signature:**
+
+```text
+convertsToLong() : Boolean
+```
 
 ---
 
@@ -222,7 +249,7 @@ toDecimal() : Decimal
 | `Decimal`   | Returns as-is                                       |
 | `Integer`   | Converted to Decimal                                |
 | `Boolean`   | `true` becomes `1.0`, `false` becomes `0.0`         |
-| `String`    | Parsed as a decimal number                          |
+| `String`    | Parsed when it takes the form `(\+|-)?\d+(\.\d+)?` |
 
 **Examples:**
 
@@ -272,7 +299,7 @@ result, _ := fhirpath.Evaluate(resource, "(42).convertsToDecimal()")
 
 **Edge Cases / Notes:**
 
-- Returns `false` for empty input.
+- Returns an empty collection for empty input, as the specification says ("If the input collection is empty, the result is empty").
 - `Integer`, `Decimal`, and `Boolean` always convert to Decimal.
 
 ---
@@ -315,6 +342,7 @@ result, _ := fhirpath.Evaluate(resource, "(3.14).toString()")
 
 - Returns empty collection if the input is empty.
 - All primitive types can be converted to string using their `.String()` representation.
+- A FHIR Quantity is written as the quantity it maps to: `185 '[lb_av]'`. A calendar duration is written with its keyword unquoted, `1 week`, as FHIRPath 3.0.0 has it.
 
 ---
 
@@ -345,9 +373,9 @@ result, _ := fhirpath.Evaluate(resource, "'hello'.convertsToString()")
 
 **Edge Cases / Notes:**
 
-- Returns `false` for empty input.
+- Returns an empty collection for empty input, as the specification says ("If the input collection is empty, the result is empty").
 - Returns `true` for all primitive types (`String`, `Boolean`, `Integer`, `Decimal`).
-- Returns `false` for complex types (objects).
+- Returns `false` for complex types (objects), except a FHIR Quantity, which converts to the string of the quantity it maps to.
 
 ---
 
@@ -358,7 +386,7 @@ Converts the input to a Date value.
 **Signature:**
 
 ```text
-toDate() : Date
+toDate([format : String]) : Date
 ```
 
 **Return Type:** `Date`
@@ -390,6 +418,7 @@ result, _ := fhirpath.Evaluate(resource, "'not-a-date'.toDate()")
 - Returns empty collection if the input is empty.
 - For `DateTime` input, returns the date it states, to the day at most: `@2012T.toDate()` is `@2012`.
 - A string that is not a day on the calendar, such as `'2021-02-30'`, gives an empty collection.
+- With a format (FHIRPath 3.0.0, trial use), a string is read by that template: `'15-01-2024'.toDate('dd-MM-yyyy')` is `@2024-01-15`. The codes read are `yyyy`, `yy`, `MM`, `M`, `dd`, `d`, `HH`, `H`, `hh`, `h`, `mm`, `m`, `ss`, `s`, `S` (one per fractional digit), `a` (AM/PM) and `Z` (an offset such as `+0200` or `Z`); any other character must match itself. The localized month names `MMM` and `MMMM` and a zone by name `z` are not read, and a template using them gives an empty collection. The same applies to `toDateTime()`, `convertsToDate()` and `convertsToDateTime()`. A format is ignored when the input is not a String.
 
 ---
 
@@ -400,7 +429,7 @@ Returns `true` if the input can be converted to a Date using `toDate()`.
 **Signature:**
 
 ```text
-convertsToDate() : Boolean
+convertsToDate([format : String]) : Boolean
 ```
 
 **Return Type:** `Boolean`
@@ -420,7 +449,7 @@ result, _ := fhirpath.Evaluate(resource, "(42).convertsToDate()")
 
 **Edge Cases / Notes:**
 
-- Returns `false` for empty input.
+- Returns an empty collection for empty input, as the specification says ("If the input collection is empty, the result is empty").
 - Answers as `toDate()` does: `true` for a `Date`, a `DateTime`, or a string that names a day on the calendar; `false` for `'2021-02-30'`.
 
 ---
@@ -432,7 +461,7 @@ Converts the input to a DateTime value.
 **Signature:**
 
 ```text
-toDateTime() : DateTime
+toDateTime([format : String]) : DateTime
 ```
 
 **Return Type:** `DateTime`
@@ -454,7 +483,7 @@ result, _ := fhirpath.Evaluate(resource, "(42).toDateTime()")
 
 - Returns empty collection if the input cannot be converted.
 - Returns empty collection if the input is empty.
-- Currently accepts `String` input for conversion.
+- Accepts a `DateTime`, a `Date` or a `String`; with a format, a string is read by that template, as `toDate()` describes.
 
 ---
 
@@ -465,7 +494,7 @@ Returns `true` if the input can be converted to a DateTime using `toDateTime()`.
 **Signature:**
 
 ```text
-convertsToDateTime() : Boolean
+convertsToDateTime([format : String]) : Boolean
 ```
 
 **Return Type:** `Boolean`
@@ -482,8 +511,8 @@ result, _ := fhirpath.Evaluate(resource, "(42).convertsToDateTime()")
 
 **Edge Cases / Notes:**
 
-- Returns `false` for empty input.
-- Returns `true` for `String` input (basic type check).
+- Returns an empty collection for empty input, as the specification says ("If the input collection is empty, the result is empty").
+- Answers what the conversion function answers: `true` for a string that converts, `false` for one that does not.
 
 ---
 
@@ -516,7 +545,7 @@ result, _ := fhirpath.Evaluate(resource, "(42).toTime()")
 
 - Returns empty collection if the input cannot be converted.
 - Returns empty collection if the input is empty.
-- Currently accepts `String` input for conversion.
+- Accepts a `Time` or a `String`. A string is written without the `T` a literal opens with: `'T14:34:28'.toTime()` is empty.
 
 ---
 
@@ -544,8 +573,8 @@ result, _ := fhirpath.Evaluate(resource, "(42).convertsToTime()")
 
 **Edge Cases / Notes:**
 
-- Returns `false` for empty input.
-- Returns `true` for `String` input (basic type check).
+- Returns an empty collection for empty input, as the specification says ("If the input collection is empty, the result is empty").
+- Answers what the conversion function answers: `true` for a string that converts, `false` for one that does not.
 
 ---
 
@@ -594,6 +623,7 @@ result, _ := fhirpath.Evaluate(resource, "(3.14).toQuantity()")
 - Returns empty collection if the input cannot be converted.
 - Returns empty collection if the input is empty.
 - String parsing supports UCUM unit notation.
+- An empty unit argument, `toQuantity({})`, gives an empty collection; a unit that is not a String, or of more than one item, ends the evaluation with an error.
 
 ---
 
@@ -630,6 +660,6 @@ result, _ := fhirpath.Evaluate(resource, "'not-a-quantity'.convertsToQuantity()"
 
 **Edge Cases / Notes:**
 
-- Returns `false` for empty input.
+- Returns an empty collection for empty input, as the specification says ("If the input collection is empty, the result is empty").
 - `Integer` and `Decimal` always convert to Quantity.
 - When a target unit is specified, checks UCUM unit compatibility between the source and target units using normalization.

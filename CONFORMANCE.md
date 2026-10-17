@@ -63,11 +63,12 @@ the libraries, part ways, it decides in this order:
    cite.
 
 Each entry below that departs from a text names the text. Among the cases
-measured so far, the two FHIRPath versions part ways in six:
+measured so far, the two FHIRPath versions part ways in seven:
 
 | | 2.0.0 | 3.0.0 | This engine |
 |---|---|---|---|
 | `power()` on Integers | an Integer | always a Decimal | a Decimal, as the validator, R4 too |
+| `toString()` of a calendar duration: `1 week.toString()` | `1 'week'`, the unit quoted as for any quantity | `1 week`, the keyword unquoted | `1 week`, 3.0.0, as fhirpath.js, the Java engine and the official suite answer |
 | Calendar durations against UCUM's: `1 day = 1 'd'`, `1 week = 1 'wk'`, and hour, minute | unequal: "calendar durations and definite quantity durations above seconds are considered unequal" | equal: "for practical reasons it considers them to be equal" | equal, 3.0.0, as fhirpath.js and the Java engine answer; years and months stay apart |
 | Ordering calendar durations against UCUM's: `1 day > 23 'h'` | "un-comparable" above seconds | "years and months are not comparable across UCUM definite durations and calendar units", so a day is | ordered, 3.0.0, as fhirpath.js and the Java engine answer |
 | `implies` with an empty left operand: `{} implies false` | empty, by the truth table | empty by its table, but its note says "the result of the operation is the right side" | empty, as both tables, fhirpath.js and the Java engine answer |
@@ -183,9 +184,9 @@ the precision alone, because `@2012T12:30:00` carries a time without a day. And
 a collection of more than one item is an error, which the specification states
 for every one of them.
 
-`toLong` and `convertsToLong` are left out too, for a reason of their own: this
-engine's `Integer` is already 64 bits wide, which is what `Long` exists to
-provide. That divergence has its own section below.
+`toLong` and `convertsToLong` read what `toInteger` and `convertsToInteger`
+read: this engine's `Integer` is already 64 bits wide, which is what `Long`
+exists to provide. That divergence has its own section below.
 
 `pathname` is left out deliberately. It returns the path at which each item sits
 within the input resource, which requires every value to carry where it came
@@ -447,7 +448,8 @@ The areas are taken in the order published constraints use them, counted over
 the 610 distinct constraint expressions of the R4, R4B and R5 core and the IGs
 in the validator's package cache: existence first (`exists` in 353 of them,
 `empty` in 168, `count` in 50, `all` in 43), then Boolean logic, equality and
-comparison, filtering, strings, collections, the FHIR functions, math, date and time.
+comparison, filtering, strings, collections, the FHIR functions, math, date and time,
+conversions.
 
 | Area | Requirements | Cases | Pass, R4 and R5 | Alone against fhirpath.js and Java |
 |---|---|---|---|---|
@@ -458,8 +460,9 @@ comparison, filtering, strings, collections, the FHIR functions, math, date and 
 | strings | 88 | 317 | 316 | on two points, each as 3.0.0 states: characters counted as Unicode scalar values, and `encode('hex')` in lower case |
 | collections | 35 | 173 | 173 | none where the other two answer; `combine(other, preserveOrder)`, which both refuse |
 | fhir-functions | 56 | 196 | 160 of 168 in R4, 172 of 185 in R5 | none where the other two answer, `htmlChecks()` on a narrative or a string aside, which takes a checker here; `subsumes()`, `subsumedBy()`, `checkModifiers()`, `elementDefinition()`, `trace()`'s projection and `%'vs-…'`, which both refuse |
+| conversions | 79 | 497 | 494 | on `toInteger()` of a FHIR decimal written without a fraction, `185`, or of a quotient or a rounding, `(10 / 2).toInteger()` and `1.5.round().toInteger()`, which both convert by how the decimal is written, the validator answering `(10 / 2).convertsToInteger()` false besides; on the type of a computed number, `(5 + 10.0) is System.Decimal`, which each gets wrong its own way; on `convertsToString()` of a complex value, which both answer true with strings that differ; and on `toDate()` and `toDateTime()` with a format, which neither implements; `is System.Long` and a calendar duration's `toString()` fail on purpose |
 | datetime | 68 | 345 | 337 | on `duration()` and `difference()`, which both refuse, and on a Date past year 9999, which both write as `10000-12-31`; a Date plus a time unit and the offset of an unzoned boundary fail on purpose |
-| math | 72 | 404 | 380 | on `10.log(0)`, which both answer 0, on Decimal arithmetic exact to the eighth place and beyond, which both lose, and on the type of a computed number, `(2 * 1.0) is Decimal`, which each gets wrong its own way; the cases written for 2.0.0's 32-bit Integer and 3.0.0's Long fail on purpose |
+| math | 72 | 404 | 391 | on `10.log(0)`, which both answer 0, on Decimal arithmetic exact to the eighth place and beyond, which both lose, and on the type of a computed number, `(2 * 1.0) is Decimal`, which each gets wrong its own way; the cases written for 2.0.0's 32-bit Integer fail on purpose |
 
 **Existence.** One gap, closed: a criteria that evaluates to more than one
 item, `(1 | 2).exists(true | false)` or `Patient.name.exists(given)` on a name
@@ -778,8 +781,10 @@ Three decisions taken with the maintainer, each by rule 1:
   Java engine have it, and fhirpath.js's Integer comes from typing a value by
   whether it has a fraction, which says nothing of the operator.
 
-The cases written for 2.0.0's 32-bit Integer and for 3.0.0's Long fail on
-purpose: see [Integer is 64 bits here, and there is no Long](#integer-is-64-bits-here-and-there-is-no-long).
+The cases written for 2.0.0's 32-bit Integer fail on purpose: see
+[Integer is 64 bits here, and there is no Long](#integer-is-64-bits-here-and-there-is-no-long).
+Those written for 3.0.0's Long, built with `toLong()`, pass since the
+conversions area made it an alias of `toInteger()`.
 `*` and `/` between quantities gave UCUM's base units, `12 'cm' * 3 'cm'` as
 `0.0036 'm2'`, where 2.0.0's own examples give `36 'cm2'` and `4.0 'cm'`. The
 unit comes from `gofhir/ucum`, which from 4.3.0 writes a product in the
@@ -821,6 +826,55 @@ answers alone there, as 3.0.0 defines them. fhirpath.js writes an offset as
 `-00:00`, refuses the quoted keywords `'month'` and `'day'`, reads
 `@0001 - 1 year` as 1900 and has no `precision()`; the validator's coherent
 answers set aside are under [Measured, and not followed](#measured-and-not-followed).
+
+### Conversions
+
+The Conversion functions, `toBoolean()` to `toQuantity()`, their
+`convertsToX()` counterparts and 3.0.0's `toLong()`, implicit conversions, and
+the literal syntax of each type. Gaps closed:
+
+- `convertsToX()` of an empty input answered false, where both versions say
+  "If the input collection is empty, the result is empty", as fhirpath.js
+  answers; the Java engine answers false.
+- `toInteger()` and `convertsToInteger()` took a Decimal, truncating it, so
+  `1.5.toInteger()` was `1`; neither version lists a Decimal among what
+  converts, "the item is an Integer ... a String ... a Boolean", and both
+  references refuse `1.0`. They answer the FHIR decimal `185` with `185`,
+  typing a decimal by whether its text has a point, which is no reading of
+  the function.
+- `toDecimal()` read `'1.'`, `'.5'` and `'1e5'`, which the form a decimal
+  string takes, `(\+|-)?\d+(\.\d+)?`, refuses, and wrote `'+1.5'` back as
+  `+1.5`, where `(-)?#0.0#` writes `1.5`, as fhirpath.js does; `toTime()`
+  read `'T14:34:28'`, the T a literal opens with, which fhirpath.js still
+  reads and the validator has no `toTime()` to answer.
+- `toQuantity({})`, an empty unit, gave the quantity unconverted, a unit of
+  several items its first, and a unit that is no String the quantity as it
+  was; an empty argument now gives empty, from `convertsToQuantity()` too, and
+  several items, or an item "not of the required type", end the evaluation.
+  So does a format that is no String.
+- `toString()` of a FHIR Quantity was empty: it is now the quantity it maps
+  to, `185 '[lb_av]'`.
+- `toDate()`, `toDateTime()`, `convertsToDate()` and `convertsToDateTime()`
+  took no format, 3.0.0's trial-use template: `'15-01-2024'.toDate('dd-MM-yyyy')`
+  is `@2024-01-15`. The codes the text marks required are read, and the
+  optional ones that need no locale; `MMM`, `MMMM` and `z` are not. A
+  template that names a component without the one above it, a minute without
+  an hour, reads nothing, as does `hh` without `a`, which does not say which
+  half of the day, `a` beside `HH`, and two hour codes. A one-digit code
+  takes two digits where it can, so `'202415'` does not match `yyyyMd`.
+  Neither reference engine implements the argument.
+- `toLong()` and `convertsToLong()` did not exist; they are `toInteger()` and
+  `convertsToInteger()`, decided with the maintainer: see
+  [Integer is 64 bits here, and there is no Long](#integer-is-64-bits-here-and-there-is-no-long).
+  The math cases built on `toLong()` pass with them.
+
+Two cases fail on purpose: `is System.Long`, for want of the type, and
+`toString()` of a calendar duration, written `1 week` as 3.0.0 and all three
+engines have it, where the case follows 2.0.0's `1 'week'`; see the table under
+[When 2.0.0 and 3.0.0 disagree](#when-200-and-300-disagree).
+
+No published constraint changes its verdict: the eight that convert apply
+`toString()` and `toInteger()` to strings, dates and a Count's decimal value.
 
 ## Static analysis
 
@@ -1394,10 +1448,13 @@ what callers already rely on — FHIR itself has an `integer64` type, and a
 a mistake — and it would trade a range that works for one that needs a second
 type to get it back.
 
-So `Long` is not implemented, and `toLong`/`convertsToLong` are not either:
-against a 64-bit Integer they would be `toInteger` and `convertsToInteger` under
-another name, and `45L` does not parse. The divergence is the range of `Integer`,
-recorded here rather than left for someone to discover from a surprising answer.
+So `Long` is not implemented, and `45L` does not parse. `toLong()` and
+`convertsToLong()` are `toInteger()` and `convertsToInteger()` under another
+name, decided with the maintainer in the conversions area: they give an
+Integer of the same 64-bit range, so `'5000000000'.toLong()` is `5000000000`,
+and only `is System.Long` tells them apart. Up to 1.15.1 they did not exist.
+The divergence is the range of `Integer`, recorded here rather than left for
+someone to discover from a surprising answer.
 
 Arithmetic that crosses either end of that range answers empty, as the
 specification says it does: "Operations that cause arithmetic overflow or
@@ -1410,8 +1467,8 @@ underflow will result in empty (`{ }`)".
     -9223372036854775807 - 1          // -9223372036854775808
 
 The same holds for `-`, `*`, `div`, unary `-`, `abs()`, `sum()` and
-`aggregate()` over `+`, and for `toInteger()` on a decimal past the range; the
-ends of the range are values. `div` and `mod` over decimals truncate the
+`aggregate()` over `+`; the ends of the range are values. `toInteger()` takes
+no decimal at all: see [Conversions](#conversions). `div` and `mod` over decimals truncate the
 decimal itself: `100000000000000000000.0 div 1.0` is
 `100000000000000000000`, where it wrapped to `7766279631452241920`, and
 exactly, where a quotient rounded to 16 places first made
@@ -1746,6 +1803,18 @@ keeps its own answer.
 | Time arithmetic gaining a precision: `@T10:30 + 45 minutes` | `11:15:00` | `11:15`, as fhirpath.js answers | The result keeps the precision of the value |
 | A negative quantity added as its magnitude: `@2014-03-31 + (-1 month)`, `@2014-06-15 - (-2 years)` | `2014-04-30`, `2012-06-15` | `2014-02-28`, `2016-06-15`, as fhirpath.js answers | Adding a negative amount moves back |
 | `is Date`, `is DateTime` and `is Time` on a computed value: `(@2014-01-01 + 1 day) is Date`, `now() is DateTime` | false | true, as fhirpath.js answers | As for `is Integer` on a computed number, above |
+| `toBoolean()` and `convertsToBoolean()` of `'yes'`, `'t'` and the other strings both versions list | empty, false: only `'true'` and `'false'` | the Boolean each names, `'yes'` true and `'no'` false, as fhirpath.js answers | Both versions list `'true'`, `'t'`, `'yes'`, `'y'`, `'1'`, `'1.0'` and their false counterparts |
+| A signed integer string: `'+12'.toInteger()` | empty | `12`, as fhirpath.js answers | The form an integer string takes allows a sign |
+| A DateTime to the hour written: `@2014-01-25T14.toString()` | `2014-01-25T14:00` | `2014-01-25T14`, as fhirpath.js answers | Written at its precision |
+| A DateTime string to the minute: `'2012-01-01T10:00'.toDateTime()` | empty | `2012-01-01T10:00`, as fhirpath.js answers | Partial date/times convert |
+| `convertsToX()` of a FHIR primitive: `Patient.active.convertsToBoolean()`, `Patient.birthDate.convertsToDateTime()` | false, while `toBoolean()` and `toDateTime()` convert them | true, as fhirpath.js answers | Two answers that cannot both hold |
+| A conversion function given several items: `(1 \| 0).toBoolean()` | empty | an error, as fhirpath.js raises | "If the input collection contains multiple items, the evaluation of the expression will end and signal an error" |
+| `toInteger()` of a decimal written without a fraction: `Observation.value.value.toInteger()` on `185`, `(10 / 2).toInteger()`, `1.5.round().toInteger()` | `185`, `5`, `2`, and empty for `1.0` and `5.0`; `(10 / 2).convertsToInteger()` false | empty, for any Decimal | Neither version lists a Decimal among what converts; fhirpath.js answers as the validator does, both typing a decimal by how it is written. An expression that divides or rounds and wants an Integer has one: `10 div 2` |
+| A DateTime literal ending in T: `@2014-03-25T is System.DateTime` | false | true, as fhirpath.js answers | The T makes it a DateTime |
+| `toQuantity()` of a Boolean: `true.toQuantity()` | empty | `1.0 '1'`, as fhirpath.js answers | "the item is a Boolean, where `true` results in the quantity `1.0 '1'`" (3.0.0) |
+| `convertsToString()` of a partial DateTime: `@2014-01-25T10:00.convertsToString()` | false | true, as fhirpath.js answers | A DateTime converts to a String |
+| A decimal string with an exponent: `'1e5'.toDecimal()` | `1e5` | empty, as fhirpath.js answers | The form a decimal string takes has no exponent |
+| `convertsToString()` of a complex value: `Patient.name.first().convertsToString()` | true, writing `name=HumanName[4 children]` | false | 3.0.0's own example says false, and fhirpath.js's true writes `[object Object]`: no one string |
 | `skip()` and `take()` given a String: `Patient.telecom.use.skip('1')` | converts it, all but the first item | an error, as fhirpath.js raises | `num` is an Integer, and a String converts to one only through `toInteger()` |
 | `{}.single()`; `skip(-1)` | an exception | empty; the input, as "If `num` is less than or equal to zero, the input collection is simply returned" | An exception |
 | `getValue()`: `Patient.active.getValue()`; `extension({})` | an exception | `true`, as fhirpath.js answers; empty | An exception |
@@ -1757,7 +1826,7 @@ keeps its own answer.
 | `1 'Cel'.comparable(1 '[degF]')` | false | true, as fhirpath.js answers | 3.0.0's own example is true: both are temperatures |
 | `hasValue()` of a quantity: `1 'mg'.hasValue()` | true | false, as fhirpath.js answers | A quantity is no primitive, FHIR or System |
 | `encode('hex')` | upper case, `7A3F` | lower case, `7a3f` | 3.0.0: "hexadecimal characters (base 16) in lowercase"; fhirpath.js mixes the cases |
-| `timeOfDay()`, `yearOf()` and the other component functions, `duration()`, `difference()`, `min()`, `max()`, `toDate()`, `repeatAll()`, `lastIndexOf()`, regular expression flags, `encode('ascii')`, `combine()`'s `preserveOrder`; `ofType(System.Any)` | not known functions or formats; System.Any no type; `combine()` of two arguments refused | | Not implemented there; fhirpath.js has neither `repeatAll()`, the `ascii` format nor `preserveOrder` |
+| `timeOfDay()`, `yearOf()` and the other component functions, `duration()`, `difference()`, `min()`, `max()`, `toDate()`, `toTime()`, `toQuantity()`'s unit, the format of `toDate()` and `toDateTime()`, `repeatAll()`, `lastIndexOf()`, regular expression flags, `encode('ascii')`, `combine()`'s `preserveOrder`; `ofType(System.Any)` | not known functions or formats; System.Any no type; `combine()` of two arguments refused | | Not implemented there; fhirpath.js has neither `repeatAll()`, the `ascii` format nor `preserveOrder` |
 
 ## Decisions taken where the specification is silent
 

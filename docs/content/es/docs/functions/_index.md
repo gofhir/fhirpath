@@ -26,7 +26,7 @@ Todas las funciones operan sobre colecciones y devuelven colecciones, siguiendo 
 | [Funciones de Filtrado]({{< relref "filtering" >}}) | 4 | Filtrado de colecciones: `where`, `select`, `repeat`, `ofType` |
 | [Funciones de Subconjunto]({{< relref "subsetting" >}}) | 8 | Segmentacion de colecciones: `first`, `last`, `tail`, `take`, `skip`, `single`, `intersect`, `exclude` |
 | [Funciones de Combinacion]({{< relref "combining" >}}) | 2 | Fusion de colecciones: `union`, `combine` |
-| [Funciones de Conversion]({{< relref "conversion" >}}) | 17 | Conversion de tipos: `iif`, `toBoolean`, `toInteger`, `toDecimal`, `toString`, `toDate`, `toDateTime`, `toTime`, `toQuantity`, y variantes `convertsTo*` |
+| [Funciones de Conversion]({{< relref "conversion" >}}) | 19 | Conversion de tipos: `iif`, `toBoolean`, `toInteger`, `toLong`, `toDecimal`, `toString`, `toDate`, `toDateTime`, `toTime`, `toQuantity`, y variantes `convertsTo*` |
 | [Funciones de Verificacion de Tipos]({{< relref "type-checking" >}}) | 3 | Inspeccion de tipos: `is`, `as`, `ofType` |
 | [Funciones Temporales]({{< relref "temporal" >}}) | 10 | Operaciones de fecha/hora: `now`, `today`, `timeOfDay`, `year`, `month`, `day`, `hour`, `minute`, `second`, `millisecond` |
 | [Funciones de Utilidad]({{< relref "utility" >}}) | 3 | Depuracion y navegacion: `trace`, `children`, `descendants` |
