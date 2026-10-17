@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.16.2](https://github.com/gofhir/fhirpath/compare/v1.16.1...v1.16.2) (2026-10-17)
+
+
+### Bug Fixes
+
+* memberOf() of more than one item is empty ([#204](https://github.com/gofhir/fhirpath/issues/204)) ([19430bb](https://github.com/gofhir/fhirpath/commit/19430bb793f1ef9d2fa3826984b8fa73ef924f44))
+
 ## [1.16.1](https://github.com/gofhir/fhirpath/compare/v1.16.0...v1.16.1) (2026-10-17)
 
 
