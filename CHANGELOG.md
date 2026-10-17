@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.16.1](https://github.com/gofhir/fhirpath/compare/v1.16.0...v1.16.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* aggregate() keeps the whole $total and reads init on the outer context, and sum() and avg() take quantities ([#202](https://github.com/gofhir/fhirpath/issues/202)) ([6e2b8ac](https://github.com/gofhir/fhirpath/commit/6e2b8ac66a4d0f4aa88dc8049db57aeaa7f500c2)), closes [#167](https://github.com/gofhir/fhirpath/issues/167)
+
 ## [1.16.0](https://github.com/gofhir/fhirpath/compare/v1.15.1...v1.16.0) (2026-10-17)
 
 
