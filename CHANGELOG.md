@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.16.0](https://github.com/gofhir/fhirpath/compare/v1.15.1...v1.16.0) (2026-10-17)
+
+
+### Bug Fixes
+
+* conversions as the text has them, toDate and toDateTime take 3.0.0's format, and toLong reads as toInteger ([#200](https://github.com/gofhir/fhirpath/issues/200)) ([ebf2b67](https://github.com/gofhir/fhirpath/commit/ebf2b67e2127f8eeb2536ba1710e47248e636e1d)), closes [#167](https://github.com/gofhir/fhirpath/issues/167)
+
+
+### Miscellaneous Chores
+
+* release 1.16.0 ([d232ea5](https://github.com/gofhir/fhirpath/commit/d232ea59700ef8ba53af58281543f7a418531714))
+
 ## [1.15.1](https://github.com/gofhir/fhirpath/compare/v1.15.0...v1.15.1) (2026-10-16)
 
 
