@@ -437,34 +437,38 @@ func wholeInteger(whole decimal.Decimal) (types.Collection, error) {
 	return types.Collection{i}, nil
 }
 
-// fnSum returns the sum of all numeric values in the collection.
-// Returns empty if the collection is empty or contains non-numeric values.
+// fnSum returns the sum of the input's items, numbers or quantities: "If the
+// input collection is empty ({ }), the result is empty.", and "All items in the
+// input collection SHALL be the same type, otherwise an exception is thrown"
+// (3.0.0). Integers and Decimals together add as Decimals, the implicit
+// conversion the text leaves open there. Quantities add as + adds them, and
+// ones whose units do not combine give empty.
 func fnSum(ctx *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
-	if input.Empty() {
-		return types.Collection{types.NewInteger(0)}, nil
+	if input.Empty() || holdsNoAmount(input) {
+		return types.Collection{}, nil
 	}
-
-	// Check for cancellation in large collections
 	if err := ctx.CheckCancellation(); err != nil {
 		return nil, err
 	}
-
-	var sum decimal.Decimal
-	hasDecimal := false
-
-	for _, item := range input {
-		switch v := item.(type) {
-		case types.Integer:
-			sum = sum.Add(decimal.NewFromInt(v.Value()))
-		case types.Decimal:
-			sum = sum.Add(v.Value())
-			hasDecimal = true
-		default:
-			// Non-numeric value - return empty per FHIRPath spec
+	if quantities, ok, err := allQuantities("sum", input); ok || err != nil {
+		if err != nil {
+			return nil, err
+		}
+		total, ok := sumQuantities(quantities)
+		if !ok {
 			return types.Collection{}, nil
 		}
+		// A sum past the decimals this engine holds is an overflow, as for +
+		if bounded, inRange := types.WithinRange(total); inRange {
+			return types.Collection{bounded}, nil
+		}
+		return types.Collection{}, nil
 	}
 
+	sum, hasDecimal, err := sumNumbers("sum", input)
+	if err != nil {
+		return nil, err
+	}
 	// Return Integer if all inputs were Integer, otherwise Decimal
 	if hasDecimal {
 		d, err := types.NewDecimal(sum.String())
@@ -475,6 +479,81 @@ func fnSum(ctx *eval.Context, input types.Collection, _ []interface{}) (types.Co
 	}
 	// A sum past the int64 range is an overflow, and empty
 	return wholeInteger(sum)
+}
+
+// holdsNoAmount reports an input with an item that has nothing to add: a
+// primitive with no value, a FHIR Quantity with a unit and no value, or one
+// whose value overflows. The sum is unknown, empty, as + answers for such an
+// operand, and such an item is no item of another type.
+func holdsNoAmount(input types.Collection) bool {
+	for _, item := range input {
+		if types.IsValueless(item) || types.IsValuelessQuantity(item) {
+			return true
+		}
+		if _, _, err := eval.AsQuantity(item); err != nil {
+			return true
+		}
+	}
+	return false
+}
+
+// sumNumbers adds Integers and Decimals, reporting whether any was a Decimal;
+// any other item is of another type, and ends the evaluation.
+func sumNumbers(name string, input types.Collection) (decimal.Decimal, bool, error) {
+	var sum decimal.Decimal
+	hasDecimal := false
+	for _, item := range input {
+		switch v := item.(type) {
+		case types.Integer:
+			sum = sum.Add(decimal.NewFromInt(v.Value()))
+		case types.Decimal:
+			sum = sum.Add(v.Value())
+			hasDecimal = true
+		default:
+			return decimal.Decimal{}, false, eval.NewEvalError(eval.ErrType,
+				"%s() takes Integer, Decimal or Quantity items of one type, and found %s", name, item.Type())
+		}
+	}
+	return sum, hasDecimal, nil
+}
+
+// allQuantities reads the input as quantities, a FHIR Quantity among them,
+// when its first item is one; ok is false when it is not. An item that is no
+// quantity beside one ends the evaluation.
+func allQuantities(name string, input types.Collection) ([]types.Quantity, bool, error) {
+	if _, ok := quantityItem(input[0]); !ok {
+		return nil, false, nil
+	}
+	quantities := make([]types.Quantity, len(input))
+	for i, item := range input {
+		q, ok := quantityItem(item)
+		if !ok {
+			return nil, false, eval.NewEvalError(eval.ErrType,
+				"%s() takes items of one type, and found %s beside a Quantity", name, item.Type())
+		}
+		quantities[i] = q
+	}
+	return quantities, true, nil
+}
+
+// quantityItem reads an item as a quantity, a literal one or a FHIR Quantity.
+func quantityItem(item types.Value) (types.Quantity, bool) {
+	q, ok, err := eval.AsQuantity(item)
+	return q, ok && err == nil
+}
+
+// sumQuantities adds quantities as + adds them; false where two do not
+// combine.
+func sumQuantities(quantities []types.Quantity) (types.Quantity, bool) {
+	total := quantities[0]
+	for _, q := range quantities[1:] {
+		next, err := total.Add(q)
+		if err != nil {
+			return types.Quantity{}, false
+		}
+		total = next
+	}
+	return total, true
 }
 
 // findExtreme finds the minimum or, when findMin is false, the maximum of a
@@ -731,41 +810,37 @@ func fnMax(ctx *eval.Context, input types.Collection, _ []interface{}) (types.Co
 	return findExtreme(ctx, input, false)
 }
 
-// fnAvg returns the average of all numeric values in the collection.
-// Returns empty if the collection is empty or contains non-numeric values.
+// fnAvg returns the average of the input's items, numbers or quantities, as
+// a Decimal or a Quantity: empty for an empty input, and an error for items of
+// different types, as sum() (3.0.0).
 func fnAvg(ctx *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
-	if input.Empty() {
+	if input.Empty() || holdsNoAmount(input) {
 		return types.Collection{}, nil
 	}
-
-	// Check for cancellation
 	if err := ctx.CheckCancellation(); err != nil {
 		return nil, err
 	}
-
-	var sum decimal.Decimal
-	count := 0
-
-	for _, item := range input {
-		switch v := item.(type) {
-		case types.Integer:
-			sum = sum.Add(decimal.NewFromInt(v.Value()))
-			count++
-		case types.Decimal:
-			sum = sum.Add(v.Value())
-			count++
-		default:
-			// Non-numeric value - return empty per FHIRPath spec
+	count := decimal.NewFromInt(int64(len(input)))
+	if quantities, ok, err := allQuantities("avg", input); ok || err != nil {
+		if err != nil {
+			return nil, err
+		}
+		total, ok := sumQuantities(quantities)
+		if !ok {
 			return types.Collection{}, nil
 		}
+		avg, err := total.Divide(count)
+		if err != nil {
+			return types.Collection{}, nil
+		}
+		return types.Collection{avg}, nil
 	}
 
-	if count == 0 {
-		return types.Collection{}, nil
+	sum, _, err := sumNumbers("avg", input)
+	if err != nil {
+		return nil, err
 	}
-
-	avg := sum.Div(decimal.NewFromInt(int64(count)))
-	d, err := types.NewDecimal(avg.String())
+	d, err := types.NewDecimal(sum.Div(count).String())
 	if err != nil {
 		return types.Collection{}, nil
 	}

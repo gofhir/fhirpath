@@ -1,0 +1,249 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tests name="aggregates" description="The Aggregates section: aggregate() with $this, $index and $total in the aggregator, init given, omitted and empty, an empty input, an aggregator returning empty or more than one item, the worked examples of 2.0.0 and 3.0.0, where 3.0.0 evaluates init and how it nests; and 3.0.0's sum(), min(), max() and avg() (3.0.0 only): the types each takes, the result type, an empty input, and items of different types. Comparison and arithmetic are covered by equality-comparison.xml and math.xml and are cited here only where a case needs them. Leaves out what the text does not settle: an init of more than one item under 2.0.0 (init : value), $total used outside aggregate() or inside init, items of a type a function does not list (a Boolean to any of them, a String to sum or avg, a Date to sum), whether &quot;SHALL be the same type&quot; in sum, min, max and avg is judged before or after implicit conversion (Integer with Decimal, Integer or Decimal with Quantity, Date with DateTime), Quantities in different units, items of the same type that do not compare (dates of different precision, incommensurable units), the unit of a sum or average of quantities with different units, Integer overflow in sum, the precision of an avg result, and Long items (5L), which the pinned grammar does not parse.">
+
+  <!-- aggregate() -->
+
+  <group name="REQ-AGGREGATES-001" description="aggregate evaluates the aggregator for each item with $this set to the item, $total starts at init and takes the aggregator's result after every iteration, and the result is $total after the last iteration">
+    <source spec="fhirpath-2.0.0" section="aggregate(aggregator : expression [, init : value]) : value" strength="DEFINITION">Performs general-purpose aggregation by evaluating the aggregator expression for each element of the input collection. Within this expression, the standard iteration variables of `$this` and `$index` can be accessed, but also a `$total` aggregation variable.</source>
+    <source spec="fhirpath-2.0.0" section="aggregate(aggregator : expression [, init : value]) : value" strength="DEFINITION">The value of the `$total` variable is set to `init`, or empty (`{ }`) if no `init` value is supplied, and is set to the result of the aggregator expression after every iteration.</source>
+    <source spec="fhirpath-2.0.0" section="Functions" strength="DEFINITION">For the &lt;&lt;aggregates,aggregate&gt;&gt; function, expressions may also refer to the special `$total` element, representing the result of the aggregation.</source>
+    <source spec="fhirpath-3.0.0" section="aggregate(aggregator : ($total, $this, $index) => collection [, init : collection]) : collection" strength="DEFINITION">Performs general-purpose aggregation by evaluating the aggregator expression for each item of the input collection. Within this expression, the standard iteration variables of `$this` and `$index` can be accessed, but also a `$total` aggregation variable.</source>
+    <source spec="fhirpath-3.0.0" section="aggregate(aggregator : ($total, $this, $index) => collection [, init : collection]) : collection" strength="DEFINITION">The result of the aggregate function is the value of `$total` after the last iteration.</source>
+    <source spec="fhirpath-2.0.0" section="Collections" strength="DEFINITION">Ordered - The order of items in the collection is important and is preserved through operations as much as possible.</source>
+    <test name="REQ-AGGREGATES-001-a"><expression>(1 | 2 | 3 | 4).aggregate($this + $total, 0)</expression><output type="integer">10</output></test>
+    <test name="REQ-AGGREGATES-001-b"><expression>(1 | 2 | 3 | 4).aggregate($this + $total, 5)</expression><output type="integer">15</output></test>
+    <test name="REQ-AGGREGATES-001-c" inputfile="patient-example.xml"><expression>Patient.name.given.aggregate($total + 1, 0)</expression><output type="integer">5</output></test>
+    <test name="REQ-AGGREGATES-001-d"><expression>(1 | 2 | 3).aggregate($total * 2, 1)</expression><output type="integer">8</output></test>
+    <test name="REQ-AGGREGATES-001-e" inputfile="patient-example.xml"><expression>Patient.name.given.aggregate($this, '')</expression><output type="string">James</output></test>
+  </group>
+
+  <group name="REQ-AGGREGATES-002" description="Worked example: sum expressed with aggregate">
+    <source spec="fhirpath-2.0.0" section="aggregate(aggregator : expression [, init : value]) : value" strength="EXAMPLE">value.aggregate($this + $total, 0)</source>
+    <source spec="fhirpath-3.0.0" section="aggregate(aggregator : ($total, $this, $index) => collection [, init : collection]) : collection" strength="EXAMPLE">value.aggregate($this + $total, 0)</source>
+    <test name="REQ-AGGREGATES-002-a"><expression>(1.5 | 2.5 | 3.0).aggregate($this + $total, 0) = 7.0</expression><output type="boolean">true</output></test>
+    <test name="REQ-AGGREGATES-002-b"><expression>(10 | 20 | 30).aggregate($this + $total, 0)</expression><output type="integer">60</output></test>
+  </group>
+
+  <group name="REQ-AGGREGATES-003" description="Worked example: min expressed with aggregate and no init, so $total starts empty">
+    <source spec="fhirpath-2.0.0" section="aggregate(aggregator : expression [, init : value]) : value" strength="EXAMPLE">value.aggregate(iif($total.empty(), $this, iif($this &lt; $total, $this, $total)))</source>
+    <source spec="fhirpath-3.0.0" section="aggregate(aggregator : ($total, $this, $index) => collection [, init : collection]) : collection" strength="EXAMPLE">value.aggregate(iif($total.empty(), $this, iif($this &lt; $total, $this, $total)))</source>
+    <test name="REQ-AGGREGATES-003-a"><expression>(5 | 3 | 8 | 4).aggregate(iif($total.empty(), $this, iif($this &lt; $total, $this, $total)))</expression><output type="integer">3</output></test>
+    <test name="REQ-AGGREGATES-003-b"><expression>('b' | 'a' | 'c').aggregate(iif($total.empty(), $this, iif($this &lt; $total, $this, $total)))</expression><output type="string">a</output></test>
+    <test name="REQ-AGGREGATES-003-c"><expression>7.aggregate(iif($total.empty(), $this, iif($this &lt; $total, $this, $total)))</expression><output type="integer">7</output></test>
+  </group>
+
+  <group name="REQ-AGGREGATES-004" description="Worked example: average expressed with aggregate divided by count">
+    <source spec="fhirpath-2.0.0" section="aggregate(aggregator : expression [, init : value]) : value" strength="EXAMPLE">value.aggregate($total + $this, 0) / value.count()</source>
+    <source spec="fhirpath-3.0.0" section="aggregate(aggregator : ($total, $this, $index) => collection [, init : collection]) : collection" strength="EXAMPLE">value.aggregate($total + $this, 0) / value.count()</source>
+    <test name="REQ-AGGREGATES-004-a"><expression>(1.0 | 2.0 | 6.0).aggregate($total + $this, 0) / (1.0 | 2.0 | 6.0).count() = 3.0</expression><output type="boolean">true</output></test>
+    <test name="REQ-AGGREGATES-004-b"><expression>(2 | 4 | 9).aggregate($total + $this, 0) / (2 | 4 | 9).count() = 5.0</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-AGGREGATES-005" description="With no init, $total is empty when the aggregator is first evaluated">
+    <source spec="fhirpath-2.0.0" section="aggregate(aggregator : expression [, init : value]) : value" strength="DEFINITION">The value of the `$total` variable is set to `init`, or empty (`{ }`) if no `init` value is supplied, and is set to the result of the aggregator expression after every iteration.</source>
+    <source spec="fhirpath-3.0.0" section="aggregate(aggregator : ($total, $this, $index) => collection [, init : collection]) : collection" strength="DEFINITION">The value of the `$total` variable is set to `init`, or empty (`{ }`) if no `init` value is supplied, and is set to the result of the aggregator expression after every iteration.</source>
+    <source spec="fhirpath-2.0.0" section="Math" strength="DEFINITION">As with the other operators, the math operators will return an empty collection if one or both of the operands are empty.</source>
+    <test name="REQ-AGGREGATES-005-a"><expression>(1 | 2 | 3).aggregate(iif($total.empty(), 10, $total))</expression><output type="integer">10</output></test>
+    <test name="REQ-AGGREGATES-005-b"><expression>(1 | 2 | 3).aggregate($this + $total)</expression></test>
+    <test name="REQ-AGGREGATES-005-c"><expression>(1 | 2 | 3).aggregate(iif($total.empty(), $this, $total + $this))</expression><output type="integer">6</output></test>
+  </group>
+
+  <group name="REQ-AGGREGATES-006" description="An init that evaluates to empty starts $total empty, as when init is omitted">
+    <source spec="fhirpath-2.0.0" section="aggregate(aggregator : expression [, init : value]) : value" strength="DEFINITION">The value of the `$total` variable is set to `init`, or empty (`{ }`) if no `init` value is supplied, and is set to the result of the aggregator expression after every iteration.</source>
+    <source spec="fhirpath-3.0.0" section="aggregate(aggregator : ($total, $this, $index) => collection [, init : collection]) : collection" strength="DEFINITION">The value of the `$total` variable is set to `init`, or empty (`{ }`) if no `init` value is supplied, and is set to the result of the aggregator expression after every iteration.</source>
+    <test name="REQ-AGGREGATES-006-a"><expression>(1 | 2 | 3).aggregate(iif($total.empty(), 10, $total), {})</expression><output type="integer">10</output></test>
+    <test name="REQ-AGGREGATES-006-b"><expression>(1 | 2 | 3).aggregate(iif($total.empty(), $this, $total + $this), {})</expression><output type="integer">6</output></test>
+  </group>
+
+  <group name="REQ-AGGREGATES-007" description="On an empty input the aggregator is never evaluated and the result is init, or empty when init is omitted or empty">
+    <source spec="fhirpath-2.0.0" section="aggregate(aggregator : expression [, init : value]) : value" strength="DEFINITION">The value of the `$total` variable is set to `init`, or empty (`{ }`) if no `init` value is supplied, and is set to the result of the aggregator expression after every iteration.</source>
+    <source spec="fhirpath-2.0.0" section="Functions" strength="DEFINITION">For the &lt;&lt;aggregates,aggregate&gt;&gt; function, expressions may also refer to the special `$total` element, representing the result of the aggregation.</source>
+    <source spec="fhirpath-3.0.0" section="aggregate(aggregator : ($total, $this, $index) => collection [, init : collection]) : collection" strength="DEFINITION">The value of the `$total` variable is set to `init`, or empty (`{ }`) if no `init` value is supplied, and is set to the result of the aggregator expression after every iteration.</source>
+    <source spec="fhirpath-3.0.0" section="Scoped Functions" strength="DEFINITION">The `init` argument is evaluated once at the start to initialize the `$total` variable.&lt;br/&gt; The `aggregator` argument is then evaluated for each item (setting `$this`and `$index` for each), and has access to the current value of `$total` available. The result of the evaluation is then assigned to `$total`.&lt;br/&gt; The final value of `$total` is returned as the result of the function.</source>
+    <test name="REQ-AGGREGATES-007-a"><expression>{}.aggregate($this + $total, 0)</expression><output type="integer">0</output></test>
+    <test name="REQ-AGGREGATES-007-b"><expression>{}.aggregate($this + $total)</expression></test>
+    <test name="REQ-AGGREGATES-007-c"><expression>{}.aggregate($this + $total, 'x')</expression><output type="string">x</output></test>
+    <test name="REQ-AGGREGATES-007-d"><expression>{}.aggregate($this + $total, {})</expression></test>
+    <test name="REQ-AGGREGATES-007-e" inputfile="patient-example.xml"><expression>Patient.name.given.where(false).aggregate($total + 1, 7)</expression><output type="integer">7</output></test>
+  </group>
+
+  <group name="REQ-AGGREGATES-008" description="$index in the aggregator is the index of the current item in the input collection">
+    <source spec="fhirpath-2.0.0" section="aggregate(aggregator : expression [, init : value]) : value" strength="DEFINITION">Performs general-purpose aggregation by evaluating the aggregator expression for each element of the input collection. Within this expression, the standard iteration variables of `$this` and `$index` can be accessed, but also a `$total` aggregation variable.</source>
+    <source spec="fhirpath-2.0.0" section="Functions" strength="DEFINITION">These expressions may refer to the special `$this` and `$index` elements, which represent the item from the input collection currently under evaluation, and its index in the collection, respectively.</source>
+    <source spec="fhirpath-2.0.0" section="Collections" strength="DEFINITION">Ordered - The order of items in the collection is important and is preserved through operations as much as possible.</source>
+    <source spec="fhirpath-3.0.0" section="Scoped Functions" strength="DEFINITION">The `aggregator` argument is then evaluated for each item (setting `$this`and `$index` for each), and has access to the current value of `$total` available.</source>
+    <test name="REQ-AGGREGATES-008-a"><expression>(10 | 20 | 30).aggregate($total + $index, 0)</expression><output type="integer">3</output></test>
+    <test name="REQ-AGGREGATES-008-b" inputfile="patient-example.xml"><expression>Patient.name.given.aggregate(iif($index = 2, $this, $total))</expression><output type="string">Jim</output></test>
+    <test name="REQ-AGGREGATES-008-c" inputfile="patient-example.xml"><expression>Patient.name.given.aggregate($total + $index, 0)</expression><output type="integer">10</output></test>
+  </group>
+
+  <group name="REQ-AGGREGATES-009" description="When the aggregator returns empty, $total becomes empty for the next iteration and as the result">
+    <source spec="fhirpath-2.0.0" section="aggregate(aggregator : expression [, init : value]) : value" strength="DEFINITION">The value of the `$total` variable is set to `init`, or empty (`{ }`) if no `init` value is supplied, and is set to the result of the aggregator expression after every iteration.</source>
+    <source spec="fhirpath-3.0.0" section="aggregate(aggregator : ($total, $this, $index) => collection [, init : collection]) : collection" strength="DEFINITION">The value of the `$total` variable is set to `init`, or empty (`{ }`) if no `init` value is supplied, and is set to the result of the aggregator expression after every iteration.</source>
+    <source spec="fhirpath-3.0.0" section="aggregate(aggregator : ($total, $this, $index) => collection [, init : collection]) : collection" strength="DEFINITION">The result of the aggregate function is the value of `$total` after the last iteration.</source>
+    <test name="REQ-AGGREGATES-009-a"><expression>(1 | 2 | 3).aggregate({}, 0)</expression></test>
+    <test name="REQ-AGGREGATES-009-b"><expression>(1 | 2 | 3).aggregate(iif($index = 0, {}, iif($total.empty(), 100, $total)), 5)</expression><output type="integer">100</output></test>
+    <test name="REQ-AGGREGATES-009-c"><expression>(1 | 2 | 3).aggregate(iif($index = 2, {}, $total + $this), 0)</expression></test>
+  </group>
+
+  <group name="REQ-AGGREGATES-010" description="When the aggregator returns more than one item, $total becomes that collection and so does the result (the collection-typed signature is 3.0.0's; 2.0.0 sets $total to the result of the aggregator)">
+    <source spec="fhirpath-2.0.0" section="aggregate(aggregator : expression [, init : value]) : value" strength="DEFINITION">The value of the `$total` variable is set to `init`, or empty (`{ }`) if no `init` value is supplied, and is set to the result of the aggregator expression after every iteration.</source>
+    <source spec="fhirpath-3.0.0" section="aggregate(aggregator : ($total, $this, $index) => collection [, init : collection]) : collection" strength="DEFINITION">aggregate(aggregator : ($total, $this, $index) => collection [, init : collection]) : collection</source>
+    <source spec="fhirpath-3.0.0" section="aggregate(aggregator : ($total, $this, $index) => collection [, init : collection]) : collection" strength="DEFINITION">The result of the aggregate function is the value of `$total` after the last iteration.</source>
+    <test name="REQ-AGGREGATES-010-a"><expression>(1 | 2 | 3).aggregate($this | 10, 0).count()</expression><output type="integer">2</output></test>
+    <test name="REQ-AGGREGATES-010-b"><expression>(1 | 2 | 3).aggregate($total | $this).count()</expression><output type="integer">3</output></test>
+    <test name="REQ-AGGREGATES-010-c"><expression>(1 | 2 | 3).aggregate($total.combine($this)).count()</expression><output type="integer">3</output></test>
+  </group>
+
+  <group name="REQ-AGGREGATES-011" description="init is evaluated on the outer context, so $this in init is the outer $this (3.0.0 only; 2.0.0 does not say where init is evaluated)">
+    <source spec="fhirpath-3.0.0" section="Scoped Functions" strength="DEFINITION">The `init` argument is evaluated once before setting `$this` and `$index`, so will be evaluated on the outer context, and will have access to outer `$this` values.</source>
+    <test name="REQ-AGGREGATES-011-a"><expression>3.select((10 | 20).aggregate($total + $this, $this))</expression><output type="integer">33</output></test>
+    <test name="REQ-AGGREGATES-011-b"><expression>'x'.select(('a' | 'b').aggregate($total.combine($this), $this).count())</expression><output type="integer">3</output></test>
+  </group>
+
+  <group name="REQ-AGGREGATES-012" description="A nested aggregate has its own $total and $this; once it completes, the outer $total and $this are available again (3.0.0 only)">
+    <source spec="fhirpath-3.0.0" section="Scoped Functions" strength="DEFINITION">Variables introduced by scoped functions can only be accessed within the specified parameters of the scoped function. This behavior is preserved through nesting, meaning specifically that once a nested scope function evaluation is complete, the variables in the outer scoped function are again available.</source>
+    <source spec="fhirpath-3.0.0" section="Special variables" strength="DEFINITION">Holds the running total during processing, and at the end will be the result returned by the function.</source>
+    <test name="REQ-AGGREGATES-012-a"><expression>(1 | 2).aggregate($total + (10 | 20).aggregate($total + $this, 0) + $this, 0)</expression><output type="integer">63</output></test>
+    <test name="REQ-AGGREGATES-012-b"><expression>(1 | 2).aggregate($total + (10 | 20).aggregate($total + $this, 100) + $this, 0)</expression><output type="integer">263</output></test>
+  </group>
+
+  <!-- sum() (3.0.0 only) -->
+
+  <group name="REQ-AGGREGATES-013" description="Worked examples of sum on Decimals and on Quantities of one unit (3.0.0 only)">
+    <source spec="fhirpath-3.0.0" section="sum() : Integer | Long | Decimal | Quantity" strength="EXAMPLE">( 1.0 | 2.0 | 3.0 | 4.0 | 5.0 ).sum() // 15.0</source>
+    <source spec="fhirpath-3.0.0" section="sum() : Integer | Long | Decimal | Quantity" strength="EXAMPLE">( 1.0 'mg' | 2.0 'mg' | 3.0 'mg' | 4.0 'mg' | 5.0 'mg' ).sum() // 15.0 'mg'</source>
+    <test name="REQ-AGGREGATES-013-a"><expression>( 1.0 | 2.0 | 3.0 | 4.0 | 5.0 ).sum() = 15.0</expression><output type="boolean">true</output></test>
+    <test name="REQ-AGGREGATES-013-b"><expression>( 1.0 'mg' | 2.0 'mg' | 3.0 'mg' | 4.0 'mg' | 5.0 'mg' ).sum() = 15.0 'mg'</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-AGGREGATES-014" description="sum returns the sum of all items of an Integer, Decimal or Quantity collection, in the same type, counting duplicate items (3.0.0 only)">
+    <source spec="fhirpath-3.0.0" section="sum() : Integer | Long | Decimal | Quantity" strength="DEFINITION">Returns the sum of all items in the input collection (in the same type).</source>
+    <source spec="fhirpath-3.0.0" section="sum() : Integer | Long | Decimal | Quantity" strength="DEFINITION">Accepts input collections with items of type: Integer, Long, Decimal or Quantity.</source>
+    <test name="REQ-AGGREGATES-014-a"><expression>(1 | 2 | 3).sum()</expression><output type="integer">6</output></test>
+    <test name="REQ-AGGREGATES-014-b"><expression>(1 | 2 | 3).sum() is Integer</expression><output type="boolean">true</output></test>
+    <test name="REQ-AGGREGATES-014-c"><expression>(1.5 | 2.5).sum() = 4.0</expression><output type="boolean">true</output></test>
+    <test name="REQ-AGGREGATES-014-d"><expression>(1.5 | 2.5).sum() is Decimal</expression><output type="boolean">true</output></test>
+    <test name="REQ-AGGREGATES-014-e"><expression>(1 'mg' | 2 'mg').sum() is Quantity</expression><output type="boolean">true</output></test>
+    <test name="REQ-AGGREGATES-014-f"><expression>5.sum()</expression><output type="integer">5</output></test>
+    <test name="REQ-AGGREGATES-014-g"><expression>2.combine(2).sum()</expression><output type="integer">4</output></test>
+    <test name="REQ-AGGREGATES-014-h"><expression>(-3 | 1).sum()</expression><output type="integer">-2</output></test>
+  </group>
+
+  <group name="REQ-AGGREGATES-015" description="sum throws when the items are not all of the same type (3.0.0 only)">
+    <source spec="fhirpath-3.0.0" section="sum() : Integer | Long | Decimal | Quantity" strength="SHALL">All items in the input collection SHALL be the same type, otherwise an exception is thrown.</source>
+    <test name="REQ-AGGREGATES-015-a"><expression invalid="execution">(1 | 'a').sum()</expression></test>
+  </group>
+
+  <group name="REQ-AGGREGATES-016" description="sum of an empty input is empty (3.0.0 only)">
+    <source spec="fhirpath-3.0.0" section="sum() : Integer | Long | Decimal | Quantity" strength="DEFINITION">If the input collection is empty (`{ }`), the result is empty.</source>
+    <test name="REQ-AGGREGATES-016-a"><expression>{}.sum()</expression></test>
+    <test name="REQ-AGGREGATES-016-b" inputfile="patient-example.xml"><expression>Patient.name.given.where(false).sum()</expression></test>
+  </group>
+
+  <!-- min() (3.0.0 only) -->
+
+  <group name="REQ-AGGREGATES-017" description="Worked examples of min on Integers and Dates (3.0.0 only; the Long example is not written, as the pinned grammar does not parse 2L)">
+    <source spec="fhirpath-3.0.0" section="min() : Integer | Long | Decimal | Quantity | Date | DateTime | Time | String" strength="EXAMPLE">( 2 | 4 | 8 | 6 ).min() // 2</source>
+    <source spec="fhirpath-3.0.0" section="min() : Integer | Long | Decimal | Quantity | Date | DateTime | Time | String" strength="EXAMPLE">( @2012-12-31 | @2013-01-01 | @2012-01-01 ).min() // @2012-01-01</source>
+    <test name="REQ-AGGREGATES-017-a"><expression>( 2 | 4 | 8 | 6 ).min()</expression><output type="integer">2</output></test>
+    <test name="REQ-AGGREGATES-017-b"><expression>( @2012-12-31 | @2013-01-01 | @2012-01-01 ).min()</expression><output type="date">@2012-01-01</output></test>
+  </group>
+
+  <group name="REQ-AGGREGATES-018" description="min returns the least item by the comparison operators, for each type it accepts (3.0.0 only)">
+    <source spec="fhirpath-3.0.0" section="min() : Integer | Long | Decimal | Quantity | Date | DateTime | Time | String" strength="DEFINITION">Returns the minimum item in the input collection. Comparison semantics are defined by the [Comparison Operators](#comparison) for the type of value being aggregated.</source>
+    <source spec="fhirpath-3.0.0" section="min() : Integer | Long | Decimal | Quantity | Date | DateTime | Time | String" strength="DEFINITION">Accepts input collections with items of type: Integer, Long, Decimal, Quantity, Date, DateTime, Time, or String.</source>
+    <source spec="fhirpath-3.0.0" section="Comparison" strength="DEFINITION">String ordering is strictly lexical and is based on the Unicode value of the individual characters.</source>
+    <test name="REQ-AGGREGATES-018-a"><expression>(1.5 | 0.5 | 2.5).min() = 0.5</expression><output type="boolean">true</output></test>
+    <test name="REQ-AGGREGATES-018-b"><expression>(2 'cm' | 1 'cm' | 3 'cm').min() = 1 'cm'</expression><output type="boolean">true</output></test>
+    <test name="REQ-AGGREGATES-018-c"><expression>(@2012-12-31T10:00:00 | @2012-12-31T09:00:00 | @2013-01-01T00:00:00).min() = @2012-12-31T09:00:00</expression><output type="boolean">true</output></test>
+    <test name="REQ-AGGREGATES-018-d"><expression>(@T10:00:00 | @T09:30:00 | @T11:00:00).min() = @T09:30:00</expression><output type="boolean">true</output></test>
+    <test name="REQ-AGGREGATES-018-e"><expression>('b' | 'a' | 'c').min()</expression><output type="string">a</output></test>
+    <test name="REQ-AGGREGATES-018-f"><expression>('a' | 'B').min()</expression><output type="string">B</output></test>
+    <test name="REQ-AGGREGATES-018-g"><expression>5.min()</expression><output type="integer">5</output></test>
+    <test name="REQ-AGGREGATES-018-h"><expression>(-3 | 1 | 0).min()</expression><output type="integer">-3</output></test>
+  </group>
+
+  <group name="REQ-AGGREGATES-019" description="min throws when the items are not all of the same type (3.0.0 only)">
+    <source spec="fhirpath-3.0.0" section="min() : Integer | Long | Decimal | Quantity | Date | DateTime | Time | String" strength="SHALL">All items in the input collection SHALL be the same type, otherwise an exception is thrown.</source>
+    <test name="REQ-AGGREGATES-019-a"><expression invalid="execution">(1 | 'a').min()</expression></test>
+    <test name="REQ-AGGREGATES-019-c"><expression invalid="execution">(@T10:00:00 | @2012-01-01T10:00:00).min()</expression></test>
+  </group>
+
+  <group name="REQ-AGGREGATES-020" description="min of an empty input is empty (3.0.0 only)">
+    <source spec="fhirpath-3.0.0" section="min() : Integer | Long | Decimal | Quantity | Date | DateTime | Time | String" strength="DEFINITION">If the input collection is empty (`{ }`), the result is empty.</source>
+    <test name="REQ-AGGREGATES-020-a"><expression>{}.min()</expression></test>
+  </group>
+
+  <!-- max() (3.0.0 only) -->
+
+  <group name="REQ-AGGREGATES-021" description="Worked examples of max on Integers and Dates (3.0.0 only; the Long example is not written, as the pinned grammar does not parse 2L)">
+    <source spec="fhirpath-3.0.0" section="max() : Integer | Long | Decimal | Quantity | Date | DateTime | Time | String" strength="EXAMPLE">( 2 | 4 | 8 | 6 ).max() // 8</source>
+    <source spec="fhirpath-3.0.0" section="max() : Integer | Long | Decimal | Quantity | Date | DateTime | Time | String" strength="EXAMPLE">( @2012-12-31 | @2013-01-01 | @2012-01-01 ).max() // @2013-01-01</source>
+    <test name="REQ-AGGREGATES-021-a"><expression>( 2 | 4 | 8 | 6 ).max()</expression><output type="integer">8</output></test>
+    <test name="REQ-AGGREGATES-021-b"><expression>( @2012-12-31 | @2013-01-01 | @2012-01-01 ).max()</expression><output type="date">@2013-01-01</output></test>
+  </group>
+
+  <group name="REQ-AGGREGATES-022" description="max returns the greatest item by the comparison operators, for each type it accepts (3.0.0 only)">
+    <source spec="fhirpath-3.0.0" section="max() : Integer | Long | Decimal | Quantity | Date | DateTime | Time | String" strength="DEFINITION">Returns the maximum item in the input collection. Comparison semantics are defined by the [Comparison Operators](#comparison) for the type of value being aggregated.</source>
+    <source spec="fhirpath-3.0.0" section="max() : Integer | Long | Decimal | Quantity | Date | DateTime | Time | String" strength="DEFINITION">Accepts input collections with items of type: Integer, Long, Decimal, Quantity, Date, DateTime, Time, or String.</source>
+    <source spec="fhirpath-3.0.0" section="Comparison" strength="DEFINITION">String ordering is strictly lexical and is based on the Unicode value of the individual characters.</source>
+    <test name="REQ-AGGREGATES-022-a"><expression>(1.5 | 0.5 | 2.5).max() = 2.5</expression><output type="boolean">true</output></test>
+    <test name="REQ-AGGREGATES-022-b"><expression>(2 'cm' | 1 'cm' | 3 'cm').max() = 3 'cm'</expression><output type="boolean">true</output></test>
+    <test name="REQ-AGGREGATES-022-c"><expression>(@2012-12-31T10:00:00 | @2012-12-31T09:00:00 | @2013-01-01T00:00:00).max() = @2013-01-01T00:00:00</expression><output type="boolean">true</output></test>
+    <test name="REQ-AGGREGATES-022-d"><expression>(@T10:00:00 | @T09:30:00 | @T11:00:00).max() = @T11:00:00</expression><output type="boolean">true</output></test>
+    <test name="REQ-AGGREGATES-022-e"><expression>('b' | 'a' | 'c').max()</expression><output type="string">c</output></test>
+    <test name="REQ-AGGREGATES-022-f"><expression>('a' | 'B').max()</expression><output type="string">a</output></test>
+    <test name="REQ-AGGREGATES-022-g"><expression>5.max()</expression><output type="integer">5</output></test>
+    <test name="REQ-AGGREGATES-022-h"><expression>(-3 | -1 | -2).max()</expression><output type="integer">-1</output></test>
+  </group>
+
+  <group name="REQ-AGGREGATES-023" description="max throws when the items are not all of the same type (3.0.0 only)">
+    <source spec="fhirpath-3.0.0" section="max() : Integer | Long | Decimal | Quantity | Date | DateTime | Time | String" strength="SHALL">All items in the input collection SHALL be the same type, otherwise an exception is thrown.</source>
+    <test name="REQ-AGGREGATES-023-a"><expression invalid="execution">(1 | 'a').max()</expression></test>
+    <test name="REQ-AGGREGATES-023-c"><expression invalid="execution">(@T10:00:00 | @2012-01-01T10:00:00).max()</expression></test>
+  </group>
+
+  <group name="REQ-AGGREGATES-024" description="max of an empty input is empty (3.0.0 only)">
+    <source spec="fhirpath-3.0.0" section="max() : Integer | Long | Decimal | Quantity | Date | DateTime | Time | String" strength="DEFINITION">If the input collection is empty (`{ }`), the result is empty.</source>
+    <test name="REQ-AGGREGATES-024-a"><expression>{}.max()</expression></test>
+  </group>
+
+  <!-- avg() (3.0.0 only) -->
+
+  <group name="REQ-AGGREGATES-025" description="Worked examples of avg on Decimals and on Quantities of one unit (3.0.0 only)">
+    <source spec="fhirpath-3.0.0" section="avg() : Decimal | Quantity" strength="EXAMPLE">( 5.5 | 4.7 | 4.8 ).avg() // 5.0</source>
+    <source spec="fhirpath-3.0.0" section="avg() : Decimal | Quantity" strength="EXAMPLE">( 5.5 'cm' | 4.7 'cm' | 4.8 'cm' ).avg() // 5.0 'cm'</source>
+    <test name="REQ-AGGREGATES-025-a"><expression>( 5.5 | 4.7 | 4.8 ).avg() = 5.0</expression><output type="boolean">true</output></test>
+    <test name="REQ-AGGREGATES-025-b"><expression>( 5.5 'cm' | 4.7 'cm' | 4.8 'cm' ).avg() = 5.0 'cm'</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-AGGREGATES-026" description="avg returns the average of a Decimal or Quantity collection in the same type (3.0.0 only)">
+    <source spec="fhirpath-3.0.0" section="avg() : Decimal | Quantity" strength="DEFINITION">Returns the average of all items in the input collection (in the same type).</source>
+    <source spec="fhirpath-3.0.0" section="avg() : Decimal | Quantity" strength="DEFINITION">Accepts input collections with items of type: Decimal or Quantity.</source>
+    <test name="REQ-AGGREGATES-026-a"><expression>(1.0 | 2.0).avg() = 1.5</expression><output type="boolean">true</output></test>
+    <test name="REQ-AGGREGATES-026-b"><expression>(1.0 | 2.0).avg() is Decimal</expression><output type="boolean">true</output></test>
+    <test name="REQ-AGGREGATES-026-c"><expression>(1 'cm' | 2 'cm').avg() = 1.5 'cm'</expression><output type="boolean">true</output></test>
+    <test name="REQ-AGGREGATES-026-d"><expression>(1 'cm' | 2 'cm').avg() is Quantity</expression><output type="boolean">true</output></test>
+    <test name="REQ-AGGREGATES-026-e"><expression>2.5.avg() = 2.5</expression><output type="boolean">true</output></test>
+    <test name="REQ-AGGREGATES-026-f"><expression>1.0.combine(1.0).combine(4.0).avg() = 2.0</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-AGGREGATES-027" description="avg of Integers converts them to Decimal, so the result is a Decimal (3.0.0 only)">
+    <source spec="fhirpath-3.0.0" section="avg() : Decimal | Quantity" strength="DEFINITION">When used with Integer or Long, the arguments will be implicitly converted to Decimal before evaluation.</source>
+    <source spec="fhirpath-3.0.0" section="avg() : Decimal | Quantity" strength="DEFINITION">Returns the average of all items in the input collection (in the same type).</source>
+    <test name="REQ-AGGREGATES-027-a"><expression>(1 | 2).avg() = 1.5</expression><output type="boolean">true</output></test>
+    <test name="REQ-AGGREGATES-027-b"><expression>(1 | 2 | 3).avg() is Decimal</expression><output type="boolean">true</output></test>
+    <test name="REQ-AGGREGATES-027-c"><expression>4.avg() is Decimal</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-AGGREGATES-028" description="avg throws when the items are not all of the same type (3.0.0 only)">
+    <source spec="fhirpath-3.0.0" section="avg() : Decimal | Quantity" strength="SHALL">All items in the input collection SHALL be the same type, otherwise an exception is thrown.</source>
+    <test name="REQ-AGGREGATES-028-a"><expression invalid="execution">(1.0 | 'a').avg()</expression></test>  </group>
+
+  <group name="REQ-AGGREGATES-029" description="avg of an empty input is empty (3.0.0 only)">
+    <source spec="fhirpath-3.0.0" section="avg() : Decimal | Quantity" strength="DEFINITION">If the input collection is empty (`{ }`), the result is empty.</source>
+    <test name="REQ-AGGREGATES-029-a"><expression>{}.avg()</expression></test>
+  </group>
+
+</tests>

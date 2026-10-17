@@ -95,7 +95,7 @@ type Context struct {
 	root               types.Collection
 	this               types.Collection
 	index              int
-	total              types.Value
+	total              types.Collection // $total inside aggregate(); nil outside it
 	variables          map[string]types.Collection
 	outer              types.Collection            // scope a function's arguments are evaluated in
 	defined            map[string]types.Collection // variables introduced by defineVariable()
@@ -1291,10 +1291,17 @@ func (e *Evaluator) evaluateSelect(input types.Collection, projection Node) inte
 // Per FHIRPath spec §5.4.1: $this is the current element, $index is the 0-based index,
 // and $total accumulates the result starting from init (or empty if not provided).
 func (e *Evaluator) evaluateAggregate(input types.Collection, aggregator, init Node) interface{} {
-	// Evaluate optional init value
+	// The init value is evaluated as any argument is, "on the outer context"
+	// (3.0.0), not on the items aggregated: in a select(), its $this is the
+	// item select() is at
 	var total types.Collection
 	if init != nil {
-		initResult := init(e)
+		restore := e.ctx.this
+		if e.ctx.outer != nil {
+			e.ctx.this = e.ctx.outer
+		}
+		initResult := e.inScope(init)
+		e.ctx.this = restore
 		if err, ok := initResult.(error); ok {
 			return err
 		}
@@ -1317,22 +1324,22 @@ func (e *Evaluator) evaluateAggregate(input types.Collection, aggregator, init N
 	}()
 
 	for i, item := range input {
-		// Check for cancellation periodically
-		if i%100 == 0 {
-			if err := e.ctx.CheckCancellation(); err != nil {
-				return err
-			}
+		// $total can grow with every item, $total.combine($total) doubling it,
+		// so the time and the size it reaches are checked each time
+		if err := e.ctx.CheckCancellation(); err != nil {
+			return err
+		}
+		if err := e.ctx.CheckCollectionSize(total); err != nil {
+			return err
 		}
 
 		// Set $this, $index, and $total for each iteration
 		endScope := e.ctx.enterIterationScope()
 		e.ctx.this = types.Collection{item}
 		e.ctx.index = i
-		if len(total) > 0 {
-			e.ctx.total = total[0]
-		} else {
-			e.ctx.total = nil
-		}
+		// $total is "the result of the aggregator expression", every item of
+		// it, not its first
+		e.ctx.total = total
 
 		// Evaluate the aggregator expression
 		result := aggregator(e)
@@ -1347,6 +1354,9 @@ func (e *Evaluator) evaluateAggregate(input types.Collection, aggregator, init N
 		}
 	}
 
+	if err := e.ctx.CheckCollectionSize(total); err != nil {
+		return err
+	}
 	return total
 }
 
@@ -1724,7 +1734,7 @@ func (e *Evaluator) VisitIndexInvocation(ctx *grammar.IndexInvocationContext) in
 // VisitTotalInvocation visits $total.
 func (e *Evaluator) VisitTotalInvocation(ctx *grammar.TotalInvocationContext) interface{} {
 	if e.ctx.total != nil {
-		return types.Collection{e.ctx.total}
+		return e.ctx.total
 	}
 	return types.Collection{}
 }

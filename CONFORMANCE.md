@@ -449,7 +449,7 @@ the 610 distinct constraint expressions of the R4, R4B and R5 core and the IGs
 in the validator's package cache: existence first (`exists` in 353 of them,
 `empty` in 168, `count` in 50, `all` in 43), then Boolean logic, equality and
 comparison, filtering, strings, collections, the FHIR functions, math, date and time,
-conversions.
+conversions, aggregates.
 
 | Area | Requirements | Cases | Pass, R4 and R5 | Alone against fhirpath.js and Java |
 |---|---|---|---|---|
@@ -460,6 +460,7 @@ conversions.
 | strings | 88 | 317 | 316 | on two points, each as 3.0.0 states: characters counted as Unicode scalar values, and `encode('hex')` in lower case |
 | collections | 35 | 173 | 173 | none where the other two answer; `combine(other, preserveOrder)`, which both refuse |
 | fhir-functions | 56 | 196 | 160 of 168 in R4, 172 of 185 in R5 | none where the other two answer, `htmlChecks()` on a narrative or a string aside, which takes a checker here; `subsumes()`, `subsumedBy()`, `checkModifiers()`, `elementDefinition()`, `trace()`'s projection and `%'vs-…'`, which both refuse |
+| aggregates | 29 | 87 | 87 | none where the other two answer: `$total` of several items and `init` on the outer context follow both texts and fhirpath.js, the validator implementing neither `sum()` nor `avg()` |
 | conversions | 79 | 497 | 494 | on `toInteger()` of a FHIR decimal written without a fraction, `185`, or of a quotient or a rounding, `(10 / 2).toInteger()` and `1.5.round().toInteger()`, which both convert by how the decimal is written, the validator answering `(10 / 2).convertsToInteger()` false besides; on the type of a computed number, `(5 + 10.0) is System.Decimal`, which each gets wrong its own way; on `convertsToString()` of a complex value, which both answer true with strings that differ; and on `toDate()` and `toDateTime()` with a format, which neither implements; `is System.Long` and a calendar duration's `toString()` fail on purpose |
 | datetime | 68 | 345 | 337 | on `duration()` and `difference()`, which both refuse, and on a Date past year 9999, which both write as `10000-12-31`; a Date plus a time unit and the offset of an unzoned boundary fail on purpose |
 | math | 72 | 404 | 391 | on `10.log(0)`, which both answer 0, on Decimal arithmetic exact to the eighth place and beyond, which both lose, and on the type of a computed number, `(2 * 1.0) is Decimal`, which each gets wrong its own way; the cases written for 2.0.0's 32-bit Integer fail on purpose |
@@ -875,6 +876,43 @@ engines have it, where the case follows 2.0.0's `1 'week'`; see the table under
 
 No published constraint changes its verdict: the eight that convert apply
 `toString()` and `toInteger()` to strings, dates and a Count's decimal value.
+
+### Aggregates
+
+`aggregate()` with `$this`, `$total` and `$index`, and 3.0.0's `sum()`,
+`min()`, `max()` and `avg()`. Gaps closed:
+
+- `$total` held only the first item of the aggregator's result, where it "is
+  set to the result of the aggregator expression": `(1 | 2 | 3).aggregate($total
+  | $this, {}).count()` was 2, where fhirpath.js and the Java engine answer 3.
+- `init` was evaluated on aggregate()'s own input, where 3.0.0 says it is
+  "evaluated on the outer context": inside `select()`, its `$this` is the item
+  `select()` is at, `3.select((10 | 20).aggregate($total + $this, $this))`
+  being 33, as fhirpath.js answers; the validator answers empty there.
+- `sum()` of an empty input was 0, where "If the input collection is empty
+  (`{ }`), the result is empty."
+- `sum()` and `avg()` refused quantities, which 3.0.0 lists for both and gives
+  examples of: `( 5.5 'cm' | 4.7 'cm' | 4.8 'cm' ).avg() // 5.0 'cm'`. They
+  add as `+` adds two quantities, a FHIR Quantity among them, in the more
+  granular unit; units that do not combine give empty. A number beside them
+  is an item of another type, though `+` reads one as of unit `'1'`.
+- An item with nothing to add, a primitive with no value or a FHIR Quantity
+  with a unit and none, makes the sum empty, as `+` answers for such an
+  operand, not an item of another type.
+- `sum()` and `avg()` over items of different types, `(1 | 'a').sum()`, were
+  empty, where "All items in the input collection SHALL be the same type,
+  otherwise an exception is thrown". Integers and Decimals together add as
+  Decimals, whether that rule allows the implicit conversion being a question
+  the text leaves open; `min()` and `max()` already raised the error.
+
+`init` is evaluated in a scope of its own, so a variable it defines does not
+reach the aggregator, as in fhirpath.js. `$total` grows with the aggregator,
+`$total.combine($total)` doubling it, and is held to the maximum collection
+size an evaluation is given, checked with the timeout on every item.
+
+The validator implements neither `sum()` nor `avg()`, and its `$index` in
+`aggregate()` answers what cannot all hold; see
+[Measured, and not followed](#measured-and-not-followed).
 
 ## Static analysis
 
@@ -1815,6 +1853,8 @@ keeps its own answer.
 | `convertsToString()` of a partial DateTime: `@2014-01-25T10:00.convertsToString()` | false | true, as fhirpath.js answers | A DateTime converts to a String |
 | A decimal string with an exponent: `'1e5'.toDecimal()` | `1e5` | empty, as fhirpath.js answers | The form a decimal string takes has no exponent |
 | `convertsToString()` of a complex value: `Patient.name.first().convertsToString()` | true, writing `name=HumanName[4 children]` | false | 3.0.0's own example says false, and fhirpath.js's true writes `[object Object]`: no one string |
+| `$this` in `aggregate()`'s init, within `select()`: `3.select((10 \| 20).aggregate($total + $this, $this))` | empty | 33, as fhirpath.js answers | 3.0.0: init is "evaluated on the outer context" |
+| `$index` in `aggregate()`: `Patient.name.given.aggregate(iif($index = 2, $this, $total))`, `(1 \| 2 \| 3).aggregate(iif($index = 0, {}, ...), 5)` | empty, `5`: `$index = 2` and `$index = 0` never match, though `$total + $index` adds the indexes | `Jim`, `100`, as fhirpath.js answers | Answers that cannot all hold |
 | `skip()` and `take()` given a String: `Patient.telecom.use.skip('1')` | converts it, all but the first item | an error, as fhirpath.js raises | `num` is an Integer, and a String converts to one only through `toInteger()` |
 | `{}.single()`; `skip(-1)` | an exception | empty; the input, as "If `num` is less than or equal to zero, the input collection is simply returned" | An exception |
 | `getValue()`: `Patient.active.getValue()`; `extension({})` | an exception | `true`, as fhirpath.js answers; empty | An exception |
@@ -1826,7 +1866,7 @@ keeps its own answer.
 | `1 'Cel'.comparable(1 '[degF]')` | false | true, as fhirpath.js answers | 3.0.0's own example is true: both are temperatures |
 | `hasValue()` of a quantity: `1 'mg'.hasValue()` | true | false, as fhirpath.js answers | A quantity is no primitive, FHIR or System |
 | `encode('hex')` | upper case, `7A3F` | lower case, `7a3f` | 3.0.0: "hexadecimal characters (base 16) in lowercase"; fhirpath.js mixes the cases |
-| `timeOfDay()`, `yearOf()` and the other component functions, `duration()`, `difference()`, `min()`, `max()`, `toDate()`, `toTime()`, `toQuantity()`'s unit, the format of `toDate()` and `toDateTime()`, `repeatAll()`, `lastIndexOf()`, regular expression flags, `encode('ascii')`, `combine()`'s `preserveOrder`; `ofType(System.Any)` | not known functions or formats; System.Any no type; `combine()` of two arguments refused | | Not implemented there; fhirpath.js has neither `repeatAll()`, the `ascii` format nor `preserveOrder` |
+| `timeOfDay()`, `yearOf()` and the other component functions, `duration()`, `difference()`, `sum()`, `avg()`, `min()`, `max()`, `toDate()`, `toTime()`, `toQuantity()`'s unit, the format of `toDate()` and `toDateTime()`, `repeatAll()`, `lastIndexOf()`, regular expression flags, `encode('ascii')`, `combine()`'s `preserveOrder`; `ofType(System.Any)` | not known functions or formats; System.Any no type; `combine()` of two arguments refused | | Not implemented there; fhirpath.js has neither `repeatAll()`, the `ascii` format nor `preserveOrder` |
 
 ## Decisions taken where the specification is silent
 
