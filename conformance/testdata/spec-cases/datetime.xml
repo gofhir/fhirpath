@@ -1,0 +1,840 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<tests name="datetime" description="Date/time arithmetic and the date/time functions: Date, DateTime and Time plus and minus a calendar duration (singular, plural or the quoted keyword) or the UCUM units 's' and 'ms', per component (years, months, weeks, days, hours, minutes, seconds, milliseconds) with month-end and leap-year handling, the year out of the Date range, the decimal portion ignored above seconds, partial precision (the quantity converted to the value's highest precision and truncated), timezone offsets carried through, Time wrapping around midnight (3.0.0), negative quantities through unary minus (3.0.0), the UCUM 'a' and 'mo' refused, date components refused on a Time and time components on a Date, other right operands refused, empty and multi-item operands, and FHIR dates and Age quantities in arithmetic; now(), today() and timeOfDay() by their type and determinism only; and 3.0.0's lowBoundary()/highBoundary() with a precision and precision() on Date, DateTime and Time, the component functions yearOf to timeOf, and duration() and difference(). Date plus time units is an error as 3.0.0 states; 2.0.0 lists the units a Date takes without a consequence, so 3.0.0 defines what 2.0.0 does not. Left out because the text does not settle them: the UCUM units 'wk', 'd', 'h' and 'min' on a Date or DateTime (3.0.0 accepts them; 2.0.0 contradicts itself, saying both that a definite-quantity duration above seconds signals an error and that a DateTime or Time takes an equivalent unit, which its table makes 'wk', 'd', 'h' and 'min'), fractional weeks, fractional days or hours added to a value of second or millisecond precision, fractional seconds on a value coarser than milliseconds, fractional milliseconds, results out of range other than by adding years to a Date (in particular a DateTime whose year leaves 0001 to 9999: both texts say implementations can provide support for larger ranges for DateTime, and say no such thing for Date), the minimum precision of now(), today() compared with now(), lowBoundary()/highBoundary() without a precision on Date, DateTime and Time, with a precision the type does not have or below the value's, or on an unzoned DateTime under R5's page, precision() of a value with a timezone offset or with other than three fractional digits, timeOf() of a DateTime without seconds, and duration()/difference() with a precision the type does not allow, mixed types, a multi-item or empty argument, or month ends. Comparison and equality of temporals (equality-comparison.xml), toDate/toDateTime/toTime and literal syntax (a later conversions area), and lowBoundary()/highBoundary() on decimals and on an empty input (fhir-functions.xml) are not repeated.">
+
+  <!-- Date/Time Arithmetic: years -->
+
+  <group name="REQ-DATETIME-001" description="Adding or subtracting years adds to the year component of a Date or DateTime, keeping the other components">
+    <source spec="fhirpath-2.0.0" section="Date/Time Arithmetic" strength="DEFINITION">The year, positive or negative, is added to the year component of the date or time value.</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Arithmetic" strength="DEFINITION">The year, positive or negative, is added to the year component of the date or time value.</source>
+    <source spec="fhirpath-2.0.0" section="- (subtraction)" strength="DEFINITION">Returns the value of the given `Date`, `DateTime`, or `Time`, decremented by the time-valued quantity, respecting variable length periods for calendar years and months.</source>
+    <test name="REQ-DATETIME-001-a"><expression>@1973-12-25 + 1 year</expression><output type="date">@1974-12-25</output></test>
+    <test name="REQ-DATETIME-001-b"><expression>@2014-06-15 - 2 years</expression><output type="date">@2012-06-15</output></test>
+    <test name="REQ-DATETIME-001-c"><expression>@2014-06-15 + 3 years</expression><output type="date">@2017-06-15</output></test>
+    <test name="REQ-DATETIME-001-d"><expression>@2014-06-15T10:00:00 + 1 year</expression><output type="dateTime">@2015-06-15T10:00:00</output></test>
+    <test name="REQ-DATETIME-001-e"><expression>@2014-06-15T10:00:00 - 1 year</expression><output type="dateTime">@2013-06-15T10:00:00</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-002" description="When adding years lands on a day the resulting year does not have (29 February), the last day of the month is used">
+    <source spec="fhirpath-2.0.0" section="Date/Time Arithmetic" strength="DEFINITION">If the month and day of the date or time value is not a valid date in the resulting year, the last day of the calendar month is used.</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Arithmetic" strength="DEFINITION">If the month and day of the date or time value is not a valid date in the resulting year, the last day of the calendar month is used.</source>
+    <test name="REQ-DATETIME-002-a"><expression>@2016-02-29 + 1 year</expression><output type="date">@2017-02-28</output></test>
+    <test name="REQ-DATETIME-002-b"><expression>@2016-02-29 - 1 year</expression><output type="date">@2015-02-28</output></test>
+    <test name="REQ-DATETIME-002-c"><expression>@2016-02-29 + 4 years</expression><output type="date">@2020-02-29</output></test>
+    <test name="REQ-DATETIME-002-d"><expression>@2016-02-29T12:00:00 + 1 year</expression><output type="dateTime">@2017-02-28T12:00:00</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-003" description="Adding or subtracting years to a Date so that the year leaves the Date range @0001-01-01 to @9999-12-31 signals an error">
+    <source spec="fhirpath-2.0.0" section="Date/Time Arithmetic" strength="DEFINITION">If the resulting year is out of range, an error is thrown.</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Arithmetic" strength="DEFINITION">If the resulting year is out of range, an error is thrown.</source>
+    <source spec="fhirpath-2.0.0" section="Date" strength="DEFINITION">The `Date` type represents date and partial date values in the range @0001-01-01 to @9999-12-31 with a 1 day step size.</source>
+    <source spec="fhirpath-3.0.0" section="Date" strength="DEFINITION">The `Date` type represents date and partial date values in the range @0001-01-01 to @9999-12-31 with a 1 day step size.</source>
+    <test name="REQ-DATETIME-003-a"><expression invalid="execution">@9999-12-31 + 1 year</expression></test>
+    <test name="REQ-DATETIME-003-b"><expression invalid="execution">@0001-01-01 - 1 year</expression></test>
+    <test name="REQ-DATETIME-003-c"><expression invalid="execution">@9999 + 1 year</expression></test>
+    <test name="REQ-DATETIME-003-d"><expression invalid="execution">@0001-06 - 1 year</expression></test>
+  </group>
+
+  <!-- months -->
+
+  <group name="REQ-DATETIME-004" description="Months are divided by 12, the integer portion is added to the year and the remainder to the month, for Date and DateTime, positive and negative">
+    <source spec="fhirpath-2.0.0" section="Date/Time Arithmetic" strength="DEFINITION">The month, positive or negative is divided by 12, and the integer portion of the result is added to the year component. The remaining portion of months is added to the month component.</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Arithmetic" strength="DEFINITION">The month, positive or negative is divided by 12, and the integer portion of the result is added to the year component. The remaining portion of months is added to the month component.</source>
+    <source spec="fhirpath-2.0.0" section="+ (addition)" strength="EXAMPLE">@2019-03-01 + 24 months // @2021-03-01</source>
+    <source spec="fhirpath-2.0.0" section="- (subtraction)" strength="EXAMPLE">@2019-03-01 - 24 months // @2017-03-01</source>
+    <source spec="fhirpath-3.0.0" section="+ (addition)" strength="EXAMPLE">@2019-03-01 + 24 months // @2021-03-01 ; month value overflows into years</source>
+    <source spec="fhirpath-3.0.0" section="- (subtraction)" strength="EXAMPLE">@2019-03-01 - 24 months // @2017-03-01</source>
+    <test name="REQ-DATETIME-004-a"><expression>@2019-03-01 + 24 months</expression><output type="date">@2021-03-01</output></test>
+    <test name="REQ-DATETIME-004-b"><expression>@2019-03-01 - 24 months</expression><output type="date">@2017-03-01</output></test>
+    <test name="REQ-DATETIME-004-c"><expression>@2014-11-15 + 3 months</expression><output type="date">@2015-02-15</output></test>
+    <test name="REQ-DATETIME-004-d"><expression>@2014-01-15 - 13 months</expression><output type="date">@2012-12-15</output></test>
+    <test name="REQ-DATETIME-004-e"><expression>@1974-12-25 - 1 month</expression><output type="date">@1974-11-25</output></test>
+    <test name="REQ-DATETIME-004-f"><expression>@2014-11-15T10:30:00 + 2 months</expression><output type="dateTime">@2015-01-15T10:30:00</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-005" description="When adding months lands on a day the resulting month does not have, the last day of the resulting month is used">
+    <source spec="fhirpath-2.0.0" section="Date/Time Arithmetic" strength="DEFINITION">If the resulting date is not a valid date in the resulting year, the last day of the resulting calendar month is used.</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Arithmetic" strength="DEFINITION">If the resulting date is not a valid date in the resulting year, the last day of the resulting calendar month is used.</source>
+    <source spec="fhirpath-3.0.0" section="+ (addition)" strength="EXAMPLE">@2026-01-31 + 1 month   // @2026-02-28 ; 31st day isn't valid in february, so revert to last day in the month</source>
+    <test name="REQ-DATETIME-005-a"><expression>@2026-01-31 + 1 month</expression><output type="date">@2026-02-28</output></test>
+    <test name="REQ-DATETIME-005-b"><expression>@2016-01-31 + 1 month</expression><output type="date">@2016-02-29</output></test>
+    <test name="REQ-DATETIME-005-c"><expression>@2014-05-31 - 1 month</expression><output type="date">@2014-04-30</output></test>
+    <test name="REQ-DATETIME-005-d"><expression>@2014-03-31 - 1 month</expression><output type="date">@2014-02-28</output></test>
+    <test name="REQ-DATETIME-005-e"><expression>@2016-02-29 + 12 months</expression><output type="date">@2017-02-28</output></test>
+    <test name="REQ-DATETIME-005-f"><expression>@2014-12-31 + 2 months</expression><output type="date">@2015-02-28</output></test>
+    <test name="REQ-DATETIME-005-g"><expression>@2014-01-31T08:00:00 + 1 month</expression><output type="dateTime">@2014-02-28T08:00:00</output></test>
+  </group>
+
+  <!-- weeks and days -->
+
+  <group name="REQ-DATETIME-006" description="Weeks are multiplied by 7 and added to the day component, respecting month and year lengths">
+    <source spec="fhirpath-2.0.0" section="Date/Time Arithmetic" strength="DEFINITION">The week, positive or negative, is multiplied by 7, and the resulting value is added to the day component, respecting calendar month and calendar year lengths.</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Arithmetic" strength="DEFINITION">The week, positive or negative, is multiplied by 7, and the resulting value is added to the day component, respecting calendar month and calendar year lengths.</source>
+    <source spec="fhirpath-2.0.0" section="+ (addition)" strength="DEFINITION">Calculations involving weeks are equivalent to multiplying the number of weeks by 7 and performing the calculation for the resulting number of days.</source>
+    <source spec="fhirpath-3.0.0" section="+ (addition)" strength="EXAMPLE">@1973-12-25 + 1 week    // @1974-01-01</source>
+    <test name="REQ-DATETIME-006-a"><expression>@1973-12-25 + 1 week</expression><output type="date">@1974-01-01</output></test>
+    <test name="REQ-DATETIME-006-b"><expression>@2014-01-01 - 2 weeks</expression><output type="date">@2013-12-18</output></test>
+    <test name="REQ-DATETIME-006-c"><expression>@2016-02-22 + 1 week</expression><output type="date">@2016-02-29</output></test>
+    <test name="REQ-DATETIME-006-d"><expression>@2014-12-29T10:00:00 + 1 week</expression><output type="dateTime">@2015-01-05T10:00:00</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-007" description="Days are added to the day component, respecting month lengths, leap years and year ends">
+    <source spec="fhirpath-2.0.0" section="Date/Time Arithmetic" strength="DEFINITION">The day, positive or negative, is added to the day component, respecting calendar month and calendar year lengths.</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Arithmetic" strength="DEFINITION">The day, positive or negative, is added to the day component, respecting calendar month and calendar year lengths.</source>
+    <source spec="fhirpath-3.0.0" section="+ (addition)" strength="EXAMPLE">@1973-12-25 + 7 days    // @1974-01-01</source>
+    <test name="REQ-DATETIME-007-a"><expression>@1973-12-25 + 7 days</expression><output type="date">@1974-01-01</output></test>
+    <test name="REQ-DATETIME-007-b"><expression>@2016-02-28 + 1 day</expression><output type="date">@2016-02-29</output></test>
+    <test name="REQ-DATETIME-007-c"><expression>@2015-02-28 + 1 day</expression><output type="date">@2015-03-01</output></test>
+    <test name="REQ-DATETIME-007-d"><expression>@2016-12-31 + 1 day</expression><output type="date">@2017-01-01</output></test>
+    <test name="REQ-DATETIME-007-e"><expression>@2016-03-01 - 1 day</expression><output type="date">@2016-02-29</output></test>
+    <test name="REQ-DATETIME-007-f"><expression>@2014-01-01 - 365 days</expression><output type="date">@2013-01-01</output></test>
+    <test name="REQ-DATETIME-007-g"><expression>@2014-01-01 + 2 day</expression><output type="date">@2014-01-03</output></test>
+    <test name="REQ-DATETIME-007-h"><expression>@2014-12-31T23:00:00 + 1 day</expression><output type="dateTime">@2015-01-01T23:00:00</output></test>
+  </group>
+
+  <!-- hours, minutes, seconds, milliseconds on DateTime -->
+
+  <group name="REQ-DATETIME-008" description="Hours are added to the hour component of a DateTime, each 24 hours counting as a calendar day">
+    <source spec="fhirpath-2.0.0" section="Date/Time Arithmetic" strength="DEFINITION">The hours, positive or negative, are added to the hour component, with each 24 hour block counting as a calendar day, and respecting calendar month and calendar year lengths.</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Arithmetic" strength="DEFINITION">The hours, positive or negative, are added to the hour component, with each 24 hour block counting as a calendar day, and respecting calendar month and calendar year lengths.</source>
+    <test name="REQ-DATETIME-008-a"><expression>@2014-01-01T10:00:00 + 48 hours</expression><output type="dateTime">@2014-01-03T10:00:00</output></test>
+    <test name="REQ-DATETIME-008-b"><expression>@2014-03-01T01:00:00 - 2 hours</expression><output type="dateTime">@2014-02-28T23:00:00</output></test>
+    <test name="REQ-DATETIME-008-c"><expression>@2016-02-28T23:00:00 + 1 hour</expression><output type="dateTime">@2016-02-29T00:00:00</output></test>
+    <test name="REQ-DATETIME-008-d"><expression>@2014-12-31T23:00:00 + 1 hour</expression><output type="dateTime">@2015-01-01T00:00:00</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-009" description="Minutes are added to the minute component of a DateTime, each 60 minutes counting as an hour">
+    <source spec="fhirpath-2.0.0" section="Date/Time Arithmetic" strength="DEFINITION">The minutes, positive or negative, are added to the minute component, with each 60 minute block counting as an hour, and respecting calendar month and calendar year lengths.</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Arithmetic" strength="DEFINITION">The minutes, positive or negative, are added to the minute component, with each 60 minute block counting as an hour, and respecting calendar month and calendar year lengths.</source>
+    <source spec="fhirpath-3.0.0" section="+ (addition)" strength="EXAMPLE">@2026-01-01T13:00:00 + 30 minutes // @2026-01-01T13:30:00</source>
+    <test name="REQ-DATETIME-009-a"><expression>@2026-01-01T13:00:00 + 30 minutes</expression><output type="dateTime">@2026-01-01T13:30:00</output></test>
+    <test name="REQ-DATETIME-009-b"><expression>@2014-12-31T23:59:00 + 1 minute</expression><output type="dateTime">@2015-01-01T00:00:00</output></test>
+    <test name="REQ-DATETIME-009-c"><expression>@2014-01-01T00:00:00 - 1 minute</expression><output type="dateTime">@2013-12-31T23:59:00</output></test>
+    <test name="REQ-DATETIME-009-d"><expression>@2014-01-01T00:00:00 + 1500 minutes</expression><output type="dateTime">@2014-01-02T01:00:00</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-010" description="Seconds are added to the second component of a DateTime, each 60 seconds counting as a minute">
+    <source spec="fhirpath-2.0.0" section="Date/Time Arithmetic" strength="DEFINITION">The seconds, positive or negative, are added to the second component, with each 60 second block counting as a minute, and respecting calendar month and calendar year lengths.</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Arithmetic" strength="DEFINITION">The seconds, positive or negative, are added to the second component, with each 60 second block counting as a minute, and respecting calendar month and calendar year lengths.</source>
+    <test name="REQ-DATETIME-010-a"><expression>@2014-02-28T23:59:59 + 1 second</expression><output type="dateTime">@2014-03-01T00:00:00</output></test>
+    <test name="REQ-DATETIME-010-b"><expression>@2014-01-01T00:00:00 - 1 second</expression><output type="dateTime">@2013-12-31T23:59:59</output></test>
+    <test name="REQ-DATETIME-010-c"><expression>@2014-01-01T23:30:00 + 3600 seconds</expression><output type="dateTime">@2014-01-02T00:30:00</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-011" description="Milliseconds are added to the millisecond component of a DateTime, each 1000 milliseconds counting as a second">
+    <source spec="fhirpath-2.0.0" section="Date/Time Arithmetic" strength="DEFINITION">The milliseconds, positive or negative, are added to the millisecond component, with each 1000 millisecond block counting as a second, and respecting calendar month and calendar year lengths.</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Arithmetic" strength="DEFINITION">The milliseconds, positive or negative, are added to the millisecond component, with each 1000 millisecond block counting as a second, and respecting calendar month and calendar year lengths.</source>
+    <test name="REQ-DATETIME-011-a"><expression>@2014-01-01T00:00:00.999 + 1 millisecond</expression><output type="dateTime">@2014-01-01T00:00:01.000</output></test>
+    <test name="REQ-DATETIME-011-b"><expression>@2014-01-01T00:00:00.000 - 1 millisecond</expression><output type="dateTime">@2013-12-31T23:59:59.999</output></test>
+    <test name="REQ-DATETIME-011-c"><expression>@2014-01-01T00:00:00.500 + 1500 milliseconds</expression><output type="dateTime">@2014-01-01T00:00:02.000</output></test>
+  </group>
+
+  <!-- Time -->
+
+  <group name="REQ-DATETIME-012" description="Hours, minutes, seconds and milliseconds are added to the components of a Time">
+    <source spec="fhirpath-2.0.0" section="+ (addition)" strength="DEFINITION">Returns the value of the given `Date`, `DateTime`, or `Time`, incremented by the time-valued quantity, respecting variable length periods for calendar years and months.</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Arithmetic" strength="DEFINITION">The minutes, positive or negative, are added to the minute component, with each 60 minute block counting as an hour, and respecting calendar month and calendar year lengths.</source>
+    <source spec="fhirpath-3.0.0" section="+ (addition)" strength="DEFINITION">Returns the value of the given `Date`, `DateTime`, or `Time`, incremented by the time-valued quantity, subject to all the rules and calendar semantics described [above](#datetime-arithmetic).</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Arithmetic" strength="DEFINITION">The seconds, positive or negative, are added to the second component, with each 60 second block counting as a minute, and respecting calendar month and calendar year lengths.</source>
+    <test name="REQ-DATETIME-012-a"><expression>@T10:00:00 + 2 hours</expression><output type="time">@T12:00:00</output></test>
+    <test name="REQ-DATETIME-012-b"><expression>@T10:30 + 45 minutes</expression><output type="time">@T11:15</output></test>
+    <test name="REQ-DATETIME-012-c"><expression>@T10:00:00 + 90 seconds</expression><output type="time">@T10:01:30</output></test>
+    <test name="REQ-DATETIME-012-d"><expression>@T10:00:00.000 + 1500 milliseconds</expression><output type="time">@T10:00:01.500</output></test>
+    <test name="REQ-DATETIME-012-e"><expression>@T10:00:00 - 1 second</expression><output type="time">@T09:59:59</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-013" description="Time is cyclic: adding or subtracting past midnight wraps around the day (3.0.0, STU; 2.0.0 does not say)">
+    <source spec="fhirpath-3.0.0" section="Date/Time Arithmetic" strength="DEFINITION">As `Time` is cyclic, using arithmetic operations `+` or `-` on `Time` types can result in overflowing the time value, which will wrap around the beginning of the day.</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Arithmetic" strength="DEFINITION">So adding 1 hour to `@T23:30:00` will wrap around to `@T00:30:00`, which is consistent with the behaviour of `DateTime` values.</source>
+    <source spec="fhirpath-3.0.0" section="+ (addition)" strength="EXAMPLE">@T23:30:00 + 1 hour     // @T00:30:00 ; overflow midnight</source>
+    <source spec="fhirpath-3.0.0" section="+ (addition)" strength="EXAMPLE">@T01:00:00 + 48 hour    // @T01:00:00 ; cycles through twice, but resulting time is the same</source>
+    <source spec="fhirpath-3.0.0" section="- (subtraction)" strength="EXAMPLE">@T00:30:00 - 1 hour // @T23:30:00</source>
+    <source spec="fhirpath-3.0.0" section="- (subtraction)" strength="EXAMPLE">@T01:00:00 - 2 hours // @T23:00:00</source>
+    <test name="REQ-DATETIME-013-a"><expression>@T23:30:00 + 1 hour</expression><output type="time">@T00:30:00</output></test>
+    <test name="REQ-DATETIME-013-b"><expression>@T01:00:00 + 48 hour</expression><output type="time">@T01:00:00</output></test>
+    <test name="REQ-DATETIME-013-c"><expression>@T00:30:00 - 1 hour</expression><output type="time">@T23:30:00</output></test>
+    <test name="REQ-DATETIME-013-d"><expression>@T01:00:00 - 2 hours</expression><output type="time">@T23:00:00</output></test>
+    <test name="REQ-DATETIME-013-e"><expression>@T23:59:59.999 + 1 millisecond</expression><output type="time">@T00:00:00.000</output></test>
+    <test name="REQ-DATETIME-013-f"><expression>@T00:00:00 - 1 second</expression><output type="time">@T23:59:59</output></test>
+    <test name="REQ-DATETIME-013-g"><expression>@T23:59 + 2 minutes</expression><output type="time">@T00:01</output></test>
+  </group>
+
+  <!-- decimals -->
+
+  <group name="REQ-DATETIME-014" description="The decimal portion of a quantity in a unit above seconds is ignored, on a value whose own precision is also above seconds">
+    <source spec="fhirpath-2.0.0" section="+ (addition)" strength="DEFINITION">For precisions above `seconds`, the decimal portion of the time-valued quantity is ignored, since date/time arithmetic above seconds is performed with calendar duration semantics.</source>
+    <source spec="fhirpath-2.0.0" section="- (subtraction)" strength="DEFINITION">For precisions above `seconds`, the decimal portion of the time-valued quantity is ignored, since date/time arithmetic above seconds is performed with calendar duration semantics.</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Arithmetic" strength="DEFINITION">The decimal portion of the time-valued quantity is only applied for second or millisecond precisions; for all other precisions, the decimal portion is ignored, since date/time arithmetic is performed with calendar duration semantics.</source>
+    <source spec="fhirpath-3.0.0" section="+ (addition)" strength="EXAMPLE">@1973-12-25 + 7.9 days  // @1974-01-01 ; same as above as the decimal is truncated (though a warning may be triggered)</source>
+    <test name="REQ-DATETIME-014-a"><expression>@1973-12-25 + 7.9 days</expression><output type="date">@1974-01-01</output></test>
+    <test name="REQ-DATETIME-014-b"><expression>@2014-01-15 + 1.5 months</expression><output type="date">@2014-02-15</output></test>
+    <test name="REQ-DATETIME-014-c"><expression>@2014-06-15 + 1.9 years</expression><output type="date">@2015-06-15</output></test>
+    <test name="REQ-DATETIME-014-d"><expression>@2014-06-15 - 2.5 days</expression><output type="date">@2014-06-13</output></test>
+    <test name="REQ-DATETIME-014-e"><expression>@2014-01-01T10:00 + 1.5 hours</expression><output type="dateTime">@2014-01-01T11:00</output></test>
+    <test name="REQ-DATETIME-014-f"><expression>@T10:00 - 1.5 hours</expression><output type="time">@T09:00</output></test>
+    <test name="REQ-DATETIME-014-g"><expression>@T10:00 + 2.9 minutes</expression><output type="time">@T10:02</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-015" description="The decimal portion of a quantity in seconds is applied to a value of millisecond precision (settled by 3.0.0's sentence and example; 2.0.0 implies it only, by ignoring the decimal portion for precisions above seconds)">
+    <source spec="fhirpath-2.0.0" section="+ (addition)" strength="DEFINITION">For precisions above `seconds`, the decimal portion of the time-valued quantity is ignored, since date/time arithmetic above seconds is performed with calendar duration semantics.</source>
+    <source spec="fhirpath-2.0.0" section="- (subtraction)" strength="DEFINITION">For precisions above `seconds`, the decimal portion of the time-valued quantity is ignored, since date/time arithmetic above seconds is performed with calendar duration semantics.</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Arithmetic" strength="DEFINITION">The decimal portion of the time-valued quantity is only applied for second or millisecond precisions; for all other precisions, the decimal portion is ignored, since date/time arithmetic is performed with calendar duration semantics.</source>
+    <source spec="fhirpath-3.0.0" section="+ (addition)" strength="EXAMPLE">@1973-12-25T00:00:00.000+10:00 + 42.53 seconds // @1973-12-25T00:00:42.530+10:00</source>
+    <test name="REQ-DATETIME-015-a"><expression>@1973-12-25T00:00:00.000+10:00 + 42.53 seconds</expression><output type="dateTime">@1973-12-25T00:00:42.530+10:00</output></test>
+    <test name="REQ-DATETIME-015-b"><expression>@T10:00:00.000 + 1.5 seconds</expression><output type="time">@T10:00:01.500</output></test>
+    <test name="REQ-DATETIME-015-c"><expression>@T10:00:00.000 - 0.25 's'</expression><output type="time">@T09:59:59.750</output></test>
+  </group>
+
+  <!-- partial precision -->
+
+  <group name="REQ-DATETIME-016" description="On a partial value the quantity is converted to the value's highest precision and its fraction dropped before adding or subtracting, as in the worked examples">
+    <source spec="fhirpath-2.0.0" section="+ (addition)" strength="DEFINITION">For partial date/time values where the time-valued quantity is more precise than the partial date/time, the operation is performed by converting the time-valued quantity to the highest precision in the partial (removing any decimal value off) and then adding to the date/time value.</source>
+    <source spec="fhirpath-2.0.0" section="+ (addition)" strength="EXAMPLE">The first example above will evaluate to the value `@2016` even though the date/time value is not specified to the level of precision of the time-valued quantity.</source>
+    <source spec="fhirpath-2.0.0" section="+ (addition)" strength="EXAMPLE">The first example above returns @2015, because 23 months only constitutes one year. The second example returns 2017 because even though 2016 is a leap-year, the time-valued quantity (`365 days`) is converted to `1 year`, a standard calendar year of 365 days.</source>
+    <source spec="fhirpath-2.0.0" section="- (subtraction)" strength="EXAMPLE">The first example above will evaluate to the value `@2012` even though the date/time value is not specified to the level of precision of the time-valued quantity.</source>
+    <source spec="fhirpath-3.0.0" section="+ (addition)" strength="DEFINITION">For partial date/time values where the time-valued quantity is more precise than the partial date/time, the operation is performed by converting the time-valued quantity to the highest precision in the partial (truncating any decimal fraction) and then adding to the date/time value.</source>
+    <source spec="fhirpath-3.0.0" section="+ (addition)" strength="EXAMPLE">@2014 + 24 months  // @2016 ; 24/12 → 2 years (converting the quantity value to the highest precision in the partial date value)</source>
+    <source spec="fhirpath-3.0.0" section="+ (addition)" strength="EXAMPLE">@2014 + 23 months  // @2015 ; 23 months only constitutes one year (23/12 = 1.9167 → 1 year, remainder ignored)</source>
+    <source spec="fhirpath-3.0.0" section="+ (addition)" strength="EXAMPLE">@2016 + 365 days   // @2017 ; even though 2016 is a leap-year, the time-valued quantity (`365 days`) is converted to `1 year`, a standard calendar year of 365 days</source>
+    <source spec="fhirpath-3.0.0" section="+ (addition)" strength="EXAMPLE">@2014 + 11 months  // @2014 ; 11/12 = 0.9167 → 0 years, remainder ignored</source>
+    <source spec="fhirpath-3.0.0" section="+ (addition)" strength="EXAMPLE">@2026-02 + 5 weeks // @2026-03 ; 5 weeks is converted to 35 days, which are then converted to months 35/30 = 1.1667 → 1 month, remainder ignored</source>
+    <source spec="fhirpath-3.0.0" section="+ (addition)" strength="EXAMPLE">@2026-02 + 4 weeks // @2026-02 ; 4 weeks is converted to 28 days, which are then converted to months 28/30 = 0.9333 → 0 month, remainder ignored</source>
+    <source spec="fhirpath-3.0.0" section="- (subtraction)" strength="EXAMPLE">@2014 - 24 months       // @2012 ; even though the date/time value is not specified to the level of precision of the time-valued quantity</source>
+    <source spec="fhirpath-3.0.0" section="- (subtraction)" strength="EXAMPLE">@2014 - 1 month         // @2014 ; Partial date calculation 1/12 = 0.0833 → 0 years, remainder ignored</source>
+    <source spec="fhirpath-3.0.0" section="- (subtraction)" strength="EXAMPLE">@2026-02 - 1 day        // @2026-02 ; Partial date calculation 1/30 = 0.0333 → 0 months, remainder ignored</source>
+    <test name="REQ-DATETIME-016-a"><expression>@2014 + 24 months</expression><output type="date">@2016</output></test>
+    <test name="REQ-DATETIME-016-b"><expression>@2014 + 23 months</expression><output type="date">@2015</output></test>
+    <test name="REQ-DATETIME-016-c"><expression>@2016 + 365 days</expression><output type="date">@2017</output></test>
+    <test name="REQ-DATETIME-016-d"><expression>@2014 - 24 months</expression><output type="date">@2012</output></test>
+    <test name="REQ-DATETIME-016-e"><expression>@2014 + 11 months</expression><output type="date">@2014</output></test>
+    <test name="REQ-DATETIME-016-f"><expression>@2026-02 + 5 weeks</expression><output type="date">@2026-03</output></test>
+    <test name="REQ-DATETIME-016-g"><expression>@2026-02 + 4 weeks</expression><output type="date">@2026-02</output></test>
+    <test name="REQ-DATETIME-016-h"><expression>@2014 - 1 month</expression><output type="date">@2014</output></test>
+    <test name="REQ-DATETIME-016-i"><expression>@2026-02 - 1 day</expression><output type="date">@2026-02</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-017" description="The partial-precision rule converts with the calendar factors (12 months or 365 days a year, 30 days a month, 7 days a week, 24 hours a day, 60 minutes an hour, 60 seconds a minute) and truncates, for Date, DateTime and Time values and for subtraction (3.0.0 settles it: it says to chain the conversions for every partial precision; 2.0.0 contradicts itself, giving the factors but saying they are only used in unanchored calculations, while its own @2016 + 365 days example uses the 365-day factor in an anchored one)">
+    <source spec="fhirpath-2.0.0" section="+ (addition)" strength="DEFINITION">For partial date/time values where the time-valued quantity is more precise than the partial date/time, the operation is performed by converting the time-valued quantity to the highest precision in the partial (removing any decimal value off) and then adding to the date/time value.</source>
+    <source spec="fhirpath-2.0.0" section="- (subtraction)" strength="DEFINITION">For partial date/time values where the time-valued quantity is more precise than the partial date/time, the operation is performed by converting the time-valued quantity to the highest precision in the partial (removing any decimal value off) and then subtracting from the date/time value.</source>
+    <source spec="fhirpath-2.0.0" section="toQuantity([unit : String]) : Quantity" strength="DEFINITION">For calendar durations, FHIRPath defines the following conversion factors:</source>
+    <source spec="fhirpath-2.0.0" section="toQuantity([unit : String]) : Quantity" strength="DEFINITION">Note that calendar duration conversion factors are only used when time-valued quantities appear in unanchored calculations.</source>
+    <source spec="fhirpath-2.0.0" section="+ (addition)" strength="EXAMPLE">The second example returns 2017 because even though 2016 is a leap-year, the time-valued quantity (`365 days`) is converted to `1 year`, a standard calendar year of 365 days.</source>
+    <source spec="fhirpath-3.0.0" section="+ (addition)" strength="EXAMPLE">@2026-02 + 5 weeks // @2026-03 ; 5 weeks is converted to 35 days, which are then converted to months 35/30 = 1.1667 → 1 month, remainder ignored</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Arithmetic" strength="DEFINITION">If the date/time value only has years present then when adding month quantities; use the direct conversion from months to years, otherwise convert the quantity to days, then to years (chaining as needed).</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Arithmetic" strength="DEFINITION">For all other partial precisions, convert as required chaining conversions where required.</source>
+    <source spec="fhirpath-3.0.0" section="- (subtraction)" strength="DEFINITION">For partial date/time values where the time-valued quantity is more precise than the partial date/time, the operation is performed by converting the time-valued quantity to the highest precision in the partial (truncating any decimal fraction) and then subtracting from the date/time value.</source>
+    <source spec="fhirpath-3.0.0" section="Time-valued unit conversions" strength="DEFINITION">FHIRPath defines the following conversion factors for calendar durations. For comparison the associated UCUM definite duration conversion factors are also included in the table:</source>
+    <test name="REQ-DATETIME-017-a"><expression>@2014 + 730 days</expression><output type="date">@2016</output></test>
+    <test name="REQ-DATETIME-017-b"><expression>@2014 + 364 days</expression><output type="date">@2014</output></test>
+    <test name="REQ-DATETIME-017-c"><expression>@2014 + 104 weeks</expression><output type="date">@2015</output></test>
+    <test name="REQ-DATETIME-017-d"><expression>@2014-01 + 60 days</expression><output type="date">@2014-03</output></test>
+    <test name="REQ-DATETIME-017-e"><expression>@2014 - 23 months</expression><output type="date">@2013</output></test>
+    <test name="REQ-DATETIME-017-f"><expression>@2014 + 18.9 months</expression><output type="date">@2015</output></test>
+    <test name="REQ-DATETIME-017-g"><expression>(@2014T + 24 months) = @2016T</expression><output type="boolean">true</output></test>
+    <test name="REQ-DATETIME-017-h"><expression>(@2014-01-01T08 + 90 minutes) = @2014-01-01T09</expression><output type="boolean">true</output></test>
+    <test name="REQ-DATETIME-017-i"><expression>(@2014-01-01T + 25 hours) = @2014-01-02T</expression><output type="boolean">true</output></test>
+    <test name="REQ-DATETIME-017-j"><expression>(@T10 + 59 minutes) = @T10</expression><output type="boolean">true</output></test>
+    <test name="REQ-DATETIME-017-k"><expression>(@T10 + 120 minutes) = @T12</expression><output type="boolean">true</output></test>
+    <test name="REQ-DATETIME-017-l"><expression>@T10:00 + 90 seconds</expression><output type="time">@T10:01</output></test>
+  </group>
+
+  <!-- negative quantities, timezone, type of the result -->
+
+  <group name="REQ-DATETIME-018" description="A negative quantity (through 3.0.0's unary minus on a Quantity) is added with its sign, and on a partial value its fraction is truncated">
+    <source spec="fhirpath-2.0.0" section="Date/Time Arithmetic" strength="DEFINITION">The month, positive or negative is divided by 12, and the integer portion of the result is added to the year component.</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Arithmetic" strength="DEFINITION">The day, positive or negative, is added to the day component, respecting calendar month and calendar year lengths.</source>
+    <source spec="fhirpath-3.0.0" section="Unary operators (`+` and `-`)" strength="DEFINITION">The unary operators support a single item input operand of type Integer, Long, Decimal, or Quantity. The output type is the same as the input type.</source>
+    <source spec="fhirpath-3.0.0" section="+ (addition)" strength="DEFINITION">For partial date/time values where the time-valued quantity is more precise than the partial date/time, the operation is performed by converting the time-valued quantity to the highest precision in the partial (truncating any decimal fraction) and then adding to the date/time value.</source>
+    <test name="REQ-DATETIME-018-a"><expression>@2014-03-31 + (-1 month)</expression><output type="date">@2014-02-28</output></test>
+    <test name="REQ-DATETIME-018-b"><expression>@2014-01-01 + (-1 day)</expression><output type="date">@2013-12-31</output></test>
+    <test name="REQ-DATETIME-018-c"><expression>@2014-06-15 - (-2 years)</expression><output type="date">@2016-06-15</output></test>
+    <test name="REQ-DATETIME-018-d"><expression>@T00:30:00 + (-1 hour)</expression><output type="time">@T23:30:00</output></test>
+    <test name="REQ-DATETIME-018-e"><expression>@2014 + (-23 months)</expression><output type="date">@2013</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-019" description="Arithmetic on a DateTime keeps its timezone offset, even when the result crosses a day">
+    <source spec="fhirpath-3.0.0" section="+ (addition)" strength="EXAMPLE">@1973-12-25T00:00:00.000+10:00 + 42.53 seconds // @1973-12-25T00:00:42.530+10:00</source>
+    <source spec="fhirpath-2.0.0" section="+ (addition)" strength="DEFINITION">Returns the value of the given `Date`, `DateTime`, or `Time`, incremented by the time-valued quantity, respecting variable length periods for calendar years and months.</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Arithmetic" strength="DEFINITION">The hours, positive or negative, are added to the hour component, with each 24 hour block counting as a calendar day, and respecting calendar month and calendar year lengths.</source>
+    <test name="REQ-DATETIME-019-a"><expression>@2014-01-01T23:00:00+10:00 + 2 hours</expression><output type="dateTime">@2014-01-02T01:00:00+10:00</output></test>
+    <test name="REQ-DATETIME-019-b"><expression>@2014-01-01T00:30:00-05:00 - 1 hour</expression><output type="dateTime">@2013-12-31T23:30:00-05:00</output></test>
+    <test name="REQ-DATETIME-019-c"><expression>@2014-01-31T12:00:00.000+05:30 + 1 month</expression><output type="dateTime">@2014-02-28T12:00:00.000+05:30</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-020" description="The result of date/time arithmetic is a value of the left operand's type: Date, DateTime or Time">
+    <source spec="fhirpath-2.0.0" section="+ (addition)" strength="DEFINITION">Returns the value of the given `Date`, `DateTime`, or `Time`, incremented by the time-valued quantity, respecting variable length periods for calendar years and months.</source>
+    <source spec="fhirpath-3.0.0" section="- (subtraction)" strength="DEFINITION">Returns the value of the given `Date`, `DateTime`, or `Time`, decremented by the time-valued quantity, subject to all the rules and calendar semantics described [above](#datetime-arithmetic).</source>
+    <test name="REQ-DATETIME-020-a"><expression>(@2014-01-01 + 1 day) is Date</expression><output type="boolean">true</output></test>
+    <test name="REQ-DATETIME-020-b"><expression>(@2014-01-01T10:00:00 + 1 day) is DateTime</expression><output type="boolean">true</output></test>
+    <test name="REQ-DATETIME-020-c"><expression>(@T10:00 - 1 hour) is Time</expression><output type="boolean">true</output></test>
+    <test name="REQ-DATETIME-020-d"><expression>(@2014 + 24 months) is Date</expression><output type="boolean">true</output></test>
+  </group>
+
+  <!-- units -->
+
+  <group name="REQ-DATETIME-021" description="The UCUM definite durations 'a' and 'mo' are not accepted in date/time arithmetic and signal an error (3.0.0's year and month rows settle it for Date and DateTime; 2.0.0 contradicts itself on a DateTime, signalling an error for a definite duration above seconds but accepting for DateTime an equivalent unit, which 1 'a' is to 1 year)">
+    <source spec="fhirpath-2.0.0" section="Date/Time Arithmetic" strength="DEFINITION">If a definite-quantity duration above seconds appears in a date/time arithmetic calculation, the evaluation will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-2.0.0" section="+ (addition)" strength="DEFINITION">For `DateTime` values, the quantity unit must be one of: `years`, `months`, `weeks`, `days`, `hours`, `minutes`, `seconds`, or `milliseconds` (or an equivalent unit), or the evaluation will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-2.0.0" section="- (subtraction)" strength="DEFINITION">For `DateTime` values, the quantity unit must be one of: `years`, `months`, `weeks`, `days`, `hours`, `minutes`, `seconds`, or `milliseconds` (or an equivalent unit), or the evaluation will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-2.0.0" section="Time-valued Quantities" strength="DEFINITION">For example, `1 year` is not equal to `1 'a'`, but it is equivalent to `1 'a'`.</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Arithmetic" strength="DEFINITION">(using `'a'` will signal an error)</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Arithmetic" strength="DEFINITION">(using `'mo'` will signal an error)</source>
+    <test name="REQ-DATETIME-021-a"><expression invalid="execution">@2014-01-01 + 1 'a'</expression></test>
+    <test name="REQ-DATETIME-021-b"><expression invalid="execution">@2014-01-01 + 1 'mo'</expression></test>
+    <test name="REQ-DATETIME-021-c"><expression invalid="execution">@2014-01-01 - 1 'a'</expression></test>
+    <test name="REQ-DATETIME-021-d"><expression invalid="execution">@2014-01-01T10:00:00 + 1 'a'</expression></test>
+    <test name="REQ-DATETIME-021-e"><expression invalid="execution">@2014-01-01T10:00:00 - 1 'mo'</expression></test>
+    <test name="REQ-DATETIME-021-f"><expression invalid="execution">@2014 + 1 'a'</expression></test>
+  </group>
+
+  <group name="REQ-DATETIME-022" description="The UCUM units 's' and 'ms' are accepted for seconds and milliseconds on DateTime and Time">
+    <source spec="fhirpath-2.0.0" section="Date/Time Arithmetic" strength="DEFINITION">To avoid the potential confusion of calendar-based date/time arithmetic with definite duration date/time arithmetic, FHIRPath defines definite-duration date/time arithmetic for seconds and below, and calendar-based date/time arithmetic for seconds and above. At the second, calendar-based and definite-duration-based date/time arithmetic are identical.</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Arithmetic" strength="DEFINITION">`second`, `seconds`, or `'s'`</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Arithmetic" strength="DEFINITION">`millisecond`, `milliseconds`, or `'ms'`</source>
+    <test name="REQ-DATETIME-022-a"><expression>@2014-01-01T00:00:00.000 + 1 's'</expression><output type="dateTime">@2014-01-01T00:00:01.000</output></test>
+    <test name="REQ-DATETIME-022-b"><expression>@2014-01-01T00:00:00.000 + 10 'ms'</expression><output type="dateTime">@2014-01-01T00:00:00.010</output></test>
+    <test name="REQ-DATETIME-022-c"><expression>@2014-01-01T00:00:00 - 60 's'</expression><output type="dateTime">@2013-12-31T23:59:00</output></test>
+    <test name="REQ-DATETIME-022-d"><expression>@T10:00:00 + 30 's'</expression><output type="time">@T10:00:30</output></test>
+    <test name="REQ-DATETIME-022-e"><expression>@T10:00:00.000 - 1 'ms'</expression><output type="time">@T09:59:59.999</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-023" description="A calendar duration keyword written as a quoted unit ('month', 'day', 'hour') is the calendar duration and adds like the unquoted keyword">
+    <source spec="fhirpath-2.0.0" section="Quantity" strength="DEFINITION">The `Quantity` literal is a number (integer or decimal), followed by a (single-quoted) string representing a valid Unified Code for Units of Measure &lt;&lt;UCUM&gt;&gt; unit or calendar duration keyword.</source>
+    <source spec="fhirpath-3.0.0" section="Quantity" strength="DEFINITION">The `Quantity` literal is a number (integer or decimal), followed by a (single-quoted) **case-sensitive** string representing a valid Unified Code for Units of Measure [\[UCUM\]](#UCUM) unit or calendar duration keyword.</source>
+    <source spec="fhirpath-3.0.0" section="Quantity" strength="DEFINITION">The `Quantity` type represents quantities with a specified unit, where the `value` component is defined as a `Decimal`, and the `unit` is represented as a `String` that is required to be either a valid Unified Code for Units of Measure [\[UCUM\]](#UCUM) unit or one of the calendar duration keywords, singular or plural.</source>
+    <test name="REQ-DATETIME-023-a"><expression>@1974-12-25 - 1 'month'</expression><output type="date">@1974-11-25</output></test>
+    <test name="REQ-DATETIME-023-b"><expression>@2014-01-01 + 1 'day'</expression><output type="date">@2014-01-02</output></test>
+    <test name="REQ-DATETIME-023-c"><expression>@T10:00 + 1 'hour'</expression><output type="time">@T11:00</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-024" description="Adding or subtracting date components (years, months, weeks, days) to a Time signals an error">
+    <source spec="fhirpath-2.0.0" section="+ (addition)" strength="DEFINITION">For `Time` values, the quantity unit must be one of: `hours`, `minutes`, `seconds`, or `milliseconds` (or an equivalent unit), or the evaluation will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-2.0.0" section="- (subtraction)" strength="DEFINITION">For `Time` values, the quantity unit must be one of: `hours`, `minutes`, `seconds`, or `milliseconds` (or an equivalent unit), or the evaluation will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Arithmetic" strength="DEFINITION">If there is more than one item, an item of an incompatible type, or an unsupported unit for the type, the evaluation of the expression will end and signal an error to the calling environment. This includes attempting to add date components to a Time.</source>
+    <test name="REQ-DATETIME-024-a"><expression invalid="execution">@T10:00 + 1 day</expression></test>
+    <test name="REQ-DATETIME-024-b"><expression invalid="execution">@T10:00 + 1 year</expression></test>
+    <test name="REQ-DATETIME-024-c"><expression invalid="execution">@T10:00 - 1 month</expression></test>
+    <test name="REQ-DATETIME-024-d"><expression invalid="execution">@T10:00 + 1 week</expression></test>
+    <test name="REQ-DATETIME-024-e"><expression invalid="execution">@T10:00 - 2 days</expression></test>
+    <test name="REQ-DATETIME-024-f"><expression invalid="execution">@T10:00 + 1 'a'</expression></test>
+  </group>
+
+  <group name="REQ-DATETIME-025" description="Adding or subtracting time components (hours, minutes, seconds, milliseconds) to a Date signals an error (3.0.0 defines what 2.0.0 does not: 2.0.0 lists the units a Date takes without saying what happens otherwise, 3.0.0 makes an unsupported unit for the type an error; the case applies to readers of both versions)">
+    <source spec="fhirpath-3.0.0" section="Date/Time Arithmetic" strength="DEFINITION">If there is more than one item, an item of an incompatible type, or an unsupported unit for the type, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Arithmetic" strength="DEFINITION">The hours, positive or negative, are added to the hour component, with each 24 hour block counting as a calendar day, and respecting calendar month and calendar year lengths.</source>
+    <source spec="fhirpath-2.0.0" section="+ (addition)" strength="DEFINITION">For `Date` values, the quantity unit must be one of: `years`, `months`, `weeks`, or `days`</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Arithmetic" strength="DEFINITION">If a definite-quantity duration above seconds appears in a date/time arithmetic calculation, the evaluation will end and signal an error to the calling environment.</source>
+    <test name="REQ-DATETIME-025-a"><expression invalid="execution">@2014-01-01 + 1 hour</expression></test>
+    <test name="REQ-DATETIME-025-b"><expression invalid="execution">@2014-01-01 + 30 minutes</expression></test>
+    <test name="REQ-DATETIME-025-c"><expression invalid="execution">@2014-01-01 - 1 second</expression></test>
+    <test name="REQ-DATETIME-025-d"><expression invalid="execution">@2014-01-01 + 1 millisecond</expression></test>
+    <test name="REQ-DATETIME-025-e"><expression invalid="execution">@2014-01-01 + 1 's'</expression></test>
+    <test name="REQ-DATETIME-025-f"><expression invalid="execution">@2014-01-01 + 1 'h'</expression></test>
+  </group>
+
+  <group name="REQ-DATETIME-026" description="A right operand that is not a time-valued Quantity (a non-time unit, a number, a String, a Date) signals an error">
+    <source spec="fhirpath-2.0.0" section="Date/Time Arithmetic" strength="DEFINITION">The left operand must be a `Date`, `DateTime`, or `Time` value, and the right operand must be a `Quantity` with a time-valued unit</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Arithmetic" strength="DEFINITION">If there is more than one item, or an item of an incompatible type, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Arithmetic" strength="DEFINITION">The left operand must be a `Date`, `DateTime`, or `Time` value, and the right operand must be a [`Quantity`](#quantity) with a time-valued unit.</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Arithmetic" strength="DEFINITION">If there is more than one item, an item of an incompatible type, or an unsupported unit for the type, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <test name="REQ-DATETIME-026-a"><expression invalid="execution">@1974-12-25 - 1 'cm'</expression></test>
+    <test name="REQ-DATETIME-026-b"><expression invalid="execution">@2014-01-01T10:00:00 + 1 'g'</expression></test>
+    <test name="REQ-DATETIME-026-c"><expression invalid="execution">@T10:00 + 1 'kg'</expression></test>
+    <test name="REQ-DATETIME-026-d"><expression invalid="execution">@1974-12-25 + 7</expression></test>
+    <test name="REQ-DATETIME-026-e"><expression invalid="execution">@2014-01-01 + '1 day'</expression></test>
+    <test name="REQ-DATETIME-026-f"><expression invalid="execution">@2014-01-02 - @2014-01-01</expression></test>
+  </group>
+
+  <group name="REQ-DATETIME-027" description="A left operand that is not a Date, DateTime or Time, with a time-valued quantity on the right of + or -, signals an error">
+    <source spec="fhirpath-2.0.0" section="Date/Time Arithmetic" strength="DEFINITION">The left operand must be a `Date`, `DateTime`, or `Time` value, and the right operand must be a `Quantity` with a time-valued unit</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Arithmetic" strength="DEFINITION">If there is more than one item, or an item of an incompatible type, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Arithmetic" strength="DEFINITION">The left operand must be a `Date`, `DateTime`, or `Time` value, and the right operand must be a [`Quantity`](#quantity) with a time-valued unit.</source>
+    <source spec="fhirpath-3.0.0" section="Math" strength="DEFINITION">If there is more than one item, or incompatible items, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <test name="REQ-DATETIME-027-a"><expression invalid="execution">1 day + @2014-01-01</expression></test>
+    <test name="REQ-DATETIME-027-b"><expression invalid="execution">1 hour + @T10:00</expression></test>
+    <test name="REQ-DATETIME-027-c"><expression invalid="execution">'2014-01-01' + 1 day</expression></test>
+  </group>
+
+  <group name="REQ-DATETIME-028" description="An operand of more than one item signals an error">
+    <source spec="fhirpath-2.0.0" section="Date/Time Arithmetic" strength="DEFINITION">If there is more than one item, or an item of an incompatible type, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Arithmetic" strength="DEFINITION">If there is more than one item, an item of an incompatible type, or an unsupported unit for the type, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <test name="REQ-DATETIME-028-a"><expression invalid="execution">(@2014-01-01 | @2015-01-01) + 1 day</expression></test>
+    <test name="REQ-DATETIME-028-b"><expression invalid="execution">@2014-01-01 + (1 day | 2 days)</expression></test>
+    <test name="REQ-DATETIME-028-c"><expression invalid="execution">(@T10:00 | @T11:00) - 1 hour</expression></test>
+    <test name="REQ-DATETIME-028-d"><expression invalid="execution">(@2014-01-01T10:00:00 | @2014-01-02T10:00:00) - 1 second</expression></test>
+  </group>
+
+  <group name="REQ-DATETIME-029" description="An empty operand gives an empty result">
+    <source spec="fhirpath-2.0.0" section="Date/Time Arithmetic" strength="DEFINITION">If either or both arguments are empty (`{ }`), the result is empty (`{ }`).</source>
+    <source spec="fhirpath-3.0.0" section="Date/Time Arithmetic" strength="DEFINITION">If either or both arguments are empty (`{ }`), the result is empty (`{ }`).</source>
+    <test name="REQ-DATETIME-029-a"><expression>{} + 1 day</expression></test>
+    <test name="REQ-DATETIME-029-b"><expression>@2014-01-01 + {}</expression></test>
+    <test name="REQ-DATETIME-029-c"><expression>{} - 1 hour</expression></test>
+    <test name="REQ-DATETIME-029-d"><expression>@T10:00 - {}</expression></test>
+    <test name="REQ-DATETIME-029-e"><expression>@2014-01-01T10:00:00 + {}</expression></test>
+    <test name="REQ-DATETIME-029-f" inputfile="patient-example.xml"><expression>Patient.deceased.ofType(dateTime) + 1 day</expression></test>
+  </group>
+
+  <!-- FHIR data -->
+
+  <group name="REQ-DATETIME-030" description="FHIR date and dateTime values, converted to FHIRPath types, take date/time arithmetic, and a FHIR Age in 'a' is mapped to the calendar year, so it adds to or subtracts from a date (compared with = against a Date literal so that whether a FHIR date becomes a System.Date or a System.DateTime does not matter)">
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r4" section="2.9.1.3 Use of FHIR Quantity" strength="DEFINITION">As part of the mapping, time-valued UCUM units are mapped to the calendar duration units defined in FHIRPath, according to the following map:</source>
+    <source spec="fhir-r4" section="2.9.1.3 Use of FHIR Quantity" strength="EXAMPLE">e.g. the FHIR Quantity 1 'a' would be implicitly converted to the FHIRPath System.Quantity 1 'year'.</source>
+    <source spec="fhir-r5" section="2.1.9.1.3 Use of FHIR Quantity" strength="DEFINITION">As part of the mapping, time-valued UCUM units are mapped to the calendar duration units defined in FHIRPath, according to the following map:</source>
+    <source spec="fhir-r5" section="2.1.9.1.3 Use of FHIR Quantity" strength="EXAMPLE">i.e. The FHIR Quantity 1 'a' would be implicitly converted to the FHIRPath System.Quantity 1 'year'.</source>
+    <source spec="fhirpath-2.0.0" section="Date/Time Arithmetic" strength="DEFINITION">The year, positive or negative, is added to the year component of the date or time value.</source>
+    <test name="REQ-DATETIME-030-a" inputfile="patient-example.xml"><expression>(Patient.birthDate + 1 year) = @1975-12-25</expression><output type="boolean">true</output></test>
+    <test name="REQ-DATETIME-030-b" inputfile="patient-example.xml"><expression>(Patient.birthDate - 1 month) = @1974-11-25</expression><output type="boolean">true</output></test>
+    <test name="REQ-DATETIME-030-c" inputfile="patient-example.xml"><expression>(Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').value + 10 hours) = @1974-12-26T00:35:45-05:00</expression><output type="boolean">true</output></test>
+    <test name="REQ-DATETIME-030-d" inputfile="observation-example.xml"><expression>(Observation.effective - Observation.extension('http://example.com/fhir/StructureDefinition/patient-age').value) = @1975-03-28</expression><output type="boolean">true</output></test>
+    <test name="REQ-DATETIME-030-e" inputfile="observation-example.xml"><expression>(Observation.effective + Observation.extension('http://example.com/fhir/StructureDefinition/patient-age').value) = @2057-03-28</expression><output type="boolean">true</output></test>
+  </group>
+
+  <!-- Current date and time functions -->
+
+  <group name="REQ-DATETIME-031" description="now() returns a DateTime, today() a Date and timeOfDay() a Time">
+    <source spec="fhirpath-2.0.0" section="now() : DateTime" strength="DEFINITION">Returns the current date and time, including timezone offset.</source>
+    <source spec="fhirpath-2.0.0" section="timeOfDay() : Time" strength="DEFINITION">Returns the current time.</source>
+    <source spec="fhirpath-2.0.0" section="today() : Date" strength="DEFINITION">Returns the current date.</source>
+    <source spec="fhirpath-3.0.0" section="now() : DateTime" strength="DEFINITION">Returns the current date and time, including timezone offset.</source>
+    <test name="REQ-DATETIME-031-a"><expression>now() is DateTime</expression><output type="boolean">true</output></test>
+    <test name="REQ-DATETIME-031-b"><expression>today() is Date</expression><output type="boolean">true</output></test>
+    <test name="REQ-DATETIME-031-c"><expression>timeOfDay() is Time</expression><output type="boolean">true</output></test>
+    <test name="REQ-DATETIME-031-d"><expression>now().count() = 1 and today().count() = 1 and timeOfDay().count() = 1</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-032" description="now(), today() and timeOfDay() should return the same value each time they are evaluated within one expression">
+    <source spec="fhirpath-2.0.0" section="Current date and time functions" strength="SHOULD">To ensure deterministic evaluation, these operators should return the same value regardless of how many times they are evaluated within any given expression (i.e. now() should always return the same DateTime in a given expression, timeOfDay() should always return the same Time in a given expression, and today() should always return the same Date in a given expression.)</source>
+    <source spec="fhirpath-3.0.0" section="Current date and time functions" strength="SHOULD">To ensure deterministic evaluation, these operators should return the same value regardless of how many times they are evaluated within any given expression (i.e. now() should always return the same DateTime in a given expression, timeOfDay() should always return the same Time in a given expression, and today() should always return the same Date in a given expression.)</source>
+    <source spec="fhirpath-3.0.0" section="timeOfDay() : Time" strength="EXAMPLE">timeOfDay() = timeOfDay() // true ; timeOfDay is deterministic within a single expression</source>
+    <test name="REQ-DATETIME-032-a"><expression>now() = now()</expression><output type="boolean">true</output></test>
+    <test name="REQ-DATETIME-032-b"><expression>today() = today()</expression><output type="boolean">true</output></test>
+    <test name="REQ-DATETIME-032-c"><expression>timeOfDay() = timeOfDay()</expression><output type="boolean">true</output></test>
+    <test name="REQ-DATETIME-032-d"><expression>(1 | 2 | 3).select(now()).distinct().count() = 1</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-033" description="now() carries a timezone offset (3.0.0's timezoneOffsetOf observes it)">
+    <source spec="fhirpath-3.0.0" section="now() : DateTime" strength="DEFINITION">Returns the current date and time, including timezone offset.</source>
+    <source spec="fhirpath-3.0.0" section="now() : DateTime" strength="EXAMPLE">The following example demonstrates that `now()` returns a full DateTime including timezone:</source>
+    <source spec="fhirpath-3.0.0" section="timezoneOffsetOf(): Decimal" strength="DEFINITION">If the input collection contains a single DateTime, this function will return the timezone offset component.</source>
+    <test name="REQ-DATETIME-033-a"><expression>now().timezoneOffsetOf().exists()</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-034" description="today() is a full date, with year, month and day (precision 8), as 3.0.0's example shows">
+    <source spec="fhirpath-3.0.0" section="today() : Date" strength="EXAMPLE">The following example demonstrates that `today()` returns a date in YYYY-MM-DD format:</source>
+    <source spec="fhirpath-3.0.0" section="precision() : Integer" strength="DEFINITION">For Date and DateTime values, the function returns the number of digits of precision in the input value:</source>
+    <test name="REQ-DATETIME-034-a"><expression>today().precision() = 8</expression><output type="boolean">true</output></test>
+    <test name="REQ-DATETIME-034-c"><expression>today().dayOf().exists()</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-035" description="timeOfDay() is the time portion of now() and today() its date, as 3.0.0's examples state">
+    <source spec="fhirpath-3.0.0" section="timeOfDay() : Time" strength="EXAMPLE">timeOfDay() // @T14:34:17.923 ; only the time portion of the result of now(). Equivalent to now().timeOf().</source>
+    <source spec="fhirpath-3.0.0" section="today() : Date" strength="EXAMPLE">today() // @2026-02-25 ; equivalent to now().toDate()</source>
+    <test name="REQ-DATETIME-035-a"><expression>timeOfDay() = now().timeOf()</expression><output type="boolean">true</output></test>
+    <test name="REQ-DATETIME-035-b"><expression>today() = now().toDate()</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-036" description="The current date and time take date/time arithmetic like any other value, so a later value compares greater">
+    <source spec="fhirpath-2.0.0" section="today() : Date" strength="DEFINITION">Returns the current date.</source>
+    <source spec="fhirpath-2.0.0" section="now() : DateTime" strength="DEFINITION">Returns the current date and time, including timezone offset.</source>
+    <source spec="fhirpath-2.0.0" section="+ (addition)" strength="DEFINITION">Returns the value of the given `Date`, `DateTime`, or `Time`, incremented by the time-valued quantity, respecting variable length periods for calendar years and months.</source>
+    <source spec="fhirpath-2.0.0" section="Current date and time functions" strength="SHOULD">To ensure deterministic evaluation, these operators should return the same value regardless of how many times they are evaluated within any given expression (i.e. now() should always return the same DateTime in a given expression, timeOfDay() should always return the same Time in a given expression, and today() should always return the same Date in a given expression.)</source>
+    <test name="REQ-DATETIME-036-a"><expression>today() &lt; today() + 1 day</expression><output type="boolean">true</output></test>
+    <test name="REQ-DATETIME-036-b"><expression>now() &lt; now() + 1 second</expression><output type="boolean">true</output></test>
+    <test name="REQ-DATETIME-036-c"><expression>today() - 1 year &lt; today()</expression><output type="boolean">true</output></test>
+  </group>
+
+  <!-- lowBoundary / highBoundary on temporals -->
+
+  <group name="REQ-DATETIME-037" description="lowBoundary(precision) of a Date, DateTime or Time gives the earliest value at that precision, as 3.0.0's examples (3.0.0 alone, STU)">
+    <source spec="fhirpath-3.0.0" section="lowBoundary([precision: Integer]): Decimal | Date | DateTime | Time" strength="DEFINITION">The least possible value of the input to the specified precision.</source>
+    <source spec="fhirpath-3.0.0" section="lowBoundary([precision: Integer]): Decimal | Date | DateTime | Time" strength="EXAMPLE">@2014.lowBoundary(6) // @2014-01</source>
+    <source spec="fhirpath-3.0.0" section="lowBoundary([precision: Integer]): Decimal | Date | DateTime | Time" strength="EXAMPLE">@2014-01-01T08.lowBoundary(17) // @2014-01-01T08:00:00.000</source>
+    <source spec="fhirpath-3.0.0" section="lowBoundary([precision: Integer]): Decimal | Date | DateTime | Time" strength="EXAMPLE">@T10:30.lowBoundary(9) // @T10:30:00.000</source>
+    <test name="REQ-DATETIME-037-a"><expression>@2014.lowBoundary(6)</expression><output type="date">@2014-01</output></test>
+    <test name="REQ-DATETIME-037-b"><expression>@2014-01-01T08.lowBoundary(17)</expression><output type="dateTime">@2014-01-01T08:00:00.000</output></test>
+    <test name="REQ-DATETIME-037-c"><expression>@T10:30.lowBoundary(9)</expression><output type="time">@T10:30:00.000</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-038" description="highBoundary(precision) of a Date, DateTime or Time gives the latest value at that precision, as 3.0.0's examples (3.0.0 alone, STU)">
+    <source spec="fhirpath-3.0.0" section="highBoundary([precision: Integer]): Decimal | Date | DateTime | Time" strength="DEFINITION">The greatest possible value of the input to the specified precision.</source>
+    <source spec="fhirpath-3.0.0" section="highBoundary([precision: Integer]): Decimal | Date | DateTime | Time" strength="EXAMPLE">@2014.highBoundary(6) // @2014-12</source>
+    <source spec="fhirpath-3.0.0" section="highBoundary([precision: Integer]): Decimal | Date | DateTime | Time" strength="EXAMPLE">@2014-01-01T08.highBoundary(17) // @2014-01-01T08:59:59.999</source>
+    <source spec="fhirpath-3.0.0" section="highBoundary([precision: Integer]): Decimal | Date | DateTime | Time" strength="EXAMPLE">@T10:30.highBoundary(9) // @T10:30:59.999</source>
+    <test name="REQ-DATETIME-038-a"><expression>@2014.highBoundary(6)</expression><output type="date">@2014-12</output></test>
+    <test name="REQ-DATETIME-038-b"><expression>@2014-01-01T08.highBoundary(17)</expression><output type="dateTime">@2014-01-01T08:59:59.999</output></test>
+    <test name="REQ-DATETIME-038-c"><expression>@T10:30.highBoundary(9)</expression><output type="time">@T10:30:59.999</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-039" description="lowBoundary(precision) fills the missing components with their least values: the first month, the first day, zero hours, minutes, seconds and milliseconds, keeping a given timezone offset (3.0.0 alone, STU)">
+    <source spec="fhirpath-3.0.0" section="lowBoundary([precision: Integer]): Decimal | Date | DateTime | Time" strength="DEFINITION">The least possible value of the input to the specified precision.</source>
+    <source spec="fhirpath-3.0.0" section="lowBoundary([precision: Integer]): Decimal | Date | DateTime | Time" strength="DEFINITION">The function can only be used with Decimal, Date, DateTime, and Time values, and returns the same type as the value in the input collection.</source>
+    <test name="REQ-DATETIME-039-a"><expression>@2014-02.lowBoundary(8)</expression><output type="date">@2014-02-01</output></test>
+    <test name="REQ-DATETIME-039-b"><expression>@2014.lowBoundary(8)</expression><output type="date">@2014-01-01</output></test>
+    <test name="REQ-DATETIME-039-c"><expression>@2014-01-01T08:05+08:00.lowBoundary(17)</expression><output type="dateTime">@2014-01-01T08:05:00.000+08:00</output></test>
+    <test name="REQ-DATETIME-039-d"><expression>@T10.lowBoundary(6)</expression><output type="time">@T10:00:00</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-040" description="highBoundary(precision) fills the missing components with their greatest values: December, the month's last day (29 February in a leap year), 23 hours, 59 minutes and seconds, 999 milliseconds, keeping a given timezone offset (3.0.0 alone, STU)">
+    <source spec="fhirpath-3.0.0" section="highBoundary([precision: Integer]): Decimal | Date | DateTime | Time" strength="DEFINITION">The greatest possible value of the input to the specified precision.</source>
+    <source spec="fhirpath-3.0.0" section="highBoundary([precision: Integer]): Decimal | Date | DateTime | Time" strength="DEFINITION">The function can only be used with Decimal, Date, DateTime, and Time values, and returns the same type as the value in the input collection.</source>
+    <test name="REQ-DATETIME-040-a"><expression>@2014-02.highBoundary(8)</expression><output type="date">@2014-02-28</output></test>
+    <test name="REQ-DATETIME-040-b"><expression>@2016-02.highBoundary(8)</expression><output type="date">@2016-02-29</output></test>
+    <test name="REQ-DATETIME-040-c"><expression>@2014.highBoundary(8)</expression><output type="date">@2014-12-31</output></test>
+    <test name="REQ-DATETIME-040-d"><expression>@2014-01-01T08:05-05:00.highBoundary(17)</expression><output type="dateTime">@2014-01-01T08:05:59.999-05:00</output></test>
+    <test name="REQ-DATETIME-040-e"><expression>@T10.highBoundary(6)</expression><output type="time">@T10:59:59</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-041" description="lowBoundary(precision) and highBoundary(precision) return the input's type: a Date stays a Date, a DateTime a DateTime, a Time a Time (3.0.0 alone, STU). R5's page reads differently: its example turns the date 2010-10-10 into a DateTime. That page defines only the form without a precision argument, so it does not govern these cases, which all pass a precision; an R5 failure here is not to be fixed toward that page">
+    <source spec="fhirpath-3.0.0" section="lowBoundary([precision: Integer]): Decimal | Date | DateTime | Time" strength="DEFINITION">The function can only be used with Decimal, Date, DateTime, and Time values, and returns the same type as the value in the input collection.</source>
+    <source spec="fhirpath-3.0.0" section="highBoundary([precision: Integer]): Decimal | Date | DateTime | Time" strength="DEFINITION">The function can only be used with Decimal, Date, DateTime, and Time values, and returns the same type as the value in the input collection.</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="EXAMPLE">E.g. the lowBoundary of 1.0 is 0.95000000000 , and the lowBoundary of 2010-10-10 is 2010-10-10T00:00:00.000+14:00 .</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="EXAMPLE">E.g. the highBoundary of 1.0 is 1.05000000000 , and the highBoundary of 2010-10-10 is 2010-10-10T23:59:59.999-12:00 .</source>
+    <test name="REQ-DATETIME-041-a"><expression>@2014.lowBoundary(6) is Date</expression><output type="boolean">true</output></test>
+    <test name="REQ-DATETIME-041-b"><expression>@2014-02.highBoundary(8) is Date</expression><output type="boolean">true</output></test>
+    <test name="REQ-DATETIME-041-c"><expression>@2014-01-01T08.highBoundary(17) is DateTime</expression><output type="boolean">true</output></test>
+    <test name="REQ-DATETIME-041-d"><expression>@T10:30.lowBoundary(9) is Time</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-042" description="lowBoundary() and highBoundary() of several Dates, DateTimes or Times signal an error (3.0.0 alone, STU)">
+    <source spec="fhirpath-3.0.0" section="lowBoundary([precision: Integer]): Decimal | Date | DateTime | Time" strength="DEFINITION">If the input collection contains multiple items, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-3.0.0" section="highBoundary([precision: Integer]): Decimal | Date | DateTime | Time" strength="DEFINITION">If the input collection contains multiple items, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <test name="REQ-DATETIME-042-a"><expression invalid="execution">(@2014 | @2015).lowBoundary(6)</expression></test>
+    <test name="REQ-DATETIME-042-b"><expression invalid="execution">(@2014-01-01T08 | @2014-01-01T09).highBoundary(17)</expression></test>
+    <test name="REQ-DATETIME-042-c"><expression invalid="execution">(@T10:00 | @T11:00).highBoundary(9)</expression></test>
+  </group>
+
+  <!-- precision() -->
+
+  <group name="REQ-DATETIME-043" description="precision() of a Date, DateTime or Time is the number of digits it has, as 3.0.0's examples (3.0.0 alone, STU)">
+    <source spec="fhirpath-3.0.0" section="precision() : Integer" strength="DEFINITION">If the input collection contains a single item, this function will return the number of digits of precision.</source>
+    <source spec="fhirpath-3.0.0" section="precision() : Integer" strength="DEFINITION">For Date and DateTime values, the function returns the number of digits of precision in the input value:</source>
+    <source spec="fhirpath-3.0.0" section="precision() : Integer" strength="EXAMPLE">@2014.precision() // 4</source>
+    <source spec="fhirpath-3.0.0" section="precision() : Integer" strength="EXAMPLE">@2014-01-05T10:30:00.000.precision() // 17</source>
+    <source spec="fhirpath-3.0.0" section="precision() : Integer" strength="EXAMPLE">@T10:30.precision() // 4</source>
+    <source spec="fhirpath-3.0.0" section="precision() : Integer" strength="EXAMPLE">@T10:30:00.000.precision() // 9</source>
+    <test name="REQ-DATETIME-043-a"><expression>@2014.precision()</expression><output type="integer">4</output></test>
+    <test name="REQ-DATETIME-043-b"><expression>@2014-01-05T10:30:00.000.precision()</expression><output type="integer">17</output></test>
+    <test name="REQ-DATETIME-043-c"><expression>@T10:30.precision()</expression><output type="integer">4</output></test>
+    <test name="REQ-DATETIME-043-d"><expression>@T10:30:00.000.precision()</expression><output type="integer">9</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-044" description="precision() counts the digits of every component present: 6 for a year-month, 8 for a full date, 12 to the minute, 14 to the second; 2 for an hour-only Time and 6 to the second (3.0.0 alone, STU)">
+    <source spec="fhirpath-3.0.0" section="precision() : Integer" strength="DEFINITION">For Date and DateTime values, the function returns the number of digits of precision in the input value:</source>
+    <source spec="fhirpath-3.0.0" section="precision() : Integer" strength="EXAMPLE">@T10:30:00.000.precision() // 9</source>
+    <test name="REQ-DATETIME-044-a"><expression>@2014-01.precision()</expression><output type="integer">6</output></test>
+    <test name="REQ-DATETIME-044-b"><expression>@2014-01-05.precision()</expression><output type="integer">8</output></test>
+    <test name="REQ-DATETIME-044-c"><expression>@2014-01-05T10:30.precision()</expression><output type="integer">12</output></test>
+    <test name="REQ-DATETIME-044-d"><expression>@2014-01-05T10:30:00.precision()</expression><output type="integer">14</output></test>
+    <test name="REQ-DATETIME-044-e"><expression>@2014T.precision()</expression><output type="integer">4</output></test>
+    <test name="REQ-DATETIME-044-f"><expression>@T10.precision()</expression><output type="integer">2</output></test>
+    <test name="REQ-DATETIME-044-g"><expression>@T10:30:00.precision()</expression><output type="integer">6</output></test>
+    <test name="REQ-DATETIME-044-h" inputfile="patient-example.xml"><expression>Patient.birthDate.precision()</expression><output type="integer">8</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-045" description="precision() of several temporals signals an error, and of an empty input is empty (3.0.0 alone, STU)">
+    <source spec="fhirpath-3.0.0" section="precision() : Integer" strength="DEFINITION">If the input collection contains multiple items, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-3.0.0" section="precision() : Integer" strength="DEFINITION">If the input collection is empty, the result is empty.</source>
+    <test name="REQ-DATETIME-045-a"><expression invalid="execution">(@2014 | @2015).precision()</expression></test>
+    <test name="REQ-DATETIME-045-b"><expression invalid="execution">(@T10:00 | @T11:00).precision()</expression></test>
+    <test name="REQ-DATETIME-045-c" inputfile="patient-example.xml"><expression>Patient.deceased.ofType(dateTime).precision()</expression></test>
+  </group>
+
+  <!-- Component functions -->
+
+  <group name="REQ-DATETIME-046" description="yearOf() returns the year of a Date or DateTime (3.0.0 alone, STU)">
+    <source spec="fhirpath-3.0.0" section="yearOf(): Integer" strength="DEFINITION">If the input collection contains a single Date or DateTime, this function will return the year component.</source>
+    <source spec="fhirpath-3.0.0" section="yearOf(): Integer" strength="EXAMPLE">@2014-01-05T10:30:00.000.yearOf() // 2014</source>
+    <test name="REQ-DATETIME-046-a"><expression>@2014-01-05T10:30:00.000.yearOf()</expression><output type="integer">2014</output></test>
+    <test name="REQ-DATETIME-046-b"><expression>@2014.yearOf()</expression><output type="integer">2014</output></test>
+    <test name="REQ-DATETIME-046-c"><expression>@1999-12-31.yearOf()</expression><output type="integer">1999</output></test>
+    <test name="REQ-DATETIME-046-d"><expression>@2014T.yearOf()</expression><output type="integer">2014</output></test>
+    <test name="REQ-DATETIME-046-e" inputfile="patient-example.xml"><expression>Patient.birthDate.yearOf()</expression><output type="integer">1974</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-047" description="monthOf() returns the month of a Date or DateTime, and is empty when the value has no month (3.0.0 alone, STU)">
+    <source spec="fhirpath-3.0.0" section="monthOf(): Integer" strength="DEFINITION">If the input collection contains a single Date or DateTime, this function will return the month component.</source>
+    <source spec="fhirpath-3.0.0" section="monthOf(): Integer" strength="DEFINITION">If the input collection is empty, the month is not present in the value, or the value is not a Date or DateTime, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="monthOf(): Integer" strength="EXAMPLE">@2014-01-05T10:30:00.000.monthOf() // 1</source>
+    <source spec="fhirpath-3.0.0" section="monthOf(): Integer" strength="EXAMPLE">@2012.monthOf() // {} an empty collection</source>
+    <test name="REQ-DATETIME-047-a"><expression>@2014-01-05T10:30:00.000.monthOf()</expression><output type="integer">1</output></test>
+    <test name="REQ-DATETIME-047-b"><expression>@2012.monthOf()</expression></test>
+    <test name="REQ-DATETIME-047-c"><expression>@2014-06.monthOf()</expression><output type="integer">6</output></test>
+    <test name="REQ-DATETIME-047-d"><expression>@2014T.monthOf()</expression></test>
+    <test name="REQ-DATETIME-047-e" inputfile="patient-example.xml"><expression>Patient.birthDate.monthOf()</expression><output type="integer">12</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-048" description="dayOf() returns the day of a Date or DateTime, and is empty when the value has no day (3.0.0 alone, STU)">
+    <source spec="fhirpath-3.0.0" section="dayOf(): Integer" strength="DEFINITION">If the input collection contains a single Date or DateTime, this function will return the day component.</source>
+    <source spec="fhirpath-3.0.0" section="dayOf(): Integer" strength="DEFINITION">If the input collection is empty, the day is not present in the value, or the value is not a Date or DateTime, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="dayOf(): Integer" strength="EXAMPLE">@2014-01-05T10:30:00.000.dayOf() // 5</source>
+    <test name="REQ-DATETIME-048-a"><expression>@2014-01-05T10:30:00.000.dayOf()</expression><output type="integer">5</output></test>
+    <test name="REQ-DATETIME-048-b"><expression>@2014-06-30.dayOf()</expression><output type="integer">30</output></test>
+    <test name="REQ-DATETIME-048-c"><expression>@2014-06.dayOf()</expression></test>
+    <test name="REQ-DATETIME-048-d"><expression>@2014-06T.dayOf()</expression></test>
+    <test name="REQ-DATETIME-048-e"><expression>@2014-06-30T.dayOf()</expression><output type="integer">30</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-049" description="hourOf() returns the hour of a DateTime or Time, and is empty when the value has no hour (3.0.0 alone, STU)">
+    <source spec="fhirpath-3.0.0" section="hourOf(): Integer" strength="DEFINITION">If the input collection contains a single DateTime or Time, this function will return the hour component.</source>
+    <source spec="fhirpath-3.0.0" section="hourOf(): Integer" strength="DEFINITION">If the input collection is empty, the hour is not present in the value, or the value is not a DateTime or Time, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="hourOf(): Integer" strength="EXAMPLE">@2012-01-01T03:30:40.002-07:00.hourOf() // 3</source>
+    <source spec="fhirpath-3.0.0" section="hourOf(): Integer" strength="EXAMPLE">@2012-01-01T16:30:40.002-07:00.hourOf() // 16</source>
+    <test name="REQ-DATETIME-049-a"><expression>@2012-01-01T03:30:40.002-07:00.hourOf()</expression><output type="integer">3</output></test>
+    <test name="REQ-DATETIME-049-b"><expression>@2012-01-01T16:30:40.002-07:00.hourOf()</expression><output type="integer">16</output></test>
+    <test name="REQ-DATETIME-049-c"><expression>@T14:30.hourOf()</expression><output type="integer">14</output></test>
+    <test name="REQ-DATETIME-049-d"><expression>@2014-01-05T.hourOf()</expression></test>
+    <test name="REQ-DATETIME-049-e" inputfile="patient-example.xml"><expression>Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').value.hourOf()</expression><output type="integer">14</output></test>
+    <test name="REQ-DATETIME-049-f" inputfile="patient-example.xml"><expression>Patient.birthDate.hourOf()</expression></test>
+  </group>
+
+  <group name="REQ-DATETIME-050" description="minuteOf() returns the minute of a DateTime or Time, and is empty when the value has no minute (3.0.0 alone, STU)">
+    <source spec="fhirpath-3.0.0" section="minuteOf(): Integer" strength="DEFINITION">If the input collection contains a single DateTime or Time, this function will return the minute component.</source>
+    <source spec="fhirpath-3.0.0" section="minuteOf(): Integer" strength="DEFINITION">If the input collection is empty, the minute is not present in the value, or the value is not a DateTime or Time, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="minuteOf(): Integer" strength="EXAMPLE">@2012-01-01T12:30:40.002-07:00.minuteOf() // 30</source>
+    <test name="REQ-DATETIME-050-a"><expression>@2012-01-01T12:30:40.002-07:00.minuteOf()</expression><output type="integer">30</output></test>
+    <test name="REQ-DATETIME-050-b"><expression>@T14:05.minuteOf()</expression><output type="integer">5</output></test>
+    <test name="REQ-DATETIME-050-c"><expression>@2014-01-05T10.minuteOf()</expression></test>
+    <test name="REQ-DATETIME-050-d"><expression>@T14.minuteOf()</expression></test>
+  </group>
+
+  <group name="REQ-DATETIME-051" description="secondOf() returns the second of a DateTime or Time, and is empty when the value has no second (3.0.0 alone, STU)">
+    <source spec="fhirpath-3.0.0" section="secondOf(): Integer" strength="DEFINITION">If the input collection contains a single DateTime or Time, this function will return the second component.</source>
+    <source spec="fhirpath-3.0.0" section="secondOf(): Integer" strength="DEFINITION">If the input collection is empty, the second is not present in the value, or the value is not a DateTime or Time, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="secondOf(): Integer" strength="EXAMPLE">@2012-01-01T12:30:40.002-07:00.secondOf() // 40</source>
+    <test name="REQ-DATETIME-051-a"><expression>@2012-01-01T12:30:40.002-07:00.secondOf()</expression><output type="integer">40</output></test>
+    <test name="REQ-DATETIME-051-b"><expression>@T14:30:15.secondOf()</expression><output type="integer">15</output></test>
+    <test name="REQ-DATETIME-051-c"><expression>@T14:30.secondOf()</expression></test>
+    <test name="REQ-DATETIME-051-d"><expression>@2014-01-05T10:30.secondOf()</expression></test>
+  </group>
+
+  <group name="REQ-DATETIME-052" description="millisecondOf() returns the millisecond of a DateTime or Time, and is empty when the value has no milliseconds (3.0.0 alone, STU)">
+    <source spec="fhirpath-3.0.0" section="millisecondOf(): Integer" strength="DEFINITION">If the input collection contains a single DateTime or Time, this function will return the millisecond component.</source>
+    <source spec="fhirpath-3.0.0" section="millisecondOf(): Integer" strength="DEFINITION">If the input collection is empty, the millisecond is not present in the value, or the value is not a DateTime or Time, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="millisecondOf(): Integer" strength="EXAMPLE">@2012-01-01T12:30:00.002-07:00.millisecondOf() // 2</source>
+    <test name="REQ-DATETIME-052-a"><expression>@2012-01-01T12:30:00.002-07:00.millisecondOf()</expression><output type="integer">2</output></test>
+    <test name="REQ-DATETIME-052-b"><expression>@T14:30:15.123.millisecondOf()</expression><output type="integer">123</output></test>
+    <test name="REQ-DATETIME-052-c"><expression>@T14:30:15.millisecondOf()</expression></test>
+    <test name="REQ-DATETIME-052-d"><expression>@2014-01-05T10:30:15.millisecondOf()</expression></test>
+  </group>
+
+  <group name="REQ-DATETIME-053" description="timezoneOffsetOf() returns a DateTime's offset in decimal hours, and is empty when the DateTime has none (3.0.0 alone, STU)">
+    <source spec="fhirpath-3.0.0" section="timezoneOffsetOf(): Decimal" strength="DEFINITION">If the input collection contains a single DateTime, this function will return the timezone offset component. It is expressed as the number of hours difference from UTC, with fractional hours expressed as decimal values (e.g. -7.5 for UTC-7:30).</source>
+    <source spec="fhirpath-3.0.0" section="timezoneOffsetOf(): Decimal" strength="DEFINITION">If the input collection is empty, the timezone offset is not present in the value, or the value is not a DateTime, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="timezoneOffsetOf(): Decimal" strength="EXAMPLE">@2012-01-01T12:30:00.000-07:00.timezoneOffsetOf() // -7.0</source>
+    <source spec="fhirpath-3.0.0" section="timezoneOffsetOf(): Decimal" strength="EXAMPLE">@2012-01-01T12:30:00.000+08:45.timezoneOffsetOf() // 8.75 Eucla, Western Australia</source>
+    <source spec="fhirpath-3.0.0" section="DateTime" strength="DEFINITION">**Z** is allowed as a synonym for the zero (+00:00) UTC offset.</source>
+    <test name="REQ-DATETIME-053-a"><expression>@2012-01-01T12:30:00.000-07:00.timezoneOffsetOf() = -7.0</expression><output type="boolean">true</output></test>
+    <test name="REQ-DATETIME-053-b"><expression>@2012-01-01T12:30:00.000+08:45.timezoneOffsetOf() = 8.75</expression><output type="boolean">true</output></test>
+    <test name="REQ-DATETIME-053-c"><expression>@2012-01-01T12:30:00.000-03:30.timezoneOffsetOf() = -3.5</expression><output type="boolean">true</output></test>
+    <test name="REQ-DATETIME-053-d"><expression>@2012-01-01T12:30:00.000Z.timezoneOffsetOf() = 0</expression><output type="boolean">true</output></test>
+    <test name="REQ-DATETIME-053-e"><expression>@2012-01-01T12:30:00.000-07:00.timezoneOffsetOf() is Decimal</expression><output type="boolean">true</output></test>
+    <test name="REQ-DATETIME-053-f"><expression>@2012-01-01T12:30:00.000.timezoneOffsetOf()</expression></test>
+    <test name="REQ-DATETIME-053-g" inputfile="patient-example.xml"><expression>Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').value.timezoneOffsetOf() = -5</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-054" description="dateOf() returns the date part of a Date or DateTime, to the precision the value has (3.0.0 alone, STU)">
+    <source spec="fhirpath-3.0.0" section="dateOf(): Date" strength="DEFINITION">If the input collection contains a single Date or DateTime, this function will return the date component (up to the precision present in the input value).</source>
+    <source spec="fhirpath-3.0.0" section="dateOf(): Date" strength="EXAMPLE">@2012-01-01T12:30:00.000-07:00.dateOf() // @2012-01-01</source>
+    <test name="REQ-DATETIME-054-a"><expression>@2012-01-01T12:30:00.000-07:00.dateOf()</expression><output type="date">@2012-01-01</output></test>
+    <test name="REQ-DATETIME-054-b"><expression>@2014T.dateOf()</expression><output type="date">@2014</output></test>
+    <test name="REQ-DATETIME-054-c"><expression>@2014-06T.dateOf()</expression><output type="date">@2014-06</output></test>
+    <test name="REQ-DATETIME-054-d"><expression>@2014-06.dateOf()</expression><output type="date">@2014-06</output></test>
+    <test name="REQ-DATETIME-054-e"><expression>@2012-01-01T12:30:00.000-07:00.dateOf() is Date</expression><output type="boolean">true</output></test>
+    <test name="REQ-DATETIME-054-f" inputfile="patient-example.xml"><expression>Patient.birthDate.dateOf() = @1974-12-25</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-055" description="timeOf() returns the time part of a DateTime, without its offset, and is empty when the DateTime has no time (3.0.0 alone, STU)">
+    <source spec="fhirpath-3.0.0" section="timeOf(): Time" strength="DEFINITION">If the input collection contains a single DateTime, this function will return the time component.</source>
+    <source spec="fhirpath-3.0.0" section="timeOf(): Time" strength="DEFINITION">If the input collection is empty, the time is not present in the value, or the value is not a DateTime, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="timeOf(): Time" strength="EXAMPLE">@2012-01-01T12:30:00.000-07:00.timeOf() // @T12:30:00.000</source>
+    <source spec="fhirpath-3.0.0" section="Time" strength="DEFINITION">Time values in FHIRPath do not have a timezone or timezone offset.</source>
+    <test name="REQ-DATETIME-055-a"><expression>@2012-01-01T12:30:00.000-07:00.timeOf()</expression><output type="time">@T12:30:00.000</output></test>
+    <test name="REQ-DATETIME-055-b"><expression>@2012-01-01T12:30:00.000-07:00.timeOf() is Time</expression><output type="boolean">true</output></test>
+    <test name="REQ-DATETIME-055-c"><expression>@2014-01-05T.timeOf()</expression></test>
+    <test name="REQ-DATETIME-055-d" inputfile="patient-example.xml"><expression>Patient.birthDate.timeOf()</expression></test>
+  </group>
+
+  <group name="REQ-DATETIME-056" description="A component function on a value of a type it does not take (a Time for yearOf, monthOf, dayOf, dateOf; a Date for hourOf to millisecondOf; anything but a DateTime for timezoneOffsetOf and timeOf; a number, String or Boolean for all) returns empty (3.0.0 alone, STU)">
+    <source spec="fhirpath-3.0.0" section="yearOf(): Integer" strength="DEFINITION">If the input collection is empty, or the value is not a Date or DateTime, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="monthOf(): Integer" strength="DEFINITION">If the input collection is empty, the month is not present in the value, or the value is not a Date or DateTime, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="dayOf(): Integer" strength="DEFINITION">If the input collection is empty, the day is not present in the value, or the value is not a Date or DateTime, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="hourOf(): Integer" strength="DEFINITION">If the input collection is empty, the hour is not present in the value, or the value is not a DateTime or Time, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="minuteOf(): Integer" strength="DEFINITION">If the input collection is empty, the minute is not present in the value, or the value is not a DateTime or Time, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="secondOf(): Integer" strength="DEFINITION">If the input collection is empty, the second is not present in the value, or the value is not a DateTime or Time, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="millisecondOf(): Integer" strength="DEFINITION">If the input collection is empty, the millisecond is not present in the value, or the value is not a DateTime or Time, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="timezoneOffsetOf(): Decimal" strength="DEFINITION">If the input collection is empty, the timezone offset is not present in the value, or the value is not a DateTime, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="dateOf(): Date" strength="DEFINITION">If the input collection is empty, or the value is not a Date or DateTime, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="timeOf(): Time" strength="DEFINITION">If the input collection is empty, the time is not present in the value, or the value is not a DateTime, the result is empty.</source>
+    <test name="REQ-DATETIME-056-a"><expression>@T10:30:00.yearOf()</expression></test>
+    <test name="REQ-DATETIME-056-b"><expression>@T10:30:00.monthOf()</expression></test>
+    <test name="REQ-DATETIME-056-c"><expression>@T10:30:00.dayOf()</expression></test>
+    <test name="REQ-DATETIME-056-d"><expression>@T10:30:00.dateOf()</expression></test>
+    <test name="REQ-DATETIME-056-e"><expression>@2014-01-05.hourOf()</expression></test>
+    <test name="REQ-DATETIME-056-f"><expression>@2014-01-05.minuteOf()</expression></test>
+    <test name="REQ-DATETIME-056-g"><expression>@2014-01-05.secondOf()</expression></test>
+    <test name="REQ-DATETIME-056-h"><expression>@2014-01-05.millisecondOf()</expression></test>
+    <test name="REQ-DATETIME-056-i"><expression>@2014-01-05.timezoneOffsetOf()</expression></test>
+    <test name="REQ-DATETIME-056-j"><expression>@T10:30:00.timezoneOffsetOf()</expression></test>
+    <test name="REQ-DATETIME-056-k"><expression>@2014-01-05.timeOf()</expression></test>
+    <test name="REQ-DATETIME-056-l"><expression>@T10:30:00.timeOf()</expression></test>
+    <test name="REQ-DATETIME-056-m"><expression>2014.yearOf()</expression></test>
+    <test name="REQ-DATETIME-056-n"><expression>'2014-01-05'.dayOf()</expression></test>
+    <test name="REQ-DATETIME-056-o"><expression>true.hourOf()</expression></test>
+    <test name="REQ-DATETIME-056-p"><expression>'2014-01-05'.dateOf()</expression></test>
+    <test name="REQ-DATETIME-056-q"><expression>5 'h'.timeOf()</expression></test>
+  </group>
+
+  <group name="REQ-DATETIME-057" description="Every component function returns empty for an empty input (3.0.0 alone, STU)">
+    <source spec="fhirpath-3.0.0" section="yearOf(): Integer" strength="DEFINITION">If the input collection is empty, or the value is not a Date or DateTime, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="monthOf(): Integer" strength="DEFINITION">If the input collection is empty, the month is not present in the value, or the value is not a Date or DateTime, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="dayOf(): Integer" strength="DEFINITION">If the input collection is empty, the day is not present in the value, or the value is not a Date or DateTime, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="hourOf(): Integer" strength="DEFINITION">If the input collection is empty, the hour is not present in the value, or the value is not a DateTime or Time, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="minuteOf(): Integer" strength="DEFINITION">If the input collection is empty, the minute is not present in the value, or the value is not a DateTime or Time, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="secondOf(): Integer" strength="DEFINITION">If the input collection is empty, the second is not present in the value, or the value is not a DateTime or Time, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="millisecondOf(): Integer" strength="DEFINITION">If the input collection is empty, the millisecond is not present in the value, or the value is not a DateTime or Time, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="timezoneOffsetOf(): Decimal" strength="DEFINITION">If the input collection is empty, the timezone offset is not present in the value, or the value is not a DateTime, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="dateOf(): Date" strength="DEFINITION">If the input collection is empty, or the value is not a Date or DateTime, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="timeOf(): Time" strength="DEFINITION">If the input collection is empty, the time is not present in the value, or the value is not a DateTime, the result is empty.</source>
+    <test name="REQ-DATETIME-057-a"><expression>{}.yearOf()</expression></test>
+    <test name="REQ-DATETIME-057-b"><expression>{}.monthOf()</expression></test>
+    <test name="REQ-DATETIME-057-c"><expression>{}.dayOf()</expression></test>
+    <test name="REQ-DATETIME-057-d"><expression>{}.hourOf()</expression></test>
+    <test name="REQ-DATETIME-057-e"><expression>{}.minuteOf()</expression></test>
+    <test name="REQ-DATETIME-057-f"><expression>{}.secondOf()</expression></test>
+    <test name="REQ-DATETIME-057-g"><expression>{}.millisecondOf()</expression></test>
+    <test name="REQ-DATETIME-057-h"><expression>{}.timezoneOffsetOf()</expression></test>
+    <test name="REQ-DATETIME-057-i"><expression>{}.dateOf()</expression></test>
+    <test name="REQ-DATETIME-057-j"><expression>{}.timeOf()</expression></test>
+    <test name="REQ-DATETIME-057-k" inputfile="patient-example.xml"><expression>Patient.deceased.ofType(dateTime).yearOf()</expression></test>
+  </group>
+
+  <group name="REQ-DATETIME-058" description="Every component function signals an error for an input of more than one item (3.0.0 alone, STU)">
+    <source spec="fhirpath-3.0.0" section="yearOf(): Integer" strength="DEFINITION">If the input collection contains multiple items, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-3.0.0" section="monthOf(): Integer" strength="DEFINITION">If the input collection contains multiple items, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-3.0.0" section="dayOf(): Integer" strength="DEFINITION">If the input collection contains multiple items, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-3.0.0" section="hourOf(): Integer" strength="DEFINITION">If the input collection contains multiple items, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-3.0.0" section="minuteOf(): Integer" strength="DEFINITION">If the input collection contains multiple items, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-3.0.0" section="secondOf(): Integer" strength="DEFINITION">If the input collection contains multiple items, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-3.0.0" section="millisecondOf(): Integer" strength="DEFINITION">If the input collection contains multiple items, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-3.0.0" section="timezoneOffsetOf(): Decimal" strength="DEFINITION">If the input collection contains multiple items, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-3.0.0" section="dateOf(): Date" strength="DEFINITION">If the input collection contains multiple items, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <source spec="fhirpath-3.0.0" section="timeOf(): Time" strength="DEFINITION">If the input collection contains multiple items, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <test name="REQ-DATETIME-058-a"><expression invalid="execution">(@2014-01-05 | @2015-02-06).yearOf()</expression></test>
+    <test name="REQ-DATETIME-058-b"><expression invalid="execution">(@2014-01-05 | @2015-02-06).monthOf()</expression></test>
+    <test name="REQ-DATETIME-058-c"><expression invalid="execution">(@2014-01-05 | @2015-02-06).dayOf()</expression></test>
+    <test name="REQ-DATETIME-058-d"><expression invalid="execution">(@T10:30:00.001 | @T11:31:01.002).hourOf()</expression></test>
+    <test name="REQ-DATETIME-058-e"><expression invalid="execution">(@T10:30:00.001 | @T11:31:01.002).minuteOf()</expression></test>
+    <test name="REQ-DATETIME-058-f"><expression invalid="execution">(@T10:30:00.001 | @T11:31:01.002).secondOf()</expression></test>
+    <test name="REQ-DATETIME-058-g"><expression invalid="execution">(@T10:30:00.001 | @T11:31:01.002).millisecondOf()</expression></test>
+    <test name="REQ-DATETIME-058-h"><expression invalid="execution">(@2014-01-05T10:30:00+01:00 | @2014-01-05T10:30:00+02:00).timezoneOffsetOf()</expression></test>
+    <test name="REQ-DATETIME-058-i"><expression invalid="execution">(@2014-01-05T10:30:00 | @2015-02-06T11:30:00).dateOf()</expression></test>
+    <test name="REQ-DATETIME-058-j"><expression invalid="execution">(@2014-01-05T10:30:00 | @2015-02-06T11:30:00).timeOf()</expression></test>
+  </group>
+
+  <!-- duration() and difference() -->
+
+  <group name="REQ-DATETIME-059" description="duration() counts the whole calendar periods between the input and the value, as 3.0.0's examples (3.0.0 alone, STU)">
+    <source spec="fhirpath-3.0.0" section="duration(value: Date | DateTime | Time, precision: String): Integer" strength="DEFINITION">Returns the number of whole calendar periods at the specified `precision` between the given input value and the `value` argument. If the input value is after the `value` argument, the result is negative. The result of this operation is always an integer; any fractional periods are dropped.</source>
+    <source spec="fhirpath-3.0.0" section="duration(value: Date | DateTime | Time, precision: String): Integer" strength="EXAMPLE">@2025-01-02.duration(@2025-01-07, 'week') // 0 ; hasn't passed 7 days duration</source>
+    <source spec="fhirpath-3.0.0" section="duration(value: Date | DateTime | Time, precision: String): Integer" strength="EXAMPLE">@2025-01-01.duration(@2025-09-01, 'year') // 0 ; baby is 9 months old</source>
+    <source spec="fhirpath-3.0.0" section="duration(value: Date | DateTime | Time, precision: String): Integer" strength="EXAMPLE">@2024-12-01.duration(@2025-09-01, 'year') // 0 ; baby is 10 months old</source>
+    <test name="REQ-DATETIME-059-a"><expression>@2025-01-02.duration(@2025-01-07, 'week')</expression><output type="integer">0</output></test>
+    <test name="REQ-DATETIME-059-b"><expression>@2025-01-01.duration(@2025-09-01, 'year')</expression><output type="integer">0</output></test>
+    <test name="REQ-DATETIME-059-c"><expression>@2024-12-01.duration(@2025-09-01, 'year')</expression><output type="integer">0</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-060" description="duration() drops fractional periods and counts whole ones, for Date, DateTime and Time at each allowed precision (3.0.0 alone, STU)">
+    <source spec="fhirpath-3.0.0" section="duration(value: Date | DateTime | Time, precision: String): Integer" strength="DEFINITION">Returns the number of whole calendar periods at the specified `precision` between the given input value and the `value` argument. If the input value is after the `value` argument, the result is negative. The result of this operation is always an integer; any fractional periods are dropped.</source>
+    <source spec="fhirpath-3.0.0" section="duration(value: Date | DateTime | Time, precision: String): Integer" strength="DEFINITION">For input and value types of `date` values, the `precision` argument must be one of: `year`, `month`, `week`, or `day`.</source>
+    <source spec="fhirpath-3.0.0" section="duration(value: Date | DateTime | Time, precision: String): Integer" strength="DEFINITION">For input and value types of `datetime` values, the `precision` argument must be one of: `year`, `month`, `week`, `day`, `hour`, `minute`, `second`, or `millisecond`.</source>
+    <source spec="fhirpath-3.0.0" section="duration(value: Date | DateTime | Time, precision: String): Integer" strength="DEFINITION">For input and value types of `time` values, the `precision` argument must be one of: `hour`, `minute`, `second`, or `millisecond`.</source>
+    <test name="REQ-DATETIME-060-a"><expression>@2025-01-01.duration(@2025-01-08, 'week')</expression><output type="integer">1</output></test>
+    <test name="REQ-DATETIME-060-b"><expression>@2024-01-01.duration(@2025-01-01, 'day')</expression><output type="integer">366</output></test>
+    <test name="REQ-DATETIME-060-c"><expression>@2025-01-15.duration(@2025-03-14, 'month')</expression><output type="integer">1</output></test>
+    <test name="REQ-DATETIME-060-d"><expression>@2025-01-15.duration(@2025-03-15, 'month')</expression><output type="integer">2</output></test>
+    <test name="REQ-DATETIME-060-e"><expression>@2020-06-15.duration(@2025-06-14, 'year')</expression><output type="integer">4</output></test>
+    <test name="REQ-DATETIME-060-f"><expression>@2025-01-01T10:00:00.duration(@2025-01-01T12:59:59, 'hour')</expression><output type="integer">2</output></test>
+    <test name="REQ-DATETIME-060-g"><expression>@2025-01-01T10:00:00.000.duration(@2025-01-01T10:00:01.500, 'millisecond')</expression><output type="integer">1500</output></test>
+    <test name="REQ-DATETIME-060-h"><expression>@T10:00.duration(@T12:30, 'hour')</expression><output type="integer">2</output></test>
+    <test name="REQ-DATETIME-060-i"><expression>@T10:00:00.duration(@T10:00:59, 'minute')</expression><output type="integer">0</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-061" description="duration() is negative when the input is after the value (3.0.0 alone, STU)">
+    <source spec="fhirpath-3.0.0" section="duration(value: Date | DateTime | Time, precision: String): Integer" strength="DEFINITION">If the input value is after the `value` argument, the result is negative.</source>
+    <test name="REQ-DATETIME-061-a"><expression>@2025-09-01.duration(@2025-01-01, 'month')</expression><output type="integer">-8</output></test>
+    <test name="REQ-DATETIME-061-b"><expression>@T12:30.duration(@T10:00, 'hour')</expression><output type="integer">-2</output></test>
+    <test name="REQ-DATETIME-061-c"><expression>@2025-01-08.duration(@2025-01-01, 'day')</expression><output type="integer">-7</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-062" description="difference() counts the period boundaries crossed between the input and the value, as 3.0.0's examples (3.0.0 alone, STU)">
+    <source spec="fhirpath-3.0.0" section="difference(value: Date | DateTime | Time, precision: String): Integer" strength="DEFINITION">Returns the number of boundaries crossed for the specified `precision` between the input value and the `value` arguments. If the input value is after the `value` argument, the result is negative. The result of this operation is always an integer; any fractional boundaries are dropped.</source>
+    <source spec="fhirpath-3.0.0" section="difference(value: Date | DateTime | Time, precision: String): Integer" strength="EXAMPLE">@2025-01-02.difference(@2025-01-07, 'week') // 1 ; crossed a week boundary (Sunday)</source>
+    <source spec="fhirpath-3.0.0" section="difference(value: Date | DateTime | Time, precision: String): Integer" strength="EXAMPLE">@2025-01-01.difference(@2025-09-01, 'year') // 0 ; baby is 9 months old, but born this year</source>
+    <source spec="fhirpath-3.0.0" section="difference(value: Date | DateTime | Time, precision: String): Integer" strength="EXAMPLE">@2024-12-01.difference(@2025-09-01, 'year') // 1 ; baby is 10 months old, but born last year</source>
+    <test name="REQ-DATETIME-062-a"><expression>@2025-01-02.difference(@2025-01-07, 'week')</expression><output type="integer">1</output></test>
+    <test name="REQ-DATETIME-062-b"><expression>@2025-01-01.difference(@2025-09-01, 'year')</expression><output type="integer">0</output></test>
+    <test name="REQ-DATETIME-062-c"><expression>@2024-12-01.difference(@2025-09-01, 'year')</expression><output type="integer">1</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-063" description="difference() counts boundaries, not elapsed periods: one day apart across a month or year boundary is 1, a whole month within one month is 0, and weeks start on Sunday; duration() of the same one day across a year boundary is 0, for contrast (3.0.0 alone, STU)">
+    <source spec="fhirpath-3.0.0" section="difference(value: Date | DateTime | Time, precision: String): Integer" strength="DEFINITION">Returns the number of boundaries crossed for the specified `precision` between the input value and the `value` arguments.</source>
+    <source spec="fhirpath-3.0.0" section="duration(value: Date | DateTime | Time, precision: String): Integer" strength="DEFINITION">Returns the number of whole calendar periods at the specified `precision` between the given input value and the `value` argument. If the input value is after the `value` argument, the result is negative. The result of this operation is always an integer; any fractional periods are dropped.</source>
+    <source spec="fhirpath-3.0.0" section="difference(value: Date | DateTime | Time, precision: String): Integer" strength="DEFINITION">For calculations involving weeks, Sunday is considered to be the first day of the week for the purposes of determining the number of boundaries crossed.</source>
+    <test name="REQ-DATETIME-063-a"><expression>@2025-01-31.difference(@2025-02-01, 'month')</expression><output type="integer">1</output></test>
+    <test name="REQ-DATETIME-063-b"><expression>@2025-01-01.difference(@2025-01-31, 'month')</expression><output type="integer">0</output></test>
+    <test name="REQ-DATETIME-063-c"><expression>@2024-12-31.difference(@2025-01-01, 'year')</expression><output type="integer">1</output></test>
+    <test name="REQ-DATETIME-063-d"><expression>@2024-12-31.duration(@2025-01-01, 'year')</expression><output type="integer">0</output></test>
+    <test name="REQ-DATETIME-063-e"><expression>@2025-01-04.difference(@2025-01-05, 'week')</expression><output type="integer">1</output></test>
+    <test name="REQ-DATETIME-063-f"><expression>@2025-01-05.difference(@2025-01-11, 'week')</expression><output type="integer">0</output></test>
+    <test name="REQ-DATETIME-063-g"><expression>@T10:59.difference(@T11:00, 'hour')</expression><output type="integer">1</output></test>
+    <test name="REQ-DATETIME-063-h"><expression>@2025-01-01T23:59:59.difference(@2025-01-02T00:00:00, 'day')</expression><output type="integer">1</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-064" description="difference() is negative when the input is after the value (3.0.0 alone, STU)">
+    <source spec="fhirpath-3.0.0" section="difference(value: Date | DateTime | Time, precision: String): Integer" strength="DEFINITION">If the input value is after the `value` argument, the result is negative.</source>
+    <test name="REQ-DATETIME-064-a"><expression>@2025-02-01.difference(@2025-01-31, 'month')</expression><output type="integer">-1</output></test>
+    <test name="REQ-DATETIME-064-b"><expression>@2025-01-01.difference(@2024-12-31, 'year')</expression><output type="integer">-1</output></test>
+    <test name="REQ-DATETIME-064-c"><expression>@T11:00.difference(@T10:59, 'hour')</expression><output type="integer">-1</output></test>
+  </group>
+
+  <group name="REQ-DATETIME-065" description="duration() and difference() are empty when the input or the value has less precision than the requested one (3.0.0 alone, STU)">
+    <source spec="fhirpath-3.0.0" section="duration(value: Date | DateTime | Time, precision: String): Integer" strength="DEFINITION">If the input value or `value` argument are of less precision than the specified `precision`, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="difference(value: Date | DateTime | Time, precision: String): Integer" strength="DEFINITION">If the input value or `value` argument are of less precision than the specified `precision`, the result is empty.</source>
+    <test name="REQ-DATETIME-065-a"><expression>@2025.duration(@2026-01-01, 'month')</expression></test>
+    <test name="REQ-DATETIME-065-b"><expression>@2025-01-01.duration(@2025-03, 'day')</expression></test>
+    <test name="REQ-DATETIME-065-c"><expression>@2025-01.difference(@2025-03-01, 'day')</expression></test>
+    <test name="REQ-DATETIME-065-d"><expression>@T10.duration(@T12:00, 'minute')</expression></test>
+    <test name="REQ-DATETIME-065-e"><expression>@2025-01-01T10:00.difference(@2025-01-01T11:00:00, 'second')</expression></test>
+  </group>
+
+  <group name="REQ-DATETIME-066" description="duration() and difference() are empty when the input or the value argument is empty (3.0.0 alone, STU)">
+    <source spec="fhirpath-3.0.0" section="duration(value: Date | DateTime | Time, precision: String): Integer" strength="DEFINITION">If either the input or `value` argument is empty, the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="difference(value: Date | DateTime | Time, precision: String): Integer" strength="DEFINITION">If either the input or `value` argument is empty, the result is empty.</source>
+    <test name="REQ-DATETIME-066-a"><expression>{}.duration(@2025-01-01, 'day')</expression></test>
+    <test name="REQ-DATETIME-066-b"><expression>@2025-01-01.duration({}, 'day')</expression></test>
+    <test name="REQ-DATETIME-066-c"><expression>{}.difference(@2025-01-01, 'day')</expression></test>
+    <test name="REQ-DATETIME-066-d"><expression>@2025-01-01.difference({}, 'day')</expression></test>
+    <test name="REQ-DATETIME-066-e" inputfile="patient-example.xml"><expression>Patient.birthDate.duration(Patient.deceased.ofType(dateTime), 'year')</expression></test>
+  </group>
+
+  <group name="REQ-DATETIME-067" description="duration() and difference() signal an error for an input of more than one item or an input that is not a Date, DateTime or Time (3.0.0 alone, STU)">
+    <source spec="fhirpath-3.0.0" section="Date and Time Interval Functions" strength="DEFINITION">If there is more than one input item, or an incompatible item, the evaluation of the expression will end and signal an error to the calling environment.</source>
+    <test name="REQ-DATETIME-067-a"><expression invalid="execution">(@2025-01-01 | @2025-02-01).duration(@2025-03-01, 'day')</expression></test>
+    <test name="REQ-DATETIME-067-b"><expression invalid="execution">(@2025-01-01 | @2025-02-01).difference(@2025-03-01, 'day')</expression></test>
+    <test name="REQ-DATETIME-067-c"><expression invalid="execution">5.duration(@2025-03-01, 'day')</expression></test>
+    <test name="REQ-DATETIME-067-d"><expression invalid="execution">true.difference(@2025-03-01, 'day')</expression></test>
+    <test name="REQ-DATETIME-067-e"><expression invalid="execution">1 day.duration(@2025-03-01, 'day')</expression></test>
+  </group>
+
+  <group name="REQ-DATETIME-068" description="duration() and difference() between DateTimes with different offsets should normalize the timezone for hour, minute, second and millisecond precision (3.0.0 alone, STU)">
+    <source spec="fhirpath-3.0.0" section="duration(value: Date | DateTime | Time, precision: String): Integer" strength="SHOULD">When computing the duration between DateTime values with different timezone offsets, implementations should normalize the timezone when a `precision` of `hour`, `minute`, `second`, or `millisecond` is requested.</source>
+    <source spec="fhirpath-3.0.0" section="difference(value: Date | DateTime | Time, precision: String): Integer" strength="SHOULD">When computing the difference between `datetime` values with different timezone offsets, implementations should normalize the timezone when a `precision` of `hour`, `minute`, `second`, or `millisecond` is requested.</source>
+    <source spec="fhirpath-3.0.0" section="duration(value: Date | DateTime | Time, precision: String): Integer" strength="DEFINITION">If the input value is after the `value` argument, the result is negative.</source>
+    <test name="REQ-DATETIME-068-a"><expression>@2025-01-01T10:00:00+00:00.duration(@2025-01-01T10:00:00+02:00, 'hour')</expression><output type="integer">-2</output></test>
+    <test name="REQ-DATETIME-068-b"><expression>@2025-01-01T10:00:00+00:00.difference(@2025-01-01T10:00:00+02:00, 'hour')</expression><output type="integer">-2</output></test>
+    <test name="REQ-DATETIME-068-c"><expression>@2025-01-01T10:00:00+01:00.duration(@2025-01-01T10:30:00Z, 'minute')</expression><output type="integer">90</output></test>
+  </group>
+
+</tests>
