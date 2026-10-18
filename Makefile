@@ -3,7 +3,7 @@ ANTLR_JAR     := build/antlr-$(ANTLR_VERSION)-complete.jar
 ANTLR_URL     := https://www.antlr.org/download/antlr-$(ANTLR_VERSION)-complete.jar
 GRAMMAR       := grammar/fhirpath.g4
 
-.PHONY: help check extension-shortcut generate generate-check test test-race bench bench-compare bench-corpus lint conformance spec-sources difftest three-engine corpusdiff clean
+.PHONY: help check extension-shortcut validator-jar generate generate-check test test-race bench bench-compare bench-corpus lint conformance spec-sources difftest three-engine corpusdiff clean
 
 help:
 	@echo "check           Gate a change: generated parser, lint, tests with the race detector"
@@ -20,6 +20,7 @@ help:
 	@echo "difftest        Compare this engine's answers against fhirpath.js"
 	@echo "three-engine    Compare a BATTERY across this engine, fhirpath.js and HL7's Java engine (HL7_VALIDATOR_JAR)"
 	@echo "extension-shortcut  Check extension(url) and getExtensionValue(url) over the official examples"
+	@echo "validator-jar   Install the pinned HL7 validator jar three-engine runs (about 188 MB)"
 	@echo "corpusdiff      Compare this tree's answers over the FHIR examples against BASE"
 	@echo "conformance-update  Re-baseline the conformance known-failures lists"
 	@echo "clean           Remove build artifacts"
@@ -58,6 +59,7 @@ check: generate-check lint
 	go test -race ./...
 	cd conformance && go test -race ./...
 	cd corpusdiff && go test -race -short ./...
+	cd difftest && go test -race ./...
 
 # FHIR defines extension(url) as a shortcut for .extension.where(url = url);
 # this checks the two agree, items and types, over every official example of
@@ -146,11 +148,18 @@ difftest: difftest/node_modules/.package-lock.json
 
 # Compares a battery of one's own, resource<TAB>expression<TAB>version a line,
 # across this engine, fhirpath.js and HL7's Java FHIRPath engine. The Java
-# engine runs through the HL7 validator's jar, named by HL7_VALIDATOR_JAR;
-# without it the battery is compared against fhirpath.js only.
+# engine runs through the pinned HL7 validator release (difftest/validator.go):
+# the jar HL7_VALIDATOR_JAR names, else the one make validator-jar installs;
+# a jar that is not the pinned one is refused. Without one the battery is
+# compared against fhirpath.js only, and says so.
 BATTERY ?= batteries/hl7-divergences/r4.tsv
 three-engine: difftest/node_modules/.package-lock.json
 	@cd difftest && go run . -battery $(BATTERY) $(DIFFTEST_ARGS)
+
+# Installs the pinned HL7 validator release (about 188 MB) in build/validator,
+# checked by its SHA-256; one already there is kept. Needs no Java.
+validator-jar:
+	@cd difftest && go run . -fetch-validator ../build/validator
 
 # What two revisions answer for every element path and constraint over the
 # official FHIR examples, with the version's model. The suite and difftest both

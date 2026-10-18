@@ -49,8 +49,12 @@ func TestABatteryWithAMissingJarIsRefused(t *testing.T) {
 	if err := os.WriteFile(battery, []byte("p.json\tPatient.exists()\t4.0.1\n"), 0o600); err != nil {
 		t.Fatal(err)
 	}
-	if err := runBattery(battery, filepath.Join(dir, "missing.jar"), 1, false); err == nil {
-		t.Error("runBattery with a missing jar: no error")
+	old := lookJava
+	lookJava = func() error { return nil }
+	t.Cleanup(func() { lookJava = old })
+	missing := filepath.Join(dir, "missing.jar")
+	if err := runBattery(battery, missing, "", 1, false); err == nil || !strings.Contains(err.Error(), "jar") {
+		t.Errorf("runBattery with a missing jar: %v, want the jar refused", err)
 	}
 }
 

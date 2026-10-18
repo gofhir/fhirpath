@@ -133,6 +133,14 @@ func fhirVersion(v string) (model, version string, ok bool) {
 	return "", "", false
 }
 
+// The engines a battery runs, variables so that tests can count what runs.
+var (
+	evaluateJS   = evaluateWithFHIRPathJS
+	evaluateJava = evaluateWithJava
+	jsVersion    = fhirpathJSVersion
+	lookJava     = func() error { _, err := exec.LookPath("java"); return err }
+)
+
 // evaluateWithJava answers each case with HL7's Java engine, through the
 // validator's command line, jobs at a time: a run takes seconds, nearly all of
 // it loading packages.
@@ -293,45 +301,59 @@ func renderedLine(items []string) string {
 
 // runBattery compares a battery across the engines and prints where they part
 // ways. Without a jar it compares this engine and fhirpath.js only.
-func runBattery(path, jar string, jobs int, verbose bool) error {
+func runBattery(path, jar, unpinned string, jobs int, verbose bool) error {
 	dir, err := os.MkdirTemp("", "battery-")
 	if err != nil {
 		return err
 	}
-	defer os.RemoveAll(dir)
+	// Removed on return, and on an interrupt, which skips defers: the jar's
+	// snapshot in it is 188 MB.
+	defer onInterrupt(func() { os.RemoveAll(dir) })()
 	cases, err := loadBattery(path, dir)
 	if err != nil {
 		return err
 	}
-	jsVersion, err := fhirpathJSVersion()
+
+	// The jar is checked, and copied to where every JVM runs it from, before
+	// anything is evaluated: a jar that is not the pinned validator stops the
+	// battery at once.
+	var snap jarSnapshot
+	if jar != "" {
+		if javaErr := lookJava(); javaErr != nil {
+			return fmt.Errorf("running HL7's Java engine: %w", javaErr)
+		}
+		if snap, err = prepareJar(jar, pinnedValidator, unpinned, dir); err != nil {
+			return err
+		}
+	}
+
+	version, err := jsVersion()
 	if err != nil {
 		return err
 	}
-
 	plain := make([]testCase, len(cases))
 	for i, c := range cases {
 		plain[i] = c.testCase
 	}
-	js, err := evaluateWithFHIRPathJS(plain)
+	js, err := evaluateJS(plain)
 	if err != nil {
 		return err
 	}
+	mark := ""
+	if snap.marker != "" {
+		mark = snap.marker + " "
+	}
 	var java map[string]answer
 	if jar != "" {
-		if _, err := os.Stat(jar); err != nil {
-			return fmt.Errorf("the validator's jar: %w", err)
-		}
-		if _, err := exec.LookPath("java"); err != nil {
-			return fmt.Errorf("running HL7's Java engine: %w", err)
-		}
-		fmt.Printf("%s: %d cases against fhirpath.js %s and %s, %d at a time\n", path, len(cases), jsVersion, filepath.Base(jar), jobs)
-		if java, err = evaluateWithJava(cases, jar, jobs); err != nil {
+		fmt.Printf("%s%s: %d cases against fhirpath.js %s and %s, %d at a time\n", mark, path, len(cases), version, snap.describe, jobs)
+		fmt.Printf("%sthis engine at %s; JVM %s\n", mark, engineRevision(), jvmVersion())
+		if java, err = evaluateJava(cases, snap.path, jobs); err != nil {
 			return err
 		}
 	} else {
-		fmt.Printf("%s: %d cases against fhirpath.js %s; no -java jar, so not against HL7's Java engine\n", path, len(cases), jsVersion)
+		fmt.Printf("%s: %d cases against fhirpath.js %s; NOT against HL7's Java engine (no jar: make validator-jar, or -java)\n", path, len(cases), version)
+		fmt.Printf("this engine at %s\n", engineRevision())
 	}
-
 	groups := map[string][]string{}
 	order := []string{
 		"this engine alone differs (Java = fhirpath.js)",
@@ -350,7 +372,7 @@ func runBattery(path, jar string, jobs int, verbose bool) error {
 				agree++
 				continue
 			}
-			groups[order[4]] = append(groups[order[4]], threeLine(label, c.Expression, ours, theirs, answer{}))
+			groups[order[4]] = append(groups[order[4]], threeLine(label, c.Expression, ours, theirs, answer{}, ""))
 			continue
 		}
 		hl7 := java[c.ID]
@@ -369,10 +391,10 @@ func runBattery(path, jar string, jobs int, verbose bool) error {
 		default:
 			group = order[3]
 		}
-		groups[group] = append(groups[group], threeLine(label, c.Expression, ours, theirs, hl7))
+		groups[group] = append(groups[group], threeLine(label, c.Expression, ours, theirs, hl7, snap.marker))
 	}
 
-	fmt.Printf("\n%d agree", agree)
+	fmt.Printf("\n%s%d agree", mark, agree)
 	for _, g := range order {
 		if n := len(groups[g]); n > 0 {
 			fmt.Printf("; %d %s", n, g)
@@ -380,7 +402,7 @@ func runBattery(path, jar string, jobs int, verbose bool) error {
 	}
 	fmt.Println()
 	for _, g := range order {
-		batterySection(g, groups[g], verbose)
+		batterySection(mark+g, groups[g], verbose)
 	}
 	return nil
 }
@@ -404,12 +426,17 @@ func batterySection(title string, lines []string, verbose bool) {
 	}
 }
 
-// threeLine renders one case for the battery report.
-func threeLine(label, expression string, ours, js, java answer) string {
+// threeLine renders one case for the battery report; an unpinned jar's
+// answer carries its marker.
+func threeLine(label, expression string, ours, js, java answer, marker string) string {
 	s := fmt.Sprintf("  %-28s %s\n      here: %s\n      fhirpath.js: %s",
 		label, cut(expression, 90), cut(ours.text(), 70), cut(js.text(), 70))
 	if java.ID != "" {
-		s += "\n      Java: " + cut(java.text(), 70)
+		name := "Java"
+		if marker != "" {
+			name += " " + marker
+		}
+		s += "\n      " + name + ": " + cut(java.text(), 70)
 	}
 	return s
 }
