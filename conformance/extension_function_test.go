@@ -24,7 +24,9 @@ var extensionPatient = []byte(`{"resourceType":"Patient","id":"p",
 		{"url":"http://e/cr","valueCodeableReference":{"concept":{"text":"x"}}},
 		{"url":"http://e/i64","valueInteger64":"5"},
 		{"url":"http://e/pi","valuePositiveInt":7},
-		{"url":"http://e/n","extension":[{"url":"http://e/n/a","valueCode":"a"},{"url":"http://e/n/b","valueBoolean":true}]}
+		{"url":"http://e/n","extension":[{"url":"http://e/n/a","valueCode":"a"},{"url":"http://e/n/b","valueBoolean":true}]},
+		{"url":"http://e/nn","valueString":"a url the one before is a prefix of"},
+		{"url":"","valueString":"no url"}
 	],
 	"name":[{"family":"F","extension":[{"url":"http://e/h","valueString":"h"}]}],
 	"birthDate":"1970-01-01",
@@ -106,6 +108,9 @@ func TestExtensionItemsAreTypedByTheModel(t *testing.T) {
 		{[]string{"r5"}, "Patient.extension('http://e/i64').value", "[integer64 5]"},
 		{[]string{"r4", "r4b"}, "Patient.extension('http://e/i64').value", "[]"},
 		{[]string{"r4", "r4b", "r5"}, "Patient.extension('http://e/pi').value", "[positiveInt 7]"},
+		// the url is matched whole, not as a prefix
+		{[]string{"r4", "r4b", "r5"}, "Patient.extension('http://e/n').url", "[uri http://e/n]"},
+		{[]string{"r4", "r4b", "r5"}, "Patient.extension('http://e/').count()", "[Integer 0]"},
 	} {
 		for _, m := range extensionModels {
 			if !slices.Contains(tt.versions, m.name) {
@@ -113,6 +118,26 @@ func TestExtensionItemsAreTypedByTheModel(t *testing.T) {
 			}
 			if got := typed(t, m.model, tt.expr); got != tt.want {
 				t.Errorf("%s: %s = %s, want %s", m.name, tt.expr, got, tt.want)
+			}
+		}
+	}
+}
+
+// An argument of several items, or one that is no String, ends the
+// evaluation, whatever the input: both pages declare extension(url : string),
+// and FHIRPath's rule for a single-valued parameter makes it an error.
+func TestExtensionOfAURLThatIsNoSingleStringIsAnError(t *testing.T) {
+	for _, expr := range []string{
+		"Patient.extension('http://e/s' | 'http://e/cc')",
+		"Patient.extension(1)",
+		"Patient.extension(true)",
+		"{}.extension('http://e/s' | 'http://e/cc')",
+		"{}.extension(1)",
+		"{}.hasExtension(1)",
+	} {
+		for _, m := range extensionModels {
+			if got := typed(t, m.model, expr); !strings.HasPrefix(got, "error: ") {
+				t.Errorf("%s: %s = %s, want an error", m.name, expr, got)
 			}
 		}
 	}

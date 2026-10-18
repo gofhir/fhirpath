@@ -1,6 +1,6 @@
 # 002 — extension(url) returns typed items
 
-Status: plan, awaiting approval
+Status: done, pending commit
 Issue: #214
 
 ## Problem
@@ -116,8 +116,9 @@ Expected values are those of the `where` form the specification defines.
    already agree there).
 6. Arguments: empty input and empty url give empty (the third sentence of the
    definition); an URL no extension has gives empty; a multi-item argument
-   follows the singleton rule for function arguments, pinned by a test with
-   the result the three engines agree on.
+   follows the singleton rule for function arguments. The engines were to
+   settle it; they split (Java takes the first item, fhirpath.js ends the
+   evaluation), so the result follows the text and fhirpath.js: an error.
 
 Spec cases: the new requirements go to
 `conformance/testdata/spec-cases/fhir-functions.xml` through `/fhirpath-cases`
@@ -174,3 +175,58 @@ Independent reviewer, findings verified with a probe before accepting:
 | Multi-item argument unpinned | Accepted: test 6 |
 | A method on `eval.Context` is a public API addition; `plan.go` special case avoids it | Accepted as a cost, named in the approach; the method is kept for the reason given there |
 | "Without a model unchanged" | Confirmed correct |
+
+## Record
+
+- Approved by the user with the `eval.Context` method and `getExtensionValue`
+  as a separate issue.
+- Tests first: `conformance/extension_function_test.go` failed 214 checks at
+  `38f8021`. One hand-written expectation was wrong, not the engine: R4B's
+  `Extension.value[x]` does allow `CodeableReference` (51 types in
+  `hl7.fhir.r4b.core` 4.3.0, against 50 in R4 and 54 in R5), and the test was
+  corrected from the package.
+- Metamorphic comparison (`make extension-shortcut`): zero differences in
+  R4 (108 URLs, 14,381 pairs, 57,524 comparisons), R4B (104, 10,385, 41,540)
+  and R5 (114, 14,031, 56,124); no pair errored on either side, and every
+  path input reached its items. The first run counted about a third more
+  pairs, `descendants()` inputs for URLs only the root holds, which compared
+  nothing; review round 1 found them and they are skipped. It takes about
+  7 minutes, so `make check` runs corpusdiff with `-short`.
+- Oracle mutations (R4B subset, 700 files):
+
+  | Mutation | Differences |
+  | --- | --- |
+  | None (control) | 0 |
+  | `fnExtension` untyped again, full comparator | 4614 |
+  | Same, comparator without types | 5 |
+  | Same, comparator counting items only | 0 (types are what catch it) |
+  | `fnExtension` skipping primitives' elements | 56 |
+
+- Spec cases (`/fhirpath-cases`, `.workflow/cases-fhir-functions-20261018/`):
+  REQ-FHIRFUNCTIONS-057..065 and 004-e/f, 51 cases. The verifier asked for
+  missing citations in four rounds; no expected output changed. Its last
+  round's findings in the pre-existing groups 001–006 are left for a separate
+  pass by the user's decision.
+- The adjudicator found five gaps, all in the argument: a url of several
+  items used its first (063), and an Integer or Boolean url answered empty
+  (064). Both FHIR pages declare `extension(url : string)`, and FHIRPath's
+  rule for single-valued parameters makes both errors; fhirpath.js agrees.
+  Fixed with the String check `toString` already applies to string
+  functions, made before the input is looked at. All new cases pass in R4
+  and R5; baselines unchanged.
+- Three engines (`make three-engine` over the area, validator 6.10.2,
+  `-jobs 2`), confirmed with a battery of variants: the Java engine takes the
+  url's first item (`'zz' | 'a'` empty, `'a' | 'zz'` the `a` extension) and
+  answers empty for `extension(1)`; fhirpath.js ends the evaluation, as the
+  text does. Followed fhirpath.js; the validator is listed under "Measured,
+  and not followed" in CONFORMANCE.md. On the types (058, 059) this engine and
+  Java agree and fhirpath.js differs: it builds the items itself
+  (`src/filtering.js:56-61`).
+
+
+### Code review
+
+| Round | Findings | Resolution |
+| --- | --- | --- |
+| 1 | Medium: an empty input answered empty before a bad url was refused, so `{}.extension('a' \| 'b')` was an error and `{}.extension(1)` empty. Low: `singleArgs` redundant; the url filter unguarded by fast tests (prefix match and dropping the empty-url check survived); `Member`'s doc silent on its side effect and type filter; a third of the `descendants()` comparisons compared nothing; without a model `extension(u)` inherits navigation's suffix guessing; the multi-item message lacks the function name | The url is checked before the input; `singleArgs` dropped; prefix-sibling and empty-url fixtures and an error test added; doc completed; root-only URLs skipped and an empty path input fails. Suffix guessing: navigation's, reported apart, not worked around here. Message: left as `toString` words it for every string function |
+| 2 | No medium or higher; each round-1 fix pinned by a fast test (mutations: prefix match, no empty-url check, input check first). Low: an error on both sides passed the corpus comparison; navigation answers `_birthDate` as a raw key, so a builder keeping the `_` would pass; plan test 6 and figures out of date | An error on either side now fails the comparison; `_key` navigation reported apart with the suffix guessing; plan updated. Converged in round 2 |

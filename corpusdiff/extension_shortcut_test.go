@@ -20,10 +20,12 @@ import (
 // through their typed children, and the path to each place the JSON holds
 // extensions (Patient.contact.extension(u)), which reaches them by navigation.
 // The items are compared with their url, value and descendants, each with
-// its type. Up to 1.16.5 extension(url) read its items untyped (#214).
+// its type, and an item a path input reaches must exist. Up to 1.16.5
+// extension(url) read its items untyped (#214).
 //
 // where() checks the size of its input and extension() does not; that limit
-// is no part of what either answers, so it is lifted here. Fetches the
+// is no part of what either answers, so it is lifted here, and an error on
+// either side fails the test. Fetches the
 // example packages on first use, as make corpusdiff does, and is skipped when
 // that fails. It takes minutes, so -short skips it; the CI does not run it.
 // Run it with make extension-shortcut.
@@ -91,12 +93,16 @@ func TestExtensionIsItsWhereOverTheExamples(t *testing.T) {
 				for path, us := range places {
 					for u := range us {
 						inputs = append(inputs, extensionInput{path, u})
-						byURL[u] = true
+						urls[u] = true
+						// descendants() leaves out the resource itself, so a URL
+						// only the root holds would compare nothing there.
+						if path != rt {
+							byURL[u] = true
+						}
 					}
 				}
 				for u := range byURL {
 					inputs = append(inputs, extensionInput{rt + ".descendants()", u})
-					urls[u] = true
 				}
 				sort.Slice(inputs, func(i, j int) bool {
 					if inputs[i].path != inputs[j].path {
@@ -114,12 +120,19 @@ func TestExtensionIsItsWhereOverTheExamples(t *testing.T) {
 						got, gotErr := typedAnswer(shortcutDoc, shortcut, opts)
 						want, wantErr := typedAnswer(spelledDoc, spelled, opts)
 						comparisons++
+						// An error on both sides compares nothing: an input that
+						// does not compile or evaluate means it was built wrong.
 						if gotErr != nil || wantErr != nil {
 							errored++
-							if (gotErr == nil) != (wantErr == nil) {
-								differences++
-								t.Errorf("%s: %s errs %v, %s errs %v", filepath.Base(file), shortcut, gotErr, spelled, wantErr)
-							}
+							t.Errorf("%s: %s errs %v, %s errs %v", filepath.Base(file), shortcut, gotErr, spelled, wantErr)
+							continue
+						}
+						// A path input names a place that holds the URL, so the
+						// items themselves cannot be empty: if they are, the path
+						// was built wrong and the comparison would prove nothing.
+						if proj == "" && !strings.HasSuffix(in.path, ".descendants()") && got == "[]" {
+							differences++
+							t.Errorf("%s: %s reaches nothing, though the JSON holds it there", filepath.Base(file), shortcut)
 							continue
 						}
 						if got != want {
@@ -132,7 +145,7 @@ func TestExtensionIsItsWhereOverTheExamples(t *testing.T) {
 					}
 				}
 			}
-			t.Logf("%s: %d distinct URLs, %d (input, URL) pairs, %d comparisons, %d with an error on both sides, %d differences",
+			t.Logf("%s: %d distinct URLs, %d (input, URL) pairs, %d comparisons, %d with an error, %d differences",
 				name, len(urls), pairs, comparisons, errored, differences)
 			if pairs == 0 {
 				t.Fatal("no extensions found in the examples")

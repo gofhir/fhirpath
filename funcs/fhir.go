@@ -446,19 +446,20 @@ func readObject(obj *types.ObjectValue, name string) *types.ObjectValue {
 
 // fnExtension returns extensions matching the given URL.
 func fnExtension(ctx *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
-	if input.Empty() || len(args) == 0 {
+	if len(args) == 0 {
 		return types.Collection{}, nil
 	}
 
-	// Get the extension URL to search for
-	var url string
-	if col, ok := args[0].(types.Collection); ok && !col.Empty() {
-		if str, ok := col[0].(types.String); ok {
-			url = str.Value()
-		}
+	// The url is a String, extension(url : string): an argument of several
+	// items, or one that is no String, ends the evaluation, as the rule for a
+	// single-valued parameter says, whatever the input; an empty one, or an
+	// empty url, answers empty.
+	argument, _ := args[0].(types.Collection)
+	url, present, err := toString(argument)
+	if err != nil {
+		return nil, err
 	}
-
-	if url == "" {
+	if input.Empty() || !present || url == "" {
 		return types.Collection{}, nil
 	}
 

@@ -458,6 +458,11 @@ func (c *Context) PathOf(obj *types.ObjectValue) string {
 // resolves; a primitive is navigated through the element FHIR writes beside
 // it. A function whose result is defined as a navigation, such as FHIR's
 // extension(url), reads through it so that it answers as that navigation.
+//
+// As navigation does, it records on each member object the element it was
+// placed at, which persists on the objects a Document caches, and a name
+// that starts with a capital letter selects the items of that type rather
+// than a member.
 func (c *Context) Member(input types.Collection, name string) types.Collection {
 	return (&Evaluator{ctx: c}).navigateMember(input, name)
 }
