@@ -673,6 +673,13 @@ per version. Gaps closed:
   convert implicitly, to a single-valued parameter ends the evaluation; both
   now do, as fhirpath.js answers. The validator answers otherwise: see
   [Measured, and not followed](#measured-and-not-followed).
+- `getExtensionValue(url)`, this engine's own and not FHIR's, looked for 20
+  `value[x]` names, read untyped: the other 30 (R4) to 34 (R5) types an
+  Extension's value may have answered empty. It is now `extension(url).value`,
+  typed by the model; over every official example it answers the values the
+  JSON holds, of the types their names give (#218). A `valueString` is a FHIR
+  `string`, no longer a `String`. Without a model the types navigation does
+  not know yet are still missed (#219).
 
 `hasValue()` of a System value of a primitive type, `'a'.hasValue()`, is now
 true, as fhirpath.js and the Java engine both answer, against both pages'

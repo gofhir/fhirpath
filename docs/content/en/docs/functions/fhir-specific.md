@@ -92,7 +92,7 @@ result, _ := fhirpath.Evaluate(patient,
 
 ## getExtensionValue
 
-Returns the value of extensions matching the given URL. Extracts the `value[x]` element from each matching extension.
+Returns the value of the extensions with the given URL: the same as `extension(url).value`. Not part of FHIR's FHIRPath page; an extension of this engine, kept for convenience. Prefer `extension(url).value` in expressions meant to run on other engines.
 
 **Signature:**
 ```
@@ -116,7 +116,7 @@ result, _ := fhirpath.Evaluate(patient,
 
 result, _ := fhirpath.Evaluate(patient,
     "Patient.getExtensionValue('http://example.org/fhir/StructureDefinition/score')")
-// Returns the value (e.g., a Decimal or Integer) from the score extension
+// Returns the value (e.g., a decimal or integer) from the score extension
 
 result, _ := fhirpath.Evaluate(patient,
     "Patient.getExtensionValue('http://example.org/fhir/StructureDefinition/preferred-language')")
@@ -124,10 +124,10 @@ result, _ := fhirpath.Evaluate(patient,
 ```
 
 **Edge Cases / Notes:**
-- Searches for `value[x]` fields on each matching extension object. Supported value field names include:
-  `valueString`, `valueBoolean`, `valueInteger`, `valueDecimal`, `valueDate`, `valueDateTime`, `valueTime`, `valueCode`, `valueCoding`, `valueCodeableConcept`, `valueQuantity`, `valueReference`, `valueIdentifier`, `valuePeriod`, `valueRange`, `valueRatio`, `valueAttachment`, `valueUri`, `valueUrl`, `valueCanonical`.
-- Returns only the first `value[x]` field found for each extension (in the order listed above).
-- Returns an empty collection if no extensions match or if extensions have no value.
+- The value is read as navigation reads `value[x]`: with a model, every type the version's `Extension.value[x]` allows is found (50 in R4, 51 in R4B, 54 in R5), typed as that type (`string`, `positiveInt`, `CodeableReference`…). Without a model, the types are guessed from the field name, and the ones navigation does not know yet are not found.
+- The url is taken as `extension(url)` takes it: an empty url gives an empty collection; a url of several items, or one that is no String, ends the evaluation.
+- Returns an empty collection if no extensions match or if the extensions have no value; an extension of extensions has no value of its own.
+- **Behaviour change (#218):** before, only 20 `value[x]` names were looked for and the value came back untyped, so `getExtensionValue(url) is String` was true for a `valueString`. It is now a FHIR `string`: write `is string` or `is FHIR.string`.
 
 ---
 
