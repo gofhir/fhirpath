@@ -5,6 +5,45 @@
     <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">Will filter the input collection for items named "extension" with the given url. This is a syntactical shortcut for .extension.where(url = string) , but is simpler to write.</source>
     <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">Will filter the input collection for items named "extension" with the given url. This is a syntactical shortcut for .extension.where(url = string) , but is simpler to write.</source>
     <source spec="fhirpath-2.0.0" section="where(criteria : expression) : collection" strength="DEFINITION">Returns a collection containing only those elements in the input collection for which the stated `criteria` expression evaluates to `true`.</source>
+    <source spec="fhirpath-3.0.0" section="where(criteria : ($this, $index) => Boolean) : collection" strength="DEFINITION">Returns a collection containing only those items in the input collection for which the stated `criteria` expression evaluates to `true`. Items for which the expression evaluates to `false` or empty (`{ }`) are not included in the result.</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.string, FHIR.uri, FHIR.code, FHIR.oid, FHIR.id, FHIR.uuid, FHIR.sid, FHIR.markdown, FHIR.base64Binary
+System.String</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.date, FHIR.dateTime, FHIR.instant
+System.DateTime</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.string, FHIR.uri, FHIR.code, FHIR.oid, FHIR.id, FHIR.uuid, FHIR.markdown, FHIR.base64Binary
+System.String</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.date, FHIR.dateTime, FHIR.instant
+System.DateTime</source>
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">In FHIRPath, this means that FHIR primitives have a value child, but, as described above, they are automatically cast to FHIRPath primitives when comparisons are made, and that the primitive value will be included in the set returned by children() or descendants() .</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">In FHIRPath, this means that FHIR primitives have a value child, but, as described above, they are automatically cast to FHIRPath primitives when comparisons are made, and that the primitive value will be included in the set returned by children() or descendants() .</source>
+    <source spec="fhirpath-3.0.0" section="Conversion" strength="DEFINITION">FHIRPath defines both _implicit_ and _explicit_ conversion. Implicit conversions occur automatically, as opposed to explicit conversions that require the function be called explicitly. Implicit conversion is performed when an operator or function is used with a compatible type.</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="DEFINITION">If both operands are collections with a single item, they must be of the same type (or be [implicitly convertible](#conversion) to the same type), and:</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="DEFINITION">`String`: comparison is based on Unicode values</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="DEFINITION">`DateTime`: must be exactly the same, respecting the timezone offset (though +00:00 = -00:00 = Z)</source>
+    <source spec="fhirpath-3.0.0" section="count() : Integer" strength="DEFINITION">Returns the integer count of the number of items in the input collection. Returns 0 when the input collection is empty.</source>
+    <source spec="fhirpath-3.0.0" section="exists([criteria : ($this, $index) => Boolean]) : Boolean" strength="DEFINITION">Returns `true` if the input collection has any items (optionally filtered by the criteria), and `false` otherwise.</source>
+    <source spec="fhir-r4" section="2.9.1 Using FHIRPath with Resources" strength="DEFINITION">Elements of datatypes and resources are used as the name of the nodes which can be navigated over, except for choice elements (ending with '[x]'), see below.</source>
+    <source spec="fhir-r5" section="2.1.9.1 Using FHIRPath with Resources" strength="DEFINITION">Elements of datatypes and resources are used as the name of the nodes which can be navigated over, except for choice elements (ending with '[x]'), see below.</source>
+    <source spec="fhir-r4" section="2.9.1.1 Polymorphism in FHIR" strength="DEFINITION">In FHIRPath, choice elements are labeled according to the name without the '[x]' suffix, and children can be explicitly treated
+as a specific type using the as operation:</source>
+    <source spec="fhir-r5" section="2.1.9.1.1 Polymorphism in FHIR" strength="DEFINITION">In FHIRPath, choice elements are labeled according to the name without the '[x]' suffix, and children can be explicitly treated
+as a specific type using the as operation:</source>
+    <source spec="fhir-r4" section="2.9.1 Using FHIRPath with Resources" strength="DEFINITION">For FHIR, this means that the contents of the resources and data
+types as described in the Logical views (or the UML diagrams) are used as the model,
+rather than the JSON and XML formats, so specific xml or json features are not
+visible to the FHIRPath language (such as comments and the split representation
+of primitives).</source>
+    <source spec="fhir-r5" section="2.1.9.1 Using FHIRPath with Resources" strength="DEFINITION">For FHIR, this means that the contents of the resources and data
+types as described in the Logical views (or the UML diagrams) are used as the model,
+rather than the JSON and XML formats, so specific xml or json features are not
+visible to the FHIRPath language (such as comments and the split representation
+of primitives).</source>
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">Returns true if the input collection contains a single value which is a FHIR primitive, and it has a primitive value (e.g. as opposed to not having a value and just having extensions).</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">Returns true if the input collection contains a single value which is a FHIR primitive, and it has a primitive value (e.g. as opposed to not having a value and just having extensions).</source>
     <test name="REQ-FHIRFUNCTIONS-001-a" inputfile="patient-example.xml"><expression>Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').value = @1974-12-25T14:35:45-05:00</expression><output type="boolean">true</output></test>
     <test name="REQ-FHIRFUNCTIONS-001-b" inputfile="patient-example.xml"><expression>Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').count()</expression><output type="integer">1</output></test>
     <test name="REQ-FHIRFUNCTIONS-001-c" inputfile="patient-example.xml"><expression>Patient.contact.name.family.extension('http://hl7.org/fhir/StructureDefinition/humanname-own-prefix').value = 'VV'</expression><output type="boolean">true</output></test>
@@ -16,19 +55,75 @@
     <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">This is a syntactical shortcut for .extension.where(url = string) , but is simpler to write.</source>
     <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">This is a syntactical shortcut for .extension.where(url = string) , but is simpler to write.</source>
     <source spec="fhirpath-2.0.0" section="= (Equals)" strength="DEFINITION">`String`: comparison is based on Unicode values</source>
+    <source spec="fhirpath-3.0.0" section="where(criteria : ($this, $index) => Boolean) : collection" strength="DEFINITION">Returns a collection containing only those items in the input collection for which the stated `criteria` expression evaluates to `true`. Items for which the expression evaluates to `false` or empty (`{ }`) are not included in the result.</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.string, FHIR.uri, FHIR.code, FHIR.oid, FHIR.id, FHIR.uuid, FHIR.sid, FHIR.markdown, FHIR.base64Binary
+System.String</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.string, FHIR.uri, FHIR.code, FHIR.oid, FHIR.id, FHIR.uuid, FHIR.markdown, FHIR.base64Binary
+System.String</source>
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">In FHIRPath, this means that FHIR primitives have a value child, but, as described above, they are automatically cast to FHIRPath primitives when comparisons are made, and that the primitive value will be included in the set returned by children() or descendants() .</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">In FHIRPath, this means that FHIR primitives have a value child, but, as described above, they are automatically cast to FHIRPath primitives when comparisons are made, and that the primitive value will be included in the set returned by children() or descendants() .</source>
+    <source spec="fhirpath-3.0.0" section="Conversion" strength="DEFINITION">FHIRPath defines both _implicit_ and _explicit_ conversion. Implicit conversions occur automatically, as opposed to explicit conversions that require the function be called explicitly. Implicit conversion is performed when an operator or function is used with a compatible type.</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="DEFINITION">If both operands are collections with a single item, they must be of the same type (or be [implicitly convertible](#conversion) to the same type), and:</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="DEFINITION">`String`: comparison is based on Unicode values</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="EXAMPLE">'a' = 'A' // false ; case is NOT ignored for equality</source>
     <test name="REQ-FHIRFUNCTIONS-002-a" inputfile="patient-example.xml"><expression>Patient.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime')</expression></test>
     <test name="REQ-FHIRFUNCTIONS-002-b" inputfile="patient-example.xml"><expression>Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/humanname-own-prefix')</expression></test>
     <test name="REQ-FHIRFUNCTIONS-002-c" inputfile="patient-example.xml"><expression>Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthtime')</expression></test>
     <test name="REQ-FHIRFUNCTIONS-002-d" inputfile="patient-example.xml"><expression>Patient.contact.extension('http://hl7.org/fhir/StructureDefinition/humanname-own-prefix')</expression></test>
   </group>
 
-  <group name="REQ-FHIRFUNCTIONS-003" description="extension(url) over several input items collects the matching extensions of every item, the same collection .extension.where(url = string) gives">
+  <group name="REQ-FHIRFUNCTIONS-003" description="extension(url) over several input items collects the matching extensions of every item, the same collection .extension.where(url = string) gives; the input is two elements, Patient.birthDate.combine(Patient.contact.name.family), each with one extension of a different url, so no System value is in it (combine() rather than |, so that building the input needs no equality between a date and a string)">
     <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">This is a syntactical shortcut for .extension.where(url = string) , but is simpler to write.</source>
     <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">This is a syntactical shortcut for .extension.where(url = string) , but is simpler to write.</source>
-    <source spec="fhirpath-2.0.0" section="descendants() : collection" strength="DEFINITION">Returns a collection with all descendant nodes of all items in the input collection.</source>
-    <test name="REQ-FHIRFUNCTIONS-003-a" inputfile="patient-example.xml"><expression>Patient.descendants().extension('http://hl7.org/fhir/StructureDefinition/humanname-own-prefix').value = 'VV'</expression><output type="boolean">true</output></test>
-    <test name="REQ-FHIRFUNCTIONS-003-b" inputfile="patient-example.xml"><expression>Patient.descendants().extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').count()</expression><output type="integer">1</output></test>
-    <test name="REQ-FHIRFUNCTIONS-003-c" inputfile="patient-example.xml"><expression>Patient.descendants().extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime') = Patient.descendants().extension.where(url = 'http://hl7.org/fhir/StructureDefinition/patient-birthTime')</expression><output type="boolean">true</output></test>
+    <source spec="fhirpath-3.0.0" section="where(criteria : ($this, $index) => Boolean) : collection" strength="DEFINITION">Returns a collection containing only those items in the input collection for which the stated `criteria` expression evaluates to `true`. Items for which the expression evaluates to `false` or empty (`{ }`) are not included in the result.</source>
+    <source spec="fhirpath-3.0.0" section="combine(other : collection, [preserveOrder : Boolean]) : collection" strength="DEFINITION">Merge the input and other collections into a single collection without eliminating duplicate values.</source>
+    <source spec="fhirpath-2.0.0" section="combine(other : collection) : collection" strength="DEFINITION">Merge the input and other collections into a single collection without eliminating duplicate values.</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.string, FHIR.uri, FHIR.code, FHIR.oid, FHIR.id, FHIR.uuid, FHIR.sid, FHIR.markdown, FHIR.base64Binary
+System.String</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.date, FHIR.dateTime, FHIR.instant
+System.DateTime</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.string, FHIR.uri, FHIR.code, FHIR.oid, FHIR.id, FHIR.uuid, FHIR.markdown, FHIR.base64Binary
+System.String</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.date, FHIR.dateTime, FHIR.instant
+System.DateTime</source>
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">In FHIRPath, this means that FHIR primitives have a value child, but, as described above, they are automatically cast to FHIRPath primitives when comparisons are made, and that the primitive value will be included in the set returned by children() or descendants() .</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">In FHIRPath, this means that FHIR primitives have a value child, but, as described above, they are automatically cast to FHIRPath primitives when comparisons are made, and that the primitive value will be included in the set returned by children() or descendants() .</source>
+    <source spec="fhirpath-3.0.0" section="Conversion" strength="DEFINITION">FHIRPath defines both _implicit_ and _explicit_ conversion. Implicit conversions occur automatically, as opposed to explicit conversions that require the function be called explicitly. Implicit conversion is performed when an operator or function is used with a compatible type.</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="DEFINITION">If both operands are collections with a single item, they must be of the same type (or be [implicitly convertible](#conversion) to the same type), and:</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="DEFINITION">`String`: comparison is based on Unicode values</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="DEFINITION">`DateTime`: must be exactly the same, respecting the timezone offset (though +00:00 = -00:00 = Z)</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="DEFINITION">For complex types, equality requires all child elements to be equal, recursively.</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="EXAMPLE">name = name // true ; its the same object, and thus will have all the same properties recursively</source>
+    <source spec="fhirpath-3.0.0" section="count() : Integer" strength="DEFINITION">Returns the integer count of the number of items in the input collection. Returns 0 when the input collection is empty.</source>
+    <source spec="fhir-r4" section="2.9.1 Using FHIRPath with Resources" strength="DEFINITION">Elements of datatypes and resources are used as the name of the nodes which can be navigated over, except for choice elements (ending with '[x]'), see below.</source>
+    <source spec="fhir-r5" section="2.1.9.1 Using FHIRPath with Resources" strength="DEFINITION">Elements of datatypes and resources are used as the name of the nodes which can be navigated over, except for choice elements (ending with '[x]'), see below.</source>
+    <source spec="fhir-r4" section="2.9.1.1 Polymorphism in FHIR" strength="DEFINITION">In FHIRPath, choice elements are labeled according to the name without the '[x]' suffix, and children can be explicitly treated
+as a specific type using the as operation:</source>
+    <source spec="fhir-r5" section="2.1.9.1.1 Polymorphism in FHIR" strength="DEFINITION">In FHIRPath, choice elements are labeled according to the name without the '[x]' suffix, and children can be explicitly treated
+as a specific type using the as operation:</source>
+    <source spec="fhir-r4" section="2.9.1 Using FHIRPath with Resources" strength="DEFINITION">For FHIR, this means that the contents of the resources and data
+types as described in the Logical views (or the UML diagrams) are used as the model,
+rather than the JSON and XML formats, so specific xml or json features are not
+visible to the FHIRPath language (such as comments and the split representation
+of primitives).</source>
+    <source spec="fhir-r5" section="2.1.9.1 Using FHIRPath with Resources" strength="DEFINITION">For FHIR, this means that the contents of the resources and data
+types as described in the Logical views (or the UML diagrams) are used as the model,
+rather than the JSON and XML formats, so specific xml or json features are not
+visible to the FHIRPath language (such as comments and the split representation
+of primitives).</source>
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">Returns true if the input collection contains a single value which is a FHIR primitive, and it has a primitive value (e.g. as opposed to not having a value and just having extensions).</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">Returns true if the input collection contains a single value which is a FHIR primitive, and it has a primitive value (e.g. as opposed to not having a value and just having extensions).</source>
+    <test name="REQ-FHIRFUNCTIONS-003-a" inputfile="patient-example.xml"><expression>Patient.birthDate.combine(Patient.contact.name.family).extension('http://hl7.org/fhir/StructureDefinition/humanname-own-prefix').value = 'VV'</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-003-b" inputfile="patient-example.xml"><expression>Patient.birthDate.combine(Patient.contact.name.family).extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').count()</expression><output type="integer">1</output></test>
+    <test name="REQ-FHIRFUNCTIONS-003-c" inputfile="patient-example.xml"><expression>Patient.birthDate.combine(Patient.contact.name.family).extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime') = Patient.birthDate.combine(Patient.contact.name.family).extension.where(url = 'http://hl7.org/fhir/StructureDefinition/patient-birthTime')</expression><output type="boolean">true</output></test>
     <test name="REQ-FHIRFUNCTIONS-003-d" inputfile="patient-name-extensions.json"><expression>Patient.name.given.extension('https://example.org/syllable-count').count()</expression><output type="integer">1</output></test>
   </group>
 
@@ -52,6 +147,25 @@
     <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="EXAMPLE">Patient.name.given.extension.first().value = true // extension of the primitive value</source>
     <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">Since FHIR primitives may contain extensions, the following expressions are not mutually exclusive:</source>
     <source spec="fhirpath-2.0.0" section="and" strength="DEFINITION">Returns `true` if both operands evaluate to `true`, `false` if either operand evaluates to `false`, and the empty collection (`{ }`) otherwise.</source>
+    <source spec="fhirpath-3.0.0" section="and" strength="DEFINITION">Returns `true` if both operands evaluate to `true`, `false` if either operand evaluates to `false`, and the empty collection (`{ }`) otherwise.</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.string, FHIR.uri, FHIR.code, FHIR.oid, FHIR.id, FHIR.uuid, FHIR.sid, FHIR.markdown, FHIR.base64Binary
+System.String</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.string, FHIR.uri, FHIR.code, FHIR.oid, FHIR.id, FHIR.uuid, FHIR.markdown, FHIR.base64Binary
+System.String</source>
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">In FHIRPath, this means that FHIR primitives have a value child, but, as described above, they are automatically cast to FHIRPath primitives when comparisons are made, and that the primitive value will be included in the set returned by children() or descendants() .</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">In FHIRPath, this means that FHIR primitives have a value child, but, as described above, they are automatically cast to FHIRPath primitives when comparisons are made, and that the primitive value will be included in the set returned by children() or descendants() .</source>
+    <source spec="fhirpath-3.0.0" section="Conversion" strength="DEFINITION">FHIRPath defines both _implicit_ and _explicit_ conversion. Implicit conversions occur automatically, as opposed to explicit conversions that require the function be called explicitly. Implicit conversion is performed when an operator or function is used with a compatible type.</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="DEFINITION">If both operands are collections with a single item, they must be of the same type (or be [implicitly convertible](#conversion) to the same type), and:</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="DEFINITION">`String`: comparison is based on Unicode values</source>
+    <source spec="fhirpath-3.0.0" section="first() : any" strength="DEFINITION">Returns a collection containing only the first item in the input collection.</source>
+    <source spec="fhir-r4" section="2.9.1.1 Polymorphism in FHIR" strength="DEFINITION">In FHIRPath, choice elements are labeled according to the name without the '[x]' suffix, and children can be explicitly treated
+as a specific type using the as operation:</source>
+    <source spec="fhir-r5" section="2.1.9.1.1 Polymorphism in FHIR" strength="DEFINITION">In FHIRPath, choice elements are labeled according to the name without the '[x]' suffix, and children can be explicitly treated
+as a specific type using the as operation:</source>
     <test name="REQ-FHIRFUNCTIONS-005-a" inputfile="patient-example.xml"><expression>Patient.contact.name.family = 'du Marché'</expression><output type="boolean">true</output></test>
     <test name="REQ-FHIRFUNCTIONS-005-b" inputfile="patient-example.xml"><expression>Patient.contact.name.family.extension.first().value = 'VV'</expression><output type="boolean">true</output></test>
     <test name="REQ-FHIRFUNCTIONS-005-c" inputfile="patient-example.xml"><expression>(Patient.contact.name.family = 'du Marché') and (Patient.contact.name.family.extension.first().value = 'VV')</expression><output type="boolean">true</output></test>
@@ -60,6 +174,19 @@
   <group name="REQ-FHIRFUNCTIONS-006" description="There is no difference between an attribute and an element: the url of an extension, an XML attribute, is navigated like any element">
     <source spec="fhir-r4" section="2.9.1 Using FHIRPath with Resources" strength="DEFINITION">There is no difference between an attribute and an element</source>
     <source spec="fhir-r5" section="2.1.9.1 Using FHIRPath with Resources" strength="DEFINITION">There is no difference between an attribute and an element</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.string, FHIR.uri, FHIR.code, FHIR.oid, FHIR.id, FHIR.uuid, FHIR.sid, FHIR.markdown, FHIR.base64Binary
+System.String</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.string, FHIR.uri, FHIR.code, FHIR.oid, FHIR.id, FHIR.uuid, FHIR.markdown, FHIR.base64Binary
+System.String</source>
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">In FHIRPath, this means that FHIR primitives have a value child, but, as described above, they are automatically cast to FHIRPath primitives when comparisons are made, and that the primitive value will be included in the set returned by children() or descendants() .</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">In FHIRPath, this means that FHIR primitives have a value child, but, as described above, they are automatically cast to FHIRPath primitives when comparisons are made, and that the primitive value will be included in the set returned by children() or descendants() .</source>
+    <source spec="fhirpath-3.0.0" section="Conversion" strength="DEFINITION">FHIRPath defines both _implicit_ and _explicit_ conversion. Implicit conversions occur automatically, as opposed to explicit conversions that require the function be called explicitly. Implicit conversion is performed when an operator or function is used with a compatible type.</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="DEFINITION">If both operands are collections with a single item, they must be of the same type (or be [implicitly convertible](#conversion) to the same type), and:</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="DEFINITION">`String`: comparison is based on Unicode values</source>
     <test name="REQ-FHIRFUNCTIONS-006-a" inputfile="patient-example.xml"><expression>Patient.birthDate.extension.url = 'http://hl7.org/fhir/StructureDefinition/patient-birthTime'</expression><output type="boolean">true</output></test>
     <test name="REQ-FHIRFUNCTIONS-006-b" inputfile="patient-example.xml"><expression>Patient.contact.name.family.extension.url = 'http://hl7.org/fhir/StructureDefinition/humanname-own-prefix'</expression><output type="boolean">true</output></test>
   </group>
