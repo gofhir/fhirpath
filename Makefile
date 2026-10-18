@@ -101,7 +101,7 @@ bench-corpus:
 # Run through go run so that this matches CI exactly without anyone having to
 # install a particular build. Keep in sync with GOLANGCI_VERSION in
 # .github/workflows/ci.yml.
-GOLANGCI_VERSION := v2.12.2
+GOLANGCI_VERSION := v2.15.0
 GOLANGCI := go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@$(GOLANGCI_VERSION)
 
 lint:
