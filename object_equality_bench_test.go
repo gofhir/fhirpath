@@ -91,3 +91,29 @@ func BenchmarkObjectRepeatMixedKeys(b *testing.B) {
 func BenchmarkObjectIntersectMixedKeys(b *testing.B) {
 	benchmarkQuestionnaire(b, "Questionnaire.item.intersect(Questionnaire.item.tail()).count()")
 }
+
+// namesWithElements writes n names whose second given carries an extension
+// beside it, as FHIR writes one, and as contacts the same names in lower case
+// and in reverse order: ~ pairs each name's items, value and element together.
+func namesWithElements(n int) []byte {
+	element := `"_given":[null,{"extension":[{"url":"http://example.org/e","valueString":"v"}]}]`
+	names, contacts := make([]string, n), make([]string, n)
+	for i := range names {
+		names[i] = fmt.Sprintf(`{"family":"F%d","given":["G%d","H%d"],%s}`, i, i, i, element)
+		contacts[n-1-i] = fmt.Sprintf(`{"name":{"family":"f%d","given":["g%d","h%d"],%s}}`, i, i, i, element)
+	}
+	return []byte(`{"resourceType":"Patient","name":[` + strings.Join(names, ",") +
+		`],"contact":[` + strings.Join(contacts, ",") + `]}`)
+}
+
+func BenchmarkObjectEquivalentWithElements(b *testing.B) {
+	data := namesWithElements(40)
+	compiled := MustCompile("Patient.name ~ Patient.contact.name")
+	b.ReportAllocs()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		if _, err := compiled.Evaluate(data); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
