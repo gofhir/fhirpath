@@ -464,28 +464,21 @@ func fnExtension(ctx *eval.Context, input types.Collection, args []interface{}) 
 
 	result := types.Collection{}
 
-	for _, item := range input {
-		// A primitive keeps its extensions in the element FHIR serializes
-		// beside it, so the element is what carries them — not the value
-		obj, ok := types.ElementOf(item)
+	// FHIR defines extension(url) as a shortcut for .extension.where(url =
+	// url), so the extensions are read as that navigation reads them: typed
+	// as Extension by the model and placed at their element, and a
+	// primitive's through the element FHIR writes beside it.
+	for _, ext := range ctx.Member(input, "extension") {
+		extObj, ok := ext.(*types.ObjectValue)
 		if !ok {
 			continue
 		}
 
-		// Get the extension array
-		extensions := obj.GetCollection("extension")
-		for _, ext := range extensions {
-			extObj, ok := ext.(*types.ObjectValue)
-			if !ok {
-				continue
-			}
-
-			// Check if the URL matches
-			if extURL, ok := extObj.Get("url"); ok {
-				if urlStr, ok := extURL.(types.String); ok {
-					if urlStr.Value() == url {
-						result = append(result, extObj)
-					}
+		// Check if the URL matches
+		if extURL, ok := extObj.Get("url"); ok {
+			if urlStr, ok := extURL.(types.String); ok {
+				if urlStr.Value() == url {
+					result = append(result, extObj)
 				}
 			}
 		}

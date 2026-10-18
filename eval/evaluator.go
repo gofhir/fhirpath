@@ -452,6 +452,16 @@ func (c *Context) PathOf(obj *types.ObjectValue) string {
 	return ""
 }
 
+// Member navigates to the members called name of the items in input, as the
+// expression input.name does: with a model, each member is read as the type
+// the model gives it and placed at its element, beneath which the next step
+// resolves; a primitive is navigated through the element FHIR writes beside
+// it. A function whose result is defined as a navigation, such as FHIR's
+// extension(url), reads through it so that it answers as that navigation.
+func (c *Context) Member(input types.Collection, name string) types.Collection {
+	return (&Evaluator{ctx: c}).navigateMember(input, name)
+}
+
 // CheckCancellation checks if the context has been canceled.
 func (c *Context) CheckCancellation() error {
 	if c.deadline != nil && !time.Now().Before(c.deadline.at) {
