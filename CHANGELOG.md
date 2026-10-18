@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.16.4](https://github.com/gofhir/fhirpath/compare/v1.16.3...v1.16.4) (2026-10-18)
+
+
+### Performance Improvements
+
+* parse with SLL prediction first, falling back to LL ([#209](https://github.com/gofhir/fhirpath/issues/209)) ([461aaa1](https://github.com/gofhir/fhirpath/commit/461aaa190d8812e599a6dc789c10e1a87a339422)), closes [#176](https://github.com/gofhir/fhirpath/issues/176)
+
 ## [1.16.3](https://github.com/gofhir/fhirpath/compare/v1.16.2...v1.16.3) (2026-10-18)
 
 
