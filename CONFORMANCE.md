@@ -1023,6 +1023,45 @@ worth recording as the shape of a gap the suites leave: they cover the units
 that appear in FHIR data, and a unit that is merely legal UCUM can still be
 wrong everywhere.
 
+## A choice element is read only by the suffixes the model allows
+
+FHIR's JSON writes a choice element only with its type suffix, `valueString`
+for `value[x]`. Under a model, this engine read two things that are no
+element, and both conformance suites missed them, since neither writes
+invalid JSON nor puts a disallowed type inside a backbone element:
+
+- A choice written bare, `"value": …`, was read as the element, and beside
+  `valueString` it hid it: `extension.value` over both answered the bare one,
+  and `children()` listed it.
+- A choice inside a backbone element or a contentReference path
+  (`Observation.component.value`, `Questionnaire.item.enableWhen.answer`,
+  `Dosage.doseAndRate.dose`) was resolved by guessing the suffix, not by the
+  model, so a type the version does not allow there was read:
+  `component.valueCode`, `enableWhen.answerCode`.
+
+HL7's Java engine and fhirpath.js both refuse the disallowed types
+(`component.valueCode`, `enableWhen.answerCode`) and the bare extension value
+(`difftest/batteries/choice-base-name`). Where a resource's choice is written
+both ways, fhirpath.js answers the suffixed field and the Java engine refuses
+the element; the text bears fhirpath.js out. Now a choice is read by the
+model's types wherever it sits, and a bare key under a model is neither
+navigated to nor a child (#219). `TestAChoiceIsReadOnlyByTheSuffixesTheModelAllows`
+pins it under R4, R4B and R5, with cases the battery does not cover
+(`Dosage.doseAndRate.dose`, `Timing.repeat.bounds`, `Parameters.parameter.part.value`,
+`Patient.deceased`, contained resources, Bundle entries).
+
+`children()` parts three ways on those resources. Over a choice written both
+ways, this engine lists the suffixed field once, fhirpath.js lists it twice
+(a defect of its own) and the Java engine refuses the element: on the
+battery's Observation written both ways (`obs2.json`) 4, 5 and 3; on the
+component written both ways (`obs.json`'s second) 2, 3 and 1. A suffix no
+definition allows (`Observation.valueCode`) stays a child here and in
+fhirpath.js, as any key no definition has does (`Basic.codeFoo` reads `y` in
+both), where the Java engine leaves it out; navigation to the element gives
+nothing for it in all three. Measured, and kept: the engine reads what a
+document holds unless the model says it is something else, and a key it
+does not know is not one it can say that of.
+
 ## Reading the suite's own inputs
 
 The harness used to run against the examples hl7.org publishes, because the suite
@@ -1867,6 +1906,7 @@ keeps its own answer.
 | `~` between quantities in different units: `2.4 'm' ~ 200 'cm'` | true; `1.501 'kg' ~ 1500 'g'` false | false; false | Coherent: both sides in the UCUM base unit, rounded to the less precise. Matching it means rewriting quantity equivalence, and no published constraint compares quantities in different units with `~` |
 | `comparable()` on quantities in a local unit, `Range.low` and `high` in tablets | false, though `low < high` is true | true | Not comparable, yet compared. rng-2 holds in both |
 | `extension(url)` with a url of several items, `extension('zz' \| 'a')`, or one that is no String, `extension(1)` | the first item's extensions: `'zz' \| 'a'` empty, `'a' \| 'zz'` the `a` extension; `[]` for `1` or `true` | an error, as fhirpath.js answers | Both FHIR pages declare `extension(url : string)`, and FHIRPath 2.0.0 and 3.0.0 alike end the evaluation for an argument of several items, or one not of the required type, passed to a single-valued parameter |
+| `Patient._birthDate`, `Patient.name._given`: the element FHIR's JSON writes beside a primitive, named as the JSON names it | an error | the element, as fhirpath.js answers | The validator refuses the name rather than answering otherwise, so there is no behaviour to follow; `Patient.birthDate.id` and `.extension` read the same element by the model's name |
 | `'2021-02-30'.convertsToDate()` | true, though `@2021-02-30` does not parse | false, as fhirpath.js answers | Converts to nothing |
 | `is()` and `type()` across FHIR and System types | `family.is(System.String)` true, though `family.as(System.String)` is empty; `type()` of a FHIR string `System.String`, and of an R5 `Patient.id` `System.Id` | false, as fhirpath.js answers; `FHIR.string` | Is, and is not. `as()` is followed: it answers as `is()`, empty with a model, as in fhirpath.js, where up to 1.14.1 it was the value |
 | `~` with a calendar duration or a temperature: `1 year ~ 1 'a'` | NullPointerException | true | An exception |
@@ -1960,7 +2000,7 @@ was reasoned or accidental.
 | A FHIR Quantity with a `comparator` (`<`, `<=`, `>=`, `>`, `ad`) | Read as its value | Where the HL7 validator answers over the specification text: see [A quantity's comparator is not read](#a-quantitys-comparator-is-not-read) |
 | `as()`/`ofType()` on a primitive | Requires the declared type; `is()` keeps hierarchy matching | FHIR: "all primitives are considered to be independent types (so markdown is not a subclass of string)" |
 | Telling `FHIR.boolean` from `System.Boolean` | By case: FHIR names primitives in lower camel case, FHIRPath capitalizes its own | The suite requires `active.is(boolean)` true and `active.is(Boolean)` false. Complex types such as `Quantity` are spelled alike in both namespaces, so the rule applies to primitives only |
-| Type of a polymorphic element without a model | Taken from the field name, corrected to FHIR's casing | `valueOid` states the element is an `oid`; that is information in the document, not a guess. The value itself says whether the type is primitive or complex |
+| Type of a polymorphic element without a model | Taken from the field name, corrected to FHIR's casing | `valueOid` states the element is an `oid`; that is information in the document, not a guess. The value itself says whether the type is primitive or complex. fhirpath.js run without a model resolves no suffix, `Observation.value` over `valueString` is empty, and reads a key written bare (measured in #219's adversarial review, not in a battery, since the batteries give every engine its model); not followed, since a name the document states is information to use |
 | An element written as an empty object, `"name": {}` or an item `{}` of an array | An item of its collection that `exists()` and `empty()` answer as though it were not there | Where the HL7 validator answers over the specification text: see [An element that holds no value](#an-element-that-holds-no-value) |
 | A FHIR primitive's `value`, and `hasValue()`/`getValue()` | The System value the primitive holds, without its FHIR type or element. `hasValue()` is true of a single FHIR primitive with a value, and of a single System value of a primitive type: a complex value, or a primitive with only an id or extensions, has none, however the object was made. An object typed as a FHIR primitive, as a validator builds `"_family"` to evaluate it as the root, written `string`, `FHIR.string` or R4's `http://hl7.org/fhirpath/System.String`, is a primitive with no value; the element beside a primitive that has one is not | FHIR: "FHIR.string … has the properties id, extension, and also the implicit value property that is actually of type of System.String", so `birthDate.value is System.Date`. The HL7 validator answers `value` with a FHIR `string` of the text whatever the primitive's type; that is not what the text says. `hasValue()` on a complex value: see [Measured, and not followed](#measured-and-not-followed) |
 | What is a FHIR primitive, as opposed to a System value | By where the value came from: one read from the resource is a FHIR primitive, with or without a model, and even where the model types it a System one; a literal or a function's result is a System value | `'abc'.value` and `'abc'.getValue()` are empty with or without a model, as the text says, and so for `active.toBoolean()`. `'abc'.hasValue()` is true, as fhirpath.js and the HL7 validator both answer, though the text speaks of FHIR primitives alone: the two agree on every System value of a primitive type, `1`, `true`, `@2020`, `@T10:00`, and `''`, which is a value, where only the validator answers false; a quantity is none. Up to 1.14.7 it was false. A primitive at a path the model does not know is still a FHIR primitive, so ele-1 holds on it. R4 gives `Resource.id`, `Element.id` and `Extension.url` the type code `System.String` and names their FHIR type, `id`, `string` and `uri`, in `structuredefinition-fhir-type`; the two parts of the definition disagree, and we follow the one that names the FHIR type, as the HL7 validator does, so `Patient.id.hasValue()` is true. Their type is the one the definitions name, where the model hands it: see [Where this engine follows the HL7 validator](#where-this-engine-follows-the-hl7-validator-over-the-specification-text) |

@@ -2860,6 +2860,11 @@ func (e *Evaluator) resolveElement(obj *types.ObjectValue, name string) (element
 			if t := m.TypeOf(nested); t != "" {
 				return nested, t
 			}
+			// A choice has no type of its own, only its choices, which are
+			// asked of the path it is defined at.
+			if len(m.ChoiceTypes(nested)) > 0 {
+				return nested, ""
+			}
 		}
 	}
 
@@ -2940,10 +2945,15 @@ func (e *Evaluator) navigateMember(input types.Collection, name string) types.Co
 		// Try direct field access first, using type-aware conversion when model is
 		// available. A value that reads as nothing under its type reads as nothing
 		// without it too, so a typed read that finds nothing is not read again.
+		// A choice is written only with its type suffix, valueString for
+		// value[x], so where the model says the name is one, a field written
+		// bare is no element and only the suffixed fields are read.
 		var children types.Collection
-		if fhirType != "" {
+		switch {
+		case fhirType != "":
 			children = obj.GetCollectionWithType(name, fhirType)
-		} else {
+		case e.ctx.model != nil && len(e.ctx.model.ChoiceTypes(elementPath)) > 0:
+		default:
 			children = obj.GetCollection(name)
 		}
 		if len(children) > 0 {

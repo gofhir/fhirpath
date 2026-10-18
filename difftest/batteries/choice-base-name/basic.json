@@ -1,0 +1,1 @@
+{"resourceType":"Basic","id":"b","code":{"text":"t"},"extensionCoding":{"code":"x"},"codeFoo":"y","author":{"reference":"Patient/p"}}

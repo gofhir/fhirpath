@@ -1,0 +1,1 @@
+{"resourceType":"Observation","id":"o","status":"final","code":{"text":"c"},"valueCode":"topcode","component":[{"code":{"text":"k"},"valueCode":"compcode"},{"code":{"text":"k2"},"value":"barecomp","valueString":"vs"}]}

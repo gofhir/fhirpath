@@ -1,0 +1,51 @@
+# The expressions measured for #219 (choice elements written bare, backbone
+# choices, _x keys) against HL7's Java engine (validator 6.10.2) and
+# fhirpath.js 5.2.0: resource<TAB>expression<TAB>version.
+pat.json	Patient._birthDate	4.0.1
+pat.json	Patient._birthDate.id	4.0.1
+pat.json	Patient.birthDate.id	4.0.1
+pat.json	Patient._birthDate.extension.url	4.0.1
+pat.json	Patient.name._given	4.0.1
+pat.json	Patient.name.given.id	4.0.1
+pat.json	Patient.extension.where(url = 'lit').value	4.0.1
+pat.json	Patient.extension.where(url = 's').value	4.0.1
+pat.json	Patient.children().count()	4.0.1
+pat.json	Patient.descendants().count()	4.0.1
+basic.json	Basic.extension	4.0.1
+basic.json	Basic.extension.code	4.0.1
+basic.json	Basic.code.text	4.0.1
+basic.json	Basic.codeFoo	4.0.1
+basic.json	Basic.author.reference	4.0.1
+pat.json	Patient._birthDate	5.0.0
+pat.json	Patient._birthDate.id	5.0.0
+pat.json	Patient.birthDate.id	5.0.0
+pat.json	Patient._birthDate.extension.url	5.0.0
+pat.json	Patient.name._given	5.0.0
+pat.json	Patient.name.given.id	5.0.0
+pat.json	Patient.extension.where(url = 'lit').value	5.0.0
+pat.json	Patient.extension.where(url = 's').value	5.0.0
+pat.json	Patient.children().count()	5.0.0
+pat.json	Patient.descendants().count()	5.0.0
+basic.json	Basic.extension	5.0.0
+basic.json	Basic.extension.code	5.0.0
+basic.json	Basic.code.text	5.0.0
+basic.json	Basic.codeFoo	5.0.0
+basic.json	Basic.author.reference	5.0.0
+obs.json	Observation.value	4.0.1
+obs.json	Observation.component.value	4.0.1
+obs.json	Observation.component.children().count()	4.0.1
+obs.json	Observation.children().count()	4.0.1
+ext.json	Patient.extension.value	4.0.1
+ext.json	Patient.extension.children()	4.0.1
+obs2.json	Observation.value	4.0.1
+obs2.json	Observation.children().count()	4.0.1
+q.json	Questionnaire.item.item.enableWhen.answer	4.0.1
+obs.json	Observation.value	5.0.0
+obs.json	Observation.component.value	5.0.0
+obs.json	Observation.component.children().count()	5.0.0
+obs.json	Observation.children().count()	5.0.0
+ext.json	Patient.extension.value	5.0.0
+ext.json	Patient.extension.children()	5.0.0
+obs2.json	Observation.value	5.0.0
+obs2.json	Observation.children().count()	5.0.0
+q.json	Questionnaire.item.item.enableWhen.answer	5.0.0
