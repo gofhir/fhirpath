@@ -581,6 +581,7 @@ func compileBinary(leftExpr, rightExpr grammar.IExpressionContext, op string,
 
 // EvaluateNode evaluates a compiled Node and returns its result.
 func (e *Evaluator) EvaluateNode(n Node) (types.Collection, error) {
+	defer startClock(e.ctx)()
 	result := n(e)
 	if err, ok := result.(error); ok {
 		return nil, err

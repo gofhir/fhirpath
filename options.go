@@ -35,6 +35,11 @@ type EvalOptions struct {
 	// HTMLChecker checks HTML for htmlChecks(). When nil, htmlChecks() on an
 	// xhtml element or a string ends the evaluation with an error.
 	HTMLChecker HTMLChecker
+
+	// Now is the instant now(), today() and timeOfDay() answer, in its own
+	// location. When zero, each evaluation reads the time once, when one of
+	// them first asks.
+	Now time.Time
 }
 
 // DefaultOptions returns default evaluation options suitable for production.
@@ -65,6 +70,15 @@ type EvalOption func(*EvalOptions)
 func WithContext(ctx context.Context) EvalOption {
 	return func(o *EvalOptions) {
 		o.Ctx = ctx
+	}
+}
+
+// WithNow fixes the instant now(), today() and timeOfDay() answer, in t's own
+// location, rather than the time the evaluation reads when one of them first
+// asks.
+func WithNow(t time.Time) EvalOption {
+	return func(o *EvalOptions) {
+		o.Now = t
 	}
 }
 
@@ -163,6 +177,10 @@ func configureContext(evalCtx *eval.Context, opts ...EvalOption) (configured *ev
 	// Set variables
 	for name, value := range options.Variables {
 		evalCtx.SetVariable(name, value)
+	}
+
+	if !options.Now.IsZero() {
+		evalCtx.SetNow(options.Now)
 	}
 
 	// Set limits in context

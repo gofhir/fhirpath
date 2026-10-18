@@ -129,27 +129,6 @@ func init() {
 		MaxArgs: 2,
 		Fn:      fnTrace,
 	})
-
-	Register(FuncDef{
-		Name:    "now",
-		MinArgs: 0,
-		MaxArgs: 0,
-		Fn:      fnNow,
-	})
-
-	Register(FuncDef{
-		Name:    "today",
-		MinArgs: 0,
-		MaxArgs: 0,
-		Fn:      fnToday,
-	})
-
-	Register(FuncDef{
-		Name:    "timeOfDay",
-		MinArgs: 0,
-		MaxArgs: 0,
-		Fn:      fnTimeOfDay,
-	})
 }
 
 // fnTrace logs the input collection and returns it unchanged.
@@ -200,34 +179,4 @@ func collectionToInterface(col types.Collection) interface{} {
 		result[i] = item.String()
 	}
 	return result
-}
-
-// fnNow returns the current date and time.
-func fnNow(_ *eval.Context, _ types.Collection, _ []interface{}) (types.Collection, error) {
-	now := time.Now()
-	dt, err := types.NewDateTime(now.Format("2006-01-02T15:04:05.000-07:00"))
-	if err != nil {
-		return types.Collection{}, nil
-	}
-	return types.Collection{dt}, nil
-}
-
-// fnToday returns the current date.
-func fnToday(_ *eval.Context, _ types.Collection, _ []interface{}) (types.Collection, error) {
-	now := time.Now()
-	d, err := types.NewDate(now.Format("2006-01-02"))
-	if err != nil {
-		return types.Collection{}, nil
-	}
-	return types.Collection{d}, nil
-}
-
-// fnTimeOfDay returns the current time.
-func fnTimeOfDay(_ *eval.Context, _ types.Collection, _ []interface{}) (types.Collection, error) {
-	now := time.Now()
-	t, err := types.NewTime(now.Format("15:04:05.000"))
-	if err != nil {
-		return types.Collection{}, nil
-	}
-	return types.Collection{t}, nil
 }
