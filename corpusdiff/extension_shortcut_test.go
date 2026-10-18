@@ -46,9 +46,7 @@ func TestExtensionIsItsWhereOverTheExamples(t *testing.T) {
 		version := versions[name]
 		t.Run(name, func(t *testing.T) {
 			dir, err := fetch(cache, version.examples)
-			if err != nil {
-				t.Skip("examples package unavailable:", err)
-			}
+			dir = fetchedOrSkip(t, dir, err)
 			files, err := filepath.Glob(filepath.Join(dir, "*.json"))
 			if err != nil {
 				t.Fatal(err)
