@@ -1,0 +1,1 @@
+{"resourceType":"Patient","id":"p","birthDate":"1970-01-01","_birthDate":{"id":"b","extension":[{"url":"u","valueString":"x"}]},"active":true,"name":[{"family":"F","given":["a"],"_given":[{"id":"g"}]}],"extension":[{"url":"lit","value":"lit"},{"url":"s","valueString":"S"}]}

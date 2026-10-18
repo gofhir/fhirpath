@@ -1719,6 +1719,9 @@ func elementShaped(field jsonField) bool {
 // each carrying its element, or the element alone where there is no value.
 func (o *ObjectValue) appendPairedChild(result []TypedChild, f *pairedField, basePath string, res ElementTypeResolver) []TypedChild {
 	childPath, fhirType := o.childElement(basePath, f.name, res)
+	if fhirType == "" && o.isChoiceName(basePath, f.name, res) {
+		return result
+	}
 
 	for _, v := range pairedCollection(f.name, f.value, f.element, fhirType) {
 		// A resource resolves its fields beneath its own type, so it is not
@@ -1751,6 +1754,9 @@ func (o *ObjectValue) unpairedChildren(basePath string, res ElementTypeResolver)
 		}
 		name := string(key)
 		childPath, fhirType := o.childElement(basePath, name, res)
+		if fhirType == "" && o.isChoiceName(basePath, name, res) {
+			return nil
+		}
 
 		appendChild := func(data []byte, dt jsonparser.ValueType, index int) {
 			var v Value
@@ -1787,6 +1793,23 @@ func (o *ObjectValue) unpairedChildren(basePath string, res ElementTypeResolver)
 		return nil, false
 	}
 	return result, true
+}
+
+// isChoiceName says whether name, as a field of this object, is the bare name
+// of a choice element the model knows, value for value[x]: FHIR's JSON writes
+// a choice only with its type suffix, so such a field is no element. Only a
+// resolver that knows choice types can tell.
+func (o *ObjectValue) isChoiceName(basePath, name string, res ElementTypeResolver) bool {
+	choices, ok := res.(interface{ ChoiceTypes(string) []string })
+	if !ok {
+		return false
+	}
+	for _, candidate := range o.childCandidates(basePath, name, res) {
+		if len(choices.ChoiceTypes(candidate)) > 0 {
+			return true
+		}
+	}
+	return false
 }
 
 // childElement resolves a named child's FHIR type and the path it should carry
