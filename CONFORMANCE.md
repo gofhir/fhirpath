@@ -1902,7 +1902,10 @@ is set aside only for a reason given in the row: fhirpath.js answers
 otherwise and the text bears it out, it rests on a choice this engine made on
 its own grounds, the 64-bit Integer, or no published constraint reaches it and
 matching it would cost a rewrite. These were measured in 6.10.2 and the engine
-keeps its own answer.
+keeps its own answer. 6.10.2 is the release `make three-engine` is pinned to
+(`difftest/validator.go`, SHA-256 `a3addadf…d7e4ccd6`): a battery refuses
+any other jar unless run with `-java-unpinned`, whose answers are marked
+`[UNPINNED …]` and are not cited here (#223).
 
 | Expression | Validator | This engine | Why not followed |
 |---|---|---|---|

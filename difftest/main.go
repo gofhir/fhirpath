@@ -10,13 +10,16 @@
 // Usage:
 //
 //	go run . [-corpus r4|r5|both|spec|all] [-model] [-v]
-//	go run . -battery file.tsv|area.xml [-java validator_cli.jar] [-jobs 4] [-v]
+//	go run . -battery file.tsv|area.xml [-java validator_cli.jar] [-java-unpinned sha256:<hex>] [-jobs 4] [-v]
+//	go run . -fetch-validator DIR
 //
 // both is the two official suites, spec is this project's own spec cases, and
 // all is everything. -battery compares a list of expressions of one's own, or
 // one area's spec cases, across this engine, fhirpath.js and, given the
 // validator's jar (-java, or HL7_VALIDATOR_JAR), HL7's Java engine: see
-// battery.go.
+// battery.go. The jar must be the pinned validator release (validator.go);
+// -fetch-validator installs it, and -java-unpinned measures another on
+// purpose, every answer of it marked.
 package main
 
 import (
@@ -26,8 +29,10 @@ import (
 	"fmt"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"sort"
 	"strings"
+	"time"
 
 	"github.com/gofhir/fhirpath"
 	"github.com/gofhir/fhirpath/types"
@@ -42,10 +47,35 @@ func main() {
 	battery := flag.String("battery", "", "compare a battery, resource<TAB>expression<TAB>version a line, across the engines")
 	jar := flag.String("java", os.Getenv("HL7_VALIDATOR_JAR"), "the HL7 validator's jar, to compare a battery against HL7's Java engine too")
 	jobs := flag.Int("jobs", 4, "how many Java runs at a time")
+	unpinned := flag.String("java-unpinned", "", "measure a jar that is not the pinned validator, given its digest (sha256:<hex>); its answers are marked and not citable")
+	fetch := flag.String("fetch-validator", "", "install the pinned HL7 validator in this directory and exit")
 	flag.Parse()
+	handleInterrupts()
+
+	if *fetch != "" {
+		path, err := fetchValidator(*fetch, pinnedValidator, 30*time.Minute)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "difftest:", err)
+			os.Exit(1)
+		}
+		fmt.Println(path)
+		return
+	}
 
 	if *battery != "" {
-		if err := runBattery(*battery, *jar, *jobs, *verbose); err != nil {
+		// Without -java or HL7_VALIDATOR_JAR, the pinned validator make
+		// validator-jar installs is used when it is there.
+		if *jar == "" {
+			installed := filepath.Join("..", "build", "validator", "validator_cli-"+pinnedValidator.version+".jar")
+			if _, err := os.Stat(installed); err == nil {
+				*jar = installed
+			}
+		}
+		if *unpinned != "" && *jar == "" {
+			fmt.Fprintln(os.Stderr, "difftest: -java-unpinned names a jar's digest, and no jar was given (-java or HL7_VALIDATOR_JAR)")
+			os.Exit(1)
+		}
+		if err := runBattery(*battery, *jar, *unpinned, *jobs, *verbose); err != nil {
 			fmt.Fprintln(os.Stderr, "difftest:", err)
 			os.Exit(1)
 		}
