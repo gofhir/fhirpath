@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.16.6](https://github.com/gofhir/fhirpath/compare/v1.16.5...v1.16.6) (2026-10-18)
+
+
+### Bug Fixes
+
+* answer now(), today() and timeOfDay() from one instant per evaluation ([#226](https://github.com/gofhir/fhirpath/issues/226)) ([0be3c80](https://github.com/gofhir/fhirpath/commit/0be3c80395efaceda8beac440f6f2a69a2c2a47b)), closes [#225](https://github.com/gofhir/fhirpath/issues/225)
+* read a choice element only by the suffixes the model allows ([#227](https://github.com/gofhir/fhirpath/issues/227)) ([0cdf188](https://github.com/gofhir/fhirpath/commit/0cdf188c5d2f1f0d9d58d37d41ffab0dc7588c65)), closes [#219](https://github.com/gofhir/fhirpath/issues/219)
+* read getExtensionValue(url) as extension(url).value ([#220](https://github.com/gofhir/fhirpath/issues/220)) ([42d50d4](https://github.com/gofhir/fhirpath/commit/42d50d41818e7953420a1db2834baae2d6fdab1f)), closes [#218](https://github.com/gofhir/fhirpath/issues/218)
+* type extension(url) items as .extension.where(url = ...) does ([#217](https://github.com/gofhir/fhirpath/issues/217)) ([067c1de](https://github.com/gofhir/fhirpath/commit/067c1de0cfed1630572a7b365c3d2c12340e9fdc)), closes [#214](https://github.com/gofhir/fhirpath/issues/214)
+
 ## [1.16.5](https://github.com/gofhir/fhirpath/compare/v1.16.4...v1.16.5) (2026-10-18)
 
 
