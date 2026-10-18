@@ -352,7 +352,8 @@ fhirpath.Evaluate(resource, "iif(value.exists(), value.first(), 'default')")
 
 ### Expression Caching
 
-Compiled expressions are cached internally for performance:
+`fhirpath.Evaluate` caches what it compiles in `DefaultCache`; `Compile` does not
+cache, so hold on to what it returns:
 
 ```go
 // Recommended: compile once, reuse
