@@ -1220,8 +1220,8 @@ in each of the three versions:
 
 So R4B fixed a copy-paste defect and added a guard, and R5 switched to the
 filtering function while bringing the defect back. An engine has to evaluate
-whichever wording the resource's version publishes; `version_aware_test.go` runs
-all three against every model configuration.
+whichever wording the resource's version publishes; `TestDom3AcrossVersions`
+(`fhir_functions_test.go`) runs all three against every model configuration.
 
 Measured in the HL7 validator 6.10.2: `Patient.name.as(HumanName).count()` over
 three names is 3 with `-version 4.0.1` and an error, "Attempt to use 'as()' on

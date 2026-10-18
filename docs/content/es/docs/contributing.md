@@ -118,6 +118,24 @@ go test -v -race ./types/
 go test -v -race -run TestEvaluateToBoolean ./...
 ```
 
+### Dónde Viven las Pruebas de la Raíz
+
+Las pruebas del paquete raíz se agrupan por área, un archivo por área:
+`<área>_test.go`, `<área>_bench_test.go`, y `<área>_<tema>_test.go` cuando un
+área no cabe en un archivo. Las áreas son las de
+`conformance/testdata/spec-cases/*.xml`, escribiendo `_` en lugar de `-`
+(`aggregates`, `boolean_logic`, `collections`, `conversions`, `datetime`,
+`equality_comparison`, `existence`, `fhir_functions`, `filtering_projection`,
+`math`, `strings`), más cuatro para lo que ninguna sección de la especificación
+cubre: `navigation`, `typing`, `evaluation` y `api`.
+
+- Las pruebas son de caja negra (`package fhirpath_test`). Solo una prueba que
+  necesita un identificador no exportado va en `internal_test.go` o
+  `internal_bench_test.go`.
+- Un helper que usan varias áreas va en `helpers_test.go`.
+- Un helper que usa un benchmark va en un archivo `*_bench_test.go`, porque
+  `make bench-compare` lleva solo esos archivos a la línea base que mide.
+
 ## Ejecución de Benchmarks
 
 Los benchmarks de rendimiento están junto a las pruebas en archivos `*_bench_test.go`.
@@ -243,7 +261,7 @@ func init() {
 
 ### 4. Escribir Pruebas
 
-Agregue pruebas en el archivo `*_test.go` correspondiente. Pruebe como mínimo:
+Agregue pruebas en el archivo del área de la función (ver [Dónde Viven las Pruebas de la Raíz](#dónde-viven-las-pruebas-de-la-raíz)), o en el archivo `*_test.go` junto al código en un subpaquete. Pruebe como mínimo:
 
 - Caso normal con entrada esperada
 - Entrada vacía (debe retornar colección vacía)
