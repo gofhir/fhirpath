@@ -28,6 +28,8 @@ import (
 	"bufio"
 	"compress/gzip"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -57,6 +59,31 @@ var versions = map[string]struct {
 	"r4b": {"hl7.fhir.r4b.core/4.3.0", "hl7.fhir.r4b.examples/4.3.0", func() fhirpath.Model { return r4b.FHIRPathModel() }},
 	"r5":  {"hl7.fhir.r5.core/5.0.0", "hl7.fhir.r5.examples/5.0.0", func() fhirpath.Model { return r5.FHIRPathModel() }},
 }
+
+// packagePins is the SHA-256 of each package's tarball as packages2.fhir.org
+// serves it. A download that hashes otherwise is refused, so every
+// comparison measures the same bytes (#221). packages.fhir.org is not the
+// same source: its R4 4.0.1 packages are re-packed, with three more
+// StructureDefinitions.
+var packagePins = map[string]string{
+	"hl7.fhir.r4.core/4.0.1":      "b090bf929e1f665cf2c91583720849695bc38d2892a7c5037c56cb00817fb091",
+	"hl7.fhir.r4.examples/4.0.1":  "02aa10ea545301b1e14277123dd43a2a3a9297e6345de677801866df8afe7270",
+	"hl7.fhir.r4b.core/4.3.0":     "56ade6affa774053e8e514d480944568705d93d9252e264888ee224907fe40e7",
+	"hl7.fhir.r4b.examples/4.3.0": "a64db561a943eab454d85349cfb5a088cbfc57c3d90706db36ae3df64269afa5",
+	"hl7.fhir.r5.core/5.0.0":      "74b27cd1bfce9e80eaceac431edf230b0945a443564fbf5512f82e5fa50a80d4",
+	"hl7.fhir.r5.examples/5.0.0":  "129eb96eaeab3b14b4c3a89a2e3593a0a79ebddb56ef46e15fac6928a0a5976e",
+}
+
+// errNotPinned is what a download whose bytes are not the pinned ones fails
+// with: unlike a network failure, a reason for a test to fail, not to skip.
+var errNotPinned = errors.New("not the pinned bytes")
+
+// registry is where the packages are fetched from, and maxPackage the most a
+// download may be: ten times the largest of them.
+const (
+	registry   = "https://packages2.fhir.org/packages/"
+	maxPackage = 200 << 20
+)
 
 // maxResource leaves out the few examples above it — Bundles of tens of
 // megabytes — whose constraints run on their entries, which the corpus has on
@@ -159,20 +186,102 @@ func evalCommand(args []string) error {
 	return err
 }
 
-// fetch downloads a package from the FHIR package registry into the cache, once,
-// and returns the directory its files are in.
+// fetch returns the directory of a pinned package's files, downloading it
+// into the cache on first use, or when what the cache holds is not the
+// pinned bytes.
 func fetch(cache, pkg string) (string, error) {
-	dir := filepath.Join(cache, strings.ReplaceAll(pkg, "/", "#"))
-	if _, err := os.Stat(filepath.Join(dir, "package", "package.json")); err == nil {
+	pin, ok := packagePins[pkg]
+	if !ok {
+		return "", fmt.Errorf("fetching %s: no pinned SHA-256 for it", pkg)
+	}
+	return fetchFrom(registry, cache, pkg, pin, maxPackage)
+}
+
+// fetchFrom is fetch from base, with the pin and size limit given. The
+// download goes to a temporary file, hashed as it is written; bytes whose
+// SHA-256 is not the pin are refused before anything is extracted. The
+// files are extracted into a temporary directory with the digest beside
+// them, which is renamed into place only then, under a name the digest is
+// part of, so a package directory always holds its files and its digest, and
+// a cached one is used only when that digest is the pin. Temporary names are
+// unique, and of two processes fetching the same package at once the one
+// that installs it second finds it in place; a refused fetch leaves the cache
+// as it was, and nothing in it is removed.
+func fetchFrom(base, cache, pkg, pin string, limit int64) (string, error) {
+	dir := filepath.Join(cache, packageDirName(pkg, pin))
+	if installed(dir, pin) {
 		return filepath.Join(dir, "package"), nil
+	}
+	if err := os.MkdirAll(cache, 0o755); err != nil {
+		return "", err
 	}
 
 	fmt.Fprintln(os.Stderr, "fetching", pkg)
+	tarball, err := download(base+pkg, cache, pin, limit)
+	if err != nil {
+		return "", fmt.Errorf("fetching %s: %w", pkg, err)
+	}
+	defer os.Remove(tarball)
+
+	tmp, err := os.MkdirTemp(cache, ".fetch-")
+	if err != nil {
+		return "", err
+	}
+	defer os.RemoveAll(tmp)
+	f, err := os.Open(tarball)
+	if err != nil {
+		return "", err
+	}
+	extracted, err := extract(f, tmp)
+	f.Close()
+	if err != nil {
+		return "", fmt.Errorf("fetching %s: %w", pkg, err)
+	}
+	if extracted == 0 {
+		return "", fmt.Errorf("fetching %s: no JSON under package/ in what was downloaded", pkg)
+	}
+	if werr := os.WriteFile(filepath.Join(tmp, "sha256"), []byte(pin+"\n"), 0o600); werr != nil {
+		return "", werr
+	}
+
+	// The directory is named after the pinned bytes, so whatever already sits
+	// at that name, put there by another process fetching the same package at
+	// once, is this very package. A directory there that is not — one edited
+	// by hand — is not removed, since another process may be reading what it
+	// holds; it is reported, to be removed by whoever damaged it.
+	if err := os.Rename(tmp, dir); err != nil && !installed(dir, pin) {
+		return "", fmt.Errorf("fetching %s: %s is not the pinned package; remove it: %w", pkg, dir, err)
+	}
+	return filepath.Join(dir, "package"), nil
+}
+
+// packageDirName is the cache directory a package's pinned bytes are kept
+// in: its name and version, and the start of its digest, so that bytes pinned
+// otherwise never share it.
+func packageDirName(pkg, pin string) string {
+	return strings.ReplaceAll(pkg, "/", "#") + "@" + pin[:16]
+}
+
+// installed says whether dir holds the package whose bytes are pin: its
+// files, and the digest recorded when they were verified.
+func installed(dir, pin string) bool {
+	marker, err := os.ReadFile(filepath.Join(dir, "sha256"))
+	if err != nil || strings.TrimSpace(string(marker)) != pin {
+		return false
+	}
+	_, err = os.Stat(filepath.Join(dir, "package", "package.json"))
+	return err == nil
+}
+
+// download writes what url answers to a temporary file in dir and returns
+// its name, refusing an answer that is not 200, one longer than limit, and
+// one whose SHA-256 is not pin; a refused download leaves no file.
+func download(url, dir, pin string, limit int64) (name string, err error) {
 	// A stalled download fails rather than hangs; the largest package is tens
 	// of megabytes.
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Minute)
 	defer cancel()
-	req, err := http.NewRequestWithContext(ctx, http.MethodGet, "https://packages2.fhir.org/packages/"+pkg, http.NoBody)
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, http.NoBody)
 	if err != nil {
 		return "", err
 	}
@@ -182,31 +291,31 @@ func fetch(cache, pkg string) (string, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("fetching %s: %s", pkg, resp.Status)
+		return "", fmt.Errorf("%s", resp.Status)
 	}
 
-	tmp := dir + ".partial"
-	err = os.RemoveAll(tmp)
+	f, err := os.CreateTemp(dir, ".download-")
 	if err != nil {
 		return "", err
 	}
-	extracted, err := extract(resp.Body, tmp)
-	if err != nil {
-		return "", fmt.Errorf("fetching %s: %w", pkg, err)
-	}
-	if extracted == 0 {
-		return "", fmt.Errorf("fetching %s: no JSON under package/ in what was downloaded", pkg)
-	}
-
-	// What is left of an earlier run that did not finish is replaced.
-	err = os.RemoveAll(dir)
-	if err == nil {
-		err = os.Rename(tmp, dir)
-	}
+	defer func() {
+		f.Close()
+		if err != nil {
+			os.Remove(f.Name())
+		}
+	}()
+	h := sha256.New()
+	n, err := io.Copy(io.MultiWriter(f, h), io.LimitReader(resp.Body, limit+1))
 	if err != nil {
 		return "", err
 	}
-	return filepath.Join(dir, "package"), nil
+	if n > limit {
+		return "", fmt.Errorf("larger than the %d bytes a package may be", limit)
+	}
+	if got := hex.EncodeToString(h.Sum(nil)); got != pin {
+		return "", fmt.Errorf("%w: SHA-256 %s is not the pinned %s", errNotPinned, got, pin)
+	}
+	return f.Name(), f.Close()
 }
 
 // extract writes a package tarball's top-level JSON files under dir and says

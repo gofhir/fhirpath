@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"errors"
 	"os"
 	"path/filepath"
 	"sort"
@@ -112,6 +113,9 @@ func loadSample() (*corpusSample, error) {
 // first use, as make corpusdiff does.
 func BenchmarkCorpus(b *testing.B) {
 	s, err := loadSample()
+	if errors.Is(err, errNotPinned) {
+		b.Fatal(err)
+	}
 	if err != nil {
 		b.Skip("corpus unavailable:", err)
 	}

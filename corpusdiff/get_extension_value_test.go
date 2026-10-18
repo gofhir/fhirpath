@@ -61,9 +61,7 @@ func TestTheModelAllowsTheExtensionValuesTheDefinitionDoes(t *testing.T) {
 		version := versions[name]
 		t.Run(name, func(t *testing.T) {
 			coreDir, err := fetch(cache, version.core)
-			if err != nil {
-				t.Skip("core package unavailable:", err)
-			}
+			coreDir = fetchedOrSkip(t, coreDir, err)
 			want := extensionValueTypes(t, coreDir)
 			got := version.model().ChoiceTypes("Extension.value")
 			sort.Strings(want)
@@ -92,13 +90,9 @@ func TestGetExtensionValueAnswersAsTheJSONHoldsIt(t *testing.T) {
 		version := versions[name]
 		t.Run(name, func(t *testing.T) {
 			coreDir, err := fetch(cache, version.core)
-			if err != nil {
-				t.Skip("core package unavailable:", err)
-			}
+			coreDir = fetchedOrSkip(t, coreDir, err)
 			dir, err := fetch(cache, version.examples)
-			if err != nil {
-				t.Skip("examples package unavailable:", err)
-			}
+			dir = fetchedOrSkip(t, dir, err)
 			allowed := map[string]bool{}
 			for _, typ := range extensionValueTypes(t, coreDir) {
 				allowed[typ] = true

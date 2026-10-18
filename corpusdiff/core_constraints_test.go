@@ -28,7 +28,8 @@ var coreConstraintFaults = map[string]bool{
 // Questionnaire.item.item, was not resolved, and the path leaked from one
 // operand of an operator, and one argument of a function, into the next
 // (#180). Fetches the core packages on
-// first use, as make corpusdiff does, and is skipped when that fails. The CI
+// first use, as make corpusdiff does, and is skipped when that fails, unless
+// what came is not the pinned bytes. The CI
 // does not run it; conformance's TestAnalysisFollowsPathsAsEvaluationDoes
 // holds the same rules there.
 func TestCoreConstraintsAnalyze(t *testing.T) {
@@ -42,10 +43,8 @@ func TestCoreConstraintsAnalyze(t *testing.T) {
 	for _, name := range names {
 		version := versions[name]
 		t.Run(name, func(t *testing.T) {
-			coreDir, err := fetch(cache, version.core)
-			if err != nil {
-				t.Skip("core package unavailable:", err)
-			}
+			dir, err := fetch(cache, version.core)
+			coreDir := fetchedOrSkip(t, dir, err)
 			files, err := filepath.Glob(filepath.Join(coreDir, "StructureDefinition-*.json"))
 			if err != nil {
 				t.Fatal(err)
