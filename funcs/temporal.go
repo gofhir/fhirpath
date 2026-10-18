@@ -2,7 +2,6 @@ package funcs
 
 import (
 	"errors"
-	"time"
 
 	"github.com/gofhir/fhirpath/eval"
 	"github.com/gofhir/fhirpath/types"
@@ -79,26 +78,25 @@ func init() {
 		Fn:      fnMillisecond,
 	})
 
-	// Override the placeholder functions with real implementations
 	Register(FuncDef{
 		Name:    "now",
 		MinArgs: 0,
 		MaxArgs: 0,
-		Fn:      fnNowReal,
+		Fn:      fnNow,
 	})
 
 	Register(FuncDef{
 		Name:    "today",
 		MinArgs: 0,
 		MaxArgs: 0,
-		Fn:      fnTodayReal,
+		Fn:      fnToday,
 	})
 
 	Register(FuncDef{
 		Name:    "timeOfDay",
 		MinArgs: 0,
 		MaxArgs: 0,
-		Fn:      fnTimeOfDayReal,
+		Fn:      fnTimeOfDay,
 	})
 }
 
@@ -134,19 +132,21 @@ func fnMillisecond(ctx *eval.Context, input types.Collection, args []interface{}
 	return fnMillisecondOf(ctx, input, args)
 }
 
-// fnNowReal returns the current datetime.
-func fnNowReal(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
-	return types.Collection{types.NewDateTimeFromTime(time.Now())}, nil
+// fnNow, fnToday and fnTimeOfDay answer the current date and time from one
+// instant per evaluation, the context's (see eval.Context.Now): now() as a
+// DateTime, today() its date and timeOfDay() its time, in that instant's
+// location, so that timeOfDay() = now().timeOf() and today() = now().toDate()
+// hold, as FHIRPath 3.0.0 has them.
+func fnNow(ctx *eval.Context, _ types.Collection, _ []interface{}) (types.Collection, error) {
+	return types.Collection{types.NewDateTimeFromTime(ctx.Now())}, nil
 }
 
-// fnTodayReal returns the current date.
-func fnTodayReal(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
-	return types.Collection{types.NewDateFromTime(time.Now())}, nil
+func fnToday(ctx *eval.Context, _ types.Collection, _ []interface{}) (types.Collection, error) {
+	return types.Collection{types.NewDateFromTime(ctx.Now())}, nil
 }
 
-// fnTimeOfDayReal returns the current time.
-func fnTimeOfDayReal(_ *eval.Context, input types.Collection, _ []interface{}) (types.Collection, error) {
-	return types.Collection{types.NewTimeFromGoTime(time.Now())}, nil
+func fnTimeOfDay(ctx *eval.Context, _ types.Collection, _ []interface{}) (types.Collection, error) {
+	return types.Collection{types.NewTimeFromGoTime(ctx.Now())}, nil
 }
 
 // temporalMeasure is the shape shared by difference() and duration(): both take

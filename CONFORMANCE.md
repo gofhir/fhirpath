@@ -831,7 +831,14 @@ quantities, `now()`, `today()` and `timeOfDay()`, 3.0.0's component functions
 (`yearOf()` to `millisecondOf()`, `timezoneOffsetOf()`, `dateOf()`,
 `timeOf()`), `duration()` and `difference()`, and the temporal boundaries and
 `precision()`. No gap: the engine answered each case as its text, or as a
-decision recorded before.
+decision recorded before, with one exception found later. `now()`, `today()`
+and `timeOfDay()` read the clock on every call, so one expression could see
+two instants, against "these operators should return the same value
+regardless of how many times they are evaluated within any given expression"
+(2.0.0 and 3.0.0): REQ-DATETIME-035-a, `timeOfDay() = now().timeOf()`, failed
+about once in eight runs. Each evaluation now reads the time once, when one
+of them first asks, and all three answer that instant; `WithNow` or
+`Context.SetNow` fixes it (#225).
 
 Two cases fail on purpose. A Date plus a time unit, `@2014-01-01 + 1 hour`,
 leaves the Date as it is, as fhirpath.js and the HL7 validator both answer,

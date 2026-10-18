@@ -6,6 +6,7 @@ import (
 	"sort"
 	"strconv"
 	"strings"
+	"sync"
 	"time"
 	"unicode/utf16"
 
@@ -90,7 +91,10 @@ type Evaluator struct {
 	funcs FuncRegistry
 }
 
-// Context holds the evaluation state.
+// Context holds the evaluation state. It serves one evaluation at a time: an
+// evaluation writes to it, the instant now() answers among other things, so
+// concurrent evaluations each need their own (Document.Context makes one per
+// evaluation).
 type Context struct {
 	root               types.Collection
 	this               types.Collection
@@ -113,6 +117,69 @@ type Context struct {
 	data               []byte // the root as read by NewContext, to read again under a model's type
 	validJSON          bool   // data was given as already checked. See NewContextForValidJSON.
 	placed             bool   // whether the root is read under a model's type. See placeRoot.
+	clock              *clock // the instant now(), today() and timeOfDay() answer. See Now.
+}
+
+// nowSource is where an evaluation reads the current time from.
+var nowSource = time.Now
+
+// clock is the instant one evaluation answers the current time with, read
+// the first time something asks for it, or fixed by SetNow. It is held by
+// pointer: contexts are copied by value, and the copies an evaluation makes
+// share it.
+type clock struct {
+	once  sync.Once
+	at    time.Time
+	fixed bool
+}
+
+func (c *clock) now() time.Time {
+	if c.fixed {
+		return c.at
+	}
+	c.once.Do(func() { c.at = nowSource() })
+	return c.at
+}
+
+// Now is the instant this evaluation answers now(), today() and timeOfDay()
+// with: "these operators should return the same value regardless of how many
+// times they are evaluated within any given expression" (FHIRPath 2.0.0 and
+// 3.0.0). It is read once per evaluation, the first time one of them asks,
+// unless SetNow fixed it. Outside an evaluation it is the fixed instant, or
+// else the current time. An expression a function evaluates on its own, as
+// a custom function may, is another expression and reads its own instant.
+func (c *Context) Now() time.Time {
+	if c.clock == nil {
+		return nowSource()
+	}
+	return c.clock.now()
+}
+
+// SetNow fixes the instant evaluations on this context answer the current
+// time with, in t's own location, as a caller evaluating against a known
+// time needs. It applies to this context and to copies made after it, and
+// every evaluation on it then answers t. It is meant to be called before
+// evaluating: called partway through an evaluation, the calls before it have
+// answered the evaluation's own instant.
+func (c *Context) SetNow(t time.Time) {
+	c.clock = &clock{at: t, fixed: true}
+}
+
+// startClock gives an evaluation on c an instant of its own, unless SetNow
+// fixed one, and returns what puts back the context's own.
+func startClock(c *Context) (restore func()) {
+	if c.clock != nil && c.clock.fixed {
+		return func() {}
+	}
+	previous := c.clock
+	installed := &clock{}
+	c.clock = installed
+	return func() {
+		// A clock SetNow put in place during the evaluation stays.
+		if c.clock == installed {
+			c.clock = previous
+		}
+	}
 }
 
 // FHIR environment variables with a fixed value, defined by the FHIR
@@ -629,6 +696,7 @@ func NewEvaluator(ctx *Context, funcs FuncRegistry) *Evaluator {
 
 // Evaluate evaluates a parse tree and returns the result.
 func (e *Evaluator) Evaluate(tree antlr.ParseTree) (types.Collection, error) {
+	defer startClock(e.ctx)()
 	result := e.Visit(tree)
 	if err, ok := result.(error); ok {
 		return nil, err
