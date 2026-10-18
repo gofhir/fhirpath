@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.16.3](https://github.com/gofhir/fhirpath/compare/v1.16.2...v1.16.3) (2026-10-18)
+
+
+### Bug Fixes
+
+* ~ pairs a primitive's value with the element beside it ([#206](https://github.com/gofhir/fhirpath/issues/206)) ([22b7251](https://github.com/gofhir/fhirpath/commit/22b72516c40038704357fc36e510b0f7838d54e4)), closes [#175](https://github.com/gofhir/fhirpath/issues/175)
+
 ## [1.16.2](https://github.com/gofhir/fhirpath/compare/v1.16.1...v1.16.2) (2026-10-17)
 
 
