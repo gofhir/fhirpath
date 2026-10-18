@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.16.5](https://github.com/gofhir/fhirpath/compare/v1.16.4...v1.16.5) (2026-10-18)
+
+
+### Bug Fixes
+
+* static analysis gaps and type operators that skip the specifier check ([#211](https://github.com/gofhir/fhirpath/issues/211)) ([97436d1](https://github.com/gofhir/fhirpath/commit/97436d19119d4e648240bcec01003e5b4188a886)), closes [#188](https://github.com/gofhir/fhirpath/issues/188)
+
 ## [1.16.4](https://github.com/gofhir/fhirpath/compare/v1.16.3...v1.16.4) (2026-10-18)
 
 
