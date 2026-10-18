@@ -37,6 +37,39 @@ func TestAnalysisFollowsPathsAsEvaluationDoes(t *testing.T) {
 			// a function that keeps its input's type keeps its path
 			{"Patient", "contact.ofType(BackboneElement).name.exists()", false},
 			{"Patient", "contact.where(name.exists()).first().name.family.exists()", false},
+			// an index is evaluated where the indexer stands, and leaves the
+			// base's path for what follows (#188)
+			{"Patient", "Patient.contact[link.count()].name.exists()", false},
+			{"Patient", "Patient.contact[0].nonexistent.exists()", true},
+			{"Patient", "Patient.contact[nonexistent.count()].name.exists()", true},
+			// a context that is itself a path defined elsewhere
+			{"Questionnaire.item.item", "foo.exists()", true},
+			{"Questionnaire.item.item", "linkId.exists() and item.linkId.exists()", false},
+			// a choice element by its type suffix, under a backbone element too
+			{"Observation", "Observation.component.valueQuantity.exists()", true},
+			{"Questionnaire", "Questionnaire.item.answerOption.valueCoding.exists()", true},
+			{"Observation", "Observation.component.value.ofType(Quantity).exists()", false},
+			{"Observation", "Observation.component.code.coding.exists()", false},
+			// a System value has no elements; a FHIR primitive ofType() or as()
+			// returns has its id and extensions
+			{"Patient", "Patient.name.count().given", true},
+			{"Patient", "Patient.name.exists().value", true},
+			{"", "'a'.length", true},
+			{"Patient", "Patient.name.given.ofType(string).extension.exists()", false},
+			{"Patient", "(Patient.birthDate as date).id.exists()", false},
+			{"Patient", "Patient.name.count().toString().length() > 1", false},
+			{"Patient", "Patient.name.where(given.count() > 1).family.exists()", false},
+			{"Patient", "(5 'mg').value.exists() and '5 mg'.toQuantity().unit.exists()", false},
+			{"Patient", "'a'.upper().length() = 1 and today().toString().length() > 0", false},
+			{"Patient", "Patient.name.where(given[0] = 'x') | Patient.contact[0].telecom[0].system", false},
+			// union() and combine() join items of other types, as | does
+			{"Patient", "'a'.combine(Patient.name.given).extension.exists()", false},
+			{"Patient", "Patient.gender.toString().union(Patient.gender).id.exists()", false},
+			{"Patient", "Patient.name.union(Patient.telecom).system.exists()", false},
+			// aggregate()'s init is read on the outer context
+			{"Patient", "Patient.name.aggregate($total + 1, telecom.count())", false},
+			{"Patient", "Patient.name.count().aggregate($total + $this, name.count())", false},
+			{"Patient", "Patient.name.aggregate($total + 1, nonexistent.count())", true},
 		} {
 			err := fhirpath.MustCompile(tt.expr).Analyze(model.model, tt.context)
 			if (err != nil) != tt.fault {

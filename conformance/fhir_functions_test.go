@@ -292,3 +292,34 @@ func TestAnalysisAcceptsASupertypeAtTheRoot(t *testing.T) {
 		}
 	}
 }
+
+// The is and as operators take a type specifier as is() and as() do: one that
+// resolves to no type is an error, and backticks delimit its parts (#188).
+func TestTypeOperatorsReadTheSpecifierAsTheFunctionsDo(t *testing.T) {
+	for _, tt := range []struct {
+		expr, want string // want "error" for an error
+	}{
+		{"1 is FHIR.Any", "error"},
+		{"1.is(FHIR.Any)", "error"},
+		{"Patient.gender is strng", "error"},
+		{"Patient.gender as strng", "error"},
+		{"Patient.gender.as(strng)", "error"},
+		{"1 is System.`Integer`", "[true]"},
+		{"1.is(System.`Integer`)", "[true]"},
+		{"Patient.gender is FHIR.`code`", "[true]"},
+		{"(Patient.gender as `code`).exists()", "[true]"},
+		{"Patient.gender is code", "[true]"},
+		{"Patient.gender as uri", "[]"},
+		{"{} is strng", "[]"},
+	} {
+		got, err := evaluateIn(t, "r4", tt.expr)
+		switch {
+		case tt.want == "error" && err == nil:
+			t.Errorf("%s = %s, want an error", tt.expr, got)
+		case tt.want != "error" && err != nil:
+			t.Errorf("%s: %v", tt.expr, err)
+		case tt.want != "error" && got != tt.want:
+			t.Errorf("%s = %s, want %s", tt.expr, got, tt.want)
+		}
+	}
+}

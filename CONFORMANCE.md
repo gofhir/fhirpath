@@ -958,6 +958,34 @@ Now it rejects four, each a defect of the specification: `cid-0` names
 `TestCoreConstraintsAnalyze` in `corpusdiff` holds it, over every constraint of
 the core type definitions.
 
+Four gaps closed since, none of which a core constraint met (#188):
+
+- The index of an indexer navigated from its base and left its path there:
+  `Patient.contact[link.count()].name` reported that BackboneElement has no
+  element `name`. The index is now navigated from where the indexer stands,
+  as evaluation reads it, and the base's path carries on.
+- A context that is itself a path defined elsewhere, `Questionnaire.item.item`,
+  was not resolved, so `foo.exists()` there reported nothing. The context is
+  resolved once, as `Questionnaire.item`.
+- A choice element written with its type suffix under a backbone element,
+  `Observation.component.valueQuantity` or
+  `Questionnaire.item.answerOption.valueCoding`, passed, while
+  `Observation.valueQuantity` was rejected. Both are now.
+- An element after a value of a System primitive type, `Patient.name.count().given`
+  or `exists().value`, reported nothing, though such a value has no elements.
+  A literal or a function whose result type is fixed, `count()`, `exists()`,
+  `toString()` and the like, now types its result as a System value, and
+  navigating into one is a fault. A FHIR primitive that `ofType()` or `as()`
+  returns keeps its `id` and extensions, and is not one.
+
+Two false faults went with them. `union()` and `combine()` kept their input's
+type, though the argument's items join it, so `Patient.name.union(Patient.telecom).system`
+reported that HumanName has no element `system`; their result is now of no
+known type, as the `|` operator's is. And `aggregate()`'s `init` was navigated
+from each item, though it is read on the outer context:
+`Patient.name.aggregate($total + 1, telecom.count())` reported that HumanName
+has no element `telecom`.
+
 ## A correction neither suite covers
 
 A prefix on a unit that sits on an affine scale — `mCel`, `kCel`, `cCel` —
@@ -1083,10 +1111,14 @@ published models implement from r4/v1.4.0 — `conformance/version_test.go` chec
 all three, including the root types `Element` and `Resource` that no other method
 on `Model` can recognize, since they have no parent.
 
-Worth noting that fhirpath.js does not validate type specifiers at all — its
-`TypeInfo.isType` walks the hierarchy comparing names, so an unknown name simply
-matches nothing. This is a point where the specification and the conformance
-suite are explicit and the reference implementation is not.
+fhirpath.js 5.2.0 does the same: `1 is FHIR.Any` and `Patient.gender is
+strng` end with "cannot be resolved to a valid type identifier". HL7's Java
+engine answers false. The operators `is` and `as` read their specifier as
+`is()` and `as()` do: up to 1.16.4 the operator form checked no specifier, so
+`1 is FHIR.Any` was false where `1.is(FHIR.Any)` was an error, and kept the
+backticks that delimit a part, so ``1 is System.`Integer` `` was false. Now
+both forms answer alike, as fhirpath.js does; the Java engine answers ``is
+FHIR.`code` `` false on a code too (#188).
 
 ## What was wrong, and why nothing caught it
 

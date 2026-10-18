@@ -159,7 +159,7 @@ func compileOperator(tree antlr.ParseTree) (Node, bool) {
 	case *grammar.TypeExpressionContext:
 		operand := Compile(ctx.Expression())
 		op := operatorOf(ctx)
-		typeName := ctx.TypeSpecifier().GetText()
+		typeName := stripDelimiters(ctx.TypeSpecifier().GetText())
 		return func(e *Evaluator) interface{} {
 			result := operand(e)
 			if err, ok := result.(error); ok {
