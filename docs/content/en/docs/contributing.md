@@ -118,6 +118,23 @@ go test -v -race ./types/
 go test -v -race -run TestEvaluateToBoolean ./...
 ```
 
+### Where Root Tests Live
+
+The root package's tests are grouped by area, one file per area:
+`<area>_test.go`, `<area>_bench_test.go`, and `<area>_<topic>_test.go` when an
+area outgrows one file. The areas are those of
+`conformance/testdata/spec-cases/*.xml` with `-` written `_` (`aggregates`,
+`boolean_logic`, `collections`, `conversions`, `datetime`,
+`equality_comparison`, `existence`, `fhir_functions`, `filtering_projection`,
+`math`, `strings`), plus four for what no specification section covers:
+`navigation`, `typing`, `evaluation` and `api`.
+
+- Tests are black-box (`package fhirpath_test`). Only a test that needs an
+  unexported identifier goes in `internal_test.go` or `internal_bench_test.go`.
+- A helper used by more than one area goes in `helpers_test.go`.
+- A helper a benchmark uses goes in a `*_bench_test.go` file, because
+  `make bench-compare` carries only those files into the baseline it measures.
+
 ## Running Benchmarks
 
 Performance benchmarks live alongside the tests in `*_bench_test.go` files.
@@ -241,7 +258,7 @@ func init() {
 
 ### 4. Write Tests
 
-Add tests in the corresponding `*_test.go` file. Test at minimum:
+Add tests to the file of the function's area (see [Where Root Tests Live](#where-root-tests-live)), or to the `*_test.go` file beside the code in a subpackage. Test at minimum:
 
 - Normal case with expected input
 - Empty input (should return empty collection)

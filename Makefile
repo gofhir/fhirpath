@@ -3,9 +3,10 @@ ANTLR_JAR     := build/antlr-$(ANTLR_VERSION)-complete.jar
 ANTLR_URL     := https://www.antlr.org/download/antlr-$(ANTLR_VERSION)-complete.jar
 GRAMMAR       := grammar/fhirpath.g4
 
-.PHONY: help generate generate-check test test-race bench bench-compare bench-corpus lint conformance spec-sources difftest three-engine corpusdiff clean
+.PHONY: help check generate generate-check test test-race bench bench-compare bench-corpus lint conformance spec-sources difftest three-engine corpusdiff clean
 
 help:
+	@echo "check           Gate a change: generated parser, lint, tests with the race detector"
 	@echo "generate        Regenerate the parser from $(GRAMMAR)"
 	@echo "generate-check  Verify the generated parser matches the grammar"
 	@echo "test            Run the test suite"
@@ -48,6 +49,14 @@ generate-check: $(ANTLR_JAR)
 		|| { rm -rf build/generate-check; echo "parser/grammar is out of date with $(GRAMMAR); run 'make generate'"; exit 1; }
 	@rm -rf build/generate-check
 	@echo "Generated parser is up to date with $(GRAMMAR)"
+
+# Everything a change must pass before it is done. The conformance module runs
+# its tests directly: 'make conformance' pipes into grep, so its exit status is
+# grep's and would hide a failure.
+check: generate-check lint
+	go test -race ./...
+	cd conformance && go test -race ./...
+	cd corpusdiff && go test -race ./...
 
 test:
 	go test ./...
