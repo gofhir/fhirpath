@@ -29,11 +29,27 @@ function readStdin() {
   });
 }
 
+// The environment FHIR's FHIRPath page fixes, at a resource's root, which this
+// engine gives itself and fhirpath.js leaves to its caller: it defines only
+// %ucum and %context, and ends the evaluation on any other variable.
+// %resource and %rootResource are the resource evaluated; fhirpath.js reads a
+// variable with a resourceType as a typed node, as it reads the root.
+// %vs-[name] and %ext-[name] are not given: they are parameterised, and
+// resolving them is the caller's work fhirpath.js does not do.
+function environment(resource) {
+  return {
+    resource,
+    rootResource: resource,
+    sct: 'http://snomed.info/sct',
+    loinc: 'http://loinc.org',
+  };
+}
+
 function evaluateOne(testCase) {
   const model = testCase.model ? models[testCase.model] : undefined;
 
   try {
-    const results = fhirpath.evaluate(testCase.resource, testCase.expression, null, model);
+    const results = fhirpath.evaluate(testCase.resource, testCase.expression, environment(testCase.resource), model);
     return { id: testCase.id, results: results.map(render) };
   } catch (e) {
     return { id: testCase.id, error: String(e && e.message ? e.message : e) };
