@@ -63,6 +63,7 @@ func TestObjectEqualityByContent(t *testing.T) {
 		{"a nested string in another case", `{"code":"a","extension":[{"url":"u","valueString":"X"}]}`, `{"code":"a","extension":[{"url":"u","valueString":"x"}]}`, "false", "true"},
 		{"a Boolean", `{"code":"a","userSelected":true}`, `{"code":"a","userSelected":false}`, "false", "false"},
 		{"a repeat on one side", `{"code":"a","extension":[{"url":"u"},{"url":"u"}]}`, `{"code":"a","extension":[{"url":"u"}]}`, "false", "false"},
+		{"repeats in another order", `{"code":"a","extension":[{"url":"u"},{"url":"v"}]}`, `{"code":"a","extension":[{"url":"v"},{"url":"u"}]}`, "false", "true"},
 		{"a repeat paired twice", `{"code":"a","extension":[{"url":"u"},{"url":"u"}]}`, `{"code":"a","extension":[{"url":"u"},{"url":"v"}]}`, "false", "false"},
 		{"spaces inside a string are content", `{"code":"a , b"}`, `{"code":"a,b"}`, "false", "false"},
 		{"punctuation inside a string", `{"code":"[ 1 ]"}`, `{"code":"[1]"}`, "false", "false"},
@@ -88,8 +89,10 @@ func TestObjectEqualityByContent(t *testing.T) {
 		{"an element against none", `{"given":["x"],"_given":[{"id":"e"}]}`, `{"given":["x"]}`, "false", "false"},
 		{"an element that holds no value", `{"given":["x"],"_given":[{}]}`, `{"given":["x"]}`, "true", "true"},
 		{"an item in another case", `{"given":["X","y"],"_given":[{"id":"E"},null]}`, `{"given":["x","y"],"_given":[{"id":"e"},null]}`, "false", "true"},
-		// in any order, as this engine compares repeats under ~; fhirpath.js
-		// and the Java engine compare them in order and answer false
+		// in any order, as this engine compares repeats under ~, "Comparison is
+		// not order dependent"; fhirpath.js and the Java engine compare them in
+		// order and answer false, though the Java engine answers the same
+		// values compared as collections true (#207)
 		{"items in another order", `{"given":["x","y"],"_given":[null,{"id":"e"}]}`, `{"given":["y","x"],"_given":[{"id":"e"},null]}`, "false", "true"},
 		{"an element alone against a value", `{"given":[null],"_given":[{"id":"e"}]}`, `{"given":["x"]}`, "false", "false"},
 		{"an element on a single value", `{"family":"F","_family":{"id":"e"}}`, `{"_family":{"id":"E"},"family":"f"}`, "false", "true"},
