@@ -79,13 +79,32 @@ func TestObjectEqualityByContent(t *testing.T) {
 		{"a key written twice", `{"code":"a","code":"b"}`, `{"code":"a"}`, "true", "true"},
 		{"a key written twice after a null", `{"code":null,"code":"b"}`, `{"code":"b"}`, "true", "true"},
 		// a primitive's value and the element beside it pair by position under
-		// =. ~ compares the values and the elements apart, each in any order,
-		// so it does not tell the last two apart, where fhirpath.js does; left
-		// unasserted here
+		// =, and under ~ as one item, the items in any order (#175)
 		{"an element beside the same value", `{"given":["x","y"],"_given":[null,{"id":"e"}]}`, `{"_given":[null,{"id":"e"}],"given":["x","y"]}`, "true", "true"},
-		{"an element beside another value", `{"given":["x","y"],"_given":[null,{"id":"e"}]}`, `{"given":["x","y"],"_given":[{"id":"e"},null]}`, "false", ""},
+		// the Java engine compares a primitive by its value alone and answers
+		// true here and for an element against none; see Measured, and not
+		// followed in CONFORMANCE.md
+		{"an element beside another value", `{"given":["x","y"],"_given":[null,{"id":"e"}]}`, `{"given":["x","y"],"_given":[{"id":"e"},null]}`, "false", "false"},
+		{"an element against none", `{"given":["x"],"_given":[{"id":"e"}]}`, `{"given":["x"]}`, "false", "false"},
 		{"an element that holds no value", `{"given":["x"],"_given":[{}]}`, `{"given":["x"]}`, "true", "true"},
-		{"an element where the value is null", `{"given":[null,"y"],"_given":[{"id":"e"},null]}`, `{"given":["y"],"_given":[{"id":"e"}]}`, "false", ""},
+		{"an item in another case", `{"given":["X","y"],"_given":[{"id":"E"},null]}`, `{"given":["x","y"],"_given":[{"id":"e"},null]}`, "false", "true"},
+		// in any order, as this engine compares repeats under ~; fhirpath.js
+		// and the Java engine compare them in order and answer false
+		{"items in another order", `{"given":["x","y"],"_given":[null,{"id":"e"}]}`, `{"given":["y","x"],"_given":[{"id":"e"},null]}`, "false", "true"},
+		{"an element alone against a value", `{"given":[null],"_given":[{"id":"e"}]}`, `{"given":["x"]}`, "false", "false"},
+		{"an element on a single value", `{"family":"F","_family":{"id":"e"}}`, `{"_family":{"id":"E"},"family":"f"}`, "false", "true"},
+		{"a quantity in an element in another unit", `{"given":["x"],"_given":[{"extension":[{"url":"u","valueQuantity":{"value":1,"unit":"g","system":"http://unitsofmeasure.org","code":"g"}}]}]}`, `{"given":["x"],"_given":[{"extension":[{"url":"u","valueQuantity":{"value":1000,"unit":"mg","system":"http://unitsofmeasure.org","code":"mg"}}]}]}`, "false", "true"},
+		// = reads no item there, a question of its own; left unasserted
+		{"an empty element beside a null is an item", `{"given":[null,"y"],"_given":[{},null]}`, `{"given":["y"]}`, "", "false"},
+		// in any order and in another case; fhirpath.js and the Java engine
+		// compare in order and answer false
+		{"empty elements beside nulls pair", `{"given":[null,"y"],"_given":[{},null]}`, `{"given":["Y",null],"_given":[null,{}]}`, "false", "true"},
+		{"another child beside an element", `{"given":["x"],"_given":[{"id":"e"}],"text":"a"}`, `{"given":["x"],"_given":[{"id":"e"}],"text":"A"}`, "false", "true"},
+		{"a child on one side beside an element", `{"given":["x"],"_given":[{"id":"e"}]}`, `{"given":["x"],"_given":[{"id":"e"}],"suffix":["a"]}`, "false", "false"},
+		// items written alike pair first, as values alone do: 1 ~ 0.6 holds,
+		// rounded to the less precise, and would leave 0.6 without a pair
+		{"decimals with elements alike", `{"x":[1,0.6],"_x":[{"id":"e"},{"id":"e"}]}`, `{"x":[0.6,1.4],"_x":[{"id":"e"},{"id":"e"}]}`, "false", "true"},
+		{"an element where the value is null", `{"given":[null,"y"],"_given":[{"id":"e"},null]}`, `{"given":["y"],"_given":[{"id":"e"}]}`, "false", "false"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			data := codingsAt(tc.first, tc.second)
