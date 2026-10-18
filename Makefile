@@ -19,7 +19,7 @@ help:
 	@echo "spec-sources    Fetch the pinned specification texts the spec cases quote"
 	@echo "difftest        Compare this engine's answers against fhirpath.js"
 	@echo "three-engine    Compare a BATTERY across this engine, fhirpath.js and HL7's Java engine (HL7_VALIDATOR_JAR)"
-	@echo "extension-shortcut  Compare extension(url) with .extension.where(url = ...) over the official examples"
+	@echo "extension-shortcut  Check extension(url) and getExtensionValue(url) over the official examples"
 	@echo "corpusdiff      Compare this tree's answers over the FHIR examples against BASE"
 	@echo "conformance-update  Re-baseline the conformance known-failures lists"
 	@echo "clean           Remove build artifacts"
@@ -61,9 +61,10 @@ check: generate-check lint
 
 # FHIR defines extension(url) as a shortcut for .extension.where(url = url);
 # this checks the two agree, items and types, over every official example of
-# R4, R4B and R5. Takes several minutes.
+# R4, R4B and R5, and that getExtensionValue(url) answers the values the JSON
+# holds. Takes several minutes.
 extension-shortcut:
-	cd corpusdiff && go test -count=1 -timeout 60m -run TestExtensionIsItsWhereOverTheExamples -v .
+	cd corpusdiff && go test -count=1 -timeout 60m -run 'TestExtensionIsItsWhereOverTheExamples|TestGetExtensionValueAnswersAsTheJSONHoldsIt|TestTheModelAllowsTheExtensionValuesTheDefinitionDoes' -v .
 
 test:
 	go test ./...

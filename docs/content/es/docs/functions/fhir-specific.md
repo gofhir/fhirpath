@@ -92,7 +92,7 @@ result, _ := fhirpath.Evaluate(patient,
 
 ## getExtensionValue
 
-Devuelve el valor de las extensiones que coinciden con la URL dada. Extrae el elemento `value[x]` de cada extension coincidente.
+Devuelve el valor de las extensiones con la URL dada: lo mismo que `extension(url).value`. No es parte de la página FHIRPath de FHIR; es una extensión de este motor, mantenida por comodidad. En expresiones que deban correr en otros motores, prefiera `extension(url).value`.
 
 **Firma:**
 ```
@@ -116,7 +116,7 @@ result, _ := fhirpath.Evaluate(patient,
 
 result, _ := fhirpath.Evaluate(patient,
     "Patient.getExtensionValue('http://example.org/fhir/StructureDefinition/score')")
-// Returns the value (e.g., a Decimal or Integer) from the score extension
+// Returns the value (e.g., a decimal or integer) from the score extension
 
 result, _ := fhirpath.Evaluate(patient,
     "Patient.getExtensionValue('http://example.org/fhir/StructureDefinition/preferred-language')")
@@ -124,10 +124,10 @@ result, _ := fhirpath.Evaluate(patient,
 ```
 
 **Casos Limite / Notas:**
-- Busca campos `value[x]` en cada objeto de extension coincidente. Los nombres de campo de valor soportados incluyen:
-  `valueString`, `valueBoolean`, `valueInteger`, `valueDecimal`, `valueDate`, `valueDateTime`, `valueTime`, `valueCode`, `valueCoding`, `valueCodeableConcept`, `valueQuantity`, `valueReference`, `valueIdentifier`, `valuePeriod`, `valueRange`, `valueRatio`, `valueAttachment`, `valueUri`, `valueUrl`, `valueCanonical`.
-- Devuelve solo el primer campo `value[x]` encontrado para cada extension (en el orden listado arriba).
-- Devuelve una coleccion vacia si ninguna extension coincide o si las extensiones no tienen valor.
+- El valor se lee como la navegación lee `value[x]`: con un modelo se encuentra cada tipo que permite el `Extension.value[x]` de la versión (50 en R4, 51 en R4B, 54 en R5), con ese tipo (`string`, `positiveInt`, `CodeableReference`…). Sin modelo, los tipos se deducen del nombre del campo, y los que la navegación aún no conoce no se encuentran.
+- La url se toma como la toma `extension(url)`: una url vacía da una colección vacía; una url de varios elementos, o que no es un String, termina la evaluación.
+- Devuelve una colección vacía si ninguna extensión coincide o si las extensiones no tienen valor; una extensión de extensiones no tiene valor propio.
+- **Cambio de comportamiento (#218):** antes solo se buscaban 20 nombres `value[x]` y el valor volvía sin tipo, así que `getExtensionValue(url) is String` era verdadero para un `valueString`. Ahora es un `string` FHIR: escriba `is string` o `is FHIR.string`.
 
 ---
 

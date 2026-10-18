@@ -498,40 +498,17 @@ func fnHasExtension(ctx *eval.Context, input types.Collection, args []interface{
 	return types.Collection{types.NewBoolean(!extensions.Empty())}, nil
 }
 
-// fnGetExtensionValue returns the value of extensions matching the given URL.
+// fnGetExtensionValue returns the value of the extensions with the given url:
+// this engine's own function, not FHIR's, and the same as
+// extension(url).value. The value is read as navigation reads value[x], so
+// with a model it is found and typed by the types the version's Extension
+// allows, with no list of them here.
 func fnGetExtensionValue(ctx *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
 	extensions, err := fnExtension(ctx, input, args)
 	if err != nil {
 		return nil, err
 	}
-
-	result := types.Collection{}
-
-	for _, ext := range extensions {
-		extObj, ok := ext.(*types.ObjectValue)
-		if !ok {
-			continue
-		}
-
-		// Look for value[x] fields
-		valueFields := []string{
-			"valueString", "valueBoolean", "valueInteger", "valueDecimal",
-			"valueDate", "valueDateTime", "valueTime", "valueCode",
-			"valueCoding", "valueCodeableConcept", "valueQuantity",
-			"valueReference", "valueIdentifier", "valuePeriod",
-			"valueRange", "valueRatio", "valueAttachment",
-			"valueUri", "valueUrl", "valueCanonical",
-		}
-
-		for _, field := range valueFields {
-			if val, ok := extObj.Get(field); ok {
-				result = append(result, val)
-				break
-			}
-		}
-	}
-
-	return result, nil
+	return ctx.Member(extensions, "value"), nil
 }
 
 // fnGetReferenceKey extracts the resource type and ID from a reference.
