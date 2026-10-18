@@ -10,8 +10,8 @@ description: >
 ## Patrón Compilar Una Vez
 
 La optimización individual más impactante es **compilar cada expresión una vez** y
-reutilizar el objeto `*Expression` resultante. El análisis es 10-50 veces más costoso que
-la evaluación.
+reutilizar el objeto `*Expression` resultante. El análisis cuesta unas cuantas veces lo que
+cuesta evaluar contra un recurso pequeño: ver [Caché de Expresiones](../caching/).
 
 ### Malo: Compilar en Cada Llamada
 
@@ -26,8 +26,9 @@ for _, resource := range resources {
 }
 ```
 
-`fhirpath.Evaluate()` llama a `Compile()` internamente cada vez. Para un bucle sobre
-10 000 recursos, paga el costo de análisis 10 000 veces.
+`fhirpath.Evaluate()` busca la expresión en `DefaultCache` en cada llamada, un lock y una
+búsqueda en un mapa, y la analiza de nuevo cada vez que la caché, limitada a 1000
+expresiones, la ha descartado.
 
 ### Bueno: Compilar Una Vez, Evaluar Muchas
 

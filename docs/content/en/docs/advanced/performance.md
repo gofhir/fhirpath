@@ -10,8 +10,8 @@ description: >
 ## Compile Once Pattern
 
 The single most impactful optimization is to **compile each expression once** and
-reuse the resulting `*Expression` object. Parsing is 10-50x more expensive than
-evaluation.
+reuse the resulting `*Expression` object. Parsing costs a few times what evaluating
+against a small resource does: see [Expression Caching](../caching/).
 
 ### Bad: Compile on Every Call
 
@@ -26,8 +26,9 @@ for _, resource := range resources {
 }
 ```
 
-`fhirpath.Evaluate()` calls `Compile()` internally every time. For a loop over
-10 000 resources, you pay the parse cost 10 000 times.
+`fhirpath.Evaluate()` looks the expression up in `DefaultCache` on every call, a
+lock and a map lookup, and parses it again whenever the cache, bounded at 1000
+expressions, has dropped it.
 
 ### Good: Compile Once, Evaluate Many
 

@@ -10,13 +10,16 @@ description: >
 ## Por Qué Cachear Expresiones
 
 Cada expresión FHIRPath debe ser **analizada** en un AST antes de poder evaluarse.
-El análisis involucra análisis léxico y coincidencia gramatical, lo cual es órdenes de magnitud
-más costoso que la subsecuente evaluación por recorrido del árbol.
+El análisis involucra análisis léxico y coincidencia gramatical, lo cual cuesta más que
+evaluar la expresión compilada contra un recurso pequeño, y se paga de nuevo en cada
+llamada que compila.
 
 ```text
-Compile("Patient.name.family")   ~250 us   (parse + build AST)
-expr.Evaluate(resource)          ~5 us     (walk the cached AST)
+Compile("Patient.name.given")    ~3.5 µs  (parse + build AST)
+expr.Evaluate(resource)          ~2 µs   (un Patient pequeño, JSON crudo)
 ```
+
+Una expresión de la suite oficial R4 tarda unos 6 µs en compilarse, sin caché.
 
 En un servidor FHIR® típico evaluará el mismo puñado de expresiones (restricciones de
 validación, parámetros de búsqueda, reglas de extracción) millones de veces contra diferentes

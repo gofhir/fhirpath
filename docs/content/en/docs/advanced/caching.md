@@ -10,13 +10,16 @@ description: >
 ## Why Cache Expressions
 
 Every FHIRPath expression must be **parsed** into an AST before it can be evaluated.
-Parsing involves lexical analysis and grammar matching, which is orders of magnitude
-more expensive than the subsequent tree-walk evaluation.
+Parsing involves lexical analysis and grammar matching, which costs more than
+evaluating the compiled expression against a small resource, and is paid again on
+every call that compiles.
 
 ```text
-Compile("Patient.name.family")   ~250 us   (parse + build AST)
-expr.Evaluate(resource)          ~5 us     (walk the cached AST)
+Compile("Patient.name.given")    ~3.5 µs  (parse + build AST)
+expr.Evaluate(resource)          ~2 µs   (a small Patient, raw JSON)
 ```
+
+An expression of the official R4 suite takes about 6 µs to compile, uncached.
 
 In a typical FHIR® server you will evaluate the same handful of expressions (validation
 constraints, search parameters, extraction rules) millions of times against different
