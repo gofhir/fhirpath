@@ -2301,7 +2301,7 @@ func (e *Evaluator) VisitTypeExpression(ctx *grammar.TypeExpressionContext) inte
 	leftCol := left.(types.Collection)
 
 	return e.applyTypeOperator(leftCol,
-		ctx.GetChild(1).(antlr.TerminalNode).GetText(), ctx.TypeSpecifier().GetText())
+		ctx.GetChild(1).(antlr.TerminalNode).GetText(), stripDelimiters(ctx.TypeSpecifier().GetText()))
 }
 
 // applyTypeOperator applies the 'is' and 'as' operators.
@@ -2310,14 +2310,22 @@ func (e *Evaluator) applyTypeOperator(leftCol types.Collection, op, typeName str
 		return types.Collection{}
 	}
 
+	// The operators take a type specifier as is() and as() do, the same name
+	// resolving to a type, checked in the same order
 	switch op {
 	case "is":
 		// is requires singleton input — returns a boolean
 		if len(leftCol) != 1 {
 			return SingletonError(len(leftCol))
 		}
+		if err := e.checkTypeSpecifier(op, typeName); err != nil {
+			return err
+		}
 		return types.Collection{types.NewBoolean(ValueTypeMatches(leftCol[0], typeName, e.ctx.model))}
 	case "as":
+		if err := e.checkTypeSpecifier(op, typeName); err != nil {
+			return err
+		}
 		if err := e.checkAsSingleton(leftCol); err != nil {
 			return err
 		}

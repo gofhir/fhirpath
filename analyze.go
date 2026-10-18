@@ -52,6 +52,10 @@ func (e *Expression) Analyze(model Model, contextType string) error {
 		return nil
 	}
 
+	// A context that is itself a path defined elsewhere, Questionnaire.item.item,
+	// is analyzed as the path it stands for
+	contextType = model.ResolvePath(contextType)
+
 	fhirTypes, _ := model.(FHIRTypes)
 	a := &analyzer{model: model, fhirTypes: fhirTypes, source: e.source, path: contextType}
 	_, err := a.expression(e.tree.Expression(), contextType)
@@ -97,13 +101,13 @@ func (a *analyzer) expression(node grammar.IExpressionContext, contextType strin
 		}
 		operator := expr.GetChild(1).(interface{ GetText() string }).GetText()
 		if operator == "is" {
-			return types.TypeNameBoolean, nil
+			return systemValue(types.TypeNameBoolean), nil
 		}
 
 		// as narrows to the type it names, which is what the rest of the
 		// expression then navigates from
 		if specifier := expr.TypeSpecifier(); specifier != nil {
-			return strings.Trim(strings.TrimPrefix(specifier.GetText(), "FHIR."), "`"), nil
+			return specifiedType(specifier.GetText()), nil
 		}
 		return unknownType, nil
 	}
@@ -151,11 +155,19 @@ func (a *analyzer) invocationExpression(expr *grammar.InvocationExpressionContex
 // indexerExpression walks `expr[index]`, which reads by position and so carries
 // the same constraint a positional function does.
 func (a *analyzer) indexerExpression(expr *grammar.IndexerExpressionContext, contextType string) (string, error) {
+	// The index is evaluated where the indexer stands, not on its base, and
+	// leaves the base's path for what follows: Patient.contact[link.count()]
+	// goes on from Patient.contact
+	scope := a.path
 	base, err := a.expression(expr.Expression(0), contextType)
 	if err != nil {
 		return unknownType, err
 	}
-	if _, err := a.expression(expr.Expression(1), contextType); err != nil {
+	basePath := a.path
+	a.path = scope
+	_, err = a.expression(expr.Expression(1), contextType)
+	a.path = basePath
+	if err != nil {
 		return unknownType, err
 	}
 	if err := a.checkOrderDependence(expr.Expression(0), "an indexer"); err != nil {
@@ -215,18 +227,18 @@ func (a *analyzer) term(node grammar.ITermContext, contextType string) (string, 
 func (a *analyzer) literalType(node grammar.ILiteralContext) string {
 	switch node.(type) {
 	case *grammar.BooleanLiteralContext:
-		return types.TypeNameBoolean
+		return systemValue(types.TypeNameBoolean)
 	case *grammar.StringLiteralContext:
-		return types.TypeNameString
+		return systemValue(types.TypeNameString)
 	case *grammar.NumberLiteralContext:
 		// Integer and Decimal share a literal form; neither is navigated into
 		return unknownType
 	case *grammar.DateLiteralContext:
-		return types.TypeNameDate
+		return systemValue(types.TypeNameDate)
 	case *grammar.DateTimeLiteralContext:
-		return types.TypeNameDateTime
+		return systemValue(types.TypeNameDateTime)
 	case *grammar.TimeLiteralContext:
-		return types.TypeNameTime
+		return systemValue(types.TypeNameTime)
 	case *grammar.QuantityLiteralContext:
 		return types.TypeNameQuantity
 	}
@@ -264,6 +276,14 @@ func (a *analyzer) member(name, inputType string) (string, error) {
 		return unknownType, nil
 	}
 
+	// A value of a System primitive type, which a literal or a function such
+	// as count() returns, has no elements: Patient.name.count().given names
+	// nothing. A FHIR primitive that ofType() or as() returns has its id and
+	// extensions, and is not one
+	if primitive, ok := strings.CutPrefix(inputType, systemPrefix); ok {
+		return unknownType, a.fault("%s has no element %s: a System %s has no elements", primitive, name, primitive)
+	}
+
 	if a.restatesContext(name, inputType) {
 		a.path = inputType
 		return inputType, nil
@@ -274,6 +294,14 @@ func (a *analyzer) member(name, inputType string) (string, error) {
 	// Questionnaire.item, and TestReport.test.action's operation by
 	// TestReport.setup.action's
 	if a.path != "" && a.path != inputType {
+		// Under a backbone element too, a choice element is navigated through
+		// ofType(): Observation.component.valueQuantity is value[x] spelled
+		// as the JSON spells it
+		if base, ok := a.choiceBase(a.model.ResolvePath(a.path), name); ok {
+			return unknownType, a.fault(
+				"%s.%s names a choice element by its type suffix; write %s.ofType(...) instead",
+				a.path, name, base)
+		}
 		path := a.model.ResolvePath(a.model.ResolvePath(a.path) + "." + name)
 		if resolved := a.typeOf(path); resolved != "" {
 			a.path = path
@@ -410,14 +438,19 @@ func (a *analyzer) function(node grammar.IFunctionContext, inputType, contextTyp
 	switch name {
 	// The input passes through unchanged
 	case "where", "first", "last", "tail", "skip", "take", "single",
-		"distinct", "intersect", "exclude", "union", "combine", "trace",
+		"distinct", "intersect", "exclude", "trace",
 		"checkModifiers", "slice":
 		return inputType, nil
+
+	// The argument's items join the input's, which may be of another type, as
+	// the | operator's do: 'a'.combine(name.given) holds FHIR strings too
+	case "union", "combine":
+		return unknownType, nil
 
 	// A type is named in the call, and the result takes it
 	case "ofType", "as":
 		if len(args) == 1 {
-			return strings.Trim(strings.TrimPrefix(args[0].GetText(), "FHIR."), "`"), nil
+			return specifiedType(args[0].GetText()), nil
 		}
 		return unknownType, nil
 
@@ -429,23 +462,23 @@ func (a *analyzer) function(node grammar.IFunctionContext, inputType, contextTyp
 		"convertsToString", "convertsToDate", "convertsToDateTime",
 		"convertsToTime", "convertsToQuantity", "convertsToLong", "conformsTo", "memberOf",
 		"subsumes", "subsumedBy", "htmlChecks", "comparable":
-		return types.TypeNameBoolean, nil
+		return systemValue(types.TypeNameBoolean), nil
 
 	case "count", "length", "indexOf", "lastIndexOf", "toInteger", "toLong", "precision":
-		return types.TypeNameInteger, nil
+		return systemValue(types.TypeNameInteger), nil
 
 	case "toString", "join", "substring", "upper", "lower", "replace",
 		"replaceMatches", "trim", "encode", "decode", "escape", "unescape":
-		return types.TypeNameString, nil
+		return systemValue(types.TypeNameString), nil
 
 	case "toQuantity":
 		return types.TypeNameQuantity, nil
 	case "toDate":
-		return types.TypeNameDate, nil
+		return systemValue(types.TypeNameDate), nil
 	case "toDateTime":
-		return types.TypeNameDateTime, nil
+		return systemValue(types.TypeNameDateTime), nil
 	case "toTime":
-		return types.TypeNameTime, nil
+		return systemValue(types.TypeNameTime), nil
 
 	// resolve() lands on whatever the reference points at
 	case "resolve", "extension", "select", "repeat", "repeatAll",
@@ -454,6 +487,25 @@ func (a *analyzer) function(node grammar.IFunctionContext, inputType, contextTyp
 	}
 
 	return unknownType, nil
+}
+
+// systemPrefix marks the type of a value of a System primitive type, which
+// a literal or a function such as count() returns, apart from a FHIR
+// primitive that ofType() or as() names by the same word: the first has no
+// elements, the second its id and extensions.
+const systemPrefix = "System."
+
+// systemValue is the analysis type of a value of a System primitive type.
+func systemValue(typeName string) string {
+	return systemPrefix + typeName
+}
+
+// specifiedType is the type a type specifier names, as the model knows it:
+// without its namespace or the backticks that delimit its parts.
+func specifiedType(specifier string) string {
+	name := strings.ReplaceAll(specifier, "`", "")
+	name = strings.TrimPrefix(name, "FHIR.")
+	return strings.TrimPrefix(name, systemPrefix)
 }
 
 // functionArguments lists the expressions passed to a call.
@@ -509,10 +561,15 @@ func (a *analyzer) checkFunctionArguments(name string, args []grammar.IExpressio
 	}
 
 	// Each argument starts where the call sits: iif's criterion navigating
-	// resource.meta.versionId leaves its result to start from there too
-	for _, arg := range args {
-		a.path = argumentPath
-		if _, err := a.expression(arg, argumentScope); err != nil {
+	// resource.meta.versionId leaves its result to start from there too.
+	// aggregate()'s init is read on the outer context, not on each item
+	for i, arg := range args {
+		scope, path := argumentScope, argumentPath
+		if name == "aggregate" && i == 1 {
+			scope, path = contextType, callerPath
+		}
+		a.path = path
+		if _, err := a.expression(arg, scope); err != nil {
 			return err
 		}
 	}
