@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<tests name="fhir-functions" description="What FHIR's FHIRPath page (R4 and R5) adds to the language: extension(url), hasValue(), getValue(), the FHIR type model (primitives with a value child, the primitive-to-System mapping, resource names and supertypes at the root, contained resources), resolve(), conformsTo(), memberOf(), subsumes(), subsumedBy(), htmlChecks(), checkModifiers(), elementDefinition(), slice(), comparable(), lowBoundary() and highBoundary() on decimals, the variables %resource, %rootResource, %context, %ucum, %sct, %loinc and %vs-[name], and trace() from the FHIRPath specification. Only what the text settles without a terminology server, a reference resolver or profiles is covered: no case asks whether a code is a member of a value set, whether a resource conforms to a profile, what a slice or element definition contains, whether a reference resolves, or whether a narrative passes the HTML rules. Where the R4 and R5 pages differ (hasValue(), getValue(), conformsTo(), memberOf(), subsumes(), htmlChecks(), checkModifiers(), slice()) the cases are per version. Left out because the text does not settle them: hasValue() and getValue() outside a single valued primitive under R4, %resource inside a contained resource, the value of %sct, %loinc and %ext-[name], whether a reference '1' resolves to a contained resource with id 1, the order in which a function checks its input and its arguments, lowBoundary() and highBoundary() on dates, integers and Quantities (R5's page lists Quantity among the types, 3.0.0 does not), whether getValue() of a FHIR.date is a System.DateTime or a System.Date, conformsTo() on an empty input under R4, subsumes() and subsumedBy() across code systems, and the FHIR Quantity without a UCUM code. Also left out: ofType() on FHIR types (filtering-projection area), equivalence on Coding and CodeableConcept and the Quantity mapping (equality-comparison area), the restricted subset, lowBoundary() and highBoundary() with a precision argument (3.0.0's utility functions), and R5's draft %factory, %terminologies and %server APIs.">
+<tests name="fhir-functions" description="What FHIR's FHIRPath page (R4 and R5) adds to the language: extension(url), hasValue(), getValue(), the FHIR type model (primitives with a value child, the primitive-to-System mapping, resource names and supertypes at the root, contained resources), resolve(), conformsTo(), memberOf(), subsumes(), subsumedBy(), htmlChecks(), checkModifiers(), elementDefinition(), slice(), comparable(), lowBoundary() and highBoundary() on decimals, the variables %resource, %rootResource, %context, %ucum, %sct, %loinc and %vs-[name], and trace() from the FHIRPath specification. Only what the text settles without a terminology server, a reference resolver or profiles is covered: no case asks whether a code is a member of a value set, whether a resource conforms to a profile, what a slice or element definition contains, whether a reference resolves, or whether a narrative passes the HTML rules. Where the R4 and R5 pages differ (hasValue(), getValue(), conformsTo(), memberOf(), subsumes(), htmlChecks(), checkModifiers(), slice()) the cases are per version. Left out because the text does not settle them: hasValue() and getValue() outside a single valued primitive under R4, %resource inside a contained resource, the value of %sct, %loinc and %ext-[name], whether a reference '1' resolves to a contained resource with id 1, the order in which a function checks its input and its arguments, lowBoundary() and highBoundary() on dates, integers and Quantities (R5's page lists Quantity among the types, 3.0.0 does not), whether getValue() of a FHIR.date is a System.DateTime or a System.Date, conformsTo() on an empty input under R4, subsumes() and subsumedBy() across code systems, and the FHIR Quantity without a UCUM code, whether the value of an extension declared as valueAge is a FHIR.Age, a FHIR.Quantity or both (only the agreement of extension(url) with .extension.where(url = ...) is tested), and extension(url) on System values. No suite input has an extension nested in another extension, so nested extensions are tested only where the chain is empty. Also left out: ofType() on FHIR types (filtering-projection area), equivalence on Coding and CodeableConcept and the Quantity mapping (equality-comparison area), the restricted subset, lowBoundary() and highBoundary() with a precision argument (3.0.0's utility functions), and R5's draft %factory, %terminologies and %server APIs.">
 
   <group name="REQ-FHIRFUNCTIONS-001" description="extension(url) returns the extensions of the input items whose url is the given one, as .extension.where(url = string) does">
     <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">Will filter the input collection for items named "extension" with the given url. This is a syntactical shortcut for .extension.where(url = string) , but is simpler to write.</source>
@@ -35,10 +35,15 @@
   <group name="REQ-FHIRFUNCTIONS-004" description="extension(url) is empty when the input is empty or the url is empty">
     <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">Will return an empty collection if the input collection is empty or the url is empty.</source>
     <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">Will return an empty collection if the input collection is empty or the url is empty.</source>
+    <source spec="fhir-r4" section="2.9.1.4 FHIR Specific Variables" strength="DEFINITION">%resource // the resource that contains the original node that is in %context</source>
+    <source spec="fhir-r5" section="2.1.9.1.4 FHIR Specific Variables" strength="DEFINITION">%resource // the resource that contains the original node that is in %context</source>
+    <source spec="fhirpath-3.0.0" section="count() : Integer" strength="DEFINITION">Returns the integer count of the number of items in the input collection. Returns 0 when the input collection is empty.</source>
     <test name="REQ-FHIRFUNCTIONS-004-a" inputfile="patient-example.xml"><expression>Patient.link.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime')</expression></test>
     <test name="REQ-FHIRFUNCTIONS-004-b"><expression>{}.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime')</expression></test>
     <test name="REQ-FHIRFUNCTIONS-004-c" inputfile="patient-example.xml"><expression>Patient.birthDate.extension({})</expression></test>
     <test name="REQ-FHIRFUNCTIONS-004-d" inputfile="patient-example.xml"><expression>Patient.birthDate.extension('')</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-004-e" inputfile="patient-example.xml"><expression>Patient.birthDate.extension(%resource.link.other.reference)</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-004-f" inputfile="patient-example.xml"><expression>Patient.photo.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').count()</expression><output type="integer">0</output></test>
   </group>
 
   <group name="REQ-FHIRFUNCTIONS-005" description="A FHIR primitive compares as its value and also has extensions, so the page's two examples (the value of a primitive, the value of its extension) can both hold for the same element; shown on the example Patient's contact family name, which has a value and an extension">
@@ -596,6 +601,247 @@ HTML usage are met, and false if they are not.</source>
     <source spec="fhirpath-2.0.0" section="| (union collections)" strength="DEFINITION">Merge the two collections into a single collection, eliminating any duplicate values (using &lt;&lt;equals&gt;&gt; (`=`)) to determine equality).</source>
     <test name="REQ-FHIRFUNCTIONS-056-a"><expression invalid="execution">(1.0 | 2.0).lowBoundary()</expression></test>
     <test name="REQ-FHIRFUNCTIONS-056-b"><expression invalid="execution">(1.0 | 2.0).highBoundary()</expression></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-057" description="The items extension(url) returns are the extension elements themselves, of type FHIR.Extension: is(FHIR.Extension) is true, ofType(FHIR.Extension) keeps them, as(FHIR.Extension) returns them, and they are not of the type of the primitive that carries them; the cases presume the logical view's type Extension for the extension element, which the FHIRPath page points to but does not restate">
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">Will filter the input collection for items named "extension" with the given url. This is a syntactical shortcut for .extension.where(url = string) , but is simpler to write.</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">Will filter the input collection for items named "extension" with the given url. This is a syntactical shortcut for .extension.where(url = string) , but is simpler to write.</source>
+    <source spec="fhir-r4" section="2.9.1 Using FHIRPath with Resources" strength="DEFINITION">For FHIR, this means that the contents of the resources and data
+types as described in the Logical views (or the UML diagrams) are used as the model,
+rather than the JSON and XML formats, so specific xml or json features are not
+visible to the FHIRPath language (such as comments and the split representation
+of primitives).</source>
+    <source spec="fhir-r5" section="2.1.9.1 Using FHIRPath with Resources" strength="DEFINITION">For FHIR, this means that the contents of the resources and data
+types as described in the Logical views (or the UML diagrams) are used as the model,
+rather than the JSON and XML formats, so specific xml or json features are not
+visible to the FHIRPath language (such as comments and the split representation
+of primitives).</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The namespace for the types defined in FHIR (primitive data types, data types, resources) is
+FHIR.</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The namespace for the types defined in FHIR (primitive datatypes, datatypes, resources) is
+FHIR.</source>
+    <source spec="fhirpath-3.0.0" section="is _type specifier_" strength="DEFINITION">If the left operand is a collection with a single item and the second operand is a type identifier, this operator returns `true` if the type of the left operand is the type specified in the second operand, or a subclass thereof. If the input value is not of the type, this operator returns `false`.</source>
+    <source spec="fhirpath-3.0.0" section="ofType(type : _type specifier_) : collection" strength="DEFINITION">Returns a collection that contains all items in the input collection that are of the given type or a subclass thereof.</source>
+    <source spec="fhirpath-3.0.0" section="as _type specifier_" strength="DEFINITION">If the left operand is a collection with a single item and the second operand is an identifier, this operator returns the value of the left operand if it is of the type specified in the second operand, or a subclass thereof.</source>
+    <test name="REQ-FHIRFUNCTIONS-057-a" inputfile="patient-example.xml"><expression>Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').is(FHIR.Extension)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-057-b" inputfile="patient-example.xml"><expression>Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').ofType(FHIR.Extension).count()</expression><output type="integer">1</output></test>
+    <test name="REQ-FHIRFUNCTIONS-057-c" inputfile="patient-example.xml"><expression>Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').as(FHIR.Extension).url = 'http://hl7.org/fhir/StructureDefinition/patient-birthTime'</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-057-d" inputfile="patient-example.xml"><expression>Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').is(FHIR.date)</expression><output type="boolean">false</output></test>
+    <test name="REQ-FHIRFUNCTIONS-057-e" inputfile="patient-example.xml"><expression>Patient.contact.name.family.extension('http://hl7.org/fhir/StructureDefinition/humanname-own-prefix').is(FHIR.Extension)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-057-f" inputfile="observation-example.xml"><expression>Observation.extension('http://example.com/fhir/StructureDefinition/patient-age').is(FHIR.Extension)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-057-g" inputfile="valueset-example-expansion.xml"><expression>ValueSet.expansion.extension('http://hl7.org/fhir/StructureDefinition/valueset-expansionSource').ofType(FHIR.Extension).count()</expression><output type="integer">1</output></test>
+    <test name="REQ-FHIRFUNCTIONS-057-h" inputfile="patient-name-extensions.json"><expression>Patient.name.given[0].extension('https://example.org/syllable-count').is(FHIR.Extension)</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-058" description="Because extension(url) is a shortcut for .extension.where(url = string), a type test on its items, their url or their value gives the same answer as on the items of the long form, whatever that answer is (this settles nothing about which types they have, only that the two forms agree)">
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">This is a syntactical shortcut for .extension.where(url = string) , but is simpler to write.</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">This is a syntactical shortcut for .extension.where(url = string) , but is simpler to write.</source>
+    <source spec="fhirpath-3.0.0" section="is _type specifier_" strength="DEFINITION">If the left operand is a collection with a single item and the second operand is a type identifier, this operator returns `true` if the type of the left operand is the type specified in the second operand, or a subclass thereof. If the input value is not of the type, this operator returns `false`.</source>
+    <source spec="fhirpath-3.0.0" section="ofType(type : _type specifier_) : collection" strength="DEFINITION">Returns a collection that contains all items in the input collection that are of the given type or a subclass thereof.</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="DEFINITION">`Boolean`: values must be the same</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="DEFINITION">`Integer`: values must be exactly equal</source>
+    <test name="REQ-FHIRFUNCTIONS-058-a" inputfile="patient-example.xml"><expression>Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').is(FHIR.Extension) = Patient.birthDate.extension.where(url = 'http://hl7.org/fhir/StructureDefinition/patient-birthTime').is(FHIR.Extension)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-058-b" inputfile="patient-example.xml"><expression>Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').url.is(FHIR.uri) = Patient.birthDate.extension.where(url = 'http://hl7.org/fhir/StructureDefinition/patient-birthTime').url.is(FHIR.uri)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-058-c" inputfile="patient-example.xml"><expression>Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').value.is(FHIR.dateTime) = Patient.birthDate.extension.where(url = 'http://hl7.org/fhir/StructureDefinition/patient-birthTime').value.is(FHIR.dateTime)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-058-d" inputfile="observation-example.xml"><expression>Observation.extension('http://example.com/fhir/StructureDefinition/patient-age').value.is(FHIR.Age) = Observation.extension.where(url = 'http://example.com/fhir/StructureDefinition/patient-age').value.is(FHIR.Age)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-058-e" inputfile="observation-example.xml"><expression>Observation.extension('http://example.com/fhir/StructureDefinition/patient-age').value.is(FHIR.Quantity) = Observation.extension.where(url = 'http://example.com/fhir/StructureDefinition/patient-age').value.is(FHIR.Quantity)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-058-f" inputfile="observation-example.xml"><expression>Observation.extension('http://example.com/fhir/StructureDefinition/patient-age').value.ofType(FHIR.Quantity).count() = Observation.extension.where(url = 'http://example.com/fhir/StructureDefinition/patient-age').value.ofType(FHIR.Quantity).count()</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-058-g" inputfile="valueset-example-expansion.xml"><expression>ValueSet.expansion.extension('http://hl7.org/fhir/StructureDefinition/valueset-expansionSource').value.is(FHIR.uri) = ValueSet.expansion.extension.where(url = 'http://hl7.org/fhir/StructureDefinition/valueset-expansionSource').value.is(FHIR.uri)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-058-h" inputfile="patient-name-extensions.json"><expression>Patient.name.given[0].extension('https://example.org/syllable-count').value.is(FHIR.string) = Patient.name.given[0].extension.where(url = 'https://example.org/syllable-count').value.is(FHIR.string)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-058-i" inputfile="patient-example.xml"><expression>Patient.contact.name.family.extension('http://hl7.org/fhir/StructureDefinition/humanname-own-prefix').value.ofType(FHIR.string).count() = Patient.contact.name.family.extension.where(url = 'http://hl7.org/fhir/StructureDefinition/humanname-own-prefix').value.ofType(FHIR.string).count()</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-059" description="The url of an item extension(url) returns is a FHIR.uri, not a System.String, whose System value is a String equal to the argument; the cases presume the logical view's type uri for Extension.url, which the FHIRPath page does not restate">
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">This is a syntactical shortcut for .extension.where(url = string) , but is simpler to write.</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">This is a syntactical shortcut for .extension.where(url = string) , but is simpler to write.</source>
+    <source spec="fhir-r4" section="2.9.1 Using FHIRPath with Resources" strength="DEFINITION">There is no difference between an attribute and an element</source>
+    <source spec="fhir-r5" section="2.1.9.1 Using FHIRPath with Resources" strength="DEFINITION">There is no difference between an attribute and an element</source>
+    <source spec="fhir-r4" section="2.9.1 Using FHIRPath with Resources" strength="DEFINITION">For FHIR, this means that the contents of the resources and data
+types as described in the Logical views (or the UML diagrams) are used as the model,
+rather than the JSON and XML formats, so specific xml or json features are not
+visible to the FHIRPath language (such as comments and the split representation
+of primitives).</source>
+    <source spec="fhir-r5" section="2.1.9.1 Using FHIRPath with Resources" strength="DEFINITION">For FHIR, this means that the contents of the resources and data
+types as described in the Logical views (or the UML diagrams) are used as the model,
+rather than the JSON and XML formats, so specific xml or json features are not
+visible to the FHIRPath language (such as comments and the split representation
+of primitives).</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.string, FHIR.uri, FHIR.code, FHIR.oid, FHIR.id, FHIR.uuid, FHIR.sid, FHIR.markdown, FHIR.base64Binary
+System.String</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.string, FHIR.uri, FHIR.code, FHIR.oid, FHIR.id, FHIR.uuid, FHIR.markdown, FHIR.base64Binary
+System.String</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The automatic conversion means that in most respects, a FHIR primitive can
+generally be treated as if it was the equivalent FHIRPath system type. The primary
+exception is the is() operation, where the difference is explicit:</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The automatic conversion means that in most respects, a FHIR primitive can
+generally be treated as if it was the equivalent FHIRPath system type. The primary
+exception is the is() operation, where the difference is explicit:</source>
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">Return the underlying system value for the FHIR primitive (see discussion above).</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">Return the underlying system value for the FHIR primitive if the input collection contains a single value which is a FHIR primitive,
+and it has a primitive value (see discussion for hasValue()). Otherwise the return value is empty.</source>
+    <source spec="fhirpath-3.0.0" section="is _type specifier_" strength="DEFINITION">If the left operand is a collection with a single item and the second operand is a type identifier, this operator returns `true` if the type of the left operand is the type specified in the second operand, or a subclass thereof. If the input value is not of the type, this operator returns `false`.</source>
+    <source spec="fhirpath-3.0.0" section="ofType(type : _type specifier_) : collection" strength="DEFINITION">Returns a collection that contains all items in the input collection that are of the given type or a subclass thereof.</source>
+    <test name="REQ-FHIRFUNCTIONS-059-a" inputfile="patient-example.xml"><expression>Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').url.is(FHIR.uri)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-059-b" inputfile="patient-example.xml"><expression>Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').url.is(System.String)</expression><output type="boolean">false</output></test>
+    <test name="REQ-FHIRFUNCTIONS-059-c" inputfile="patient-example.xml"><expression>Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').url.getValue().is(System.String)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-059-d" inputfile="patient-example.xml"><expression>Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').url = 'http://hl7.org/fhir/StructureDefinition/patient-birthTime'</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-059-e" inputfile="patient-name-extensions.json"><expression>Patient.name.given[0].extension('https://example.org/syllable-count').url.is(FHIR.uri)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-059-f" inputfile="observation-example.xml"><expression>Observation.extension('http://example.com/fhir/StructureDefinition/patient-age').url.ofType(FHIR.uri).count()</expression><output type="integer">1</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-060" description="The value of an item extension(url) returns is navigated as value, without the [x] suffix, and has the type its name in the instance gives (valueDateTime a FHIR.dateTime, valueString a FHIR.string, valueUri a FHIR.uri), a FHIR primitive and not a System value, whose getValue() is of the System type the mapping gives; the children of a complex value (the valueAge Quantity) are navigated as usual">
+    <source spec="fhir-r4" section="2.9.1 Using FHIRPath with Resources" strength="DEFINITION">Elements of datatypes and resources are used as the name of the nodes which can be navigated over, except for choice elements (ending with '[x]'), see below.</source>
+    <source spec="fhir-r5" section="2.1.9.1 Using FHIRPath with Resources" strength="DEFINITION">Elements of datatypes and resources are used as the name of the nodes which can be navigated over, except for choice elements (ending with '[x]'), see below.</source>
+    <source spec="fhir-r4" section="2.9.1.1 Polymorphism in FHIR" strength="DEFINITION">In actual instances these will be present as either Patient.deceasedBoolean or Patient.deceasedDateTime .</source>
+    <source spec="fhir-r4" section="2.9.1.1 Polymorphism in FHIR" strength="DEFINITION">In FHIRPath, choice elements are labeled according to the name without the '[x]' suffix, and children can be explicitly treated
+as a specific type using the as operation:</source>
+    <source spec="fhir-r5" section="2.1.9.1.1 Polymorphism in FHIR" strength="DEFINITION">In actual instances these will be present as either Patient.deceasedBoolean or Patient.deceasedDateTime .</source>
+    <source spec="fhir-r5" section="2.1.9.1.1 Polymorphism in FHIR" strength="DEFINITION">In FHIRPath, choice elements are labeled according to the name without the '[x]' suffix, and children can be explicitly treated
+as a specific type using the as operation:</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The namespace for the types defined in FHIR (primitive data types, data types, resources) is
+FHIR.</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The namespace for the types defined in FHIR (primitive datatypes, datatypes, resources) is
+FHIR.</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The automatic conversion means that in most respects, a FHIR primitive can
+generally be treated as if it was the equivalent FHIRPath system type. The primary
+exception is the is() operation, where the difference is explicit:</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The automatic conversion means that in most respects, a FHIR primitive can
+generally be treated as if it was the equivalent FHIRPath system type. The primary
+exception is the is() operation, where the difference is explicit:</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.string, FHIR.uri, FHIR.code, FHIR.oid, FHIR.id, FHIR.uuid, FHIR.sid, FHIR.markdown, FHIR.base64Binary
+System.String</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.string, FHIR.uri, FHIR.code, FHIR.oid, FHIR.id, FHIR.uuid, FHIR.markdown, FHIR.base64Binary
+System.String</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.decimal
+System.Decimal</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.decimal
+System.Decimal</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.date, FHIR.dateTime, FHIR.instant
+System.DateTime</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.date, FHIR.dateTime, FHIR.instant
+System.DateTime</source>
+    <source spec="fhirpath-3.0.0" section="Conversion" strength="DEFINITION">FHIRPath defines both _implicit_ and _explicit_ conversion. Implicit conversions occur automatically, as opposed to explicit conversions that require the function be called explicitly.</source>
+    <source spec="fhirpath-3.0.0" section="Conversion" strength="DEFINITION">|From\To |Boolean |Integer |Long *(STU)*{:.stu-bg} |Decimal |Quantity |String |Date |DateTime |Time |</source>
+    <source spec="fhirpath-3.0.0" section="Conversion" strength="DEFINITION">|**Integer** |Explicit |N/A | *Implicit*{:.stu-bg} |Implicit |Implicit |Explicit |- |- |- |</source>
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">Return the underlying system value for the FHIR primitive (see discussion above).</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">Return the underlying system value for the FHIR primitive if the input collection contains a single value which is a FHIR primitive,
+and it has a primitive value (see discussion for hasValue()). Otherwise the return value is empty.</source>
+    <source spec="fhirpath-3.0.0" section="Paths and polymorphic items" strength="DEFINITION">Paths may either ignore the type of a node, and continue along the path or may be explicit about the expected node and filter the set of nodes by type before navigating down child nodes:</source>
+    <source spec="fhirpath-3.0.0" section="is _type specifier_" strength="DEFINITION">If the left operand is a collection with a single item and the second operand is a type identifier, this operator returns `true` if the type of the left operand is the type specified in the second operand, or a subclass thereof. If the input value is not of the type, this operator returns `false`.</source>
+    <source spec="fhirpath-3.0.0" section="ofType(type : _type specifier_) : collection" strength="DEFINITION">Returns a collection that contains all items in the input collection that are of the given type or a subclass thereof.</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="DEFINITION">If both operands are collections with a single item, they must be of the same type (or be [implicitly convertible](#conversion) to the same type), and:</source>
+    <test name="REQ-FHIRFUNCTIONS-060-a" inputfile="patient-example.xml"><expression>Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').value.is(FHIR.dateTime)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-060-b" inputfile="patient-example.xml"><expression>Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').value.ofType(FHIR.dateTime).count()</expression><output type="integer">1</output></test>
+    <test name="REQ-FHIRFUNCTIONS-060-c" inputfile="patient-example.xml"><expression>Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').value.is(System.DateTime)</expression><output type="boolean">false</output></test>
+    <test name="REQ-FHIRFUNCTIONS-060-d" inputfile="patient-example.xml"><expression>Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').value.getValue().is(System.DateTime)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-060-e" inputfile="patient-example.xml"><expression>Patient.contact.name.family.extension('http://hl7.org/fhir/StructureDefinition/humanname-own-prefix').value.is(FHIR.string)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-060-f" inputfile="valueset-example-expansion.xml"><expression>ValueSet.expansion.extension('http://hl7.org/fhir/StructureDefinition/valueset-expansionSource').value.is(FHIR.uri)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-060-g" inputfile="valueset-example-expansion.xml"><expression>ValueSet.expansion.extension('http://hl7.org/fhir/StructureDefinition/valueset-expansionSource').value = 'http://hl7.org/fhir/ValueSet/example-extensional'</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-060-h" inputfile="patient-name-extensions.json"><expression>Patient.name.given[0].extension('https://example.org/syllable-count').value.is(FHIR.string)</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-060-i" inputfile="observation-example.xml"><expression>Observation.extension('http://example.com/fhir/StructureDefinition/patient-age').value.value = 41</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-060-j" inputfile="observation-example.xml"><expression>Observation.extension('http://example.com/fhir/StructureDefinition/patient-age').value.code = 'a'</expression><output type="boolean">true</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-061" description="extension(url) on a FHIR primitive returns the extensions of the primitive's element, also when the primitive has no value and only extensions (a JSON _given entry, which the model presents as the same node as the given), and returns none for a primitive of the same element that has no extension">
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The FHIR.string type specializes FHIR.Element, and has the properties id, extension, and also
+the implicit value property that is actually of type of System.String.</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The FHIR.string type specializes FHIR.Element, and has the properties id, extension, and also
+the implicit value property that is actually of type of System.String.</source>
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">Returns true if the input collection contains a single value which is a FHIR primitive, and it has a primitive value (e.g. as opposed to not having a value and just having extensions).</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">Returns true if the input collection contains a single value which is a FHIR primitive,
+and it has a primitive value (e.g. as opposed to not having a value and just having extensions).</source>
+    <source spec="fhir-r4" section="2.9.1 Using FHIRPath with Resources" strength="DEFINITION">For FHIR, this means that the contents of the resources and data
+types as described in the Logical views (or the UML diagrams) are used as the model,
+rather than the JSON and XML formats, so specific xml or json features are not
+visible to the FHIRPath language (such as comments and the split representation
+of primitives).</source>
+    <source spec="fhir-r5" section="2.1.9.1 Using FHIRPath with Resources" strength="DEFINITION">For FHIR, this means that the contents of the resources and data
+types as described in the Logical views (or the UML diagrams) are used as the model,
+rather than the JSON and XML formats, so specific xml or json features are not
+visible to the FHIRPath language (such as comments and the split representation
+of primitives).</source>
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">This is a syntactical shortcut for .extension.where(url = string) , but is simpler to write.</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">This is a syntactical shortcut for .extension.where(url = string) , but is simpler to write.</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.string, FHIR.uri, FHIR.code, FHIR.oid, FHIR.id, FHIR.uuid, FHIR.sid, FHIR.markdown, FHIR.base64Binary
+System.String</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.string, FHIR.uri, FHIR.code, FHIR.oid, FHIR.id, FHIR.uuid, FHIR.markdown, FHIR.base64Binary
+System.String</source>
+    <source spec="fhirpath-3.0.0" section="= (Equals)" strength="DEFINITION">If both operands are collections with a single item, they must be of the same type (or be [implicitly convertible](#conversion) to the same type), and:</source>
+    <test name="REQ-FHIRFUNCTIONS-061-a" inputfile="patient-name-extensions.json"><expression>Patient.name.given[0].extension('https://example.org/syllable-count').count()</expression><output type="integer">1</output></test>
+    <test name="REQ-FHIRFUNCTIONS-061-b" inputfile="patient-name-extensions.json"><expression>Patient.name.given[0].extension('https://example.org/syllable-count').value = 'five'</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-061-c" inputfile="patient-name-extensions.json"><expression>Patient.name.given[1].extension('https://example.org/syllable-count')</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-061-d" inputfile="patient-example.xml"><expression>Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').value = Patient.birthDate.extension.where(url = 'http://hl7.org/fhir/StructureDefinition/patient-birthTime').value</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-061-e" inputfile="patient-example.xml"><expression>Patient.name.family.extension('http://hl7.org/fhir/StructureDefinition/humanname-own-prefix')</expression></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-062" description="extension(url) applies to Extension items as to any other: on the items a first extension(url) returns, it looks at their own extension children; the example extensions carry none, so the chain is empty, as the long form is (no input in the suite has an extension nested in another, so the non-empty case is not written)">
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">Will filter the input collection for items named "extension" with the given url. This is a syntactical shortcut for .extension.where(url = string) , but is simpler to write.</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">Will filter the input collection for items named "extension" with the given url. This is a syntactical shortcut for .extension.where(url = string) , but is simpler to write.</source>
+    <source spec="fhirpath-3.0.0" section="where(criteria : ($this, $index) => Boolean) : collection" strength="DEFINITION">If the input collection is empty (`{ }`), the result is empty.</source>
+    <source spec="fhirpath-3.0.0" section="count() : Integer" strength="DEFINITION">Returns the integer count of the number of items in the input collection. Returns 0 when the input collection is empty.</source>
+    <test name="REQ-FHIRFUNCTIONS-062-a" inputfile="patient-example.xml"><expression>Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime')</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-062-b" inputfile="observation-example.xml"><expression>Observation.extension('http://example.com/fhir/StructureDefinition/patient-age').extension('http://example.com/fhir/StructureDefinition/patient-age')</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-062-c" inputfile="patient-example.xml"><expression>Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime').extension.where(url = 'http://hl7.org/fhir/StructureDefinition/patient-birthTime').count()</expression><output type="integer">0</output></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-063" description="A url argument that evaluates to more than one item is an error: the parameter is a single string (both FHIR pages declare extension(url : string), and both FHIRPath versions make a multi-item argument to a single-valued parameter an error)">
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">extension(url : string) : collection</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">extension(url : string) : collection</source>
+    <source spec="fhirpath-3.0.0" section="Functions" strength="DEFINITION">If a function expects the argument passed to a parameter to be a single value (e.g. `startsWith(prefix: String)`) and it is passed an argument that evaluates to a collection with multiple items, or to a collection with an item that is not of the required type (or cannot be converted to the required type), the evaluation of the expression will end and an error will be signaled to the calling environment.</source>
+    <source spec="fhirpath-2.0.0" section="Functions" strength="DEFINITION">If the function expects the argument passed to a parameter to be a single value (e.g. `startsWith(prefix: String)`) and it is passed an argument that evaluates to a collection with multiple items, or to a collection with an item that is not of the required type (or cannot be converted to the required type), the evaluation of the expression will end and an error will be signaled to the calling environment.</source>
+    <source spec="fhirpath-3.0.0" section="| (union collections)" strength="DEFINITION">Merge the two collections into a single collection, eliminating any duplicate values *(items are considered duplicates if and only if the [equals](#equals) (`=`) operator returns `true`. i.e. `false` and empty both indicate that the items are not duplicates, and thus appear in the output collection)*.</source>
+    <source spec="fhirpath-2.0.0" section="combine(other : collection) : collection" strength="DEFINITION">Merge the input and other collections into a single collection without eliminating duplicate values.</source>
+    <test name="REQ-FHIRFUNCTIONS-063-a" inputfile="patient-example.xml"><expression invalid="execution">Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime' | 'http://hl7.org/fhir/StructureDefinition/humanname-own-prefix')</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-063-b" inputfile="patient-example.xml"><expression invalid="execution">Patient.birthDate.extension('http://hl7.org/fhir/StructureDefinition/patient-birthTime'.combine('http://hl7.org/fhir/StructureDefinition/patient-birthTime'))</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-063-c" inputfile="patient-example.xml"><expression invalid="execution">Patient.contact.name.family.extension(%resource.descendants().extension.url)</expression></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-064" description="A url argument that is not a String and has no implicit conversion to String (an Integer, a Boolean) is an error: the parameter is a string, and Integer and Boolean convert to String only explicitly">
+    <source spec="fhir-r4" section="2.9.1.5 Additional functions" strength="DEFINITION">extension(url : string) : collection</source>
+    <source spec="fhir-r5" section="2.1.9.1.5 Additional functions" strength="DEFINITION">extension(url : string) : collection</source>
+    <source spec="fhirpath-3.0.0" section="Functions" strength="DEFINITION">If a function expects the argument passed to a parameter to be a single value (e.g. `startsWith(prefix: String)`) and it is passed an argument that evaluates to a collection with multiple items, or to a collection with an item that is not of the required type (or cannot be converted to the required type), the evaluation of the expression will end and an error will be signaled to the calling environment.</source>
+    <source spec="fhirpath-3.0.0" section="Conversion" strength="DEFINITION">FHIRPath defines both _implicit_ and _explicit_ conversion. Implicit conversions occur automatically, as opposed to explicit conversions that require the function be called explicitly.</source>
+    <source spec="fhirpath-3.0.0" section="Conversion" strength="DEFINITION">|From\To |Boolean |Integer |Long *(STU)*{:.stu-bg} |Decimal |Quantity |String |Date |DateTime |Time |</source>
+    <source spec="fhirpath-3.0.0" section="Conversion" strength="DEFINITION">|**Boolean** |N/A |Explicit | *Explicit*{:.stu-bg} |Explicit |*Explicit*{:.stu-bg} |Explicit |- |- |- |</source>
+    <source spec="fhirpath-3.0.0" section="Conversion" strength="DEFINITION">|**Integer** |Explicit |N/A | *Implicit*{:.stu-bg} |Implicit |Implicit |Explicit |- |- |- |</source>
+    <source spec="fhirpath-3.0.0" section="Singleton Evaluation of Collections" strength="DEFINITION">In general, when a collection is passed as an argument to a function or operator that expects a single item as input, the collection is implicitly converted to a singleton as follows:</source>
+    <source spec="fhirpath-3.0.0" section="Singleton Evaluation of Collections" strength="DEFINITION">IF the collection contains a single node AND the node's value can be implicitly converted to the expected input type THEN
+  The collection evaluates to the value of that single node
+ELSE IF the collection contains a single node AND the expected input type is Boolean THEN
+  The collection evaluates to true
+ELSE IF the collection is empty THEN
+  The collection evaluates to an empty collection
+ELSE
+  The evaluation will end and signal an error to the calling environment</source>
+    <test name="REQ-FHIRFUNCTIONS-064-a" inputfile="patient-example.xml"><expression invalid="execution">Patient.birthDate.extension(1)</expression></test>
+    <test name="REQ-FHIRFUNCTIONS-064-b" inputfile="patient-example.xml"><expression invalid="execution">Patient.birthDate.extension(true)</expression></test>
+  </group>
+
+  <group name="REQ-FHIRFUNCTIONS-065" description="A url argument that is a single FHIR uri (here the url of an extension in the same resource, reached through %resource) is converted to its System String and used as the url">
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">The evaluation engine will automatically convert the value of FHIR types representing primitives
+to FHIRPath types when they are used in expressions according to the following mapping:</source>
+    <source spec="fhir-r4" section="2.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.string, FHIR.uri, FHIR.code, FHIR.oid, FHIR.id, FHIR.uuid, FHIR.sid, FHIR.markdown, FHIR.base64Binary
+System.String</source>
+    <source spec="fhir-r5" section="2.1.9.1.2 Using FHIR types in expressions" strength="DEFINITION">FHIR.string, FHIR.uri, FHIR.code, FHIR.oid, FHIR.id, FHIR.uuid, FHIR.markdown, FHIR.base64Binary
+System.String</source>
+    <source spec="fhir-r4" section="2.9.1.4 FHIR Specific Variables" strength="DEFINITION">%resource // the resource that contains the original node that is in %context</source>
+    <source spec="fhir-r5" section="2.1.9.1.4 FHIR Specific Variables" strength="DEFINITION">%resource // the resource that contains the original node that is in %context</source>
+    <source spec="fhirpath-3.0.0" section="Singleton Evaluation of Collections" strength="DEFINITION">In general, when a collection is passed as an argument to a function or operator that expects a single item as input, the collection is implicitly converted to a singleton as follows:</source>
+    <source spec="fhirpath-3.0.0" section="Singleton Evaluation of Collections" strength="DEFINITION">IF the collection contains a single node AND the node's value can be implicitly converted to the expected input type THEN
+  The collection evaluates to the value of that single node</source>
+    <test name="REQ-FHIRFUNCTIONS-065-a" inputfile="patient-example.xml"><expression>Patient.birthDate.extension(%resource.birthDate.extension.url).count()</expression><output type="integer">1</output></test>
+    <test name="REQ-FHIRFUNCTIONS-065-b" inputfile="patient-example.xml"><expression>Patient.contact.name.family.extension(%resource.contact.name.family.extension.url).value = 'VV'</expression><output type="boolean">true</output></test>
+    <test name="REQ-FHIRFUNCTIONS-065-c" inputfile="patient-example.xml"><expression>Patient.contact.name.family.extension(%resource.birthDate.extension.url)</expression></test>
   </group>
 
 </tests>

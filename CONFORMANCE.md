@@ -660,6 +660,19 @@ per version. Gaps closed:
   supertype of its context's type, `DomainResource.text` on a Patient, which
   2.0.0 allows: the name "must resolve to the type of the context (or a
   supertype)".
+- `extension(url)` read its items untyped, so with a model they were not
+  Extensions, their `url` was no `uri`, and `value[x]` was found by a list of
+  suffixes rather than the model: R5's `valueCodeableReference` was lost, and
+  R4 answered a `valueInteger64` it does not have. FHIR defines it as "a
+  syntactical shortcut for `.extension.where(url = string)`", and it now reads
+  through the same navigation; over every official R4, R4B and R5 example the
+  two forms answer alike, items and types (`make extension-shortcut`, #214).
+- `extension(url)` with a url of several items used the first, and with a url
+  that is no String answered empty. Both pages declare `extension(url :
+  string)`, and an argument of several items, or of a type that does not
+  convert implicitly, to a single-valued parameter ends the evaluation; both
+  now do, as fhirpath.js answers. The validator answers otherwise: see
+  [Measured, and not followed](#measured-and-not-followed).
 
 `hasValue()` of a System value of a primitive type, `'a'.hasValue()`, is now
 true, as fhirpath.js and the Java engine both answer, against both pages'
@@ -1846,6 +1859,7 @@ keeps its own answer.
 | `~` between complex values whose primitive carries an element beside another value: `"given": ["x", "y"], "_given": [null, {"id": "e"}]` against `"_given": [{"id": "e"}, null]` | true, a primitive compared by its value alone | false, as fhirpath.js answers | "For complex types, equivalence requires all child properties to be equivalent, recursively", and the element beside a value is that item's: an extension on the second given is not one on the first. The validator answers true too for an element against none, `"given": ["x"], "_given": [{"id": "e"}]` against `"given": ["x"]`. Where a position holds only an element, `"given": [null, "y"], "_given": [{"id": "e"}, null]` against `"given": ["y"], "_given": [{"id": "e"}]`, it answers false, as fhirpath.js and this engine do (#175) |
 | `~` between quantities in different units: `2.4 'm' ~ 200 'cm'` | true; `1.501 'kg' ~ 1500 'g'` false | false; false | Coherent: both sides in the UCUM base unit, rounded to the less precise. Matching it means rewriting quantity equivalence, and no published constraint compares quantities in different units with `~` |
 | `comparable()` on quantities in a local unit, `Range.low` and `high` in tablets | false, though `low < high` is true | true | Not comparable, yet compared. rng-2 holds in both |
+| `extension(url)` with a url of several items, `extension('zz' \| 'a')`, or one that is no String, `extension(1)` | the first item's extensions: `'zz' \| 'a'` empty, `'a' \| 'zz'` the `a` extension; `[]` for `1` or `true` | an error, as fhirpath.js answers | Both FHIR pages declare `extension(url : string)`, and FHIRPath 2.0.0 and 3.0.0 alike end the evaluation for an argument of several items, or one not of the required type, passed to a single-valued parameter |
 | `'2021-02-30'.convertsToDate()` | true, though `@2021-02-30` does not parse | false, as fhirpath.js answers | Converts to nothing |
 | `is()` and `type()` across FHIR and System types | `family.is(System.String)` true, though `family.as(System.String)` is empty; `type()` of a FHIR string `System.String`, and of an R5 `Patient.id` `System.Id` | false, as fhirpath.js answers; `FHIR.string` | Is, and is not. `as()` is followed: it answers as `is()`, empty with a model, as in fhirpath.js, where up to 1.14.1 it was the value |
 | `~` with a calendar duration or a temperature: `1 year ~ 1 'a'` | NullPointerException | true | An exception |

@@ -3,7 +3,7 @@ ANTLR_JAR     := build/antlr-$(ANTLR_VERSION)-complete.jar
 ANTLR_URL     := https://www.antlr.org/download/antlr-$(ANTLR_VERSION)-complete.jar
 GRAMMAR       := grammar/fhirpath.g4
 
-.PHONY: help check generate generate-check test test-race bench bench-compare bench-corpus lint conformance spec-sources difftest three-engine corpusdiff clean
+.PHONY: help check extension-shortcut generate generate-check test test-race bench bench-compare bench-corpus lint conformance spec-sources difftest three-engine corpusdiff clean
 
 help:
 	@echo "check           Gate a change: generated parser, lint, tests with the race detector"
@@ -19,6 +19,7 @@ help:
 	@echo "spec-sources    Fetch the pinned specification texts the spec cases quote"
 	@echo "difftest        Compare this engine's answers against fhirpath.js"
 	@echo "three-engine    Compare a BATTERY across this engine, fhirpath.js and HL7's Java engine (HL7_VALIDATOR_JAR)"
+	@echo "extension-shortcut  Compare extension(url) with .extension.where(url = ...) over the official examples"
 	@echo "corpusdiff      Compare this tree's answers over the FHIR examples against BASE"
 	@echo "conformance-update  Re-baseline the conformance known-failures lists"
 	@echo "clean           Remove build artifacts"
@@ -56,7 +57,13 @@ generate-check: $(ANTLR_JAR)
 check: generate-check lint
 	go test -race ./...
 	cd conformance && go test -race ./...
-	cd corpusdiff && go test -race ./...
+	cd corpusdiff && go test -race -short ./...
+
+# FHIR defines extension(url) as a shortcut for .extension.where(url = url);
+# this checks the two agree, items and types, over every official example of
+# R4, R4B and R5. Takes several minutes.
+extension-shortcut:
+	cd corpusdiff && go test -count=1 -timeout 60m -run TestExtensionIsItsWhereOverTheExamples -v .
 
 test:
 	go test ./...
