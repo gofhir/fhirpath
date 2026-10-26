@@ -2074,6 +2074,10 @@ was reasoned or accidental.
 
 ## Upstream issues
 
+What each library, and the specification, was found to do while working on
+this engine is kept per library in
+[docs/upstream-findings.md](docs/upstream-findings.md).
+
 - **Resolved.** `gofhir/ucum` exposed only `float64`, so an issue was filed
   asking for exact arithmetic. `v2.2.0` added `ExactService` — `ConversionFactor`
   returning a `*big.Rat`, `ConvertRat` covering the affine temperature scales,
