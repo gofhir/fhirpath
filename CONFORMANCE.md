@@ -1567,6 +1567,58 @@ and without a default the comparison has no answer: a `where` drops what it
 cannot confirm, and the patient leaves the population over two hours the
 defining language does settle.
 
+## A FHIR date, dateTime, instant or time is read by FHIR's form
+
+A value a model declares `date`, `dateTime`, `instant` or `time` is read by the
+form FHIR gives that type, not by the FHIRPath literal grammar, which is
+wider: `@2015-02T` and `@2015T10:30:00Z` are DateTime literals, but no FHIR
+`dateTime` (#231). A value outside its form is the string it is, typed as
+declared, as an off-calendar date already was (#145): comparing it with a date
+is an error, and `toDateTime()` still converts it as it converts any string.
+Up to 1.16.6 such a value fell back to the reading the untyped path guesses,
+so `"birthDate": "2020-01-15T10:30:00Z"` was a DateTime and
+`"valueTime": "2020-01-15"` a Date.
+
+FHIR's datatypes page, alike in R4, R4B and R5:
+
+| Type | Form |
+|---|---|
+| `date` | "YYYY, YYYY-MM, or YYYY-MM-DD" |
+| `dateTime` | "YYYY, YYYY-MM, YYYY-MM-DD or YYYY-MM-DDThh:mm:ss+zz:zz … Seconds must be provided" |
+| `instant` | "YYYY-MM-DDThh:mm:ss.sss+zz:zz … The time SHALL specified at least to the second and SHALL include a time zone" |
+| `time` | "hh:mm:ss … Seconds must be provided" |
+
+Where the text and the two libraries part, rule 1 decides (measured with
+`make three-engine BATTERY=batteries/fhir-temporal-form/battery.tsv`, R4 and
+R5 alike):
+
+| Value | fhirpath.js | Java | This engine |
+|---|---|---|---|
+| `dateTime` with a time after a partial date: `2020-01T10:30:00Z` | a string | a string | a string |
+| `dateTime` with a trailing `T` or a time without seconds: `2020T`, `2020-01-15T10:30Z` | a DateTime | a string | a string, as the text and Java have it |
+| `dateTime` with a time and no offset: `2020-01-15T10:30:00` | a DateTime | a DateTime | a DateTime, as both read it, though the text says the offset "SHALL be populated"; [`WithDefaultOffset`](#a-default-timezone-offset-is-the-callers-policy-not-the-engines) says what it means |
+| `dateTime` with an offset after a date: `2020-01-15Z`, `2020-01+05:00` | a string | a string | a string, as both read it, though R5's `StructureDefinition-dateTime` comments "UTC offset is allowed for dates and partial dates" (R4 and R4B do not) |
+| `instant` short of the second, or with no offset: `2020`, `2020-01-15T10:30:00` | a string | a DateTime | a string, as the text and fhirpath.js have it |
+| `date` with a time: `2020-01-15T10:30:00Z` | a string | a DateTime | a string, as the text and fhirpath.js have it |
+| `time` holding a date: `2020-01-15` | a string | `> @T09` true, `> @2019` an error | a string: the Java engine's two answers cannot both hold |
+| `time` with a leading `T`: `T10:30:00` | a Time | `> @T09` false | a string, as the text has it |
+| `time` without seconds: `10:30`, `10` | a Time | a Time | a Time, as both read it, though the text requires the seconds |
+
+The forms are written in the engine rather than read from the packages'
+`regex` extensions, an exception to reading everything from the
+specification: R5's datatypes page says "The regexes are provided to assist
+with tooling, but are informative, not normative … The regexes may allow a
+broader set of values than are actually valid", and R5's dateTime regex
+accepts a sign with no offset, `2020-01-15T10:30:00+`, which neither library
+reads. A System type a model declares, `System.Date`, `System.DateTime` or
+`System.Time`, keeps the FHIRPath grammar, which is that type's, and a value
+outside it is a string as well. Without a model no type is declared and
+nothing changes: a key's suffix, `valueDateTime`, is a guess at the field, and
+the value is read as before. Verified by
+`conformance/fhir_temporal_form_test.go` in R4, R4B and R5, and by
+`FuzzFHIRTemporalForm` (`types/fhir_temporal_form_test.go`) against R4's
+regexes, adapted where the two libraries read more.
+
 ## Integer is 64 bits here, and there is no Long
 
 The specification gives `Integer` the range -2^31 to 2^31-1, and adds a `Long`
@@ -1918,6 +1970,8 @@ any other jar unless run with `-java-unpinned`, whose answers are marked
 | `extension(url)` with a url of several items, `extension('zz' \| 'a')`, or one that is no String, `extension(1)` | the first item's extensions: `'zz' \| 'a'` empty, `'a' \| 'zz'` the `a` extension; `[]` for `1` or `true` | an error, as fhirpath.js answers | Both FHIR pages declare `extension(url : string)`, and FHIRPath 2.0.0 and 3.0.0 alike end the evaluation for an argument of several items, or one not of the required type, passed to a single-valued parameter |
 | `Patient._birthDate`, `Patient.name._given`: the element FHIR's JSON writes beside a primitive, named as the JSON names it | an error | the element, as fhirpath.js answers | The validator refuses the name rather than answering otherwise, so there is no behaviour to follow; `Patient.birthDate.id` and `.extension` read the same element by the model's name |
 | `'2021-02-30'.convertsToDate()` | true, though `@2021-02-30` does not parse | false, as fhirpath.js answers | Converts to nothing |
+| A FHIR `instant` short of the second or with no offset, `"issued": "2020"`; a FHIR `date` with a time, `"birthDate": "2020-01-15T10:30:00Z"` | a DateTime: `> @1900` true | a string, as fhirpath.js reads it | FHIR's datatypes page gives each its form: see [A FHIR date, dateTime, instant or time is read by FHIR's form](#a-fhir-date-datetime-instant-or-time-is-read-by-fhirs-form) |
+| A FHIR `time` holding a date, `"valueTime": "2020-01-15"` | `> @T09` true, `> @2019` an error | a string, as fhirpath.js reads it | A time, and not one |
 | `is()` and `type()` across FHIR and System types | `family.is(System.String)` true, though `family.as(System.String)` is empty; `type()` of a FHIR string `System.String`, and of an R5 `Patient.id` `System.Id` | false, as fhirpath.js answers; `FHIR.string` | Is, and is not. `as()` is followed: it answers as `is()`, empty with a model, as in fhirpath.js, where up to 1.14.1 it was the value |
 | `~` with a calendar duration or a temperature: `1 year ~ 1 'a'` | NullPointerException | true | An exception |
 | `~` between FHIR Quantities in units no conversion knows, `"unit": "Tablet"` and `"unit": "tablet"` | NullPointerException | false | An exception |
