@@ -2115,19 +2115,21 @@ func jsonValueToFHIRValueWithType(data []byte, dataType jsonparser.ValueType, fh
 		return d.WithFHIRType(fhirType)
 	}
 
+	// A string may hold a date, a time or an instant, which the untyped path
+	// guesses at; the declared type decides.
+	if dataType == jsonparser.String && fhirType != "" {
+		if value, ok := fhirString(data, fhirType); ok {
+			return value
+		}
+		if typed, ok := parseTypedString(data, fhirType); ok {
+			return withFHIRType(typed, fhirType)
+		}
+	}
+
 	value := jsonValueToFHIRValue(data, dataType)
 	if value == nil || fhirType == "" {
 		return value
 	}
-
-	// A string may hold a date, a time or an instant, which the untyped path
-	// guesses at; the declared type decides.
-	if dataType == jsonparser.String {
-		if typed, ok := parseTypedString(data, fhirType, true); ok {
-			value = typed
-		}
-	}
-
 	return withFHIRType(value, fhirType)
 }
 
@@ -2146,9 +2148,15 @@ const systemTypePrefix = "http://hl7.org/fhirpath/System."
 // which is what the HL7 validator reads. So Patient.id.hasValue() is true.
 func systemValue(data []byte, dataType jsonparser.ValueType, system string) Value {
 	if dataType == jsonparser.String {
-		if typed, ok := parseTypedString(data, system, true); ok {
+		if typed, ok := parseTypedString(data, system); ok {
 			return typed
 		}
+		// A System Date, DateTime or Time outside its grammar is the string it
+		// is, as a FHIR one is: the untyped path would read a date with a time
+		// as a DateTime
+		v := NewString(decodeJSONString(data))
+		v.read = true
+		return v
 	}
 	return jsonValue(data, dataType, true)
 }
@@ -2179,32 +2187,98 @@ func asResource(data []byte) *ObjectValue {
 	return nil
 }
 
-// parseTypedString reads a JSON string as the temporal type the model declares,
-// rather than leaving it to pattern matching.
-func parseTypedString(data []byte, fhirType string, read bool) (Value, bool) {
+// fhirInstant is the name of FHIR's instant, the one temporal type always
+// written to the second and with its offset.
+const fhirInstant = "instant"
+
+// fhirString reads a JSON string as the FHIR primitive the model declares,
+// tagged with that type, rather than leaving it to pattern matching. A
+// temporal type is read by the form FHIR gives it, narrower than the FHIRPath
+// literal grammar NewDate, NewDateTime and NewTime parse, and a value outside
+// that form is the string it is: never what the untyped path would guess,
+// which read a date with a time as a DateTime (#231).
+//
+// The names are FHIR's, which a model declares. A choice variant read without
+// a model is typed by its key's spelling, DateTime for valueDateTime, which
+// names no FHIR type: it is a guess at the field, and false leaves it to
+// parseTypedString, which reads it by the FHIRPath grammar as before.
+func fhirString(data []byte, fhirType string) (Value, bool) {
+	switch fhirType {
+	case "Date", "DateTime", "Instant", "Time":
+		return nil, false
+	}
 	text := decodeJSONString(data)
 
-	switch strings.ToLower(fhirType) {
+	switch fhirType {
 	case "date":
 		if d, err := NewDate(text); err == nil {
-			d.read = read
+			d.read = true
+			return d.WithFHIRType(fhirType), true
+		}
+	case "dateTime", fhirInstant:
+		dt, err := NewDateTime(text)
+		if err == nil && fhirDateTimeForm(text, dt.hasTZ, fhirType == fhirInstant) {
+			dt.read = true
+			return dt.WithFHIRType(fhirType), true
+		}
+	case "time":
+		// FHIR's time is hh:mm:ss with no T before it, which the literal
+		// grammar's @T10:30 has.
+		if t, err := NewTime(text); err == nil && !strings.HasPrefix(text, "T") {
+			t.read = true
+			return t.WithFHIRType(fhirType), true
+		}
+	}
+	v := NewString(text)
+	v.read = true
+	return v.WithFHIRType(fhirType), true
+}
+
+// fhirDateTimeForm reports whether text, which NewDateTime has read, is in the
+// form FHIR gives a dateTime: "YYYY, YYYY-MM, YYYY-MM-DD or
+// YYYY-MM-DDThh:mm:ss+zz:zz", a time only after a full date and written to the
+// second, where the FHIRPath grammar also has 2015-02T and 2015T10:30. An
+// instant is always "YYYY-MM-DDThh:mm:ss.sss+zz:zz", with its offset.
+//
+// A dateTime with a time and no offset is in form here, though FHIR says one
+// "SHALL be populated": fhirpath.js and the HL7 validator both read it, and
+// WithDefaultOffset says what it means.
+func fhirDateTimeForm(text string, hasOffset, instant bool) bool {
+	t := strings.IndexByte(text, 'T')
+	if t < 0 {
+		return !instant
+	}
+	toTheSecond := t == len("YYYY-MM-DD") && len(text) >= len("YYYY-MM-DDThh:mm:ss") &&
+		text[13] == ':' && text[16] == ':'
+	return toTheSecond && (hasOffset || !instant)
+}
+
+// parseTypedString reads a JSON string by the FHIRPath grammar of the temporal
+// type its name gives, a System type's or one read off a field name without a
+// model, matched without case; a value that does not parse is false. Any
+// other name is a String, even where the untyped path would read a date.
+func parseTypedString(data []byte, typeName string) (Value, bool) {
+	text := decodeJSONString(data)
+
+	switch strings.ToLower(typeName) {
+	case "date":
+		if d, err := NewDate(text); err == nil {
+			d.read = true
 			return d, true
 		}
-	case "datetime", "instant":
+	case "datetime", fhirInstant:
 		if dt, err := NewDateTime(text); err == nil {
-			dt.read = read
+			dt.read = true
 			return dt, true
 		}
 	case "time":
 		if t, err := NewTime(text); err == nil {
-			t.read = read
+			t.read = true
 			return t, true
 		}
 	default:
-		// Anything else is a string in FHIR terms, even where the untyped path
-		// would have read it as a date
 		v := NewString(text)
-		v.read = read
+		v.read = true
 		return v, true
 	}
 	return nil, false
