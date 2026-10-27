@@ -1,0 +1,329 @@
+# A FHIR decimal beyond this engine's bound (DecimalDigits, #232), measured
+# against HL7's Java engine (validator 6.10.2) and fhirpath.js 5.2.0 while
+# working it: resource<TAB>expression<TAB>version. e1 1e1000, e2 -1e1000,
+# e3 1e-1001, e4 0e2000, e5 1.5 (in range, the control).
+e1.json	Patient.extension.value.abs()	4.0.1
+e1.json	Patient.extension.value.ceiling()	4.0.1
+e1.json	Patient.extension.value.floor()	4.0.1
+e1.json	Patient.extension.value.truncate()	4.0.1
+e1.json	Patient.extension.value.round()	4.0.1
+e1.json	Patient.extension.value.round(2)	4.0.1
+e1.json	Patient.extension.value.sqrt()	4.0.1
+e1.json	Patient.extension.value.exp()	4.0.1
+e1.json	Patient.extension.value.ln()	4.0.1
+e1.json	Patient.extension.value.log(10)	4.0.1
+e1.json	Patient.extension.value.power(0)	4.0.1
+e1.json	Patient.extension.value.power(2)	4.0.1
+e1.json	-Patient.extension.value	4.0.1
+e1.json	Patient.extension.value + 1	4.0.1
+e1.json	Patient.extension.value - 1	4.0.1
+e1.json	Patient.extension.value * 2	4.0.1
+e1.json	Patient.extension.value / 2	4.0.1
+e1.json	Patient.extension.value div 2	4.0.1
+e1.json	Patient.extension.value mod 2	4.0.1
+e1.json	Patient.extension.value * 0	4.0.1
+e1.json	Patient.extension.value.sum()	4.0.1
+e1.json	Patient.extension.value.avg()	4.0.1
+e1.json	Patient.extension.value.min()	4.0.1
+e1.json	Patient.extension.value.max()	4.0.1
+e1.json	(Patient.extension.value | 2).max()	4.0.1
+e1.json	(Patient.extension.value | 2).min()	4.0.1
+e1.json	Patient.extension.value = Patient.extension.value	4.0.1
+e1.json	Patient.extension.value = 1	4.0.1
+e1.json	Patient.extension.value != 1	4.0.1
+e1.json	Patient.extension.value ~ Patient.extension.value	4.0.1
+e1.json	Patient.extension.value ~ 0	4.0.1
+e1.json	Patient.extension.value ~ 1	4.0.1
+e1.json	Patient.extension.value !~ 1	4.0.1
+e1.json	Patient.extension.value < 1	4.0.1
+e1.json	Patient.extension.value >= -1	4.0.1
+e1.json	Patient.extension.value > 0	4.0.1
+e1.json	(Patient.extension.value | Patient.extension.value).count()	4.0.1
+e1.json	(Patient.extension.value | 1).distinct().count()	4.0.1
+e1.json	(Patient.extension.value | 3 | 2).sort().first() = 2	4.0.1
+e1.json	Patient.extension.value in (1 | Patient.extension.value)	4.0.1
+e1.json	Patient.extension.value.toInteger()	4.0.1
+e1.json	Patient.extension.value.toLong()	4.0.1
+e1.json	Patient.extension.value.toDecimal() = Patient.extension.value	4.0.1
+e1.json	Patient.extension.value.toString()	4.0.1
+e1.json	Patient.extension.value.toQuantity()	4.0.1
+e1.json	Patient.extension.value.toQuantity() > 0 '1'	4.0.1
+e1.json	Patient.extension.value.toBoolean()	4.0.1
+e1.json	Patient.extension.value.convertsToInteger()	4.0.1
+e1.json	Patient.extension.value.convertsToDecimal()	4.0.1
+e1.json	Patient.extension.value.convertsToQuantity()	4.0.1
+e1.json	Patient.extension.value.convertsToBoolean()	4.0.1
+e1.json	Patient.extension.value.toString().toDecimal() = Patient.extension.value	4.0.1
+e1.json	Patient.extension.value.toString().convertsToDecimal()	4.0.1
+e1.json	Patient.extension.value.precision()	4.0.1
+e1.json	Patient.extension.value.lowBoundary()	4.0.1
+e1.json	Patient.extension.value.highBoundary()	4.0.1
+e1.json	Patient.extension.value.comparable(1 'g')	4.0.1
+e1.json	Patient.extension.value.aggregate($total + $this, 0)	4.0.1
+e1.json	iif(Patient.extension.value > 0, 'pos', 'neg')	4.0.1
+e1.json	Patient.extension.value is Decimal	4.0.1
+e1.json	Patient.extension.value.type().name	4.0.1
+e1.json	Patient.extension.value & ''	4.0.1
+e1.json	Patient.extension.value.toString().length() > 0	4.0.1
+e1.json	Patient.extension.value = 1 '1'	4.0.1
+e1.json	Patient.extension.value.hasValue()	4.0.1
+e2.json	Patient.extension.value.abs()	4.0.1
+e2.json	Patient.extension.value.ceiling()	4.0.1
+e2.json	Patient.extension.value.floor()	4.0.1
+e2.json	Patient.extension.value.truncate()	4.0.1
+e2.json	Patient.extension.value.round()	4.0.1
+e2.json	Patient.extension.value.round(2)	4.0.1
+e2.json	Patient.extension.value.sqrt()	4.0.1
+e2.json	Patient.extension.value.exp()	4.0.1
+e2.json	Patient.extension.value.ln()	4.0.1
+e2.json	Patient.extension.value.log(10)	4.0.1
+e2.json	Patient.extension.value.power(0)	4.0.1
+e2.json	Patient.extension.value.power(2)	4.0.1
+e2.json	-Patient.extension.value	4.0.1
+e2.json	Patient.extension.value + 1	4.0.1
+e2.json	Patient.extension.value - 1	4.0.1
+e2.json	Patient.extension.value * 2	4.0.1
+e2.json	Patient.extension.value / 2	4.0.1
+e2.json	Patient.extension.value div 2	4.0.1
+e2.json	Patient.extension.value mod 2	4.0.1
+e2.json	Patient.extension.value * 0	4.0.1
+e2.json	Patient.extension.value.sum()	4.0.1
+e2.json	Patient.extension.value.avg()	4.0.1
+e2.json	Patient.extension.value.min()	4.0.1
+e2.json	Patient.extension.value.max()	4.0.1
+e2.json	(Patient.extension.value | 2).max()	4.0.1
+e2.json	(Patient.extension.value | 2).min()	4.0.1
+e2.json	Patient.extension.value = Patient.extension.value	4.0.1
+e2.json	Patient.extension.value = 1	4.0.1
+e2.json	Patient.extension.value != 1	4.0.1
+e2.json	Patient.extension.value ~ Patient.extension.value	4.0.1
+e2.json	Patient.extension.value ~ 0	4.0.1
+e2.json	Patient.extension.value ~ 1	4.0.1
+e2.json	Patient.extension.value !~ 1	4.0.1
+e2.json	Patient.extension.value < 1	4.0.1
+e2.json	Patient.extension.value >= -1	4.0.1
+e2.json	Patient.extension.value > 0	4.0.1
+e2.json	(Patient.extension.value | Patient.extension.value).count()	4.0.1
+e2.json	(Patient.extension.value | 1).distinct().count()	4.0.1
+e2.json	(Patient.extension.value | 3 | 2).sort().first() = 2	4.0.1
+e2.json	Patient.extension.value in (1 | Patient.extension.value)	4.0.1
+e2.json	Patient.extension.value.toInteger()	4.0.1
+e2.json	Patient.extension.value.toLong()	4.0.1
+e2.json	Patient.extension.value.toDecimal() = Patient.extension.value	4.0.1
+e2.json	Patient.extension.value.toString()	4.0.1
+e2.json	Patient.extension.value.toQuantity()	4.0.1
+e2.json	Patient.extension.value.toQuantity() > 0 '1'	4.0.1
+e2.json	Patient.extension.value.toBoolean()	4.0.1
+e2.json	Patient.extension.value.convertsToInteger()	4.0.1
+e2.json	Patient.extension.value.convertsToDecimal()	4.0.1
+e2.json	Patient.extension.value.convertsToQuantity()	4.0.1
+e2.json	Patient.extension.value.convertsToBoolean()	4.0.1
+e2.json	Patient.extension.value.toString().toDecimal() = Patient.extension.value	4.0.1
+e2.json	Patient.extension.value.toString().convertsToDecimal()	4.0.1
+e2.json	Patient.extension.value.precision()	4.0.1
+e2.json	Patient.extension.value.lowBoundary()	4.0.1
+e2.json	Patient.extension.value.highBoundary()	4.0.1
+e2.json	Patient.extension.value.comparable(1 'g')	4.0.1
+e2.json	Patient.extension.value.aggregate($total + $this, 0)	4.0.1
+e2.json	iif(Patient.extension.value > 0, 'pos', 'neg')	4.0.1
+e2.json	Patient.extension.value is Decimal	4.0.1
+e2.json	Patient.extension.value.type().name	4.0.1
+e2.json	Patient.extension.value & ''	4.0.1
+e2.json	Patient.extension.value.toString().length() > 0	4.0.1
+e2.json	Patient.extension.value = 1 '1'	4.0.1
+e2.json	Patient.extension.value.hasValue()	4.0.1
+e3.json	Patient.extension.value.abs()	4.0.1
+e3.json	Patient.extension.value.ceiling()	4.0.1
+e3.json	Patient.extension.value.floor()	4.0.1
+e3.json	Patient.extension.value.truncate()	4.0.1
+e3.json	Patient.extension.value.round()	4.0.1
+e3.json	Patient.extension.value.round(2)	4.0.1
+e3.json	Patient.extension.value.sqrt()	4.0.1
+e3.json	Patient.extension.value.exp()	4.0.1
+e3.json	Patient.extension.value.ln()	4.0.1
+e3.json	Patient.extension.value.log(10)	4.0.1
+e3.json	Patient.extension.value.power(0)	4.0.1
+e3.json	Patient.extension.value.power(2)	4.0.1
+e3.json	-Patient.extension.value	4.0.1
+e3.json	Patient.extension.value + 1	4.0.1
+e3.json	Patient.extension.value - 1	4.0.1
+e3.json	Patient.extension.value * 2	4.0.1
+e3.json	Patient.extension.value / 2	4.0.1
+e3.json	Patient.extension.value div 2	4.0.1
+e3.json	Patient.extension.value mod 2	4.0.1
+e3.json	Patient.extension.value * 0	4.0.1
+e3.json	Patient.extension.value.sum()	4.0.1
+e3.json	Patient.extension.value.avg()	4.0.1
+e3.json	Patient.extension.value.min()	4.0.1
+e3.json	Patient.extension.value.max()	4.0.1
+e3.json	(Patient.extension.value | 2).max()	4.0.1
+e3.json	(Patient.extension.value | 2).min()	4.0.1
+e3.json	Patient.extension.value = Patient.extension.value	4.0.1
+e3.json	Patient.extension.value = 1	4.0.1
+e3.json	Patient.extension.value != 1	4.0.1
+e3.json	Patient.extension.value ~ Patient.extension.value	4.0.1
+e3.json	Patient.extension.value ~ 0	4.0.1
+e3.json	Patient.extension.value ~ 1	4.0.1
+e3.json	Patient.extension.value !~ 1	4.0.1
+e3.json	Patient.extension.value < 1	4.0.1
+e3.json	Patient.extension.value >= -1	4.0.1
+e3.json	Patient.extension.value > 0	4.0.1
+e3.json	(Patient.extension.value | Patient.extension.value).count()	4.0.1
+e3.json	(Patient.extension.value | 1).distinct().count()	4.0.1
+e3.json	(Patient.extension.value | 3 | 2).sort().first() = 2	4.0.1
+e3.json	Patient.extension.value in (1 | Patient.extension.value)	4.0.1
+e3.json	Patient.extension.value.toInteger()	4.0.1
+e3.json	Patient.extension.value.toLong()	4.0.1
+e3.json	Patient.extension.value.toDecimal() = Patient.extension.value	4.0.1
+e3.json	Patient.extension.value.toString()	4.0.1
+e3.json	Patient.extension.value.toQuantity()	4.0.1
+e3.json	Patient.extension.value.toQuantity() > 0 '1'	4.0.1
+e3.json	Patient.extension.value.toBoolean()	4.0.1
+e3.json	Patient.extension.value.convertsToInteger()	4.0.1
+e3.json	Patient.extension.value.convertsToDecimal()	4.0.1
+e3.json	Patient.extension.value.convertsToQuantity()	4.0.1
+e3.json	Patient.extension.value.convertsToBoolean()	4.0.1
+e3.json	Patient.extension.value.toString().toDecimal() = Patient.extension.value	4.0.1
+e3.json	Patient.extension.value.toString().convertsToDecimal()	4.0.1
+e3.json	Patient.extension.value.precision()	4.0.1
+e3.json	Patient.extension.value.lowBoundary()	4.0.1
+e3.json	Patient.extension.value.highBoundary()	4.0.1
+e3.json	Patient.extension.value.comparable(1 'g')	4.0.1
+e3.json	Patient.extension.value.aggregate($total + $this, 0)	4.0.1
+e3.json	iif(Patient.extension.value > 0, 'pos', 'neg')	4.0.1
+e3.json	Patient.extension.value is Decimal	4.0.1
+e3.json	Patient.extension.value.type().name	4.0.1
+e3.json	Patient.extension.value & ''	4.0.1
+e3.json	Patient.extension.value.toString().length() > 0	4.0.1
+e3.json	Patient.extension.value = 1 '1'	4.0.1
+e3.json	Patient.extension.value.hasValue()	4.0.1
+e4.json	Patient.extension.value.abs()	4.0.1
+e4.json	Patient.extension.value.ceiling()	4.0.1
+e4.json	Patient.extension.value.floor()	4.0.1
+e4.json	Patient.extension.value.truncate()	4.0.1
+e4.json	Patient.extension.value.round()	4.0.1
+e4.json	Patient.extension.value.round(2)	4.0.1
+e4.json	Patient.extension.value.sqrt()	4.0.1
+e4.json	Patient.extension.value.exp()	4.0.1
+e4.json	Patient.extension.value.ln()	4.0.1
+e4.json	Patient.extension.value.log(10)	4.0.1
+e4.json	Patient.extension.value.power(0)	4.0.1
+e4.json	Patient.extension.value.power(2)	4.0.1
+e4.json	-Patient.extension.value	4.0.1
+e4.json	Patient.extension.value + 1	4.0.1
+e4.json	Patient.extension.value - 1	4.0.1
+e4.json	Patient.extension.value * 2	4.0.1
+e4.json	Patient.extension.value / 2	4.0.1
+e4.json	Patient.extension.value div 2	4.0.1
+e4.json	Patient.extension.value mod 2	4.0.1
+e4.json	Patient.extension.value * 0	4.0.1
+e4.json	Patient.extension.value.sum()	4.0.1
+e4.json	Patient.extension.value.avg()	4.0.1
+e4.json	Patient.extension.value.min()	4.0.1
+e4.json	Patient.extension.value.max()	4.0.1
+e4.json	(Patient.extension.value | 2).max()	4.0.1
+e4.json	(Patient.extension.value | 2).min()	4.0.1
+e4.json	Patient.extension.value = Patient.extension.value	4.0.1
+e4.json	Patient.extension.value = 1	4.0.1
+e4.json	Patient.extension.value != 1	4.0.1
+e4.json	Patient.extension.value ~ Patient.extension.value	4.0.1
+e4.json	Patient.extension.value ~ 0	4.0.1
+e4.json	Patient.extension.value ~ 1	4.0.1
+e4.json	Patient.extension.value !~ 1	4.0.1
+e4.json	Patient.extension.value < 1	4.0.1
+e4.json	Patient.extension.value >= -1	4.0.1
+e4.json	Patient.extension.value > 0	4.0.1
+e4.json	(Patient.extension.value | Patient.extension.value).count()	4.0.1
+e4.json	(Patient.extension.value | 1).distinct().count()	4.0.1
+e4.json	(Patient.extension.value | 3 | 2).sort().first() = 2	4.0.1
+e4.json	Patient.extension.value in (1 | Patient.extension.value)	4.0.1
+e4.json	Patient.extension.value.toInteger()	4.0.1
+e4.json	Patient.extension.value.toLong()	4.0.1
+e4.json	Patient.extension.value.toDecimal() = Patient.extension.value	4.0.1
+e4.json	Patient.extension.value.toString()	4.0.1
+e4.json	Patient.extension.value.toQuantity()	4.0.1
+e4.json	Patient.extension.value.toQuantity() > 0 '1'	4.0.1
+e4.json	Patient.extension.value.toBoolean()	4.0.1
+e4.json	Patient.extension.value.convertsToInteger()	4.0.1
+e4.json	Patient.extension.value.convertsToDecimal()	4.0.1
+e4.json	Patient.extension.value.convertsToQuantity()	4.0.1
+e4.json	Patient.extension.value.convertsToBoolean()	4.0.1
+e4.json	Patient.extension.value.toString().toDecimal() = Patient.extension.value	4.0.1
+e4.json	Patient.extension.value.toString().convertsToDecimal()	4.0.1
+e4.json	Patient.extension.value.precision()	4.0.1
+e4.json	Patient.extension.value.lowBoundary()	4.0.1
+e4.json	Patient.extension.value.highBoundary()	4.0.1
+e4.json	Patient.extension.value.comparable(1 'g')	4.0.1
+e4.json	Patient.extension.value.aggregate($total + $this, 0)	4.0.1
+e4.json	iif(Patient.extension.value > 0, 'pos', 'neg')	4.0.1
+e4.json	Patient.extension.value is Decimal	4.0.1
+e4.json	Patient.extension.value.type().name	4.0.1
+e4.json	Patient.extension.value & ''	4.0.1
+e4.json	Patient.extension.value.toString().length() > 0	4.0.1
+e4.json	Patient.extension.value = 1 '1'	4.0.1
+e4.json	Patient.extension.value.hasValue()	4.0.1
+e5.json	Patient.extension.value.abs()	4.0.1
+e5.json	Patient.extension.value.ceiling()	4.0.1
+e5.json	Patient.extension.value.floor()	4.0.1
+e5.json	Patient.extension.value.truncate()	4.0.1
+e5.json	Patient.extension.value.round()	4.0.1
+e5.json	Patient.extension.value.round(2)	4.0.1
+e5.json	Patient.extension.value.sqrt()	4.0.1
+e5.json	Patient.extension.value.exp()	4.0.1
+e5.json	Patient.extension.value.ln()	4.0.1
+e5.json	Patient.extension.value.log(10)	4.0.1
+e5.json	Patient.extension.value.power(0)	4.0.1
+e5.json	Patient.extension.value.power(2)	4.0.1
+e5.json	-Patient.extension.value	4.0.1
+e5.json	Patient.extension.value + 1	4.0.1
+e5.json	Patient.extension.value - 1	4.0.1
+e5.json	Patient.extension.value * 2	4.0.1
+e5.json	Patient.extension.value / 2	4.0.1
+e5.json	Patient.extension.value div 2	4.0.1
+e5.json	Patient.extension.value mod 2	4.0.1
+e5.json	Patient.extension.value * 0	4.0.1
+e5.json	Patient.extension.value.sum()	4.0.1
+e5.json	Patient.extension.value.avg()	4.0.1
+e5.json	Patient.extension.value.min()	4.0.1
+e5.json	Patient.extension.value.max()	4.0.1
+e5.json	(Patient.extension.value | 2).max()	4.0.1
+e5.json	(Patient.extension.value | 2).min()	4.0.1
+e5.json	Patient.extension.value = Patient.extension.value	4.0.1
+e5.json	Patient.extension.value = 1	4.0.1
+e5.json	Patient.extension.value != 1	4.0.1
+e5.json	Patient.extension.value ~ Patient.extension.value	4.0.1
+e5.json	Patient.extension.value ~ 0	4.0.1
+e5.json	Patient.extension.value ~ 1	4.0.1
+e5.json	Patient.extension.value !~ 1	4.0.1
+e5.json	Patient.extension.value < 1	4.0.1
+e5.json	Patient.extension.value >= -1	4.0.1
+e5.json	Patient.extension.value > 0	4.0.1
+e5.json	(Patient.extension.value | Patient.extension.value).count()	4.0.1
+e5.json	(Patient.extension.value | 1).distinct().count()	4.0.1
+e5.json	(Patient.extension.value | 3 | 2).sort().first() = 2	4.0.1
+e5.json	Patient.extension.value in (1 | Patient.extension.value)	4.0.1
+e5.json	Patient.extension.value.toInteger()	4.0.1
+e5.json	Patient.extension.value.toLong()	4.0.1
+e5.json	Patient.extension.value.toDecimal() = Patient.extension.value	4.0.1
+e5.json	Patient.extension.value.toString()	4.0.1
+e5.json	Patient.extension.value.toQuantity()	4.0.1
+e5.json	Patient.extension.value.toQuantity() > 0 '1'	4.0.1
+e5.json	Patient.extension.value.toBoolean()	4.0.1
+e5.json	Patient.extension.value.convertsToInteger()	4.0.1
+e5.json	Patient.extension.value.convertsToDecimal()	4.0.1
+e5.json	Patient.extension.value.convertsToQuantity()	4.0.1
+e5.json	Patient.extension.value.convertsToBoolean()	4.0.1
+e5.json	Patient.extension.value.toString().toDecimal() = Patient.extension.value	4.0.1
+e5.json	Patient.extension.value.toString().convertsToDecimal()	4.0.1
+e5.json	Patient.extension.value.precision()	4.0.1
+e5.json	Patient.extension.value.lowBoundary()	4.0.1
+e5.json	Patient.extension.value.highBoundary()	4.0.1
+e5.json	Patient.extension.value.comparable(1 'g')	4.0.1
+e5.json	Patient.extension.value.aggregate($total + $this, 0)	4.0.1
+e5.json	iif(Patient.extension.value > 0, 'pos', 'neg')	4.0.1
+e5.json	Patient.extension.value is Decimal	4.0.1
+e5.json	Patient.extension.value.type().name	4.0.1
+e5.json	Patient.extension.value & ''	4.0.1
+e5.json	Patient.extension.value.toString().length() > 0	4.0.1
+e5.json	Patient.extension.value = 1 '1'	4.0.1
+e5.json	Patient.extension.value.hasValue()	4.0.1

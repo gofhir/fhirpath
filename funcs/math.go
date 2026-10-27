@@ -151,8 +151,16 @@ func fnAbs(_ *eval.Context, input types.Collection, _ []interface{}) (types.Coll
 
 // noNumber reports an input or argument with nothing to compute: empty, a
 // primitive written with no value, or a FHIR Quantity with a unit and no
-// value, which the operators read as empty too.
+// value, which the operators read as empty too, or a decimal beyond the bound,
+// which a resource may hold but this engine does not compute with, so its
+// result overflows to empty as the operators' does (#232).
 func noNumber(c types.Collection) bool {
+	return noValue(c) || !types.InRange(c[0])
+}
+
+// noValue reports an input or argument empty, a primitive written with no
+// value, or a FHIR Quantity with a unit and no value.
+func noValue(c types.Collection) bool {
 	return c.Empty() || types.IsValueless(c[0]) || types.IsValuelessQuantity(c[0])
 }
 
@@ -178,6 +186,15 @@ func numberInput(name string, v types.Value) (float64, error) {
 		return n.Value().InexactFloat64(), nil
 	}
 	return 0, eval.TypeError("Integer or Decimal", v.Type(), name)
+}
+
+// isNumber reports an Integer or a Decimal.
+func isNumber(v types.Value) bool {
+	switch v.(type) {
+	case types.Integer, types.Decimal:
+		return true
+	}
+	return false
 }
 
 // numberSign returns the sign of an Integer or a Decimal, read from the
@@ -336,6 +353,13 @@ func fnLog(_ *eval.Context, input types.Collection, args []interface{}) (types.C
 
 // fnPower returns input raised to the given power.
 func fnPower(_ *eval.Context, input types.Collection, args []interface{}) (types.Collection, error) {
+	// Any number to the power 0 is 1, a decimal beyond the bound too, as
+	// fhirpath.js and the HL7 validator both answer
+	if len(args) > 0 && !noValue(input) && !types.InRange(input[0]) {
+		if exponent, ok := args[0].(types.Collection); ok && !noNumber(exponent) && isNumber(exponent[0]) && numberSign(exponent[0]) == 0 {
+			return floatResult(1), nil
+		}
+	}
 	if noNumber(input) || len(args) == 0 {
 		return types.Collection{}, nil
 	}
@@ -370,7 +394,7 @@ func fnRound(_ *eval.Context, input types.Collection, args []interface{}) (types
 	precision := int32(0)
 	if len(args) > 0 {
 		c, _ := args[0].(types.Collection)
-		if noNumber(c) {
+		if noValue(c) {
 			return types.Collection{}, nil
 		}
 		p, ok := c[0].(types.Integer)
@@ -487,7 +511,8 @@ func fnSum(ctx *eval.Context, input types.Collection, _ []interface{}) (types.Co
 // operand, and such an item is no item of another type.
 func holdsNoAmount(input types.Collection) bool {
 	for _, item := range input {
-		if types.IsValueless(item) || types.IsValuelessQuantity(item) {
+		// A decimal beyond the bound adds to a sum past it, an overflow
+		if types.IsValueless(item) || types.IsValuelessQuantity(item) || !types.InRange(item) {
 			return true
 		}
 		if _, _, err := eval.AsQuantity(item); err != nil {
@@ -750,7 +775,7 @@ func decimalExtreme(input types.Collection, beyond func(int) bool) (types.Value,
 		default:
 			return nil, false
 		}
-		if value := numericValue(item); beyond(value.Cmp(extremeValue)) {
+		if value := numericValue(item); beyond(types.CompareDecimals(value, extremeValue)) {
 			extremeItem, extremeValue = item, value
 		}
 	}

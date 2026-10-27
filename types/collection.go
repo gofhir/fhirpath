@@ -200,13 +200,16 @@ func IsValueless(v Value) bool {
 
 // IsValuelessQuantity reports a FHIR Quantity written without a value, its
 // unit alone: Quantity.value is optional, and such a quantity holds no amount
-// to compute with, as a primitive with no value holds none.
+// to compute with, as a primitive with no value holds none. Nor does one whose
+// value is beyond DecimalDigits: the value reads, but computing with it
+// overflows (#232).
 func IsValuelessQuantity(v Value) bool {
 	o, ok := v.(*ObjectValue)
 	if !ok {
 		return false
 	}
-	if _, hasValue := o.Get("value"); hasValue {
+	value, hasValue := o.Get("value")
+	if hasValue && InRange(value) {
 		return false
 	}
 	// The type a model gives decides; without one a quantity with no value is
@@ -215,6 +218,13 @@ func IsValuelessQuantity(v Value) bool {
 	t := o.Type()
 	if t != typeObject && t != "Coding" {
 		return quantityTypes[t]
+	}
+	// A value beyond the bound on an object of no known type, which a Coding
+	// with a value never is, converts as a quantity, as one within it does;
+	// a Money does not, as quantityValue has it
+	if hasValue {
+		_, isMoney := o.stringField("currency")
+		return !isMoney
 	}
 	_, hasUnit := o.stringField("unit")
 	return hasUnit

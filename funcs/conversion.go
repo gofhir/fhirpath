@@ -236,9 +236,11 @@ func fnToBoolean(_ *eval.Context, input types.Collection, _ []interface{}) (type
 		}
 		return types.Collection{}, nil
 	case types.Decimal:
-		if v.Value().Equal(decimal.NewFromInt(1)) {
+		// Compared without rescaling, as a decimal beyond the bound may be
+		// read: it is neither 1 nor 0
+		if types.CompareDecimals(v.Value(), decimal.NewFromInt(1)) == 0 {
 			return types.Collection{types.NewBoolean(true)}, nil
-		} else if v.Value().Equal(decimal.NewFromInt(0)) {
+		} else if types.CompareDecimals(v.Value(), decimal.Zero) == 0 {
 			return types.Collection{types.NewBoolean(false)}, nil
 		}
 		return types.Collection{}, nil
@@ -273,7 +275,7 @@ func fnConvertsToBoolean(_ *eval.Context, input types.Collection, _ []interface{
 		}
 		return types.Collection{types.NewBoolean(false)}, nil
 	case types.Decimal:
-		if v.Value().Equal(decimal.NewFromInt(0)) || v.Value().Equal(decimal.NewFromInt(1)) {
+		if types.CompareDecimals(v.Value(), decimal.Zero) == 0 || types.CompareDecimals(v.Value(), decimal.NewFromInt(1)) == 0 {
 			return types.Collection{types.NewBoolean(true)}, nil
 		}
 		return types.Collection{types.NewBoolean(false)}, nil
@@ -355,7 +357,9 @@ func fnToDecimal(_ *eval.Context, input types.Collection, _ []interface{}) (type
 		if !decimalString.MatchString(v.Value()) {
 			return types.Collection{}, nil
 		}
-		d, err := types.NewDecimal(canonicalNumber(v.Value()))
+		// One written with more digits than the bound is held, as read from a
+		// resource: see types.ReadDecimal
+		d, err := types.ReadDecimal(canonicalNumber(v.Value()))
 		if err != nil {
 			return types.Collection{}, nil
 		}
@@ -408,7 +412,7 @@ func fnConvertsToDecimal(_ *eval.Context, input types.Collection, _ []interface{
 		if !decimalString.MatchString(v.Value()) {
 			return types.Collection{types.NewBoolean(false)}, nil
 		}
-		_, err := types.ParseDecimal(v.Value())
+		_, err := types.ReadDecimal(v.Value())
 		return types.Collection{types.NewBoolean(err == nil)}, nil
 	default:
 		return types.Collection{types.NewBoolean(false)}, nil
@@ -620,8 +624,10 @@ func fnToQuantity(_ *eval.Context, input types.Collection, args []interface{}) (
 			"toQuantity() requires a singleton input, got %d items", len(input))
 	}
 
+	// A decimal beyond the bound makes a quantity past it, which overflows as
+	// a computed one does
 	quantity, ok := quantityOf(input[0])
-	if !ok {
+	if !ok || !types.InRange(quantity) {
 		return types.Collection{}, nil
 	}
 

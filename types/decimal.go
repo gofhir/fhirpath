@@ -1,9 +1,12 @@
 package types
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"math"
+	"math/big"
+	"strconv"
 	"strings"
 
 	"github.com/shopspring/decimal"
@@ -50,13 +53,66 @@ func InDecimalRange(d decimal.Decimal) bool {
 	// bound, the count is not needed, and counting a large coefficient's
 	// digits costs a power of ten
 	coefficient := d.Coefficient()
-	if bits := int64(coefficient.BitLen()); exponent+bits*30103/100000+1 <= DecimalDigits {
+	bits := int64(coefficient.BitLen())
+	if exponent+bits*30103/100000+1 <= DecimalDigits {
 		return true
+	}
+	// Nor where it is far beyond: such a coefficient has at least
+	// (b-1)·log10(2) + 1 digits, taken a little short so as never to overcount
+	if exponent+(bits-1)*30102/100000+1 > DecimalDigits {
+		return false
 	}
 	// Near the bound, the digits are counted exactly: NumDigits estimates a
 	// small coefficient through a float logarithm, and counts 10^15 as 15
 	digits := len(coefficient.Abs(coefficient).Text(10))
 	return exponent+int64(digits) <= DecimalDigits
+}
+
+// CompareDecimals orders two decimals exactly, as decimal.Decimal.Cmp does, a
+// decimal beyond DecimalDigits among them. Comparing rescales one to the
+// other's exponent, which costs the digits between them: nothing for two
+// decimals within the bound, millions for one beyond it read from a resource,
+// 1e5000000 against 1 (#232). So where the exponents lie far apart the sign
+// and the place of the leading digit decide first, and only decimals that tie
+// on both, whose exponents then lie within their own digits of each other, are
+// rescaled.
+func CompareDecimals(a, b decimal.Decimal) int {
+	if gap := int64(a.Exponent()) - int64(b.Exponent()); gap >= -2*DecimalDigits && gap <= 2*DecimalDigits {
+		return a.Cmp(b)
+	}
+	sign := a.Sign()
+	if other := b.Sign(); sign != other {
+		return cmp.Compare(sign, other)
+	}
+	if sign == 0 {
+		return 0
+	}
+	if ma, mb := leadingPlace(a), leadingPlace(b); ma != mb {
+		return sign * cmp.Compare(ma, mb)
+	}
+	return a.Cmp(b)
+}
+
+// leadingPlace is the power of ten of a nonzero decimal's leading digit: 2 for
+// 123, -3 for 0.00123. It counts the coefficient's digits, as written.
+func leadingPlace(d decimal.Decimal) int64 {
+	digits := new(big.Int).Abs(d.Coefficient()).Text(10)
+	return int64(d.Exponent()) + int64(len(digits)) - 1
+}
+
+// roundTo rounds a decimal to places after the point as Round does, without
+// writing out one that has no more places already: Round first rescales to
+// one place past the one asked for, which for 1e5000000 is five million
+// digits. A decimal smaller than a tenth of the last place rounds to zero
+// without dividing by its scale.
+func roundTo(d decimal.Decimal, places int32) decimal.Decimal {
+	if d.Exponent() >= -places {
+		return d
+	}
+	if d.IsZero() || leadingPlace(d) < -int64(places)-1 {
+		return decimal.Zero
+	}
+	return d.Round(places)
 }
 
 // normalizedZero returns a zero computed at a scale beyond the bound at the
@@ -117,6 +173,55 @@ func ParseDecimal(s string) (decimal.Decimal, error) {
 	return d, nil
 }
 
+// ReadDecimal reads a decimal as a resource or a string writes it, one beyond
+// DecimalDigits too: FHIR's decimal has no such bound, and a value read is no
+// operation that overflows (#232). Such a value is held as written and
+// compared exactly, but nothing computes with it: see InRange. A zero at a
+// scale beyond the bound is taken to the nearest scale within it, keeping its
+// text, so 0e2000 + 1 is 1, and so is a value whose places past the bound are
+// all zeros: 1 written with 1001 zeros after the point is 1.
+func ReadDecimal(s string) (Decimal, error) {
+	d, err := decimal.NewFromString(s)
+	if err != nil {
+		return Decimal{}, fmt.Errorf("invalid decimal: %s", s)
+	}
+	if d.IsZero() {
+		d = normalizedZero(d)
+	} else {
+		d = withinScale(d, s)
+	}
+	return Decimal{value: d, original: s}, nil
+}
+
+// withinScale takes a decimal written with more places after the point than
+// DecimalDigits, those past the bound all zeros, to the scale of the bound.
+// The zeros are counted on the written digits, which are the coefficient's,
+// so that nothing is divided to find them, and the value is read again from
+// those digits without them.
+func withinScale(d decimal.Decimal, s string) decimal.Decimal {
+	exponent := int64(d.Exponent())
+	if exponent >= -DecimalDigits {
+		return d
+	}
+	digits := s
+	if i := strings.IndexAny(s, "eE"); i >= 0 {
+		digits = s[:i]
+	}
+	if !strings.HasSuffix(strings.TrimSuffix(digits, "."), "0") {
+		return d
+	}
+	digits = strings.Replace(digits, ".", "", 1)
+	excess := -DecimalDigits - exponent
+	if int64(len(digits)-len(strings.TrimRight(digits, "0"))) < excess {
+		return d
+	}
+	within, err := decimal.NewFromString(digits[:int64(len(digits))-excess] + "e" + strconv.FormatInt(exponent+excess, 10))
+	if err != nil {
+		return d
+	}
+	return within
+}
+
 // NewDecimal creates a new Decimal from a string, refusing one beyond
 // DecimalDigits.
 func NewDecimal(s string) (Decimal, error) {
@@ -155,6 +260,10 @@ func MustDecimal(s string) Decimal {
 }
 
 // Value returns the underlying decimal.Decimal value.
+//
+// A decimal read from a resource may lie beyond DecimalDigits, 1e5000000 held
+// as a coefficient and an exponent; computing with it, or writing it out with
+// String, writes out every digit. Check InDecimalRange before computing.
 func (d Decimal) Value() decimal.Decimal {
 	return d.value
 }
@@ -171,9 +280,9 @@ func (d Decimal) Type() string {
 func (d Decimal) Equal(other Value) bool {
 	switch o := other.(type) {
 	case Decimal:
-		return d.value.Equal(o.value)
+		return CompareDecimals(d.value, o.value) == 0
 	case Integer:
-		return d.value.Equal(decimal.NewFromInt(o.value))
+		return CompareDecimals(d.value, decimal.NewFromInt(o.value)) == 0
 	case Quantity:
 		// As a quantity of unit '1': see UnitOne
 		return o.Equal(d)
@@ -211,7 +320,7 @@ func (d Decimal) Equivalent(other Value) bool {
 		places = theirs
 	}
 
-	return d.value.Round(places).Equal(o.value.Round(places))
+	return CompareDecimals(roundTo(d.value, places), roundTo(o.value, places)) == 0
 }
 
 // significantPlaces counts the digits after the decimal point that carry
@@ -267,9 +376,9 @@ func (d Decimal) ToDecimal() Decimal {
 func (d Decimal) Compare(other Value) (int, error) {
 	switch o := other.(type) {
 	case Decimal:
-		return d.value.Cmp(o.value), nil
+		return CompareDecimals(d.value, o.value), nil
 	case Integer:
-		return d.value.Cmp(decimal.NewFromInt(o.value)), nil
+		return CompareDecimals(d.value, decimal.NewFromInt(o.value)), nil
 	}
 	return 0, NewTypeError(TypeNameDecimal, other.Type(), "comparison")
 }

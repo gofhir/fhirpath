@@ -4,6 +4,7 @@ import (
 	"bytes"
 
 	"github.com/buger/jsonparser"
+	"github.com/shopspring/decimal"
 )
 
 // equivalentJSON reports whether two JSON objects are equivalent: "For complex
@@ -684,9 +685,9 @@ func equalValues(left, right childValue) bool {
 	case jsonparser.Object:
 		return equalJSON(left.data, right.data)
 	case jsonparser.Number:
-		l, lerr := ParseDecimal(string(left.data))
-		r, rerr := ParseDecimal(string(right.data))
-		return lerr == nil && rerr == nil && l.Equal(r)
+		l, lerr := decimal.NewFromString(string(left.data))
+		r, rerr := decimal.NewFromString(string(right.data))
+		return lerr == nil && rerr == nil && CompareDecimals(l, r) == 0
 	case jsonparser.String:
 		if bytes.Equal(left.data, right.data) {
 			return true

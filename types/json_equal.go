@@ -5,6 +5,8 @@ import (
 	"encoding/binary"
 	"math/bits"
 	"strings"
+
+	"github.com/shopspring/decimal"
 )
 
 // sameJSON reports whether two JSON texts hold the same content as written,
@@ -272,12 +274,14 @@ func compareNumbers(a []byte, i int, b []byte, j int) (nextA, nextB int, verdict
 	if bytes.Equal(a[i:ea], b[j:eb]) {
 		return ea, eb, tokensAlike
 	}
-	l, lerr := ParseDecimal(string(a[i:ea]))
-	r, rerr := ParseDecimal(string(b[j:eb]))
+	// Read as a resource holds them, one beyond the bound too, and compared
+	// without rescaling
+	l, lerr := decimal.NewFromString(string(a[i:ea]))
+	r, rerr := decimal.NewFromString(string(b[j:eb]))
 	switch {
 	case lerr != nil || rerr != nil:
 		return i, j, tokensUndecided
-	case !l.Equal(r):
+	case CompareDecimals(l, r) != 0:
 		return i, j, tokensUnequal
 	}
 	return ea, eb, tokensAlike

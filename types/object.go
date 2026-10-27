@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"slices"
 	"strconv"
@@ -2012,8 +2013,8 @@ func jsonValue(data []byte, dataType jsonparser.ValueType, read bool) Value {
 				return v
 			}
 		}
-		// Parse as decimal
-		d, err := NewDecimal(s)
+		// Parse as decimal; one beyond the bound is held, see ReadDecimal
+		d, err := ReadDecimal(s)
 		if err != nil {
 			return nil
 		}
@@ -2107,7 +2108,7 @@ func jsonValueToFHIRValueWithType(data []byte, dataType jsonparser.ValueType, fh
 	// -0 keeps its sign, and 100 its type. A choice variant read without a
 	// model names the type as its key spells it, Decimal for valueDecimal.
 	if dataType == jsonparser.Number && strings.EqualFold(fhirType, "decimal") {
-		d, err := NewDecimal(string(data))
+		d, err := ReadDecimal(string(data))
 		if err != nil {
 			return nil
 		}
@@ -2682,13 +2683,39 @@ func (o *ObjectValue) AsQuantity() (Quantity, bool, error) {
 	if !ok {
 		return Quantity{}, false, err
 	}
+	q, ok := o.quantityOf(val)
+	return q, ok, nil
+}
+
+// OverflowingQuantity converts a FHIR Quantity whose value is beyond
+// DecimalDigits, which AsQuantity reports as ErrDecimalRange, for what its
+// unit alone decides (#232): the quantity holds the value as read, and
+// nothing may compute with it.
+func (o *ObjectValue) OverflowingQuantity() (Quantity, bool) {
+	if _, _, err := o.quantityValue(); !errors.Is(err, ErrDecimalRange) {
+		return Quantity{}, false
+	}
+	valueBytes, _, _, err := jsonparser.Get(o.data, "value")
+	if err != nil {
+		return Quantity{}, false
+	}
+	val, err := ReadDecimal(string(valueBytes))
+	if err != nil {
+		return Quantity{}, false
+	}
+	return o.quantityOf(val.Value())
+}
+
+// quantityOf is a FHIR Quantity's value with its unit, and false for an
+// object that is no quantity.
+func (o *ObjectValue) quantityOf(val decimal.Decimal) (Quantity, bool) {
 	// Only a quantity converts, as in the HL7 validator, which maps the types
 	// named Quantity and no other: an adjudication has a numeric value too,
 	// and read as a quantity two of them with the same value were equal
 	// whatever their category. An object of no known type, a value alone
 	// without a model, may be one, and converts as before.
 	if t := o.Type(); t != typeObject && !quantityTypes[t] {
-		return Quantity{}, false, nil
+		return Quantity{}, false
 	}
 
 	// Prefer "code" over "unit": code carries the computable UCUM symbol ("mg"),
@@ -2712,7 +2739,7 @@ func (o *ObjectValue) AsQuantity() (Quantity, bool, error) {
 		}
 	}
 
-	return NewQuantityFromDecimal(val, unit), true, nil
+	return NewQuantityFromDecimal(val, unit), true
 }
 
 // quantityTypes are the FHIR types that map to a System.Quantity: Quantity and
@@ -2743,7 +2770,7 @@ func MoneyEqual(left, right *ObjectValue) (equal, ok bool) {
 	if !lok || !rok {
 		return false, false
 	}
-	return lv.Equal(rv) && lc == rc, true
+	return CompareDecimals(lv, rv) == 0 && lc == rc, true
 }
 
 // money reads the amount and currency of a Money.
@@ -2761,11 +2788,13 @@ func (o *ObjectValue) money() (decimal.Decimal, string, bool) {
 	if err != nil || dataType != jsonparser.Number {
 		return decimal.Decimal{}, "", false
 	}
-	value, err := ParseDecimal(string(valueBytes))
+	// Read as the resource holds it, one beyond the bound too: MoneyEqual
+	// compares it without rescaling
+	value, err := ReadDecimal(string(valueBytes))
 	if err != nil {
 		return decimal.Decimal{}, "", false
 	}
-	return value, currency, true
+	return value.Value(), currency, true
 }
 
 // quantityValue reads the value of a FHIR Quantity: a number, on an object that
@@ -2782,12 +2811,14 @@ func (o *ObjectValue) quantityValue() (decimal.Decimal, bool, error) {
 	if _, isMoney := o.stringField("currency"); isMoney {
 		return decimal.Decimal{}, false, nil
 	}
-	val, err := ParseDecimal(string(valueBytes))
+	// Read as Get reads any decimal in a resource, so that a zero written
+	// beyond the bound is a zero
+	val, err := ReadDecimal(string(valueBytes))
 	if err != nil {
-		if errors.Is(err, ErrDecimalRange) {
-			return decimal.Decimal{}, false, err
-		}
 		return decimal.Decimal{}, false, nil
 	}
-	return val, true, nil
+	if !InDecimalRange(val.Value()) {
+		return decimal.Decimal{}, false, fmt.Errorf("%w: %.40s", ErrDecimalRange, valueBytes)
+	}
+	return val.Value(), true, nil
 }
