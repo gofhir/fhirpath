@@ -46,6 +46,7 @@ Measured with `make three-engine`, the pinned validator jar.
 | SPEC-2 | R5's `dateTime` definition comments "UTC offset is allowed for dates and partial dates"; R4 and R4B do not say so, and neither reference engine reads `2020-01-15Z` | pinned core packages; battery `fhir-temporal-form` | decided: refused, as both engines do |
 | SPEC-4 | The decimal's JSON form is "restricted to the precision limits documented in XML schema for xs:double and xs:decimal" (R4, R4B, R5), so past about 1.8e308 a number in exponent form is no xs:double; yet R5's regex allows a nine-digit exponent and R4's any. Which bounds a FHIR decimal is left unsaid | `datatypes.html`; `StructureDefinition-decimal` regex | open |
 | SPEC-3 | The text requires an offset on a `dateTime` with a time and the seconds on a `time`; both reference engines read values without them, and none occurs in the R4, R4B or R5 official examples | `datatypes.html`; scan of the pinned example packages | decided: read, as both engines do (user, 2026-10-26) |
+| SPEC-5 | R5's decimal regex (`StructureDefinition-decimal`, `decimal.value`) reads `-?(0|[1-9][0-9]{0,17})(\.[0-9]{1,17})?([eE][+-]?[0-9]{1,9}})?`: a stray `}` before the last `)?`, so the pattern as written requires a literal `}` after the exponent | pinned `hl7.fhir.r5.core` 5.0.0; found in the review of plan 011 (#235) | open |
 
 ## gofhir/searchindex
 
@@ -54,6 +55,7 @@ Measured with `make three-engine`, the pinned validator jar.
 | SI-1 | Adopting the release with #231: `TestDateFormsInvalidForTheirType` indexes, with an "invalid form" warning, values outside their type's form (a dateTime without seconds, an instant without a time or an offset, a date with a time). fhirpath now hands them over as strings, so they go unindexed; to keep indexing them searchindex reads the string with its own parser | its tests run against this tree through `go.work` | open, for searchindex to adapt (user, 2026-10-26) |
 | SI-2 | `TestFhirpathInvalidFormsKnownLoss` fails as designed once #231 is in: the five values come out of the known loss | as SI-1 | open, as SI-1 |
 | SI-3 | Adopting the release with #232: a decimal beyond `types.DecimalDigits` now reaches it. `adr001.go` `decimalOf` hands `n.Value()` to `number()` and `readQuantity` unchecked, and `canonical()` takes it to ucum's `Rat()`, which builds 10^999999999 for `1e999999999`. It checks `types.InDecimalRange` only for SampledData. Needs the same check (report the value, do not index it) and a test with such a value, before it adopts the release | review of plan 010 (#232) | open, for searchindex |
+| SI-4 | `adr001.go:798` decodes SampledData with its own `decimal.NewFromString`. Under shopspring/decimal v1.6.0, which fhirpath requires after #235, it reads a Unicode minus (`1e−2` → 0.01) and refuses an exponent past 10,000 before its own range check runs. Should decode through `types.ParseDecimal` | review of plan 011 | open, for searchindex |
 
 ## gofhir/cql
 
@@ -67,6 +69,12 @@ Measured with `make three-engine`, the pinned validator jar.
 |---|---|---|---|
 | VAL-1 | Its tests pass alike against main and against #231 | `go test ./...` through `go.work` | nothing to do |
 
+## buger/jsonparser
+
+| # | Finding | Reproduce | Status |
+|---|---|---|---|
+| JP-1 | A bare `-` as a value is typed as a Number, and read as Integer 0 (`strconv.ParseInt("-")` path) | found in the review of plan 011 (Fable) | open; to be measured before reporting |
+
 ## gofhir/fhirpath (this engine)
 
 | # | Finding | Status |
@@ -77,3 +85,6 @@ Measured with `make three-engine`, the pinned validator jar.
 | FP-5 | `ImplicitPrecision` counts the characters after the point in the text, exponent included: `1.5e2` gives `precision()` 3, `lowBoundary()` 149.99950000 | open (review of #232) |
 | FP-6 | An exponent past int32 (`1e9999999999`, valid under R4's regex, not R5's) is not read: the decimal library holds it in an int32. fhirpath.js and Java read it | open; pinned by `TestAnExponentPastInt32IsAKnownLoss` |
 | FP-4 | The error for a value read as a string under a temporal FHIR type names the FHIR type: `cannot apply '+' to dateTime and Quantity` | open (review of #231, round 1) |
+| FP-7 | Under shopspring/decimal v1.5+ a decimal whose exponent passes `MaxDecodeExponent` (10,000) is read as absent again, and v1.6 reads a Unicode minus | #235, plan 011 |
+| FP-8 | Results depend on shopspring's process-wide `TrimTrailingZeros` (and possibly `UseScientificNotation`): `(10.0 / 4).toString()` is `2.5000000000000000` when another module sets it false | open: #237 |
+| FP-9 | A resource's decimal is read by the decimal library's grammar, not FHIR's: `-.5`, `5.`, `01`, `007.50`, `1.e5` are read | open: #238 |

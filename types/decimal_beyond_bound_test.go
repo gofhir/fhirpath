@@ -57,7 +57,7 @@ func TestCompareDecimals(t *testing.T) {
 		{"1" + strings.Repeat("0", 3000), "2e2500", 1},
 		{"-1" + strings.Repeat("0", 3000), "-2e2500", -1},
 	} {
-		a, b := decimal.RequireFromString(tt.a), decimal.RequireFromString(tt.b)
+		a, b := mustDecode(t, tt.a), mustDecode(t, tt.b)
 		start := time.Now()
 		got := CompareDecimals(a, b)
 		if took := time.Since(start); took > 50*time.Millisecond {
@@ -243,7 +243,7 @@ func TestADecimalPastTheBoundByZerosIsReadAtTheBound(t *testing.T) {
 		if err != nil {
 			t.Fatalf("%.40s: %v", tt.written, err)
 		}
-		want := decimal.RequireFromString(tt.value)
+		want := mustDecode(t, tt.value)
 		if !d.Value().Equal(want) || d.Value().Exponent() != tt.exponent {
 			t.Errorf("%.40s read as %.40s at exponent %d, want %.40s at %d", tt.written, d.Value().String(), d.Value().Exponent(), tt.value, tt.exponent)
 		}
@@ -263,4 +263,15 @@ func TestADecimalPastTheBoundByZerosIsReadAtTheBound(t *testing.T) {
 	if within.Exponent() != -DecimalDigits || !InDecimalRange(within) {
 		t.Errorf("200000 zeros past the bound read at exponent %d", within.Exponent())
 	}
+}
+
+// mustDecode reads a decimal as the engine does, past the decoder bound of
+// shopspring/decimal v1.5.0 and later too (#235).
+func mustDecode(t *testing.T, s string) decimal.Decimal {
+	t.Helper()
+	d, err := decodeDecimal(s)
+	if err != nil {
+		t.Fatalf("%.40s: %v", s, err)
+	}
+	return d
 }

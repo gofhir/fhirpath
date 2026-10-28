@@ -697,6 +697,17 @@ func TestADecimalBeyondTheBoundAgainstAQuantityInAnotherUnitIsUnknown(t *testing
 	}
 }
 
+// A Unicode minus is no sign in FHIR's decimal nor in JSON, though the JSON
+// reader hands a number written with one in its exponent over as a number:
+// it is read as nothing, as shopspring/decimal v1.4.0 had it, where v1.6.0
+// would read 1e−2 as 0.01 (#235).
+func TestAUnicodeMinusInAResourceIsNoNumber(t *testing.T) {
+	checkBeyond(t, []beyondCase{
+		{"1e−2", held + ".exists()", "[Boolean false]"},
+		{"1.5e−2", held + ".exists()", "[Boolean false]"},
+	})
+}
+
 // A known loss: an exponent past int32, which the decimal library holds the
 // exponent in, is not read. R4's and R4B's regex for decimal allow any exponent
 // ("([eE][+-]?[0-9]+)?"); R5's allows nine digits ("[0-9]{1,9}"), all of

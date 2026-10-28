@@ -161,9 +161,98 @@ func WithinRange(v Value) (Value, bool) {
 // ErrDecimalRange reports a decimal beyond DecimalDigits.
 var ErrDecimalRange = errors.New("decimal beyond the range this engine holds")
 
+// decodeDecimal reads a decimal from text as shopspring/decimal v1.4.0's
+// NewFromString read it: an optional sign, digits with a point that has
+// digits on one side at least, and an exponent, all ASCII. The library's
+// later versions refuse an exponent past MaxDecodeExponent, a process-wide
+// setting, and read a Unicode minus; this engine's bound is DecimalDigits,
+// checked by its callers, so the value is built from its digits and written
+// exponent, and the exponent's own cost is never paid here (#235). A sign
+// after the point, which v1.4.0 read (".-5" as -0.05), is refused. The
+// exponent must fit in the int32 the library holds it in (FP-6).
+func decodeDecimal(s string) (decimal.Decimal, error) {
+	mantissa, exponentText := s, ""
+	if i := strings.IndexAny(s, "eE"); i >= 0 {
+		mantissa, exponentText = s[:i], s[i+1:]
+		if !isExponent(exponentText) {
+			return decimal.Decimal{}, fmt.Errorf("invalid decimal: %.40s", s)
+		}
+	}
+	sign := ""
+	if mantissa != "" && (mantissa[0] == '-' || mantissa[0] == '+') {
+		sign, mantissa = mantissa[:1], mantissa[1:]
+	}
+	whole, fraction, _ := strings.Cut(mantissa, ".")
+	if !isDigits(whole) || !isDigits(fraction) {
+		return decimal.Decimal{}, fmt.Errorf("invalid decimal: %.40s", s)
+	}
+	var exponent int64
+	if exponentText != "" {
+		written, err := strconv.ParseInt(exponentText, 10, 32)
+		if err != nil {
+			return decimal.Decimal{}, fmt.Errorf("invalid decimal: exponent out of range: %.40s", s)
+		}
+		exponent = written
+	}
+	exponent -= int64(len(fraction))
+	if exponent < math.MinInt32 {
+		return decimal.Decimal{}, fmt.Errorf("invalid decimal: exponent out of range: %.40s", s)
+	}
+	d, ok := fromDigits(sign, whole, fraction, int32(exponent))
+	if !ok {
+		return decimal.Decimal{}, fmt.Errorf("invalid decimal: %.40s", s)
+	}
+	return d, nil
+}
+
+// fromDigits is the decimal of a sign, ASCII digits before and after the
+// point, and an exponent; false where there are no digits.
+func fromDigits(sign, whole, fraction string, exponent int32) (decimal.Decimal, bool) {
+	digits := len(whole) + len(fraction)
+	if digits == 0 {
+		return decimal.Decimal{}, false
+	}
+	// Eighteen digits fit an int64, which costs no big.Int
+	if digits <= 18 {
+		var n int64
+		for _, part := range [2]string{whole, fraction} {
+			for i := range len(part) {
+				n = n*10 + int64(part[i]-'0')
+			}
+		}
+		if sign == "-" {
+			n = -n
+		}
+		return decimal.New(n, exponent), true
+	}
+	coefficient, ok := new(big.Int).SetString(sign+whole+fraction, 10)
+	if !ok {
+		return decimal.Decimal{}, false
+	}
+	return decimal.NewFromBigInt(coefficient, exponent), true
+}
+
+// isDigits reports text of ASCII digits alone, or none.
+func isDigits(s string) bool {
+	for i := range len(s) {
+		if s[i] < '0' || s[i] > '9' {
+			return false
+		}
+	}
+	return true
+}
+
+// isExponent reports an exponent's text: an optional sign and ASCII digits.
+func isExponent(s string) bool {
+	if s != "" && (s[0] == '-' || s[0] == '+') {
+		s = s[1:]
+	}
+	return s != "" && isDigits(s)
+}
+
 // ParseDecimal reads a decimal, refusing one beyond DecimalDigits.
 func ParseDecimal(s string) (decimal.Decimal, error) {
-	d, err := decimal.NewFromString(s)
+	d, err := decodeDecimal(s)
 	if err != nil {
 		return decimal.Decimal{}, err
 	}
@@ -181,7 +270,7 @@ func ParseDecimal(s string) (decimal.Decimal, error) {
 // text, so 0e2000 + 1 is 1, and so is a value whose places past the bound are
 // all zeros: 1 written with 1001 zeros after the point is 1.
 func ReadDecimal(s string) (Decimal, error) {
-	d, err := decimal.NewFromString(s)
+	d, err := decodeDecimal(s)
 	if err != nil {
 		return Decimal{}, fmt.Errorf("invalid decimal: %s", s)
 	}
@@ -215,7 +304,7 @@ func withinScale(d decimal.Decimal, s string) decimal.Decimal {
 	if int64(len(digits)-len(strings.TrimRight(digits, "0"))) < excess {
 		return d
 	}
-	within, err := decimal.NewFromString(digits[:int64(len(digits))-excess] + "e" + strconv.FormatInt(exponent+excess, 10))
+	within, err := decodeDecimal(digits[:int64(len(digits))-excess] + "e" + strconv.FormatInt(exponent+excess, 10))
 	if err != nil {
 		return d
 	}
