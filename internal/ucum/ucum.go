@@ -24,6 +24,8 @@ import (
 	"github.com/shopspring/decimal"
 
 	ucumlib "github.com/gofhir/ucum/v4"
+
+	"github.com/gofhir/fhirpath/internal/decimals"
 )
 
 // exactDigits bounds the decimal expansion of a conversion whose exact result is
@@ -285,14 +287,10 @@ func Validate(code string) error {
 	return svc.Validate(code)
 }
 
-// toRat converts a decimal to an exact rational. A decimal's own text is an
-// exact base-ten representation, so no precision is lost.
+// toRat converts a decimal to an exact rational: a decimal is a coefficient
+// times a power of ten, so no precision is lost.
 func toRat(d decimal.Decimal) *big.Rat {
-	rat, ok := new(big.Rat).SetString(d.String())
-	if !ok {
-		return new(big.Rat)
-	}
-	return rat
+	return d.Rat()
 }
 
 // fromRat converts an exact rational back to a decimal, expanding a repeating
@@ -306,16 +304,8 @@ func fromRat(r *big.Rat) (decimal.Decimal, error) {
 		return decimal.NewFromBigInt(r.Num(), 0), nil
 	}
 
-	value, err := decimal.NewFromString(r.FloatString(exactDigits))
-	if err != nil {
-		return decimal.Decimal{}, err
-	}
-
-	// FloatString pads to the requested places; drop the padding so the value
-	// presents the precision it actually carries.
-	normalized, err := decimal.NewFromString(value.String())
-	if err != nil {
-		return value, nil
-	}
-	return normalized, nil
+	// Rounded half away from zero at exactDigits places, as big.Rat writes
+	// it, and without the padding, so the value presents the precision it
+	// actually carries
+	return decimals.Natural(decimal.NewFromBigRat(r, exactDigits)), nil
 }

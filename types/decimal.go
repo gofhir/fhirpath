@@ -10,6 +10,8 @@ import (
 	"strings"
 
 	"github.com/shopspring/decimal"
+
+	"github.com/gofhir/fhirpath/internal/decimals"
 )
 
 // Decimal represents a FHIRPath decimal value with arbitrary precision.
@@ -35,6 +37,11 @@ type Decimal struct {
 // the bound is the engine's, and a value beyond it is an overflow: "Operations
 // that cause arithmetic overflow or underflow will result in empty".
 const DecimalDigits = 1000
+
+// DivisionPlaces is the places a quotient that does not end is rounded to.
+// The engine passes it to every division itself: shopspring's Div reads a
+// process-wide setting a program may change (#237).
+const DivisionPlaces = 16
 
 // InDecimalRange reports a decimal within DecimalDigits on either side of the
 // point.
@@ -110,7 +117,7 @@ func roundTo(d decimal.Decimal, places int32) decimal.Decimal {
 		return d
 	}
 	if d.IsZero() || leadingPlace(d) < -int64(places)-1 {
-		return decimal.Zero
+		return decimal.Decimal{}
 	}
 	return d.Round(places)
 }
@@ -120,7 +127,7 @@ func roundTo(d decimal.Decimal, places int32) decimal.Decimal {
 func normalizedZero(d decimal.Decimal) decimal.Decimal {
 	switch exponent := d.Exponent(); {
 	case exponent > DecimalDigits:
-		return decimal.Zero
+		return decimal.Decimal{}
 	case exponent < -DecimalDigits:
 		return decimal.New(0, -DecimalDigits)
 	}
@@ -421,12 +428,13 @@ func (d Decimal) significantPlaces() int32 {
 
 // String returns the decimal string representation. For values created from
 // string parsing, preserves the original representation (e.g., "1.0" stays "1.0").
-// For computed values, uses the default shopspring representation.
+// For computed values, writes no exponent and drops the fraction's trailing
+// zeros, whatever a program sets in the decimal library (#237).
 func (d Decimal) String() string {
 	if d.original != "" {
 		return d.original
 	}
-	return d.value.String()
+	return decimals.Format(d.value)
 }
 
 // ImplicitPrecision returns the number of decimal places in this value,
@@ -492,8 +500,7 @@ func (d Decimal) Divide(other Decimal) (Decimal, error) {
 	if other.value.IsZero() {
 		return Decimal{}, fmt.Errorf("division by zero")
 	}
-	// Use 16 decimal places of precision
-	return Decimal{value: d.value.DivRound(other.value, 16)}, nil
+	return Decimal{value: d.value.DivRound(other.value, DivisionPlaces)}, nil
 }
 
 // Negate returns the negation of the decimal.

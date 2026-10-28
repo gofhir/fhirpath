@@ -2,6 +2,7 @@ package fhirpath_test
 
 import (
 	"go/ast"
+	"go/build"
 	"go/importer"
 	"go/parser"
 	"go/token"
@@ -180,19 +181,6 @@ var decodingFuncs = []string{
 	"DecodeSpanner", "UnmarshalBSONValue",
 }
 
-// rereadDecimalSites names the functions that read a decimal from text the
-// engine wrote itself, a value's String() or a constant. String() writes no
-// exponent, so no exponent past MaxDecodeExponent reaches them, though a
-// value beyond the bound may. A new site fails this test until it decodes
-// through types.decodeDecimal or is named here.
-var rereadDecimalSites = []string{
-	// a value's String(): #237 takes these off String(), which
-	// UseScientificNotation would give an exponent
-	"types.dropTrailingZeros", "funcs.quantityResult", "ucum.fromRat",
-	// "0.0" and "1.0"
-	"funcs.quantityOf",
-}
-
 // decodingSites lists, over every production package, the functions that
 // use one of decodingFuncs of shopspring/decimal, as "pkg.Func" or
 // "pkg.Recv.Method"; a use in a package-level declaration is named "pkg.var".
@@ -228,8 +216,130 @@ func TestEveryDecodingOfADecimalGoesThroughTheEngine(t *testing.T) {
 		t.Fatal("the walk found no types package")
 	}
 	for _, site := range decodingSites(t) {
-		if !slices.Contains(rereadDecimalSites, site) {
-			t.Errorf("%s decodes a decimal with shopspring/decimal: read input text through types.decodeDecimal, or name a re-read of the engine's own text in rereadDecimalSites", site)
+		t.Errorf("%s decodes a decimal with shopspring/decimal: read input text through types.decodeDecimal; a value the engine holds needs no re-read (#237)", site)
+	}
+}
+
+// librarySettingReaders type-checks shopspring/decimal's source, in the
+// version this module selects, and returns the full names of its exported
+// package variables, the settings a program may change (#237), and of every
+// function and method that reads one, directly or through the calls it
+// makes. The list follows the library: a new version that reads a setting in
+// another method needs no change here.
+func librarySettingReaders(t *testing.T) (settings, readers map[string]bool) {
+	t.Helper()
+	pkg, err := build.Import("github.com/shopspring/decimal", ".", 0)
+	if err != nil {
+		t.Fatal(err)
+	}
+	fset := token.NewFileSet()
+	files := make([]*ast.File, 0, len(pkg.GoFiles))
+	for _, name := range pkg.GoFiles {
+		f, parseErr := parser.ParseFile(fset, filepath.Join(pkg.Dir, name), nil, 0)
+		if parseErr != nil {
+			t.Fatal(parseErr)
+		}
+		files = append(files, f)
+	}
+	info := &types.Info{Uses: map[*ast.Ident]types.Object{}, Defs: map[*ast.Ident]types.Object{}}
+	conf := types.Config{Importer: importer.ForCompiler(fset, "source", nil)}
+	checked, err := conf.Check(pkg.ImportPath, fset, files, info)
+	if err != nil {
+		t.Fatal(err)
+	}
+	settings = map[string]bool{}
+	for _, name := range checked.Scope().Names() {
+		if v, ok := checked.Scope().Lookup(name).(*types.Var); ok && v.Exported() {
+			settings[v.Pkg().Path()+"."+v.Name()] = true
+		}
+	}
+	// What each function uses of the library, by full name
+	uses := map[string][]string{}
+	for _, f := range files {
+		for _, decl := range f.Decls {
+			fn, ok := decl.(*ast.FuncDecl)
+			if !ok {
+				continue
+			}
+			caller := info.Defs[fn.Name].(*types.Func).FullName()
+			ast.Inspect(fn, func(n ast.Node) bool {
+				if id, ok := n.(*ast.Ident); ok {
+					if obj := info.Uses[id]; obj != nil && obj.Pkg() == checked {
+						uses[caller] = append(uses[caller], fullName(obj))
+					}
+				}
+				return true
+			})
+		}
+	}
+	readers = map[string]bool{}
+	for changed := true; changed; {
+		changed = false
+		for caller, used := range uses {
+			if readers[caller] {
+				continue
+			}
+			for _, name := range used {
+				if settings[name] || readers[name] {
+					readers[caller], changed = true, true
+					break
+				}
+			}
+		}
+	}
+	return settings, readers
+}
+
+// fullName names a function as types.Func.FullName does, and a package
+// variable by its path and name.
+func fullName(obj types.Object) string {
+	if fn, ok := obj.(*types.Func); ok {
+		return fn.FullName()
+	}
+	if obj.Pkg() != nil && obj.Parent() == obj.Pkg().Scope() {
+		return obj.Pkg().Path() + "." + obj.Name()
+	}
+	return ""
+}
+
+// The engine reads none of the decimal library's process-wide settings,
+// directly or through a method that reads one, so a program that sets them
+// changes no result (#237). A Decimal handed to fmt, or to a parameter of
+// type any, is out of this test's sight: TestResultsDoNotDependOnTheDecimalLibrarysSettings
+// covers it.
+func TestNoDecimalLibrarySettingIsRead(t *testing.T) {
+	settings, readers := librarySettingReaders(t)
+	for _, want := range []string{
+		"github.com/shopspring/decimal.TrimTrailingZeros",
+		"(github.com/shopspring/decimal.Decimal).String",
+		"(github.com/shopspring/decimal.Decimal).Div",
+		"github.com/shopspring/decimal.NewFromString",
+		// reads a setting only through String
+		"(github.com/shopspring/decimal.Decimal).MarshalText",
+	} {
+		if !settings[want] && !readers[want] {
+			t.Fatalf("%s is not found as a setting or a reader of one", want)
+		}
+	}
+	for _, pkg := range productionPackages(t) {
+		for _, f := range pkg.files {
+			for _, decl := range f.Decls {
+				site := pkg.name + "." + declName(decl)
+				ast.Inspect(decl, func(n ast.Node) bool {
+					id, ok := n.(*ast.Ident)
+					if !ok {
+						return true
+					}
+					obj := pkg.info.Uses[id]
+					if obj == nil || obj.Pkg() == nil || obj.Pkg().Path() != "github.com/shopspring/decimal" {
+						return true
+					}
+					if name := fullName(obj); settings[name] || readers[name] {
+						t.Errorf("%s uses %s, which reads a setting of the decimal library", site, name)
+					}
+					return true
+				})
+			}
 		}
 	}
 }

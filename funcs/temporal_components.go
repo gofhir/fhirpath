@@ -7,6 +7,7 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/gofhir/fhirpath/eval"
+	"github.com/gofhir/fhirpath/internal/decimals"
 	"github.com/gofhir/fhirpath/types"
 )
 
@@ -219,8 +220,8 @@ func fnTimezoneOffsetOf(_ *eval.Context, input types.Collection, _ []interface{}
 // A whole number of hours keeps a decimal place, as the specification's own
 // -7.0 does.
 func offsetInHours(minutes int) string {
-	hours := decimal.NewFromInt(int64(minutes)).Div(decimal.NewFromInt(minutesPerHour))
-	text := hours.String()
+	hours := decimal.NewFromInt(int64(minutes)).DivRound(decimal.NewFromInt(minutesPerHour), types.DivisionPlaces)
+	text := decimals.Format(hours)
 	if !strings.Contains(text, ".") {
 		text += ".0"
 	}

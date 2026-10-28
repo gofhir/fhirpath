@@ -240,7 +240,7 @@ func fnToBoolean(_ *eval.Context, input types.Collection, _ []interface{}) (type
 		// read: it is neither 1 nor 0
 		if types.CompareDecimals(v.Value(), decimal.NewFromInt(1)) == 0 {
 			return types.Collection{types.NewBoolean(true)}, nil
-		} else if types.CompareDecimals(v.Value(), decimal.Zero) == 0 {
+		} else if v.Value().IsZero() {
 			return types.Collection{types.NewBoolean(false)}, nil
 		}
 		return types.Collection{}, nil
@@ -275,7 +275,7 @@ func fnConvertsToBoolean(_ *eval.Context, input types.Collection, _ []interface{
 		}
 		return types.Collection{types.NewBoolean(false)}, nil
 	case types.Decimal:
-		if types.CompareDecimals(v.Value(), decimal.Zero) == 0 || types.CompareDecimals(v.Value(), decimal.NewFromInt(1)) == 0 {
+		if v.Value().IsZero() || types.CompareDecimals(v.Value(), decimal.NewFromInt(1)) == 0 {
 			return types.Collection{types.NewBoolean(true)}, nil
 		}
 		return types.Collection{types.NewBoolean(false)}, nil
@@ -677,13 +677,9 @@ func quantityOf(item types.Value) (types.Quantity, bool) {
 	case types.Boolean:
 		// "true results in the quantity 1.0 '1', and false results in the
 		// quantity 0.0 '1'"
-		magnitude := "0.0"
+		value := decimal.New(0, -1)
 		if v.Bool() {
-			magnitude = "1.0"
-		}
-		value, err := decimal.NewFromString(magnitude)
-		if err != nil {
-			return types.Quantity{}, false
+			value = decimal.New(10, -1)
 		}
 		return types.NewQuantityFromDecimal(value, types.DefaultQuantityUnit), true
 

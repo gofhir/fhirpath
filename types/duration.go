@@ -7,6 +7,8 @@ import (
 	"time"
 
 	"github.com/shopspring/decimal"
+
+	"github.com/gofhir/fhirpath/internal/decimals"
 )
 
 // ErrDateComponentOnTime reports an attempt to shift a time of day by a unit
@@ -206,6 +208,9 @@ func multiplyInt(a, b int) (int, bool) {
 // years 1 to 9999 from any date: "If the resulting year is out of range, an
 // error is thrown".
 func pastTheCalendar(value any, unit string) error {
+	if d, ok := value.(decimal.Decimal); ok {
+		value = decimals.Format(d)
+	}
 	return fmt.Errorf("%w: date arithmetic by %v %s reaches past the years 1 to 9999", ErrInvalidTemporal, value, unit)
 }
 

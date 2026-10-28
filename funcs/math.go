@@ -9,6 +9,7 @@ import (
 	"github.com/shopspring/decimal"
 
 	"github.com/gofhir/fhirpath/eval"
+	"github.com/gofhir/fhirpath/internal/decimals"
 	"github.com/gofhir/fhirpath/types"
 )
 
@@ -244,11 +245,7 @@ func wholeOf(name string, input types.Collection, whole func(decimal.Decimal) de
 // Decimal is, 1.5 'mg'.round(2) being 1.5 'mg', and empty past the decimals
 // this engine holds, as arithmetic overflows.
 func quantityResult(value decimal.Decimal, unit string) types.Collection {
-	natural, err := decimal.NewFromString(value.String())
-	if err != nil {
-		return types.Collection{}
-	}
-	q, ok := types.WithinRange(types.NewQuantityFromDecimal(natural, unit))
+	q, ok := types.WithinRange(types.NewQuantityFromDecimal(decimals.Natural(value), unit))
 	if !ok {
 		return types.Collection{}
 	}
@@ -427,7 +424,7 @@ func fnRound(_ *eval.Context, input types.Collection, args []interface{}) (types
 		}
 		return quantityResult(q.Value().Round(precision), q.Unit()), nil
 	}
-	d, err := types.NewDecimal(value.Round(precision).String())
+	d, err := types.NewDecimal(decimals.Format(value.Round(precision)))
 	if err != nil {
 		return types.Collection{}, nil
 	}
@@ -495,7 +492,7 @@ func fnSum(ctx *eval.Context, input types.Collection, _ []interface{}) (types.Co
 	}
 	// Return Integer if all inputs were Integer, otherwise Decimal
 	if hasDecimal {
-		d, err := types.NewDecimal(sum.String())
+		d, err := types.NewDecimal(decimals.Format(sum))
 		if err != nil {
 			return types.Collection{}, nil
 		}
@@ -865,7 +862,7 @@ func fnAvg(ctx *eval.Context, input types.Collection, _ []interface{}) (types.Co
 	if err != nil {
 		return nil, err
 	}
-	d, err := types.NewDecimal(sum.Div(count).String())
+	d, err := types.NewDecimal(decimals.Format(sum.DivRound(count, types.DivisionPlaces)))
 	if err != nil {
 		return types.Collection{}, nil
 	}
