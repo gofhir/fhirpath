@@ -21,6 +21,12 @@ type Resource interface {
 // EvaluateResource evaluates a FHIRPath expression against a Go struct.
 // The resource is serialized to JSON first, then evaluated.
 // For better performance with multiple evaluations, cache the JSON bytes.
+//
+// The struct is serialized by encoding/json as its own type says. A
+// shopspring/decimal field is written as a JSON string unless the program
+// sets decimal.MarshalJSONWithoutQuotes, so the expression sees a String,
+// not a Decimal, where FHIR writes a number. The same holds for
+// EvaluateResourceCached and NewResourceJSON.
 func EvaluateResource(resource Resource, expr string) (Collection, error) {
 	jsonBytes, err := json.Marshal(resource)
 	if err != nil {

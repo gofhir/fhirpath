@@ -148,7 +148,7 @@ func boundaryInterval(inputPrecision int) decimal.Decimal {
 	// bounded by the length of the expression being evaluated and cannot
 	// approach the width of the exponent shopspring takes.
 	unit := decimal.New(1, int32(-inputPrecision)) //nolint:gosec // digit count of a parsed literal
-	return unit.Div(decimal.NewFromInt(2))
+	return unit.DivRound(decimal.NewFromInt(2), types.DivisionPlaces)
 }
 
 // decimalBoundary computes one boundary of a decimal value and renders it at the

@@ -10,6 +10,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
+	"github.com/gofhir/fhirpath/internal/decimals"
 	"github.com/gofhir/fhirpath/internal/ucum"
 )
 
@@ -415,7 +416,7 @@ func (q Quantity) valueText() string {
 	if exponent := q.value.Exponent(); exponent < 0 {
 		return q.value.StringFixed(-exponent)
 	}
-	return q.value.String()
+	return decimals.Format(q.value)
 }
 
 // calendarDurationUnits are the time-valued keywords the grammar accepts as an
@@ -626,11 +627,11 @@ func convertCalendar(value decimal.Decimal, from, to string) (decimal.Decimal, b
 	if fromFactor, ok := yearsAndMonths[from]; ok {
 		if toFactor, ok := yearsAndMonths[to]; ok {
 			return value.Mul(decimal.NewFromInt(int64(fromFactor))).
-				Div(decimal.NewFromInt(int64(toFactor))), true
+				DivRound(decimal.NewFromInt(int64(toFactor)), DivisionPlaces), true
 		}
 	}
 
-	return value.Mul(calendarUnitMilliseconds[from]).Div(calendarUnitMilliseconds[to]), true
+	return value.Mul(calendarUnitMilliseconds[from]).DivRound(calendarUnitMilliseconds[to], DivisionPlaces), true
 }
 
 // explicitCalendarToUCUM extends calendarToUCUM with the two keywords that have
@@ -679,11 +680,7 @@ func (q Quantity) valueIn(target Quantity) (decimal.Decimal, error) {
 // the zeros are an artifact of how the quotient was computed, not precision the
 // value carries, and they would otherwise be presented as significant.
 func dropTrailingZeros(d decimal.Decimal) decimal.Decimal {
-	normalized, err := decimal.NewFromString(d.String())
-	if err != nil {
-		return d
-	}
-	return normalized
+	return decimals.Natural(d)
 }
 
 // Add adds two quantities in the more granular of their units: "The unit of
@@ -827,5 +824,5 @@ func (q Quantity) Divide(divisor decimal.Decimal) (Quantity, error) {
 	if divisor.IsZero() {
 		return Quantity{}, ErrDivideByZero
 	}
-	return Quantity{value: dropTrailingZeros(q.value.Div(divisor)), unit: q.unit}, nil
+	return Quantity{value: dropTrailingZeros(q.value.DivRound(divisor, DivisionPlaces)), unit: q.unit}, nil
 }
