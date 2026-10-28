@@ -19,6 +19,9 @@ Measured with `make three-engine` (`difftest/`), R4 and R5 models.
 | JS-2 | Adding a calendar duration to a FHIR temporal value it reads as a string fails with an internal error, `otherQuantity.hasSameMappedCalendarUnit is not a function`, not a type error: `Observation.issued + 1 year` over `"issued": "2020"` | probe battery of #231 (`X + 1 year`) | open |
 | JS-3 | A FHIR `dateTime` with a trailing `T` or a time without seconds (`2020T`, `2020-01-15T10:30Z`) is read as a DateTime, against FHIR's datatypes page ("Seconds must be provided"); the Java engine refuses it | battery `fhir-temporal-form` | decided: this engine follows the text and Java (CONFORMANCE.md, "A FHIR date, dateTime, instant or time is read by FHIR's form") |
 | JS-4 | A FHIR `time` written with a leading `T`, `T10:30:00`, is read as a Time; FHIR's form is `hh:mm:ss` | battery `fhir-temporal-form`, `time-32.json` | decided, as JS-3 |
+| JS-5 | A decimal is held as a float64: `1e1000` is `Infinity` (`toString()`, arithmetic), `1e-1001` is 0 (`> 0` false, `abs()` 0), `1e1000 * 0` is `NaN`. FHIRPath's Decimal is exact to at least 28 digits, and "Operations that cause arithmetic overflow or underflow will result in empty" | battery `decimal-beyond-bound`; found in #232 | open |
+| JS-6 | Unary minus on a FHIR decimal is an error, `Unary - can only be applied to …`, even on `1.5` | battery `decimal-beyond-bound`, `-V` | open |
+| JS-7 | `precision()` is not implemented; `lowBoundary()` of a decimal written with an exponent errs, `Cannot convert string to decimal` | battery `decimal-beyond-bound` | open |
 
 ## HL7 Java FHIRPath engine (validator 6.10.2)
 
@@ -30,6 +33,9 @@ Measured with `make three-engine`, the pinned validator jar.
 | JAVA-2 | A FHIR `date` with a time, `2020-01-15T10:30:00Z`, is read as a DateTime; FHIR: "YYYY, YYYY-MM, or YYYY-MM-DD" | `date-27.json` | decided, as JAVA-1 |
 | JAVA-3 | A FHIR `time` holding a date, `2020-01-15`, answers `> @T09` true and `> @2019` an error: a time, and not one | `time-33.json`, and the probe `> @2019` | decided, as JAVA-1 |
 | JAVA-4 | A FHIR `time` with a leading `T`, `T10:30:00`, answers `> @T09` false | `time-32.json` | decided, as JS-4 |
+| JAVA-6 | A decimal is read through a double for some operations: `1e-1001 > 0` is false and `abs()`, `sqrt()`, `power(2)` of it `0.0`, though `toString()` gives `1e-1001` | battery `decimal-beyond-bound`; found in #232 | open |
+| JAVA-7 | Over a decimal past a long: `ceiling()`/`floor()` clamp to int32 (`2147483647`), `truncate()`, `div`, `sum()`, `avg()`, `min()`, `max()` err (the last four on `1.5` too), `mod` throws `java.lang.ArithmeticException`; `convertsToDecimal()` and `convertsToQuantity()` of `1.5` are false, `toQuantity()` of it empty; `lowBoundary()` of `1e1000` is `0.500000001000` | battery `decimal-beyond-bound` | open |
+| JAVA-8 | `'1e1000'.toDecimal()` converts a string with an exponent, which FHIRPath's String form `(\+|-)?\d+(\.\d+)?` does not take | battery `decimal-beyond-bound` | decided: not followed (CONFORMANCE.md, "Measured, and not followed") |
 | JAVA-5 | A `dateTime` with a time and no offset is placed in the JVM's local offset: `2020-01-15T10:30:00 + 1 year` gives `2021-01-15T10:30:00-03:00` on a machine in Chile, so the answer depends on where it runs. FHIRPath calls a default offset "a policy decision" | probe battery of #231 | open; this engine leaves the offset to its caller (`WithDefaultOffset`) |
 
 ## The FHIR specification (HL7)
@@ -38,6 +44,7 @@ Measured with `make three-engine`, the pinned validator jar.
 |---|---|---|---|
 | SPEC-1 | R5's `dateTime` regex (`StructureDefinition-dateTime`, `dateTime.value`) accepts a sign with no offset, `2020-01-15T10:30:00+`, and an offset after a month or a day, `2020-01Z`; R4 and R4B's do not. R5's datatypes page calls the regexes "informative, not normative" | pinned `hl7.fhir.r5.core` 5.0.0 | open (the user chose not to file it yet); to be checked against the current build before drafting |
 | SPEC-2 | R5's `dateTime` definition comments "UTC offset is allowed for dates and partial dates"; R4 and R4B do not say so, and neither reference engine reads `2020-01-15Z` | pinned core packages; battery `fhir-temporal-form` | decided: refused, as both engines do |
+| SPEC-4 | The decimal's JSON form is "restricted to the precision limits documented in XML schema for xs:double and xs:decimal" (R4, R4B, R5), so past about 1.8e308 a number in exponent form is no xs:double; yet R5's regex allows a nine-digit exponent and R4's any. Which bounds a FHIR decimal is left unsaid | `datatypes.html`; `StructureDefinition-decimal` regex | open |
 | SPEC-3 | The text requires an offset on a `dateTime` with a time and the seconds on a `time`; both reference engines read values without them, and none occurs in the R4, R4B or R5 official examples | `datatypes.html`; scan of the pinned example packages | decided: read, as both engines do (user, 2026-10-26) |
 
 ## gofhir/searchindex
@@ -46,6 +53,13 @@ Measured with `make three-engine`, the pinned validator jar.
 |---|---|---|---|
 | SI-1 | Adopting the release with #231: `TestDateFormsInvalidForTheirType` indexes, with an "invalid form" warning, values outside their type's form (a dateTime without seconds, an instant without a time or an offset, a date with a time). fhirpath now hands them over as strings, so they go unindexed; to keep indexing them searchindex reads the string with its own parser | its tests run against this tree through `go.work` | open, for searchindex to adapt (user, 2026-10-26) |
 | SI-2 | `TestFhirpathInvalidFormsKnownLoss` fails as designed once #231 is in: the five values come out of the known loss | as SI-1 | open, as SI-1 |
+| SI-3 | Adopting the release with #232: a decimal beyond `types.DecimalDigits` now reaches it. `adr001.go` `decimalOf` hands `n.Value()` to `number()` and `readQuantity` unchecked, and `canonical()` takes it to ucum's `Rat()`, which builds 10^999999999 for `1e999999999`. It checks `types.InDecimalRange` only for SampledData. Needs the same check (report the value, do not index it) and a test with such a value, before it adopts the release | review of plan 010 (#232) | open, for searchindex |
+
+## gofhir/cql
+
+| # | Finding | Evidence | Status |
+|---|---|---|---|
+| CQL-1 | Calls `.Value()` on fhirpath decimals and quantities (`eval/evaluator.go`); after #232 a decimal read beyond the bound reaches it, to check with `types.InDecimalRange` before computing | review of plan 010 | open, to check |
 
 ## gofhir/validator
 
@@ -58,6 +72,8 @@ Measured with `make three-engine`, the pinned validator jar.
 | # | Finding | Status |
 |---|---|---|
 | FP-1 | A FHIR temporal value outside its form was read by the FHIRPath literal grammar, or by the untyped guess (`birthDate` with a time as a DateTime) | fixed by #231 |
-| FP-2 | A FHIR decimal beyond `DecimalDigits` is read as absent, with no error: `NewDecimal`'s `ErrDecimalRange` is dropped in `jsonValueToFHIRValueWithType` (`types/object.go`, the decimal branch) | open: #232 |
+| FP-2 | A FHIR decimal beyond `DecimalDigits` is read as absent, with no error: `NewDecimal`'s `ErrDecimalRange` is dropped in `jsonValueToFHIRValueWithType` (`types/object.go`, the decimal branch) | fixed by #232: held as written, compared exactly, computing with it empty |
 | FP-3 | Without a model, a choice variant can read differently by route, which 1.16.6 already did: `valueInstant: "2020"` is a DateTime by `.value` and a Date by `.valueInstant`; `valueTime: "10:30"` a Time and a String | open; pinned by `TestWithoutAModelEveryRouteReadsAValueAsBefore` |
+| FP-5 | `ImplicitPrecision` counts the characters after the point in the text, exponent included: `1.5e2` gives `precision()` 3, `lowBoundary()` 149.99950000 | open (review of #232) |
+| FP-6 | An exponent past int32 (`1e9999999999`, valid under R4's regex, not R5's) is not read: the decimal library holds it in an int32. fhirpath.js and Java read it | open; pinned by `TestAnExponentPastInt32IsAKnownLoss` |
 | FP-4 | The error for a value read as a string under a temporal FHIR type names the FHIR type: `cannot apply '+' to dateTime and Quantity` | open (review of #231, round 1) |

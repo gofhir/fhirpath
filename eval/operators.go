@@ -63,6 +63,27 @@ func numberAndQuantity(left, right types.Value) (lq, rq types.Quantity, ok bool)
 	return types.Quantity{}, types.Quantity{}, false
 }
 
+// numberAgainstOverflow compares a number with a FHIR Quantity whose value is
+// beyond the bound, either side (#232). Of the same dimension the two are
+// unknown, as an overflow is empty; of another they are unequal, which the
+// unit alone decides, as 2 = 2 'mg' is false.
+func numberAgainstOverflow(left, right types.Value) (verdict pairVerdict, overflows bool) {
+	for _, pair := range [2][2]types.Value{{left, right}, {right, left}} {
+		n, isNumber := types.UnitOne(pair[0])
+		o, isObject := pair[1].(*types.ObjectValue)
+		if !isNumber || !isObject {
+			continue
+		}
+		if q, overflowing := o.OverflowingQuantity(); overflowing {
+			if !n.Comparable(q) {
+				return pairUnequal, true
+			}
+			return pairUnknown, true
+		}
+	}
+	return pairUnequal, false
+}
+
 // quantityOperands converts both operands to quantities when at least one of
 // them is a FHIR quantity object. Returns false when either side does not
 // convert, so that plain object operands keep their existing behavior.
@@ -167,8 +188,25 @@ func shiftTemporal(left, right types.Value, subtract bool) (types.Value, bool, e
 	return nil, false, nil
 }
 
+// beyondOperand reports ErrDecimalRange where an operand is a decimal held
+// beyond the bound, as one read from a resource may be: computing with it
+// writes out its digits, and it lies outside the range this engine computes
+// in, so the operation overflows to empty (#232; CONFORMANCE.md, "The range of
+// a Decimal").
+func beyondOperand(values ...types.Value) error {
+	for _, v := range values {
+		if !types.InRange(v) {
+			return types.ErrDecimalRange
+		}
+	}
+	return nil
+}
+
 // Add performs addition on two values.
 func Add(left, right types.Value) (types.Value, error) {
+	if err := beyondOperand(left, right); err != nil {
+		return nil, err
+	}
 	if result, ok, err := additiveQuantities(left, right, types.Quantity.Add); ok {
 		return result, err
 	}
@@ -226,6 +264,9 @@ func additiveQuantities(left, right types.Value, op func(types.Quantity, types.Q
 
 // Subtract performs subtraction on two values.
 func Subtract(left, right types.Value) (types.Value, error) {
+	if err := beyondOperand(left, right); err != nil {
+		return nil, err
+	}
 	if result, ok, err := additiveQuantities(left, right, types.Quantity.Subtract); ok {
 		return result, err
 	}
@@ -261,6 +302,9 @@ func Subtract(left, right types.Value) (types.Value, error) {
 
 // Multiply performs multiplication on two values.
 func Multiply(left, right types.Value) (types.Value, error) {
+	if err := beyondOperand(left, right); err != nil {
+		return nil, err
+	}
 	// Quantity * Quantity combines the units: 2 'cm' by 2 'm' is 400 'cm2'
 	if lq, rq, ok, err := bothQuantities(left, right); err != nil || ok {
 		if err != nil {
@@ -298,6 +342,9 @@ func Multiply(left, right types.Value) (types.Value, error) {
 
 // Divide performs division on two values.
 func Divide(left, right types.Value) (types.Value, error) {
+	if err := beyondOperand(left, right); err != nil {
+		return nil, err
+	}
 	// Quantity / Quantity combines the units: 4 'g' by 2 'm' is 2 'g.m-1'
 	if lq, rq, ok, err := bothQuantities(left, right); err != nil || ok {
 		if err != nil {
@@ -363,6 +410,9 @@ var ErrDivideByZero = types.ErrDivideByZero
 // same as the input datatype", so 5 div 2 is an Integer and 5.5 div 0.7 a
 // Decimal.
 func IntegerDivide(left, right types.Value) (types.Value, error) {
+	if err := beyondOperand(left, right); err != nil {
+		return nil, err
+	}
 	if l, ok := left.(types.Integer); ok {
 		if r, ok := right.(types.Integer); ok {
 			if r.Value() == 0 {
@@ -390,6 +440,9 @@ func IntegerDivide(left, right types.Value) (types.Value, error) {
 // Modulo computes the remainder of the truncated division, over the same types
 // div accepts.
 func Modulo(left, right types.Value) (types.Value, error) {
+	if err := beyondOperand(left, right); err != nil {
+		return nil, err
+	}
 	if l, ok := left.(types.Integer); ok {
 		if r, ok := right.(types.Integer); ok {
 			if r.Value() == 0 {
@@ -433,6 +486,9 @@ func decimalOperands(left, right types.Value) (l, r types.Decimal, ok bool) {
 
 // Negate negates a numeric value.
 func Negate(value types.Value) (types.Value, error) {
+	if err := beyondOperand(value); err != nil {
+		return nil, err
+	}
 	switch v := value.(type) {
 	case types.Integer:
 		return exactInteger(v.NegateExact())
@@ -607,6 +663,19 @@ func equalPair(left, right types.Value) (pairVerdict, error) {
 		return pairEqual, nil
 	}
 
+	if verdict, isQuantity, err := quantityPairVerdict(left, right); isQuantity || err != nil {
+		return verdict, err
+	}
+
+	if !itemsEqual(left, right) {
+		return pairUnequal, nil
+	}
+	return pairEqual, nil
+}
+
+// quantityPairVerdict compares a pair under = where either is a quantity, or a
+// number faces one; isQuantity is false for any other pair.
+func quantityPairVerdict(left, right types.Value) (verdict pairVerdict, isQuantity bool, err error) {
 	// Quantities whose units do not convert cannot be compared, which the
 	// specification treats as unknown rather than unequal — the same
 	// distinction it draws for temporals of different precision:
@@ -619,12 +688,15 @@ func equalPair(left, right types.Value) (pairVerdict, error) {
 	lq, rq, ok, err := QuantityPair(left, right)
 	if err != nil {
 		if isOverflow(err) {
-			return pairUnknown, nil
+			return pairUnknown, true, nil
 		}
-		return pairUnequal, err
+		return pairUnequal, true, err
 	}
 	converted := false
 	if !ok {
+		if verdict, overflows := numberAgainstOverflow(left, right); overflows {
+			return verdict, true, nil
+		}
 		lq, rq, ok = numberAndQuantity(left, right)
 		converted = ok
 	}
@@ -634,19 +706,15 @@ func equalPair(left, right types.Value) (pairVerdict, error) {
 			// A number is no quantity of another dimension: 2 = 2 'mg' is
 			// false, as fhirpath.js and the HL7 validator answer, where two
 			// quantities of different dimensions are unknown
-			return pairUnequal, nil
-		case !lq.Comparable(rq):
-			return pairUnknown, nil
+			return pairUnequal, true, nil
+		case !lq.Comparable(rq), lq.EqualityUndecided(rq):
+			return pairUnknown, true, nil
 		case !lq.Equal(rq):
-			return pairUnequal, nil
+			return pairUnequal, true, nil
 		}
-		return pairEqual, nil
+		return pairEqual, true, nil
 	}
-
-	if !itemsEqual(left, right) {
-		return pairUnequal, nil
-	}
-	return pairEqual, nil
+	return pairUnequal, false, nil
 }
 
 // itemsEqual compares two items that are neither temporals nor quantities. Two

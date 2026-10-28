@@ -50,11 +50,12 @@ func TestArithmeticEdges(t *testing.T) {
 
 // TestDecimalRange covers the bound this engine sets on decimals. FHIRPath
 // asks for at least (-10^28+1)/10^8 to (10^28-1)/10^8 and lets an engine go
-// further; this one holds up to 1000 digits before the point and none further
-// than 1000 places after it. A value beyond that is an overflow, "Operations
-// that cause arithmetic overflow or underflow will result in empty", where it
-// used to be held exactly: a number written 1E8227822 had eight million
-// digits, and each comparison wrote them out.
+// further; this one computes with up to 1000 digits before the point and none
+// further than 1000 places after it. A result beyond that is an overflow,
+// "Operations that cause arithmetic overflow or underflow will result in
+// empty". A value read from the input beyond it is held as written and
+// compared exactly, but nothing computes with it (#232): a number written
+// 1E8227822 has eight million digits, which computing with it wrote out.
 func TestDecimalRange(t *testing.T) {
 	doc := []byte(`{"resourceType":"Observation",
 	  "extension":[
@@ -77,19 +78,26 @@ func TestDecimalRange(t *testing.T) {
 
 	start := time.Now()
 	for expr, want := range map[string]string{
-		// Beyond the bound, a value reads as nothing
-		ext("huge") + ".exists()":   "false",
-		ext("tiny") + ".exists()":   "false",
-		ext("beyond") + ".exists()": "false",
+		// Beyond the bound, a value read is held, and compared exactly (#232)
+		ext("huge") + ".exists()":   "true",
+		ext("tiny") + ".exists()":   "true",
+		ext("beyond") + ".exists()": "true",
 		// 10^1000 written with a coefficient of sixteen digits, counted exactly
-		ext("beyondCounted") + ".exists()": "false",
-		ext("finer") + ".exists()":         "false",
-		// A zero at a scale of two billion is no larger, but writing it out was
-		ext("zero") + ".exists()":       "false",
+		ext("beyondCounted") + ".exists()": "true",
+		ext("finer") + ".exists()":         "true",
+		// A zero at a scale of two billion is a zero, read at a scale within
+		// the bound
+		ext("zero") + ".exists()":       "true",
+		ext("zero") + " + 1":            "1",
 		ext("zeroWidest") + ".exists()": "true",
-		ext("zeroBeyond") + ".exists()": "false",
-		ext("huge") + " = 9":            "EMPTY",
+		ext("zeroBeyond") + ".exists()": "true",
+		ext("huge") + " = 9":            "false",
+		ext("huge") + " > 9":            "true",
+		ext("tiny") + " > 0":            "true",
 		ext("huge") + " ~ 9":            "false",
+		// and computing with it overflows
+		ext("huge") + " + 1":   "EMPTY",
+		ext("beyond") + " / 2": "EMPTY",
 		// At the bound, it reads
 		ext("widest") + " > 9": "true",
 		ext("finest") + " < 1": "true",

@@ -1619,6 +1619,69 @@ the value is read as before. Verified by
 `FuzzFHIRTemporalForm` (`types/fhir_temporal_form_test.go`) against R4's
 regexes, adapted where the two libraries read more.
 
+## A decimal a resource holds beyond the bound is read
+
+A decimal read from a resource whose digits lie beyond `types.DecimalDigits`
+(1000 on either side of the point) was read as absent: `exists()` false, and
+the caller could not tell it from an element not there (#232). FHIR's decimal,
+alike in R4, R4B and R5, sets no such bound ("union of xs:decimal and
+xs:double"; R5's regex, informative, allows a nine-digit exponent), and
+FHIRPath leaves an engine free to go further: "Implementations can provide
+support for larger decimals and higher precision". Reading an element is no
+operation that overflows.
+
+Measured with `make three-engine` (`difftest/batteries/decimal-beyond-bound`,
+65 expressions × `1e1000`, `-1e1000`, `1e-1001`, `0e2000`, and `1.5` as the
+control):
+
+| | fhirpath.js 5.2.0 | Java (validator 6.10.2) | This engine |
+| --- | --- | --- | --- |
+| `exists()`, `hasValue()` | true | true | true (was false) |
+| `1e1000 > 0`, `= 1e1000`, `in`, `distinct()`, `union` | answered | answered | answered, exactly |
+| `1e-1001 > 0` | false: a float64 holds it as 0 | false: read through a double (`abs()` of it gives `0.0`) | true, exactly |
+| `toString()` | `Infinity` | `1e1000`, as written | `1e1000`, as written |
+| `1e1000 + 1`, `/ 2`, `round()`, `-x` | `Infinity` | exact, past 1000 digits | empty |
+| `ceiling()`, `truncate()`, `sum()`, `div`, `mod` | `Infinity`, `NaN` | int32 clamps, errors, exceptions | empty |
+| `power(0)` | 1 | 1 | 1 |
+| `0e2000 + 1` | 1 | 1 | 1: a zero read at a scale within the bound |
+
+A value whose places past the bound are all zeros is read at the bound's
+scale, as that zero is, its text kept: 1 written with 1001 zeros after the
+point is 1, and computes as 1 does.
+
+So the engine reads the value, as both do, and holds it as written: its text
+for `toString()`, the value for `=`, `<`, `~`, `in`, `contains`, `distinct()`,
+`union`, `intersect`, `exclude`, `subsetOf`, `isDistinct()`, `sort()`, `min()`
+and `max()`, which compare it without rescaling one operand to the other's
+exponent (`types.CompareDecimals`: the sign and the place of the leading digit
+decide first). What computes with it is empty: the arithmetic operators,
+unary minus, `abs()`, `ceiling()`, `floor()`, `truncate()`, `round()`,
+`sqrt()`, `exp()`, `ln()`, `log()`, `power()` but `power(0)`, `sum()`, `avg()`,
+`lowBoundary()`, `highBoundary()`, `toQuantity()`, `toInteger()`, `toLong()`,
+`toBoolean()`, with `convertsToInteger()`, `convertsToLong()`,
+`convertsToBoolean()` and `convertsToQuantity()` false. That is a limit of this
+engine's cost, not FHIRPath's arithmetic: an operand beyond the bound lies
+outside the range it computes in, even where the exact result would be within
+it (`1e1000 / 2`), and computing with `1e5000000` wrote out five million
+digits. Where the references agree only because both lose the value to a
+float (`1e-1001 > 0` false, `abs()` 0), the value is exact here. A string with
+an exponent does not convert, `'1e1000'.toDecimal()` empty, as the String form
+`(\+|-)?\d+(\.\d+)?` reads and fhirpath.js answers; one written out digit
+by digit converts and is held.
+
+A test fails any new path that writes such a value out: every registered
+function and every operator of the grammar's expression rule, with `1e5000000`
+as the input and as each argument, within a 1 MiB allocation bound
+(`conformance/decimal_beyond_bound_sweep_test.go`), and a static check that
+every shopspring operation that rescales, outside `types/`, is guarded
+(`decimal_sites_test.go`).
+
+`Decimal.Value()` now hands such a value to a caller, which must check
+`types.InDecimalRange` before computing with it; gofhir/searchindex has to,
+before it adopts this release (`docs/upstream-findings.md`, SI-3). An exponent past int32, valid under R4's
+regex but not R5's, is still not read: the decimal library holds the exponent
+in an int32 (FP-6).
+
 ## Integer is 64 bits here, and there is no Long
 
 The specification gives `Integer` the range -2^31 to 2^31-1, and adds a `Long`
@@ -1971,6 +2034,10 @@ any other jar unless run with `-java-unpinned`, whose answers are marked
 | `Patient._birthDate`, `Patient.name._given`: the element FHIR's JSON writes beside a primitive, named as the JSON names it | an error | the element, as fhirpath.js answers | The validator refuses the name rather than answering otherwise, so there is no behaviour to follow; `Patient.birthDate.id` and `.extension` read the same element by the model's name |
 | `'2021-02-30'.convertsToDate()` | true, though `@2021-02-30` does not parse | false, as fhirpath.js answers | Converts to nothing |
 | A FHIR `instant` short of the second or with no offset, `"issued": "2020"`; a FHIR `date` with a time, `"birthDate": "2020-01-15T10:30:00Z"` | a DateTime: `> @1900` true | a string, as fhirpath.js reads it | FHIR's datatypes page gives each its form: see [A FHIR date, dateTime, instant or time is read by FHIR's form](#a-fhir-date-datetime-instant-or-time-is-read-by-fhirs-form) |
+| A decimal beyond the bound in arithmetic: `1e1000 / 2`, `1e1000 + 1`, `round()`, `-1e1000` | exact, past 1000 digits | empty | Computing with a decimal beyond the bound is outside the range this engine computes in, a cost limit recorded in [A decimal a resource holds beyond the bound is read](#a-decimal-a-resource-holds-beyond-the-bound-is-read); fhirpath.js answers `Infinity` |
+| `floor()`, `round()`, `round(2)`, `div 2` of `1e-1001` | 0, as fhirpath.js answers, and exact | empty | The one rule for a decimal beyond the bound: what computes with it is empty, even where the exact result is within the bound. The rows where both engines answer otherwise and the answer is exact are these four; `ceiling()` (0 in both, 1 exactly) and `abs()` (0 in both) are the float's |
+| `1e-1001 > 0`, `abs()` of `1e-1001` | false, `0.0`: read through a double | true; empty | The value is exact; a double holds it as zero |
+| `'1e1000'.toDecimal()` | the decimal | empty, as fhirpath.js answers | The String form that converts has no exponent, `(\+|-)?\d+(\.\d+)?` |
 | A FHIR `time` holding a date, `"valueTime": "2020-01-15"` | `> @T09` true, `> @2019` an error | a string, as fhirpath.js reads it | A time, and not one |
 | `is()` and `type()` across FHIR and System types | `family.is(System.String)` true, though `family.as(System.String)` is empty; `type()` of a FHIR string `System.String`, and of an R5 `Patient.id` `System.Id` | false, as fhirpath.js answers; `FHIR.string` | Is, and is not. `as()` is followed: it answers as `is()`, empty with a model, as in fhirpath.js, where up to 1.14.1 it was the value |
 | `~` with a calendar duration or a temperature: `1 year ~ 1 'a'` | NullPointerException | true | An exception |
@@ -2046,7 +2113,7 @@ was reasoned or accidental.
 | Question | Decision | Why |
 |---|---|---|
 | `Integer` range, and `Long` | 64 bits, with no separate `Long` type | The specification's `Integer` is 32 bits and its `Long` — STU content — is 64. An `int64` Integer already spans that range, and FHIR's own `integer64` says the values occur. See above |
-| The range of a Decimal | Up to 1000 digits before the point, and none further than 1000 places after it. A value beyond, read from the input, written as a literal, from a string by `toDecimal()`, as a FHIR Quantity's value, or reached by arithmetic, `round()` or a unit conversion, is an overflow and reads as empty; a FHIR Quantity whose value overflows is still there, an object, but compares as nothing: `=` and `<` against a quantity empty, `~` false unless the two are written alike, and it sorts as an empty key. A function computed in float64 whose result is infinite, `1000.exp()`, overflows the same way, as does a product or quotient of quantities, which the UCUM library computes in float64 with each unit's scale, where an operand or the result is past float64's range. `round()` with a negative precision past the bound rounds to zero, found without rounding there; see [Math](#math) | "Implementations can provide support for larger decimals and higher precision, but must provide at least the range and precision defined here", (-10^28+1)/10^8 to (10^28-1)/10^8, and "Operations that cause arithmetic overflow or underflow will result in empty". FHIR's decimal allows an exponent of nine digits, so the bound is the engine's. A decimal is held exactly, so one written `1E8227822` was a number of eight million digits: every comparison wrote them out, half a second for each `=`, more than five for `round()`, and more than eight for `~`; a zero written `0E2000000000` was two billion zeroes. What it costs: a range check on each decimal read or computed, which counts digits only near the bound; arithmetic over 500 values measures no different from before |
+| The range of a Decimal | Computed with up to 1000 digits before the point, and none further than 1000 places after it. A result beyond, reached by arithmetic, `round()`, a unit conversion, written as a literal or from a string by `toDecimal()`, is an overflow and reads as empty. A decimal read from a resource beyond the bound is held as written and compared exactly (one whose places past the bound are all zeros, `1.000…0` with 1001 zeros, is read at the bound's scale, as a zero written `0e2000` is, and computes as 1), but computing with it overflows the same way: see [A decimal a resource holds beyond the bound is read](#a-decimal-a-resource-holds-beyond-the-bound-is-read) (#232). A FHIR Quantity whose value is beyond the bound is still there, an object, but compares as nothing: `=` and `<` against a quantity, or a number of its dimension, empty, `=` against a number of another dimension false, arithmetic and the math functions over it empty, `~` false, written alike or not, and it sorts as an empty key. A decimal beyond the bound against a quantity in the same unit, or with none, compares exactly, as against a number; against one in another unit, `1e1000 = 1e997 '10*3'`, it is empty: only converting one side decides it. A Money's amount beyond the bound compares exactly, as a decimal does. A function computed in float64 whose result is infinite, `1000.exp()`, overflows the same way, as does a product or quotient of quantities, which the UCUM library computes in float64 with each unit's scale, where an operand or the result is past float64's range. `round()` with a negative precision past the bound rounds to zero, found without rounding there; see [Math](#math) | "Implementations can provide support for larger decimals and higher precision, but must provide at least the range and precision defined here", (-10^28+1)/10^8 to (10^28-1)/10^8, and "Operations that cause arithmetic overflow or underflow will result in empty". FHIR's decimal allows an exponent of nine digits, so the bound is the engine's. A decimal is held exactly, so one written `1E8227822` is a number of eight million digits: computing with it wrote them out, half a second for each `=`, more than five for `round()`, and more than eight for `~`; a zero written `0E2000000000` was two billion zeroes. What it costs: a range check on each decimal computed, which counts digits only near the bound; arithmetic over 500 values measures no different from before |
 | Max precision for `lowBoundary`/`highBoundary` | An implementation limit, documented in the function | 3.0.0 says explicitly: above "the maximum possible precision of the implementation", return empty. FHIR caps decimal at 18 digits |
 | `sort` direction syntax | Accept both `desc`/`asc` and the leading `-` | 3.0.0 defines `desc`; the suite tests `-` and marks those cases as prototype |
 | `type()` completeness | Emit `SimpleTypeInfo` and `ClassInfo`; omit `ClassInfo.element`, `ListTypeInfo`, `TupleTypeInfo` | They need element enumeration and declared cardinality, which the `Model` interface does not expose. Reading them off the instance would describe the value, not the type |

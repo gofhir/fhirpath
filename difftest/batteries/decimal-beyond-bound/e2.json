@@ -1,0 +1,1 @@
+{"resourceType":"Patient","extension":[{"url":"http://example.org/x","valueDecimal":-1e1000}]}

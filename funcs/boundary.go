@@ -62,6 +62,10 @@ func fnHighBoundary(_ *eval.Context, input types.Collection, args []interface{})
 // even though a discrete domain makes the result trivial: it is treated as a
 // decimal with no fractional digits, so 1.lowBoundary() is 0.5.
 func boundaryOf(value types.Value, precision int, provided, low bool) (types.Collection, error) {
+	// A decimal beyond the bound has a boundary past it, an overflow (#232)
+	if !types.InRange(value) {
+		return types.Collection{}, nil
+	}
 	switch v := value.(type) {
 	case types.Decimal:
 		return decimalBoundary(v.Value(), v.ImplicitPrecision(), decimalPrecisionOr(precision, provided), low)

@@ -192,10 +192,37 @@ func asQuantity(v Value) (Quantity, bool) {
 	return UnitOne(v)
 }
 
+// inRange reports two quantities whose values are within the bound. A number
+// beyond it, read from a resource and taken as a quantity of unit '1', has no
+// answer against one in another unit: converting it writes out its digits, as
+// a FHIR Quantity whose value overflows compares as nothing (#135, #232). In
+// the same unit it compares exactly, as a decimal does.
+func (q Quantity) inRange(other Quantity) bool {
+	return InDecimalRange(q.value) && InDecimalRange(other.value)
+}
+
+// unitsAlike reports two quantities whose values compare as they are: in the
+// same unit, or where one has no unit and takes the other's.
+func (q Quantity) unitsAlike(other Quantity) bool {
+	return q.unit == other.unit || q.unit == "" || other.unit == ""
+}
+
+// EqualityUndecided reports a pair that = has no answer for because of the
+// bound: one value beyond it and units not alike, so that only converting one
+// side to the other's unit decides them, and converting overflows.
+// 1e1000 = 1e997 '10*3' is empty.
+func (q Quantity) EqualityUndecided(other Quantity) bool {
+	return !q.inRange(other) && !q.unitsAlike(other)
+}
+
 func (q Quantity) Equal(other Value) bool {
 	o, ok := asQuantity(other)
 	if !ok {
 		return false
+	}
+	if !q.inRange(o) {
+		// 1 written with 1001 zeros after the point is beyond the bound and is 1
+		return q.unitsAlike(o) && CompareDecimals(q.value, o.value) == 0
 	}
 
 	// Convert through the same exact path comparison uses, so that units that
@@ -221,6 +248,9 @@ func (q Quantity) Equivalent(other Value) bool {
 	o, ok := asQuantity(other)
 	if !ok {
 		return false
+	}
+	if !q.inRange(o) {
+		return q.unitsAlike(o) && Decimal{value: q.value}.Equivalent(Decimal{value: o.value})
 	}
 	if crossesCalendarYear(q.unit, o.unit) {
 		if isCalendarUnit(q.unit) {
@@ -433,6 +463,16 @@ func (q Quantity) Compare(other Value) (int, error) {
 	otherQ, ok := other.(Quantity)
 	if !ok {
 		return 0, fmt.Errorf("cannot compare Quantity with %s", other.Type())
+	}
+	// In the same unit nothing converts, nor where one has no unit and takes
+	// the other's, and the values order exactly without writing out one beyond
+	// the bound: a decimal read as a quantity of unit '1' orders against 1 '1'
+	// as against 1 (#232)
+	if q.unitsAlike(otherQ) {
+		return CompareDecimals(q.value, otherQ.value), nil
+	}
+	if !q.inRange(otherQ) {
+		return 0, ErrDecimalRange
 	}
 
 	// A calendar duration and a UCUM year or month have no common unit, as
