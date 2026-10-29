@@ -130,8 +130,10 @@ func extractPrecisionArg(args []interface{}) (precision int, provided bool) {
 //	 implementation, the result is empty."
 //
 // The maximum is therefore ours to set. FHIR bounds the decimal type — "decimals
-// in FHIR cannot have more than 18 digits and a decimal point" — so that is the
-// limit applied here.
+// in FHIR cannot have more than 18 digits and a decimal point" — and 18 digits
+// in all leave at most 17 places, so at 18 places a FHIR decimal's boundaries
+// are the exact edges of the interval it stands for. fhirpath.js stops at 8 and
+// the HL7 validator at 16; both are measured in CONFORMANCE.md (#244).
 const (
 	defaultDecimalBoundaryPrecision = 8
 	maxDecimalBoundaryPrecision     = 18
@@ -146,9 +148,10 @@ const (
 func boundaryInterval(inputPrecision int) decimal.Decimal {
 	// The precision counts the digits of a decimal as it was written, so it is
 	// bounded by the length of the expression being evaluated and cannot
-	// approach the width of the exponent shopspring takes.
-	unit := decimal.New(1, int32(-inputPrecision)) //nolint:gosec // digit count of a parsed literal
-	return unit.DivRound(decimal.NewFromInt(2), types.DivisionPlaces)
+	// approach the width of the exponent shopspring takes. Half a unit of the
+	// last place is written exactly, 5 at the place after it: a division
+	// rounds it away from 16 places on (#244).
+	return decimal.New(5, int32(-inputPrecision-1)) //nolint:gosec // digit count of a parsed literal
 }
 
 // decimalBoundary computes one boundary of a decimal value and renders it at the

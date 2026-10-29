@@ -1682,6 +1682,36 @@ before it adopts this release (`docs/upstream-findings.md`, SI-3). An exponent p
 regex but not R5's, is still not read: the decimal library holds the exponent
 in an int32 (FP-6).
 
+## A decimal's boundaries are exact at every place
+
+`lowBoundary()` and `highBoundary()` place a decimal half a unit of its last
+written place away, "the least possible value of the input" and the greatest,
+and round that outward to the precision asked for, as 3.0.0's examples do:
+`1.587.lowBoundary(2) // 1.58`, `1.587.highBoundary(2) // 1.59`. The half unit
+was a division rounded to 16 places, so from 16 places on it moved the wrong
+distance or none (#244): `(1.00000000000000000).lowBoundary()` was
+`1.00000000`, where the least value is 0.999999999999999995 and both reference
+engines answer `0.99999999`. It is now written exactly, `5 × 10^-(p+1)`.
+
+What changes: a decimal of 16 places, at a precision of 17 or 18; one of 17
+places or more, at any precision, wherever its digits past that precision are
+zero, as `(6.20086127000000000).lowBoundary()`, `6.20086127` before and
+`6.20086126` now. A computed value carries its places with it,
+`(1.5 + 0.00000000000000000).lowBoundary()` is `1.49999999`. Nothing of 15
+places or fewer changes. A property test holds every boundary to exact
+arithmetic, through a Decimal, an Integer and a Quantity, up to the maximum
+(`boundary_places_test.go`).
+
+Measured with `make three-engine` (`difftest/batteries/boundary-places`, R4
+and R5 alike): where this engine alone answers otherwise, it is a precision
+past both references' maxima, 8 in fhirpath.js and 16 in the validator, and
+the answer here is the exact edge. Where the references split, the exact
+value is fhirpath.js's on the validator's rounding, and the validator's on
+fhirpath.js reading a JavaScript number; `(-0.0).lowBoundary()` is `-0.5` in
+both, from those two different defects, and `-0.05000000` here. A decimal
+written with an exponent counts its places by its text, exponent included,
+and is #246's.
+
 ## Integer is 64 bits here, and there is no Long
 
 The specification gives `Integer` the range -2^31 to 2^31-1, and adds a `Long`
@@ -2038,6 +2068,10 @@ any other jar unless run with `-java-unpinned`, whose answers are marked
 | `floor()`, `round()`, `round(2)`, `div 2` of `1e-1001` | 0, as fhirpath.js answers, and exact | empty | The one rule for a decimal beyond the bound: what computes with it is empty, even where the exact result is within the bound. The rows where both engines answer otherwise and the answer is exact are these four; `ceiling()` (0 in both, 1 exactly) and `abs()` (0 in both) are the float's |
 | `1e-1001 > 0`, `abs()` of `1e-1001` | false, `0.0`: read through a double | true; empty | The value is exact; a double holds it as zero |
 | `'1e1000'.toDecimal()` | the decimal | empty, as fhirpath.js answers | The String form that converts has no exponent, `(\+|-)?\d+(\.\d+)?` |
+| A decimal's boundary rounded to the precision: `(1.00000000000000000).highBoundary()`, `(1.123456789012345).highBoundary(0)`, `(0.00000000000000001).highBoundary(16)` | `1.00000000`, `1`, `0.0000000000000000`: half up | `1.00000001`, `2`, `0.0000000000000001`, as fhirpath.js answers the first two | "The greatest possible value of the input to the specified precision", rounded outward as 3.0.0's `1.587.highBoundary(2) // 1.59`; half up can fall inside the interval, the third below the input (JAVA-9) |
+| `(123.4567890123456789).highBoundary(16)`, `(-0.00000000000000001).lowBoundary()` | an error | `123.4567890123456790`, `-0.00000001` | No behavior to follow (JAVA-10) |
+| The boundary of a zero written to places: `(0.0).lowBoundary()`, `(0.00).lowBoundary()` | `-0.50000000` for both, though `(0.0).precision()` is 1 | `-0.05000000`, `-0.00500000`, as fhirpath.js answers | A zero written to one place stands for what is within 0.05 of it, as any decimal does (JAVA-11) |
+| A boundary at 17 or 18 places: `(1.1234567890123456).lowBoundary(17)` | empty | `1.12345678901234555`, exact | The maximum is the implementation's; see [Decisions taken where the specification is silent](#decisions-taken-where-the-specification-is-silent) |
 | A FHIR `time` holding a date, `"valueTime": "2020-01-15"` | `> @T09` true, `> @2019` an error | a string, as fhirpath.js reads it | A time, and not one |
 | `is()` and `type()` across FHIR and System types | `family.is(System.String)` true, though `family.as(System.String)` is empty; `type()` of a FHIR string `System.String`, and of an R5 `Patient.id` `System.Id` | false, as fhirpath.js answers; `FHIR.string` | Is, and is not. `as()` is followed: it answers as `is()`, empty with a model, as in fhirpath.js, where up to 1.14.1 it was the value |
 | `~` with a calendar duration or a temperature: `1 year ~ 1 'a'` | NullPointerException | true | An exception |
@@ -2114,7 +2148,7 @@ was reasoned or accidental.
 |---|---|---|
 | `Integer` range, and `Long` | 64 bits, with no separate `Long` type | The specification's `Integer` is 32 bits and its `Long` — STU content — is 64. An `int64` Integer already spans that range, and FHIR's own `integer64` says the values occur. See above |
 | The range of a Decimal | Computed with up to 1000 digits before the point, and none further than 1000 places after it. A result beyond, reached by arithmetic, `round()`, a unit conversion, written as a literal or from a string by `toDecimal()`, is an overflow and reads as empty. The bound is the engine's alone: a decimal is read from text by its own decoder, so shopspring/decimal's `MaxDecodeExponent` (10,000 by default since v1.5) and any other process-wide setting of the library do not move it, and a Unicode minus is no sign (#235). Nor do the library's other process-wide settings, which a program embedding the engine may change: a decimal is written, divided to 16 places and scaled by the engine, so `TrimTrailingZeros`, `UseScientificNotation`, `DivisionPrecision` or a lowered `MaxDecodeExponent` change no result (#237). A decimal read from a resource beyond the bound is held as written and compared exactly (one whose places past the bound are all zeros, `1.000…0` with 1001 zeros, is read at the bound's scale, as a zero written `0e2000` is, and computes as 1), but computing with it overflows the same way: see [A decimal a resource holds beyond the bound is read](#a-decimal-a-resource-holds-beyond-the-bound-is-read) (#232). A FHIR Quantity whose value is beyond the bound is still there, an object, but compares as nothing: `=` and `<` against a quantity, or a number of its dimension, empty, `=` against a number of another dimension false, arithmetic and the math functions over it empty, `~` false, written alike or not, and it sorts as an empty key. A decimal beyond the bound against a quantity in the same unit, or with none, compares exactly, as against a number; against one in another unit, `1e1000 = 1e997 '10*3'`, it is empty: only converting one side decides it. A Money's amount beyond the bound compares exactly, as a decimal does. A function computed in float64 whose result is infinite, `1000.exp()`, overflows the same way, as does a product or quotient of quantities, which the UCUM library computes in float64 with each unit's scale, where an operand or the result is past float64's range. `round()` with a negative precision past the bound rounds to zero, found without rounding there; see [Math](#math) | "Implementations can provide support for larger decimals and higher precision, but must provide at least the range and precision defined here", (-10^28+1)/10^8 to (10^28-1)/10^8, and "Operations that cause arithmetic overflow or underflow will result in empty". FHIR's decimal allows an exponent of nine digits, so the bound is the engine's. A decimal is held exactly, so one written `1E8227822` is a number of eight million digits: computing with it wrote them out, half a second for each `=`, more than five for `round()`, and more than eight for `~`; a zero written `0E2000000000` was two billion zeroes. What it costs: a range check on each decimal computed, which counts digits only near the bound; arithmetic over 500 values measures no different from before |
-| Max precision for `lowBoundary`/`highBoundary` | An implementation limit, documented in the function | 3.0.0 says explicitly: above "the maximum possible precision of the implementation", return empty. FHIR caps decimal at 18 digits |
+| Max precision for `lowBoundary`/`highBoundary` | 18 places; empty past them | 3.0.0 says explicitly: above "the maximum possible precision of the implementation", return empty. FHIR caps decimal at 18 digits in all, so a FHIR decimal has at most 17 places, and at 18 its boundaries are the exact edges of what it stands for. fhirpath.js stops at 8 (`FP_Decimal.MAX_PRECISION`) and the validator at 16 (`precision < 17`); neither gives a reason, and they disagree from 9 to 16 |
 | `sort` direction syntax | Accept both `desc`/`asc` and the leading `-` | 3.0.0 defines `desc`; the suite tests `-` and marks those cases as prototype |
 | `type()` completeness | Emit `SimpleTypeInfo` and `ClassInfo`; omit `ClassInfo.element`, `ListTypeInfo`, `TupleTypeInfo` | They need element enumeration and declared cardinality, which the `Model` interface does not expose. Reading them off the instance would describe the value, not the type |
 | `type()` results per element | One per input element | 3.0.0 states this, then contradicts it in its own `ListTypeInfo` example |
