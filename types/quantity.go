@@ -695,7 +695,7 @@ func (q Quantity) Add(other Quantity) (Quantity, error) {
 	if err != nil {
 		return Quantity{}, err
 	}
-	sum := lhs.Add(rhs)
+	sum := decimals.Computed(lhs.Add(rhs))
 	return Quantity{value: sum, unit: q.acrossTimeSystems(other, unit, sum)}, nil
 }
 
@@ -706,7 +706,7 @@ func (q Quantity) Subtract(other Quantity) (Quantity, error) {
 	if err != nil {
 		return Quantity{}, err
 	}
-	difference := lhs.Sub(rhs)
+	difference := decimals.Computed(lhs.Sub(rhs))
 	return Quantity{value: difference, unit: q.acrossTimeSystems(other, unit, difference)}, nil
 }
 
@@ -816,7 +816,7 @@ func combineError(err error, left, right string) error {
 
 // Multiply multiplies the quantity by a number.
 func (q Quantity) Multiply(factor decimal.Decimal) Quantity {
-	return Quantity{value: q.value.Mul(factor), unit: q.unit}
+	return Quantity{value: decimals.Computed(q.value.Mul(factor)), unit: q.unit}
 }
 
 // Divide divides the quantity by a number.

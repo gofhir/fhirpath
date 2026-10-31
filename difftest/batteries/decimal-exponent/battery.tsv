@@ -1,0 +1,504 @@
+# A decimal a resource writes with an exponent (#246): precision(), the boundaries,
+# toString() and equality, measured against HL7's Java engine (validator 6.10.2) and
+# fhirpath.js 5.2.0: resource<TAB>expression<TAB>version. o.json's component[i] holds
+# the values 1.5e2, 1.50e2, 1e2, 1.00e2, 1E-17, 1.5e-2, 1.5E+2, 1.0e0, 15e-1, 0e0, -1.5e2, 1.234e1, 1.5e20, 2.5e-20, 150, 1.50e-1, 0.0e5, 0e-3, -1.0e-1, 1.0E-2, 1e-1001, 1. with 1001 zeros, 0e-2000, 1e-2147483648 (150 the control);
+# r.json's prediction[i].probabilityDecimal 1.5e2, 1.50e-1, 1e2, 0.25.
+# Then 1e-08, 1.5e+02, 2.50E-007 (an exponent with leading zeros), and computed values' precision(); then operations over component[0] that keep the value or compute a new one (round 2). Results: plan 014.
+o.json	Observation.component[0].value.value.precision()	4.0.1
+o.json	Observation.component[0].value.value.precision()	5.0.0
+o.json	Observation.component[0].value.value.lowBoundary()	4.0.1
+o.json	Observation.component[0].value.value.lowBoundary()	5.0.0
+o.json	Observation.component[0].value.value.highBoundary()	4.0.1
+o.json	Observation.component[0].value.value.highBoundary()	5.0.0
+o.json	Observation.component[0].value.value.lowBoundary(2)	4.0.1
+o.json	Observation.component[0].value.value.lowBoundary(2)	5.0.0
+o.json	Observation.component[0].value.value.toString()	4.0.1
+o.json	Observation.component[0].value.value.toString()	5.0.0
+o.json	Observation.component[0].value.lowBoundary()	4.0.1
+o.json	Observation.component[0].value.lowBoundary()	5.0.0
+o.json	Observation.component[0].value.value = 150	4.0.1
+o.json	Observation.component[0].value.value = 150	5.0.0
+o.json	Observation.component[0].value.value	4.0.1
+o.json	Observation.component[0].value.value	5.0.0
+o.json	Observation.component[1].value.value.precision()	4.0.1
+o.json	Observation.component[1].value.value.precision()	5.0.0
+o.json	Observation.component[1].value.value.lowBoundary()	4.0.1
+o.json	Observation.component[1].value.value.lowBoundary()	5.0.0
+o.json	Observation.component[1].value.value.highBoundary()	4.0.1
+o.json	Observation.component[1].value.value.highBoundary()	5.0.0
+o.json	Observation.component[1].value.value.lowBoundary(2)	4.0.1
+o.json	Observation.component[1].value.value.lowBoundary(2)	5.0.0
+o.json	Observation.component[1].value.value.toString()	4.0.1
+o.json	Observation.component[1].value.value.toString()	5.0.0
+o.json	Observation.component[1].value.lowBoundary()	4.0.1
+o.json	Observation.component[1].value.lowBoundary()	5.0.0
+o.json	Observation.component[1].value.value = 150	4.0.1
+o.json	Observation.component[1].value.value = 150	5.0.0
+o.json	Observation.component[1].value.value	4.0.1
+o.json	Observation.component[1].value.value	5.0.0
+o.json	Observation.component[2].value.value.precision()	4.0.1
+o.json	Observation.component[2].value.value.precision()	5.0.0
+o.json	Observation.component[2].value.value.lowBoundary()	4.0.1
+o.json	Observation.component[2].value.value.lowBoundary()	5.0.0
+o.json	Observation.component[2].value.value.highBoundary()	4.0.1
+o.json	Observation.component[2].value.value.highBoundary()	5.0.0
+o.json	Observation.component[2].value.value.lowBoundary(2)	4.0.1
+o.json	Observation.component[2].value.value.lowBoundary(2)	5.0.0
+o.json	Observation.component[2].value.value.toString()	4.0.1
+o.json	Observation.component[2].value.value.toString()	5.0.0
+o.json	Observation.component[2].value.lowBoundary()	4.0.1
+o.json	Observation.component[2].value.lowBoundary()	5.0.0
+o.json	Observation.component[2].value.value = 150	4.0.1
+o.json	Observation.component[2].value.value = 150	5.0.0
+o.json	Observation.component[2].value.value	4.0.1
+o.json	Observation.component[2].value.value	5.0.0
+o.json	Observation.component[3].value.value.precision()	4.0.1
+o.json	Observation.component[3].value.value.precision()	5.0.0
+o.json	Observation.component[3].value.value.lowBoundary()	4.0.1
+o.json	Observation.component[3].value.value.lowBoundary()	5.0.0
+o.json	Observation.component[3].value.value.highBoundary()	4.0.1
+o.json	Observation.component[3].value.value.highBoundary()	5.0.0
+o.json	Observation.component[3].value.value.lowBoundary(2)	4.0.1
+o.json	Observation.component[3].value.value.lowBoundary(2)	5.0.0
+o.json	Observation.component[3].value.value.toString()	4.0.1
+o.json	Observation.component[3].value.value.toString()	5.0.0
+o.json	Observation.component[3].value.lowBoundary()	4.0.1
+o.json	Observation.component[3].value.lowBoundary()	5.0.0
+o.json	Observation.component[3].value.value = 150	4.0.1
+o.json	Observation.component[3].value.value = 150	5.0.0
+o.json	Observation.component[3].value.value	4.0.1
+o.json	Observation.component[3].value.value	5.0.0
+o.json	Observation.component[4].value.value.precision()	4.0.1
+o.json	Observation.component[4].value.value.precision()	5.0.0
+o.json	Observation.component[4].value.value.lowBoundary()	4.0.1
+o.json	Observation.component[4].value.value.lowBoundary()	5.0.0
+o.json	Observation.component[4].value.value.highBoundary()	4.0.1
+o.json	Observation.component[4].value.value.highBoundary()	5.0.0
+o.json	Observation.component[4].value.value.lowBoundary(2)	4.0.1
+o.json	Observation.component[4].value.value.lowBoundary(2)	5.0.0
+o.json	Observation.component[4].value.value.toString()	4.0.1
+o.json	Observation.component[4].value.value.toString()	5.0.0
+o.json	Observation.component[4].value.lowBoundary()	4.0.1
+o.json	Observation.component[4].value.lowBoundary()	5.0.0
+o.json	Observation.component[4].value.value = 150	4.0.1
+o.json	Observation.component[4].value.value = 150	5.0.0
+o.json	Observation.component[4].value.value	4.0.1
+o.json	Observation.component[4].value.value	5.0.0
+o.json	Observation.component[5].value.value.precision()	4.0.1
+o.json	Observation.component[5].value.value.precision()	5.0.0
+o.json	Observation.component[5].value.value.lowBoundary()	4.0.1
+o.json	Observation.component[5].value.value.lowBoundary()	5.0.0
+o.json	Observation.component[5].value.value.highBoundary()	4.0.1
+o.json	Observation.component[5].value.value.highBoundary()	5.0.0
+o.json	Observation.component[5].value.value.lowBoundary(2)	4.0.1
+o.json	Observation.component[5].value.value.lowBoundary(2)	5.0.0
+o.json	Observation.component[5].value.value.toString()	4.0.1
+o.json	Observation.component[5].value.value.toString()	5.0.0
+o.json	Observation.component[5].value.lowBoundary()	4.0.1
+o.json	Observation.component[5].value.lowBoundary()	5.0.0
+o.json	Observation.component[5].value.value = 150	4.0.1
+o.json	Observation.component[5].value.value = 150	5.0.0
+o.json	Observation.component[5].value.value	4.0.1
+o.json	Observation.component[5].value.value	5.0.0
+o.json	Observation.component[6].value.value.precision()	4.0.1
+o.json	Observation.component[6].value.value.precision()	5.0.0
+o.json	Observation.component[6].value.value.lowBoundary()	4.0.1
+o.json	Observation.component[6].value.value.lowBoundary()	5.0.0
+o.json	Observation.component[6].value.value.highBoundary()	4.0.1
+o.json	Observation.component[6].value.value.highBoundary()	5.0.0
+o.json	Observation.component[6].value.value.lowBoundary(2)	4.0.1
+o.json	Observation.component[6].value.value.lowBoundary(2)	5.0.0
+o.json	Observation.component[6].value.value.toString()	4.0.1
+o.json	Observation.component[6].value.value.toString()	5.0.0
+o.json	Observation.component[6].value.lowBoundary()	4.0.1
+o.json	Observation.component[6].value.lowBoundary()	5.0.0
+o.json	Observation.component[6].value.value = 150	4.0.1
+o.json	Observation.component[6].value.value = 150	5.0.0
+o.json	Observation.component[6].value.value	4.0.1
+o.json	Observation.component[6].value.value	5.0.0
+o.json	Observation.component[7].value.value.precision()	4.0.1
+o.json	Observation.component[7].value.value.precision()	5.0.0
+o.json	Observation.component[7].value.value.lowBoundary()	4.0.1
+o.json	Observation.component[7].value.value.lowBoundary()	5.0.0
+o.json	Observation.component[7].value.value.highBoundary()	4.0.1
+o.json	Observation.component[7].value.value.highBoundary()	5.0.0
+o.json	Observation.component[7].value.value.lowBoundary(2)	4.0.1
+o.json	Observation.component[7].value.value.lowBoundary(2)	5.0.0
+o.json	Observation.component[7].value.value.toString()	4.0.1
+o.json	Observation.component[7].value.value.toString()	5.0.0
+o.json	Observation.component[7].value.lowBoundary()	4.0.1
+o.json	Observation.component[7].value.lowBoundary()	5.0.0
+o.json	Observation.component[7].value.value = 150	4.0.1
+o.json	Observation.component[7].value.value = 150	5.0.0
+o.json	Observation.component[7].value.value	4.0.1
+o.json	Observation.component[7].value.value	5.0.0
+o.json	Observation.component[8].value.value.precision()	4.0.1
+o.json	Observation.component[8].value.value.precision()	5.0.0
+o.json	Observation.component[8].value.value.lowBoundary()	4.0.1
+o.json	Observation.component[8].value.value.lowBoundary()	5.0.0
+o.json	Observation.component[8].value.value.highBoundary()	4.0.1
+o.json	Observation.component[8].value.value.highBoundary()	5.0.0
+o.json	Observation.component[8].value.value.lowBoundary(2)	4.0.1
+o.json	Observation.component[8].value.value.lowBoundary(2)	5.0.0
+o.json	Observation.component[8].value.value.toString()	4.0.1
+o.json	Observation.component[8].value.value.toString()	5.0.0
+o.json	Observation.component[8].value.lowBoundary()	4.0.1
+o.json	Observation.component[8].value.lowBoundary()	5.0.0
+o.json	Observation.component[8].value.value = 150	4.0.1
+o.json	Observation.component[8].value.value = 150	5.0.0
+o.json	Observation.component[8].value.value	4.0.1
+o.json	Observation.component[8].value.value	5.0.0
+o.json	Observation.component[9].value.value.precision()	4.0.1
+o.json	Observation.component[9].value.value.precision()	5.0.0
+o.json	Observation.component[9].value.value.lowBoundary()	4.0.1
+o.json	Observation.component[9].value.value.lowBoundary()	5.0.0
+o.json	Observation.component[9].value.value.highBoundary()	4.0.1
+o.json	Observation.component[9].value.value.highBoundary()	5.0.0
+o.json	Observation.component[9].value.value.lowBoundary(2)	4.0.1
+o.json	Observation.component[9].value.value.lowBoundary(2)	5.0.0
+o.json	Observation.component[9].value.value.toString()	4.0.1
+o.json	Observation.component[9].value.value.toString()	5.0.0
+o.json	Observation.component[9].value.lowBoundary()	4.0.1
+o.json	Observation.component[9].value.lowBoundary()	5.0.0
+o.json	Observation.component[9].value.value = 150	4.0.1
+o.json	Observation.component[9].value.value = 150	5.0.0
+o.json	Observation.component[9].value.value	4.0.1
+o.json	Observation.component[9].value.value	5.0.0
+o.json	Observation.component[10].value.value.precision()	4.0.1
+o.json	Observation.component[10].value.value.precision()	5.0.0
+o.json	Observation.component[10].value.value.lowBoundary()	4.0.1
+o.json	Observation.component[10].value.value.lowBoundary()	5.0.0
+o.json	Observation.component[10].value.value.highBoundary()	4.0.1
+o.json	Observation.component[10].value.value.highBoundary()	5.0.0
+o.json	Observation.component[10].value.value.lowBoundary(2)	4.0.1
+o.json	Observation.component[10].value.value.lowBoundary(2)	5.0.0
+o.json	Observation.component[10].value.value.toString()	4.0.1
+o.json	Observation.component[10].value.value.toString()	5.0.0
+o.json	Observation.component[10].value.lowBoundary()	4.0.1
+o.json	Observation.component[10].value.lowBoundary()	5.0.0
+o.json	Observation.component[10].value.value = 150	4.0.1
+o.json	Observation.component[10].value.value = 150	5.0.0
+o.json	Observation.component[10].value.value	4.0.1
+o.json	Observation.component[10].value.value	5.0.0
+o.json	Observation.component[11].value.value.precision()	4.0.1
+o.json	Observation.component[11].value.value.precision()	5.0.0
+o.json	Observation.component[11].value.value.lowBoundary()	4.0.1
+o.json	Observation.component[11].value.value.lowBoundary()	5.0.0
+o.json	Observation.component[11].value.value.highBoundary()	4.0.1
+o.json	Observation.component[11].value.value.highBoundary()	5.0.0
+o.json	Observation.component[11].value.value.lowBoundary(2)	4.0.1
+o.json	Observation.component[11].value.value.lowBoundary(2)	5.0.0
+o.json	Observation.component[11].value.value.toString()	4.0.1
+o.json	Observation.component[11].value.value.toString()	5.0.0
+o.json	Observation.component[11].value.lowBoundary()	4.0.1
+o.json	Observation.component[11].value.lowBoundary()	5.0.0
+o.json	Observation.component[11].value.value = 150	4.0.1
+o.json	Observation.component[11].value.value = 150	5.0.0
+o.json	Observation.component[11].value.value	4.0.1
+o.json	Observation.component[11].value.value	5.0.0
+o.json	Observation.component[12].value.value.precision()	4.0.1
+o.json	Observation.component[12].value.value.precision()	5.0.0
+o.json	Observation.component[12].value.value.lowBoundary()	4.0.1
+o.json	Observation.component[12].value.value.lowBoundary()	5.0.0
+o.json	Observation.component[12].value.value.highBoundary()	4.0.1
+o.json	Observation.component[12].value.value.highBoundary()	5.0.0
+o.json	Observation.component[12].value.value.lowBoundary(2)	4.0.1
+o.json	Observation.component[12].value.value.lowBoundary(2)	5.0.0
+o.json	Observation.component[12].value.value.toString()	4.0.1
+o.json	Observation.component[12].value.value.toString()	5.0.0
+o.json	Observation.component[12].value.lowBoundary()	4.0.1
+o.json	Observation.component[12].value.lowBoundary()	5.0.0
+o.json	Observation.component[12].value.value = 150	4.0.1
+o.json	Observation.component[12].value.value = 150	5.0.0
+o.json	Observation.component[12].value.value	4.0.1
+o.json	Observation.component[12].value.value	5.0.0
+o.json	Observation.component[13].value.value.precision()	4.0.1
+o.json	Observation.component[13].value.value.precision()	5.0.0
+o.json	Observation.component[13].value.value.lowBoundary()	4.0.1
+o.json	Observation.component[13].value.value.lowBoundary()	5.0.0
+o.json	Observation.component[13].value.value.highBoundary()	4.0.1
+o.json	Observation.component[13].value.value.highBoundary()	5.0.0
+o.json	Observation.component[13].value.value.lowBoundary(2)	4.0.1
+o.json	Observation.component[13].value.value.lowBoundary(2)	5.0.0
+o.json	Observation.component[13].value.value.toString()	4.0.1
+o.json	Observation.component[13].value.value.toString()	5.0.0
+o.json	Observation.component[13].value.lowBoundary()	4.0.1
+o.json	Observation.component[13].value.lowBoundary()	5.0.0
+o.json	Observation.component[13].value.value = 150	4.0.1
+o.json	Observation.component[13].value.value = 150	5.0.0
+o.json	Observation.component[13].value.value	4.0.1
+o.json	Observation.component[13].value.value	5.0.0
+o.json	Observation.component[14].value.value.precision()	4.0.1
+o.json	Observation.component[14].value.value.precision()	5.0.0
+o.json	Observation.component[14].value.value.lowBoundary()	4.0.1
+o.json	Observation.component[14].value.value.lowBoundary()	5.0.0
+o.json	Observation.component[14].value.value.highBoundary()	4.0.1
+o.json	Observation.component[14].value.value.highBoundary()	5.0.0
+o.json	Observation.component[14].value.value.lowBoundary(2)	4.0.1
+o.json	Observation.component[14].value.value.lowBoundary(2)	5.0.0
+o.json	Observation.component[14].value.value.toString()	4.0.1
+o.json	Observation.component[14].value.value.toString()	5.0.0
+o.json	Observation.component[14].value.lowBoundary()	4.0.1
+o.json	Observation.component[14].value.lowBoundary()	5.0.0
+o.json	Observation.component[14].value.value = 150	4.0.1
+o.json	Observation.component[14].value.value = 150	5.0.0
+o.json	Observation.component[14].value.value	4.0.1
+o.json	Observation.component[14].value.value	5.0.0
+o.json	Observation.component[15].value.value.precision()	4.0.1
+o.json	Observation.component[15].value.value.precision()	5.0.0
+o.json	Observation.component[15].value.value.lowBoundary()	4.0.1
+o.json	Observation.component[15].value.value.lowBoundary()	5.0.0
+o.json	Observation.component[15].value.value.highBoundary()	4.0.1
+o.json	Observation.component[15].value.value.highBoundary()	5.0.0
+o.json	Observation.component[15].value.value.lowBoundary(2)	4.0.1
+o.json	Observation.component[15].value.value.lowBoundary(2)	5.0.0
+o.json	Observation.component[15].value.value.toString()	4.0.1
+o.json	Observation.component[15].value.value.toString()	5.0.0
+o.json	Observation.component[15].value.lowBoundary()	4.0.1
+o.json	Observation.component[15].value.lowBoundary()	5.0.0
+o.json	Observation.component[15].value.value = 150	4.0.1
+o.json	Observation.component[15].value.value = 150	5.0.0
+o.json	Observation.component[15].value.value	4.0.1
+o.json	Observation.component[15].value.value	5.0.0
+o.json	Observation.component[16].value.value.precision()	4.0.1
+o.json	Observation.component[16].value.value.precision()	5.0.0
+o.json	Observation.component[16].value.value.lowBoundary()	4.0.1
+o.json	Observation.component[16].value.value.lowBoundary()	5.0.0
+o.json	Observation.component[16].value.value.highBoundary()	4.0.1
+o.json	Observation.component[16].value.value.highBoundary()	5.0.0
+o.json	Observation.component[16].value.value.lowBoundary(2)	4.0.1
+o.json	Observation.component[16].value.value.lowBoundary(2)	5.0.0
+o.json	Observation.component[16].value.value.toString()	4.0.1
+o.json	Observation.component[16].value.value.toString()	5.0.0
+o.json	Observation.component[16].value.lowBoundary()	4.0.1
+o.json	Observation.component[16].value.lowBoundary()	5.0.0
+o.json	Observation.component[16].value.value = 150	4.0.1
+o.json	Observation.component[16].value.value = 150	5.0.0
+o.json	Observation.component[16].value.value	4.0.1
+o.json	Observation.component[16].value.value	5.0.0
+o.json	Observation.component[17].value.value.precision()	4.0.1
+o.json	Observation.component[17].value.value.precision()	5.0.0
+o.json	Observation.component[17].value.value.lowBoundary()	4.0.1
+o.json	Observation.component[17].value.value.lowBoundary()	5.0.0
+o.json	Observation.component[17].value.value.highBoundary()	4.0.1
+o.json	Observation.component[17].value.value.highBoundary()	5.0.0
+o.json	Observation.component[17].value.value.lowBoundary(2)	4.0.1
+o.json	Observation.component[17].value.value.lowBoundary(2)	5.0.0
+o.json	Observation.component[17].value.value.toString()	4.0.1
+o.json	Observation.component[17].value.value.toString()	5.0.0
+o.json	Observation.component[17].value.lowBoundary()	4.0.1
+o.json	Observation.component[17].value.lowBoundary()	5.0.0
+o.json	Observation.component[17].value.value = 150	4.0.1
+o.json	Observation.component[17].value.value = 150	5.0.0
+o.json	Observation.component[17].value.value	4.0.1
+o.json	Observation.component[17].value.value	5.0.0
+o.json	Observation.component[18].value.value.precision()	4.0.1
+o.json	Observation.component[18].value.value.precision()	5.0.0
+o.json	Observation.component[18].value.value.lowBoundary()	4.0.1
+o.json	Observation.component[18].value.value.lowBoundary()	5.0.0
+o.json	Observation.component[18].value.value.highBoundary()	4.0.1
+o.json	Observation.component[18].value.value.highBoundary()	5.0.0
+o.json	Observation.component[18].value.value.lowBoundary(2)	4.0.1
+o.json	Observation.component[18].value.value.lowBoundary(2)	5.0.0
+o.json	Observation.component[18].value.value.toString()	4.0.1
+o.json	Observation.component[18].value.value.toString()	5.0.0
+o.json	Observation.component[18].value.lowBoundary()	4.0.1
+o.json	Observation.component[18].value.lowBoundary()	5.0.0
+o.json	Observation.component[18].value.value = 150	4.0.1
+o.json	Observation.component[18].value.value = 150	5.0.0
+o.json	Observation.component[18].value.value	4.0.1
+o.json	Observation.component[18].value.value	5.0.0
+o.json	Observation.component[19].value.value.precision()	4.0.1
+o.json	Observation.component[19].value.value.precision()	5.0.0
+o.json	Observation.component[19].value.value.lowBoundary()	4.0.1
+o.json	Observation.component[19].value.value.lowBoundary()	5.0.0
+o.json	Observation.component[19].value.value.highBoundary()	4.0.1
+o.json	Observation.component[19].value.value.highBoundary()	5.0.0
+o.json	Observation.component[19].value.value.lowBoundary(2)	4.0.1
+o.json	Observation.component[19].value.value.lowBoundary(2)	5.0.0
+o.json	Observation.component[19].value.value.toString()	4.0.1
+o.json	Observation.component[19].value.value.toString()	5.0.0
+o.json	Observation.component[19].value.lowBoundary()	4.0.1
+o.json	Observation.component[19].value.lowBoundary()	5.0.0
+o.json	Observation.component[19].value.value = 150	4.0.1
+o.json	Observation.component[19].value.value = 150	5.0.0
+o.json	Observation.component[19].value.value	4.0.1
+o.json	Observation.component[19].value.value	5.0.0
+o.json	Observation.component[20].value.value.precision()	4.0.1
+o.json	Observation.component[20].value.value.precision()	5.0.0
+o.json	Observation.component[20].value.value.lowBoundary()	4.0.1
+o.json	Observation.component[20].value.value.lowBoundary()	5.0.0
+o.json	Observation.component[20].value.value.highBoundary()	4.0.1
+o.json	Observation.component[20].value.value.highBoundary()	5.0.0
+o.json	Observation.component[20].value.value.lowBoundary(2)	4.0.1
+o.json	Observation.component[20].value.value.lowBoundary(2)	5.0.0
+o.json	Observation.component[20].value.value.toString()	4.0.1
+o.json	Observation.component[20].value.value.toString()	5.0.0
+o.json	Observation.component[20].value.lowBoundary()	4.0.1
+o.json	Observation.component[20].value.lowBoundary()	5.0.0
+o.json	Observation.component[20].value.value = 150	4.0.1
+o.json	Observation.component[20].value.value = 150	5.0.0
+o.json	Observation.component[20].value.value	4.0.1
+o.json	Observation.component[20].value.value	5.0.0
+o.json	Observation.component[21].value.value.precision()	4.0.1
+o.json	Observation.component[21].value.value.precision()	5.0.0
+o.json	Observation.component[21].value.value.lowBoundary()	4.0.1
+o.json	Observation.component[21].value.value.lowBoundary()	5.0.0
+o.json	Observation.component[21].value.value.highBoundary()	4.0.1
+o.json	Observation.component[21].value.value.highBoundary()	5.0.0
+o.json	Observation.component[21].value.value.lowBoundary(2)	4.0.1
+o.json	Observation.component[21].value.value.lowBoundary(2)	5.0.0
+o.json	Observation.component[21].value.value.toString()	4.0.1
+o.json	Observation.component[21].value.value.toString()	5.0.0
+o.json	Observation.component[21].value.lowBoundary()	4.0.1
+o.json	Observation.component[21].value.lowBoundary()	5.0.0
+o.json	Observation.component[21].value.value = 150	4.0.1
+o.json	Observation.component[21].value.value = 150	5.0.0
+o.json	Observation.component[21].value.value	4.0.1
+o.json	Observation.component[21].value.value	5.0.0
+o.json	Observation.component[22].value.value.precision()	4.0.1
+o.json	Observation.component[22].value.value.precision()	5.0.0
+o.json	Observation.component[22].value.value.lowBoundary()	4.0.1
+o.json	Observation.component[22].value.value.lowBoundary()	5.0.0
+o.json	Observation.component[22].value.value.highBoundary()	4.0.1
+o.json	Observation.component[22].value.value.highBoundary()	5.0.0
+o.json	Observation.component[22].value.value.lowBoundary(2)	4.0.1
+o.json	Observation.component[22].value.value.lowBoundary(2)	5.0.0
+o.json	Observation.component[22].value.value.toString()	4.0.1
+o.json	Observation.component[22].value.value.toString()	5.0.0
+o.json	Observation.component[22].value.lowBoundary()	4.0.1
+o.json	Observation.component[22].value.lowBoundary()	5.0.0
+o.json	Observation.component[22].value.value = 150	4.0.1
+o.json	Observation.component[22].value.value = 150	5.0.0
+o.json	Observation.component[22].value.value	4.0.1
+o.json	Observation.component[22].value.value	5.0.0
+o.json	Observation.component[23].value.value.precision()	4.0.1
+o.json	Observation.component[23].value.value.precision()	5.0.0
+o.json	Observation.component[23].value.value.lowBoundary()	4.0.1
+o.json	Observation.component[23].value.value.lowBoundary()	5.0.0
+o.json	Observation.component[23].value.value.highBoundary()	4.0.1
+o.json	Observation.component[23].value.value.highBoundary()	5.0.0
+o.json	Observation.component[23].value.value.lowBoundary(2)	4.0.1
+o.json	Observation.component[23].value.value.lowBoundary(2)	5.0.0
+o.json	Observation.component[23].value.value.toString()	4.0.1
+o.json	Observation.component[23].value.value.toString()	5.0.0
+o.json	Observation.component[23].value.lowBoundary()	4.0.1
+o.json	Observation.component[23].value.lowBoundary()	5.0.0
+o.json	Observation.component[23].value.value = 150	4.0.1
+o.json	Observation.component[23].value.value = 150	5.0.0
+o.json	Observation.component[23].value.value	4.0.1
+o.json	Observation.component[23].value.value	5.0.0
+r.json	RiskAssessment.prediction[0].probability.precision()	4.0.1
+r.json	RiskAssessment.prediction[0].probability.precision()	5.0.0
+r.json	RiskAssessment.prediction[0].probability.lowBoundary()	4.0.1
+r.json	RiskAssessment.prediction[0].probability.lowBoundary()	5.0.0
+r.json	RiskAssessment.prediction[0].probability.highBoundary()	4.0.1
+r.json	RiskAssessment.prediction[0].probability.highBoundary()	5.0.0
+r.json	RiskAssessment.prediction[0].probability.toString()	4.0.1
+r.json	RiskAssessment.prediction[0].probability.toString()	5.0.0
+r.json	RiskAssessment.prediction[1].probability.precision()	4.0.1
+r.json	RiskAssessment.prediction[1].probability.precision()	5.0.0
+r.json	RiskAssessment.prediction[1].probability.lowBoundary()	4.0.1
+r.json	RiskAssessment.prediction[1].probability.lowBoundary()	5.0.0
+r.json	RiskAssessment.prediction[1].probability.highBoundary()	4.0.1
+r.json	RiskAssessment.prediction[1].probability.highBoundary()	5.0.0
+r.json	RiskAssessment.prediction[1].probability.toString()	4.0.1
+r.json	RiskAssessment.prediction[1].probability.toString()	5.0.0
+r.json	RiskAssessment.prediction[2].probability.precision()	4.0.1
+r.json	RiskAssessment.prediction[2].probability.precision()	5.0.0
+r.json	RiskAssessment.prediction[2].probability.lowBoundary()	4.0.1
+r.json	RiskAssessment.prediction[2].probability.lowBoundary()	5.0.0
+r.json	RiskAssessment.prediction[2].probability.highBoundary()	4.0.1
+r.json	RiskAssessment.prediction[2].probability.highBoundary()	5.0.0
+r.json	RiskAssessment.prediction[2].probability.toString()	4.0.1
+r.json	RiskAssessment.prediction[2].probability.toString()	5.0.0
+r.json	RiskAssessment.prediction[3].probability.precision()	4.0.1
+r.json	RiskAssessment.prediction[3].probability.precision()	5.0.0
+r.json	RiskAssessment.prediction[3].probability.lowBoundary()	4.0.1
+r.json	RiskAssessment.prediction[3].probability.lowBoundary()	5.0.0
+r.json	RiskAssessment.prediction[3].probability.highBoundary()	4.0.1
+r.json	RiskAssessment.prediction[3].probability.highBoundary()	5.0.0
+r.json	RiskAssessment.prediction[3].probability.toString()	4.0.1
+r.json	RiskAssessment.prediction[3].probability.toString()	5.0.0
+o.json	Observation.component[24].value.value.precision()	4.0.1
+o.json	Observation.component[24].value.value.precision()	5.0.0
+o.json	Observation.component[24].value.value.lowBoundary()	4.0.1
+o.json	Observation.component[24].value.value.lowBoundary()	5.0.0
+o.json	Observation.component[24].value.value.highBoundary()	4.0.1
+o.json	Observation.component[24].value.value.highBoundary()	5.0.0
+o.json	Observation.component[24].value.lowBoundary()	4.0.1
+o.json	Observation.component[24].value.lowBoundary()	5.0.0
+o.json	Observation.component[25].value.value.precision()	4.0.1
+o.json	Observation.component[25].value.value.precision()	5.0.0
+o.json	Observation.component[25].value.value.lowBoundary()	4.0.1
+o.json	Observation.component[25].value.value.lowBoundary()	5.0.0
+o.json	Observation.component[25].value.value.highBoundary()	4.0.1
+o.json	Observation.component[25].value.value.highBoundary()	5.0.0
+o.json	Observation.component[25].value.lowBoundary()	4.0.1
+o.json	Observation.component[25].value.lowBoundary()	5.0.0
+o.json	Observation.component[26].value.value.precision()	4.0.1
+o.json	Observation.component[26].value.value.precision()	5.0.0
+o.json	Observation.component[26].value.value.lowBoundary()	4.0.1
+o.json	Observation.component[26].value.value.lowBoundary()	5.0.0
+o.json	Observation.component[26].value.value.highBoundary()	4.0.1
+o.json	Observation.component[26].value.value.highBoundary()	5.0.0
+o.json	Observation.component[26].value.lowBoundary()	4.0.1
+o.json	Observation.component[26].value.lowBoundary()	5.0.0
+o.json	(1.587 + 0).precision()	4.0.1
+o.json	(1.587 + 0).precision()	5.0.0
+o.json	(1.50 * 2).precision()	4.0.1
+o.json	(1.50 * 2).precision()	5.0.0
+o.json	(-1.587).precision()	4.0.1
+o.json	(-1.587).precision()	5.0.0
+o.json	(1.5 + 0.25).precision()	4.0.1
+o.json	(1.5 + 0.25).precision()	5.0.0
+o.json	(1.0 / 4).precision()	4.0.1
+o.json	(1.0 / 4).precision()	5.0.0
+o.json	Observation.component[0].value.value.lowBoundary()	4.0.1
+o.json	Observation.component[0].value.value.lowBoundary()	5.0.0
+o.json	(-Observation.component[0].value.value).lowBoundary()	4.0.1
+o.json	(-Observation.component[0].value.value).lowBoundary()	5.0.0
+o.json	Observation.component[0].value.value.abs().lowBoundary()	4.0.1
+o.json	Observation.component[0].value.value.abs().lowBoundary()	5.0.0
+o.json	(-Observation.component[0].value.value).abs().lowBoundary()	4.0.1
+o.json	(-Observation.component[0].value.value).abs().lowBoundary()	5.0.0
+o.json	Observation.component[0].value.lowBoundary()	4.0.1
+o.json	Observation.component[0].value.lowBoundary()	5.0.0
+o.json	(-Observation.component[0].value).lowBoundary()	4.0.1
+o.json	(-Observation.component[0].value).lowBoundary()	5.0.0
+o.json	Observation.component[0].value.abs().lowBoundary()	4.0.1
+o.json	Observation.component[0].value.abs().lowBoundary()	5.0.0
+o.json	Observation.component[0].value.toQuantity().lowBoundary()	4.0.1
+o.json	Observation.component[0].value.toQuantity().lowBoundary()	5.0.0
+o.json	Observation.component[0].value.value.toQuantity().lowBoundary()	4.0.1
+o.json	Observation.component[0].value.value.toQuantity().lowBoundary()	5.0.0
+o.json	(-Observation.component[0].value.value).precision()	4.0.1
+o.json	(-Observation.component[0].value.value).precision()	5.0.0
+o.json	(Observation.component[0].value.value * 2).lowBoundary()	4.0.1
+o.json	(Observation.component[0].value.value * 2).lowBoundary()	5.0.0
+o.json	(Observation.component[0].value * 2).lowBoundary()	4.0.1
+o.json	(Observation.component[0].value * 2).lowBoundary()	5.0.0
+o.json	(Observation.component[0].value.value + Observation.component[0].value.value).lowBoundary()	4.0.1
+o.json	(Observation.component[0].value.value + Observation.component[0].value.value).lowBoundary()	5.0.0
+o.json	(Observation.component[0].value.value * 3 - Observation.component[0].value.value).lowBoundary()	4.0.1
+o.json	(Observation.component[0].value.value * 3 - Observation.component[0].value.value).lowBoundary()	5.0.0
+o.json	(Observation.component[0].value + Observation.component[0].value).lowBoundary()	4.0.1
+o.json	(Observation.component[0].value + Observation.component[0].value).lowBoundary()	5.0.0
+o.json	(Observation.component[0].value * 3 - Observation.component[0].value).lowBoundary()	4.0.1
+o.json	(Observation.component[0].value * 3 - Observation.component[0].value).lowBoundary()	5.0.0
+o.json	(Observation.component[0].value.value div 1).lowBoundary()	4.0.1
+o.json	(Observation.component[0].value.value div 1).lowBoundary()	5.0.0
+o.json	(Observation.component[0].value.value mod 7).lowBoundary()	4.0.1
+o.json	(Observation.component[0].value.value mod 7).lowBoundary()	5.0.0
+o.json	(Observation.component[0].value.value * 2).precision()	4.0.1
+o.json	(Observation.component[0].value.value * 2).precision()	5.0.0
+o.json	((100.0).power(2) * 1 'mg').lowBoundary()	4.0.1
+o.json	((100.0).power(2) * 1 'mg').lowBoundary()	5.0.0
+o.json	((10.0).power(2) * 1 'mg').lowBoundary()	4.0.1
+o.json	((10.0).power(2) * 1 'mg').lowBoundary()	5.0.0
+o.json	(Observation.component[0].value.value - -Observation.component[0].value.value).lowBoundary()	4.0.1
+o.json	(Observation.component[0].value.value - -Observation.component[0].value.value).lowBoundary()	5.0.0
+o.json	(Observation.component[0].value - -Observation.component[0].value).lowBoundary()	4.0.1
+o.json	(Observation.component[0].value - -Observation.component[0].value).lowBoundary()	5.0.0
+o.json	(Observation.component[0].value.value mod Observation.component[0].value.value).lowBoundary()	4.0.1
+o.json	(Observation.component[0].value.value mod Observation.component[0].value.value).lowBoundary()	5.0.0

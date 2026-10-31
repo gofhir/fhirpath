@@ -68,7 +68,7 @@ func boundaryOf(value types.Value, precision int, provided, low bool) (types.Col
 	}
 	switch v := value.(type) {
 	case types.Decimal:
-		return decimalBoundary(v.Value(), v.ImplicitPrecision(), decimalPrecisionOr(precision, provided), low)
+		return decimalBoundary(v.Value(), heldPlace(v.Value()), decimalPrecisionOr(precision, provided), low)
 	case types.Integer:
 		return decimalBoundary(decimal.NewFromInt(v.Value()), 0, decimalPrecisionOr(precision, provided), low)
 	case types.Quantity:
@@ -141,28 +141,28 @@ const (
 
 // boundaryInterval returns half of the last significant unit of value, which is
 // how far the true value may lie from what was written: a value given to three
-// decimal places, 1.587, stands for anything within 0.0005 of it.
+// decimal places, 1.587, stands for anything within 0.0005 of it, and one
+// written to the tens, 1.5e2, anything within 5 of it, as FHIR search's
+// implicit range has it ("The number of significant digits of the implicit
+// range is the number of digits specified"; R5, 1e2: "[50 ... 150)").
 //
 // Note this depends on the precision of the *input*, independent of the
 // precision requested for the output.
-func boundaryInterval(inputPrecision int) decimal.Decimal {
-	// The precision counts the digits of a decimal as it was written, so it is
-	// bounded by the length of the expression being evaluated and cannot
-	// approach the width of the exponent shopspring takes. Half a unit of the
-	// last place is written exactly, 5 at the place after it: a division
-	// rounds it away from 16 places on (#244).
-	return decimal.New(5, int32(-inputPrecision-1)) //nolint:gosec // digit count of a parsed literal
+func boundaryInterval(lastPlace int64) decimal.Decimal {
+	// Half a unit of the last place is written exactly, 5 at the place after
+	// it: a division rounds it away from 16 places on (#244).
+	return decimal.New(5, int32(-lastPlace-1)) //nolint:gosec // the scale of a value within the bound
 }
 
 // decimalBoundary computes one boundary of a decimal value and renders it at the
 // requested precision. low selects the lower boundary, rounding away from the
 // value in that direction so that the result still bounds it.
-func decimalBoundary(value decimal.Decimal, inputPrecision, outputPrecision int, low bool) (types.Collection, error) {
+func decimalBoundary(value decimal.Decimal, lastPlace int64, outputPrecision int, low bool) (types.Collection, error) {
 	if outputPrecision < 0 || outputPrecision > maxDecimalBoundaryPrecision {
 		return types.Collection{}, nil
 	}
 
-	interval := boundaryInterval(inputPrecision)
+	interval := boundaryInterval(lastPlace)
 	places := int32(outputPrecision)
 
 	var bounded decimal.Decimal
@@ -431,7 +431,7 @@ func boundaryTimezone(dt types.DateTime, low bool) string {
 
 // quantityBoundary bounds the quantity's value and keeps its unit.
 func quantityBoundary(q types.Quantity, precision int, provided, low bool) (types.Collection, error) {
-	bounded, err := decimalBoundary(q.Value(), quantityPrecision(q), decimalPrecisionOr(precision, provided), low)
+	bounded, err := decimalBoundary(q.Value(), heldPlace(q.Value()), decimalPrecisionOr(precision, provided), low)
 	if err != nil || bounded.Empty() {
 		return types.Collection{}, err
 	}
@@ -443,14 +443,18 @@ func quantityBoundary(q types.Quantity, precision int, provided, low bool) (type
 	return types.Collection{types.NewQuantityFromDecimal(value.Value(), q.Unit())}, nil
 }
 
-// quantityPrecision returns the number of fractional digits the quantity's
-// value carries. It reads the scale rather than the rendered text, which
-// normalizes 1.0 to 1 and would report no fractional digits at all.
-func quantityPrecision(q types.Quantity) int {
-	if exponent := q.Value().Exponent(); exponent < 0 {
-		return int(-exponent)
-	}
-	return 0
+// heldPlace is the place of the last digit of a value as the engine holds
+// it, its scale: 2 for 1.50, -1 for 1.5e2 (#246). A boundary computes with the
+// value as held, as every operation does, so the same value is bounded alike
+// as a Decimal and as a Quantity, negated, made absolute or made a Quantity
+// in its own unit; a conversion to another unit computes a new value. A zero
+// written past the bound computes as 0 does (CONFORMANCE.md, "A decimal
+// a resource holds beyond the bound is read"). Only a value read from text is
+// held left of the point; a computed one is held at the units or finer
+// (decimals.Computed), so (100.0).power(2) is bounded at the units. The scale
+// of a value within the bound stays within int32.
+func heldPlace(d decimal.Decimal) int64 {
+	return -int64(d.Exponent())
 }
 
 // --- Helpers ---
@@ -489,24 +493,26 @@ func fnPrecision(_ *eval.Context, input types.Collection, _ []interface{}) (type
 		return types.Collection{}, nil
 	}
 
-	var digits int
+	var digits int64
 	switch v := input[0].(type) {
 	case types.Decimal:
-		digits = v.ImplicitPrecision()
+		// LastPlace, not ImplicitPrecision: an int may be 32 bits, and a text
+		// such as 1e-2147483648 has more places than that (#246)
+		digits = max(0, v.LastPlace())
 	case types.Integer:
 		// Implicitly converted to a decimal, which has no fractional digits
 		digits = 0
 	case types.Date:
-		digits = datePrecisionDigits(v.Precision())
+		digits = int64(datePrecisionDigits(v.Precision()))
 	case types.DateTime:
-		digits = dateTimePrecisionDigits(v.Precision())
+		digits = int64(dateTimePrecisionDigits(v.Precision()))
 	case types.Time:
-		digits = timePrecisionDigits(v.Precision())
+		digits = int64(timePrecisionDigits(v.Precision()))
 	default:
 		return types.Collection{}, nil
 	}
 
-	return types.Collection{types.NewInteger(int64(digits))}, nil
+	return types.Collection{types.NewInteger(digits)}, nil
 }
 
 func datePrecisionDigits(p types.DatePrecision) int {
