@@ -1,0 +1,1 @@
+{"resourceType":"RiskAssessment","id":"r","status":"final","subject":{"reference":"Patient/p"},"prediction":[{"probabilityDecimal":1.5e2},{"probabilityDecimal":1.50e-1},{"probabilityDecimal":1e2},{"probabilityDecimal":0.25}]}

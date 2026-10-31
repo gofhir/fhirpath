@@ -1712,6 +1712,51 @@ both, from those two different defects, and `-0.05000000` here. A decimal
 written with an exponent counts its places by its text, exponent included,
 and is #246's.
 
+## A decimal written with an exponent
+
+A FHIRPath literal has no exponent ("Decimal literals cannot use exponential
+notation", 3.0.0), but FHIR's decimal does: "A JSON number", regex
+`-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?`, so a resource can hold
+`1.5e2`. `precision()` counted the characters after the point, exponent
+included (`1.5e2` 3, `1E-17` 0), and a Decimal's boundaries with it, while a
+Quantity's read the value's exponent: the same value had two (#246).
+
+- `precision()` is "the number of digits of precision after the decimal
+  place in the input value" (3.0.0), read from the text with its exponent
+  applied, never below 0: `1.5e2` 0, `1E-17` 17, `15e-1` 1, `1.50e-1` 3.
+  A value past the bound answers from its text too (`1e-1001` 1001), as
+  `toString()` does.
+- Its boundaries are those of its last written digit, through a Decimal and
+  a Quantity alike: `1.5e2` stands for [145, 155], `1e2` for [50, 150],
+  `1.00e2` for [99.5, 100.5] as `100` does. That is FHIR search's implicit
+  range, "The number of significant digits of the implicit range is the
+  number of digits specified ... So 100 and 1.00e2 both have the same number
+  of significant digits", R5's `1e2` "[50 ... 150)", and FHIR's "SHALL
+  handle decimal values in ways that preserve and respect the precision of
+  the value". They compute with the value as held, so a zero written past
+  the bound, `0e2000`, is bounded as 0 is, while one within it is bounded
+  as written: `0e999` stands for ±5 × 10^998. Only a written value has a
+  digit left of the point, and it keeps it negated, made absolute or made a
+  Quantity in its own unit (`-1.5e2` stands for [−155, −145]). A computed
+  value is held at the units or finer, so it is bounded there:
+  `(100.0).power(2)` gives `9999.50000000`, as fhirpath.js answers, and
+  `(100 'm' * 100 'm')` `9999.50000000 'm2'`, as before #246.
+
+Measured with `make three-engine` (`difftest/batteries/decimal-exponent`,
+R4 and R5 alike): neither reference answers from the text with its
+exponent applied, so this is the engine's reading of the texts above, not a
+reference's answer. fhirpath.js reads a JavaScript number, which has lost
+the text: `1.5e2` is bounded as `150`, `[149.5, 150.5]`, and `1.0e0` as `1`;
+it has no `precision()`. The validator ignores the exponent
+(`1.5e2`'s `precision()` 1, `lowBoundary()` `1.450000002`, an error on a
+negative exponent). Where the two agree, on a zero written with an exponent
+(`0e-3`, `0.0e5`: ±0.5), they agree from those two defects: here `0e-3`
+stands for [−0.0005, 0.0005] and `0.0e5` for [−5000, 5000].
+
+`toString()` still writes the text as held, `1.5e2`, as the validator does;
+fhirpath.js writes `150`. That text is no Decimal string `toDecimal()`
+reads back (FP-14).
+
 ## Integer is 64 bits here, and there is no Long
 
 The specification gives `Integer` the range -2^31 to 2^31-1, and adds a `Long`
@@ -2072,6 +2117,8 @@ any other jar unless run with `-java-unpinned`, whose answers are marked
 | `(123.4567890123456789).highBoundary(16)`, `(-0.00000000000000001).lowBoundary()` | an error | `123.4567890123456790`, `-0.00000001` | No behavior to follow (JAVA-10) |
 | The boundary of a zero written to places: `(0.0).lowBoundary()`, `(0.00).lowBoundary()` | `-0.50000000` for both, though `(0.0).precision()` is 1 | `-0.05000000`, `-0.00500000`, as fhirpath.js answers | A zero written to one place stands for what is within 0.05 of it, as any decimal does (JAVA-11) |
 | A boundary at 17 or 18 places: `(1.1234567890123456).lowBoundary(17)` | empty | `1.12345678901234555`, exact | The maximum is the implementation's; see [Decisions taken where the specification is silent](#decisions-taken-where-the-specification-is-silent) |
+| A decimal a resource writes with an exponent, `1.5e2`: its `precision()`, `lowBoundary()`, `= 150` | `1`, `1.450000002`, false | `0`, `145.00000000`, true | The exponent is the value's: 3.0.0 counts the digits "after the decimal place in the input value", and the boundary moves by the last written digit, as FHIR search's implicit range does (JAVA-13) |
+| The boundary of a decimal with a negative exponent: `lowBoundary()` over a resource's `1.50e-1` | an error | `0.14950000` | No behavior to follow (JAVA-13) |
 | A FHIR `time` holding a date, `"valueTime": "2020-01-15"` | `> @T09` true, `> @2019` an error | a string, as fhirpath.js reads it | A time, and not one |
 | `is()` and `type()` across FHIR and System types | `family.is(System.String)` true, though `family.as(System.String)` is empty; `type()` of a FHIR string `System.String`, and of an R5 `Patient.id` `System.Id` | false, as fhirpath.js answers; `FHIR.string` | Is, and is not. `as()` is followed: it answers as `is()`, empty with a model, as in fhirpath.js, where up to 1.14.1 it was the value |
 | `~` with a calendar duration or a temperature: `1 year ~ 1 'a'` | NullPointerException | true | An exception |

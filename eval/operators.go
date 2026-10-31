@@ -5,6 +5,7 @@ import (
 
 	"github.com/shopspring/decimal"
 
+	"github.com/gofhir/fhirpath/internal/decimals"
 	"github.com/gofhir/fhirpath/types"
 )
 
@@ -462,8 +463,10 @@ func Modulo(left, right types.Value) (types.Value, error) {
 
 	// The remainder of the truncated division, l - trunc(l/r)*r, exact: a
 	// division rounded first made 0.99999999999999999 mod 1.0 negative
+	// The remainder keeps its operands' scale, 30e1 mod 7e1 being 2e1;
+	// the quotient is held at the units already
 	_, remainder := l.Value().QuoRem(r.Value(), 0)
-	return types.NewDecimalFromDecimal(remainder), nil
+	return types.NewDecimalFromDecimal(decimals.Computed(remainder)), nil
 }
 
 // decimalOperands widens two numeric values to Decimal, which is the implicit

@@ -266,7 +266,7 @@ func combine(leftValue decimal.Decimal, leftUnit string, rightValue decimal.Deci
 		return decimal.Decimal{}, "", ErrNotFinite
 	}
 
-	return decimal.NewFromFloat(result.Value), result.Code, nil
+	return decimals.Computed(decimal.NewFromFloat(result.Value)), result.Code, nil
 }
 
 // finite reports a float64 that is a number.

@@ -338,7 +338,7 @@ func NewDecimalFromInt(v int64) Decimal {
 
 // NewDecimalFromFloat creates a new Decimal from a float64.
 func NewDecimalFromFloat(v float64) Decimal {
-	return Decimal{value: decimal.NewFromFloat(v)}
+	return Decimal{value: decimals.Computed(decimal.NewFromFloat(v))}
 }
 
 // NewDecimalFromDecimal wraps an already-exact decimal value.
@@ -437,26 +437,40 @@ func (d Decimal) String() string {
 	return decimals.Format(d.value)
 }
 
-// ImplicitPrecision returns the number of decimal places in this value,
-// inferred from the original string representation. For example, "1.0" has
-// precision 1, "1.00" has precision 2, and "42" has precision 0.
-// Returns 0 for computed values with no original string.
+// ImplicitPrecision returns the number of decimal places in this value, its
+// exponent applied and never below 0: "1.0" has precision 1, "1.00" 2, "42"
+// 0, "1.5e2" 0 and "1E-17" 17. It is LastPlace, clamped.
 func (d Decimal) ImplicitPrecision() int {
-	if d.original != "" {
-		if idx := strings.Index(d.original, "."); idx >= 0 {
-			return len(d.original) - idx - 1
-		}
+	places := d.LastPlace()
+	if places <= 0 {
 		return 0
 	}
+	return int(min(places, math.MaxInt))
+}
 
-	// A computed value has no original text, but its scale still records how
-	// many fractional digits it carries. Without this, negating a literal —
-	// which produces a computed value — would report a precision of zero, and
-	// (-1.587).lowBoundary() would bound it by 0.5 instead of 0.0005.
-	if exponent := d.value.Exponent(); exponent < 0 {
-		return int(-exponent)
+// LastPlace returns the place of the last digit written, counted after the
+// point: 2 for 1.50, 0 for 150, -1 for 1.5e2, 17 for 1E-17 (#246). A value
+// read from text answers from that text, the mantissa's places less the
+// exponent, even past the bound, where the decoded scale is capped; the
+// decoder refuses an exponent past int32, so this cannot overflow.
+//
+// A computed value has no text, but its scale still records how many
+// fractional digits it carries: (1.50 * 2).precision() is 2, as the HL7
+// validator answers.
+func (d Decimal) LastPlace() int64 {
+	if d.original == "" {
+		return -int64(d.value.Exponent())
 	}
-	return 0
+	mantissa, exponent := d.original, int64(0)
+	if i := strings.IndexAny(d.original, "eE"); i >= 0 {
+		mantissa = d.original[:i]
+		// The decoder has read it already, within int32
+		if e, err := strconv.ParseInt(d.original[i+1:], 10, 64); err == nil {
+			exponent = e
+		}
+	}
+	_, fraction, _ := strings.Cut(mantissa, ".")
+	return int64(len(fraction)) - exponent
 }
 
 // IsEmpty returns false for decimal values.
@@ -482,17 +496,17 @@ func (d Decimal) Compare(other Value) (int, error) {
 
 // Add returns the sum of two decimals.
 func (d Decimal) Add(other Decimal) Decimal {
-	return Decimal{value: d.value.Add(other.value)}
+	return Decimal{value: decimals.Computed(d.value.Add(other.value))}
 }
 
 // Subtract returns the difference of two decimals.
 func (d Decimal) Subtract(other Decimal) Decimal {
-	return Decimal{value: d.value.Sub(other.value)}
+	return Decimal{value: decimals.Computed(d.value.Sub(other.value))}
 }
 
 // Multiply returns the product of two decimals.
 func (d Decimal) Multiply(other Decimal) Decimal {
-	return Decimal{value: d.value.Mul(other.value)}
+	return Decimal{value: decimals.Computed(d.value.Mul(other.value))}
 }
 
 // Divide returns the result of division.
