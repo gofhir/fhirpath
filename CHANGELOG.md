@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.16.7](https://github.com/gofhir/fhirpath/compare/v1.16.6...v1.16.7) (2026-10-31)
+
+
+### Bug Fixes
+
+* decode decimals with the engine's own decoder, on shopspring/decimal v1.6.0 ([#239](https://github.com/gofhir/fhirpath/issues/239)) ([f0d05d5](https://github.com/gofhir/fhirpath/commit/f0d05d55508c6a534d387e28b3350862cc06100c)), closes [#235](https://github.com/gofhir/fhirpath/issues/235)
+* give a decimal's exact boundaries however many places it has ([#247](https://github.com/gofhir/fhirpath/issues/247)) ([576cb44](https://github.com/gofhir/fhirpath/commit/576cb440f1f6bd04b3a388d2915b5c3251830a91)), closes [#244](https://github.com/gofhir/fhirpath/issues/244)
+* give the same results whatever a program sets in shopspring/decimal ([#245](https://github.com/gofhir/fhirpath/issues/245)) ([36c4026](https://github.com/gofhir/fhirpath/commit/36c4026b5bd2a2f9a4b7e59dcf43eae1144b9281)), closes [#237](https://github.com/gofhir/fhirpath/issues/237)
+* read a decimal written with an exponent by its last digit ([#246](https://github.com/gofhir/fhirpath/issues/246)) ([#250](https://github.com/gofhir/fhirpath/issues/250)) ([da80cd9](https://github.com/gofhir/fhirpath/commit/da80cd9e0f983da3deb04d885b1add645375ef76))
+* read a FHIR date, dateTime, instant or time by FHIR's form ([#233](https://github.com/gofhir/fhirpath/issues/233)) ([db11c48](https://github.com/gofhir/fhirpath/commit/db11c487a0fbb7948f54b0238206108537ccde91)), closes [#231](https://github.com/gofhir/fhirpath/issues/231)
+* read a FHIR decimal beyond DecimalDigits instead of as absent ([#236](https://github.com/gofhir/fhirpath/issues/236)) ([2e1f2b1](https://github.com/gofhir/fhirpath/commit/2e1f2b1663a0c3e4dda573c5942cf01685db60f2)), closes [#232](https://github.com/gofhir/fhirpath/issues/232)
+
 ## [1.16.6](https://github.com/gofhir/fhirpath/compare/v1.16.5...v1.16.6) (2026-10-18)
 
 
