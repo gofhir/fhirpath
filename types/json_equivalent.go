@@ -202,6 +202,7 @@ func parseJSONObject(data []byte) (jsonObject, bool) {
 	object := jsonObject{children: make([]jsonChild, 0, 8)}
 	besides := 0
 	err := jsonparser.ObjectEach(data, func(key, value []byte, dataType jsonparser.ValueType, _ int) error {
+		dataType = readAs(value, dataType)
 		if _, seen := object.find(key, len(object.children)); seen {
 			return nil
 		}
@@ -287,15 +288,15 @@ func addsNothing(element, value jsonChild) bool {
 	var values []jsonparser.ValueType
 	if value.key != nil && value.dataType == jsonparser.Array {
 		//nolint:errcheck // An array that does not parse stands beside nothing
-		jsonparser.ArrayEach(value.data, func(_ []byte, dataType jsonparser.ValueType, _ int, _ error) {
-			values = append(values, dataType)
+		jsonparser.ArrayEach(value.data, func(item []byte, dataType jsonparser.ValueType, _ int, _ error) {
+			values = append(values, readAs(item, dataType))
 		})
 	}
 	beside := true
 	i := 0
 	//nolint:errcheck // An array that does not parse holds no value, as holdsNoValue found
-	jsonparser.ArrayEach(element.data, func(_ []byte, dataType jsonparser.ValueType, _ int, _ error) {
-		if dataType != jsonparser.Null && (i >= len(values) || values[i] == jsonparser.Null) {
+	jsonparser.ArrayEach(element.data, func(item []byte, dataType jsonparser.ValueType, _ int, _ error) {
+		if readAs(item, dataType) != jsonparser.Null && (i >= len(values) || values[i] == jsonparser.Null) {
 			beside = false
 		}
 		i++
@@ -307,8 +308,8 @@ func addsNothing(element, value jsonChild) bool {
 func nullsOnly(data []byte) bool {
 	nulls := true
 	//nolint:errcheck // An array that does not parse is compared as written
-	jsonparser.ArrayEach(data, func(_ []byte, dataType jsonparser.ValueType, _ int, _ error) {
-		if dataType != jsonparser.Null {
+	jsonparser.ArrayEach(data, func(item []byte, dataType jsonparser.ValueType, _ int, _ error) {
+		if readAs(item, dataType) != jsonparser.Null {
 			nulls = false
 		}
 	})
@@ -414,7 +415,30 @@ func writtenAlike(a []byte, aType jsonparser.ValueType, b []byte, bType jsonpars
 	if aType == jsonparser.String {
 		return bytes.Equal(a, b)
 	}
+	if aType == jsonparser.Array {
+		return sameArray(a, b)
+	}
 	return sameJSON(a, b)
+}
+
+// sameArray is sameJSON for two arrays, read with a number outside JSON's
+// grammar as null (#238): neither array is read as a whole, so the numbers in
+// it are not seen but here.
+func sameArray(a, b []byte) bool {
+	if sameJSON(a, b) {
+		return true
+	}
+	// Arrays without such a number come back as they are, compared already
+	na, nb := nullBadNumbersBytes(a), nullBadNumbersBytes(b)
+	if sameText(na, a) && sameText(nb, b) {
+		return false
+	}
+	return sameJSON(na, nb)
+}
+
+// sameText reports two slices of the same bytes in memory.
+func sameText(a, b []byte) bool {
+	return len(a) == len(b) && (len(a) == 0 || &a[0] == &b[0])
 }
 
 // rawEquivalent compares two single values from their JSON. Two strings that
@@ -479,10 +503,11 @@ type childValue struct {
 // one with an element beside it is compared where the element is.
 func childValues(child jsonChild) ([]childValue, bool) {
 	if child.dataType != jsonparser.Array {
-		return []childValue{{child.data, child.dataType}}, true
+		return []childValue{{child.data, readAs(child.data, child.dataType)}}, true
 	}
 	var values []childValue
 	_, err := jsonparser.ArrayEach(child.data, func(value []byte, dataType jsonparser.ValueType, _ int, _ error) {
+		dataType = readAs(value, dataType)
 		if dataType == jsonparser.Null {
 			return
 		}
@@ -636,12 +661,12 @@ func positionalValues(child jsonChild, found bool) []childValue {
 	case !found:
 		return nil
 	case child.dataType != jsonparser.Array:
-		return []childValue{{child.data, child.dataType}}
+		return []childValue{{child.data, readAs(child.data, child.dataType)}}
 	}
 	var values []childValue
 	//nolint:errcheck // An array that does not parse lists what it read
 	jsonparser.ArrayEach(child.data, func(value []byte, dataType jsonparser.ValueType, _ int, _ error) {
-		values = append(values, childValue{value, dataType})
+		values = append(values, childValue{value, readAs(value, dataType)})
 	})
 	return values
 }
@@ -694,6 +719,8 @@ func equalValues(left, right childValue) bool {
 		l, lerr := jsonparser.ParseString(left.data)
 		r, rerr := jsonparser.ParseString(right.data)
 		return lerr == nil && rerr == nil && l == r
+	case jsonparser.Array:
+		return sameArray(left.data, right.data)
 	}
 	return sameJSON(left.data, right.data)
 }

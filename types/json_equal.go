@@ -229,6 +229,9 @@ const (
 // returns the offsets past them.
 func compareTokens(a []byte, i int, b []byte, j int) (nextA, nextB int, verdict tokenVerdict) {
 	ca, cb := a[i], b[j]
+	if nextA, nextB, verdict, bad := compareBadNumbers(a, i, b, j); bad {
+		return nextA, nextB, verdict
+	}
 	switch {
 	case ca == '"' && cb == '"':
 		return compareStrings(a, i, b, j)
@@ -243,6 +246,35 @@ func compareTokens(a []byte, i int, b []byte, j int) (nextA, nextB int, verdict 
 		return i, j, tokensUnequal
 	}
 	return i, j, tokensUndecided
+}
+
+// badNumberAt reports a number outside JSON's grammar at i.
+func badNumberAt(data []byte, i int) bool {
+	return isNumberStart(data[i]) && !jsonNumber(data[i:tokenEnd(data, i)])
+}
+
+// compareBadNumbers compares tokens either of which is a number outside JSON's
+// grammar, which reads as null (#238): two such tokens are alike as two nulls
+// are, and one against another value is left to the full reading, as a null
+// is. It reports false for tokens that are not.
+func compareBadNumbers(a []byte, i int, b []byte, j int) (nextA, nextB int, verdict tokenVerdict, bad bool) {
+	badA, badB := badNumberAt(a, i), badNumberAt(b, j)
+	switch {
+	case !badA && !badB:
+		return i, j, tokensAlike, false
+	case (badA || startsNull(a, i)) && (badB || startsNull(b, j)):
+		return tokenOrLiteralEnd(a, i, badA), tokenOrLiteralEnd(b, j, badB), tokensAlike, true
+	}
+	return i, j, tokensUndecided, true
+}
+
+// tokenOrLiteralEnd is the end of the number outside the grammar at i, when it
+// is one, and else of the literal there.
+func tokenOrLiteralEnd(data []byte, i int, bad bool) int {
+	if bad {
+		return tokenEnd(data, i)
+	}
+	return literalEnd(data, i)
 }
 
 // compareStrings compares two strings. Keys that differ may be keys in
@@ -339,8 +371,9 @@ func orderedEqualFromDifference(a, b []byte) (equal, decided bool) {
 		// Inside a string: from its opening quote
 		start = opening
 	} else {
-		// Inside a number or a literal: from its first character
-		for start > 0 && strings.IndexByte("+-0123456789.eEabcdefghijklmnopqrstuvwxyz", a[start-1]) >= 0 {
+		// Inside a number or a literal: from its first character, which a
+		// token outside the number grammar may stand among any bytes
+		for start > 0 && !endsToken[a[start-1]] && strings.IndexByte("[{:\"", a[start-1]) < 0 {
 			start--
 		}
 	}

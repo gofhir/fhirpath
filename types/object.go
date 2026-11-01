@@ -569,7 +569,9 @@ func (o *ObjectValue) fieldSummary() (summary fields, resourceType string) {
 
 		// A field written as null or as {} is not there to tell the type by.
 		field, ok := inferenceFields[string(key)]
-		if !ok || entryType == jsonparser.Null || entryType == jsonparser.Object && emptyObject(entry) {
+		// A number outside JSON's grammar is read as null is (#238).
+		if !ok || entryType == jsonparser.Null || entryType == jsonparser.Object && emptyObject(entry) ||
+			entryType == jsonparser.Number && !jsonNumber(entry) {
 			return nil
 		}
 
@@ -706,7 +708,7 @@ func (o *ObjectValue) typedQuantity() (Quantity, bool) {
 
 // String returns the JSON representation.
 func (o *ObjectValue) String() string {
-	return string(o.data)
+	return nullBadNumbers(o.data)
 }
 
 // IsEmpty returns false for object values.
@@ -1010,6 +1012,12 @@ func holdsNoValueAt(data []byte, offset int) (noValue bool, end int) {
 	case '{':
 		return objectHoldsNoValueAt(data, offset)
 	}
+	// A number outside JSON's grammar reads as null does (#238)
+	if startsNumber[data[offset]] {
+		if end := tokenEnd(data, offset); !jsonNumber(data[offset:end]) {
+			return true, end
+		}
+	}
 	return false, 0
 }
 
@@ -1312,7 +1320,7 @@ func (f jsonField) isArray() bool { return f.dataType == jsonparser.Array }
 // they stand for: the value carrying the element, the element alone when there
 // is no value, or nothing when there is neither.
 func pairValueWithElement(value jsonField, element *ObjectValue, fhirType string) Collection {
-	if value.missing() || value.dataType == jsonparser.Null {
+	if value.noValue() {
 		if element == nil {
 			return Collection{}
 		}
@@ -2004,6 +2012,11 @@ func jsonValue(data []byte, dataType jsonparser.ValueType, read bool) Value {
 		return v
 
 	case jsonparser.Number:
+		// A token outside JSON's grammar is no number, and reads as null
+		// does (#238)
+		if !jsonNumber(data) {
+			return nil
+		}
 		s := string(data)
 		// Check if it's an integer
 		if !strings.Contains(s, ".") && !strings.Contains(s, "e") && !strings.Contains(s, "E") {
@@ -2108,12 +2121,7 @@ func jsonValueToFHIRValueWithType(data []byte, dataType jsonparser.ValueType, fh
 	// -0 keeps its sign, and 100 its type. A choice variant read without a
 	// model names the type as its key spells it, Decimal for valueDecimal.
 	if dataType == jsonparser.Number && strings.EqualFold(fhirType, "decimal") {
-		d, err := ReadDecimal(string(data))
-		if err != nil {
-			return nil
-		}
-		d.read = true
-		return d.WithFHIRType(fhirType)
+		return declaredDecimal(data, fhirType)
 	}
 
 	// A string may hold a date, a time or an instant, which the untyped path
@@ -2138,6 +2146,20 @@ func jsonValueToFHIRValueWithType(data []byte, dataType jsonparser.ValueType, fh
 // element's type code: Resource.id and Extension.url are
 // http://hl7.org/fhirpath/System.String in R4.
 const systemTypePrefix = "http://hl7.org/fhirpath/System."
+
+// declaredDecimal reads a number a model declares a decimal, nil for one outside
+// JSON's grammar or beyond what is read (#238).
+func declaredDecimal(data []byte, fhirType string) Value {
+	if !jsonNumber(data) {
+		return nil
+	}
+	d, err := ReadDecimal(string(data))
+	if err != nil {
+		return nil
+	}
+	d.read = true
+	return d.WithFHIRType(fhirType)
+}
 
 // systemValue reads a value the model declares as a System type. It is that
 // System type — String in namespace System, not a FHIR type named by a URL —
@@ -2785,7 +2807,7 @@ func (o *ObjectValue) money() (decimal.Decimal, string, bool) {
 		return decimal.Decimal{}, "", false
 	}
 	valueBytes, dataType, _, err := jsonparser.Get(o.data, "value")
-	if err != nil || dataType != jsonparser.Number {
+	if err != nil || dataType != jsonparser.Number || !jsonNumber(valueBytes) {
 		return decimal.Decimal{}, "", false
 	}
 	// Read as the resource holds it, one beyond the bound too: MoneyEqual
@@ -2805,7 +2827,7 @@ func (o *ObjectValue) money() (decimal.Decimal, string, bool) {
 // ErrDecimalRange: the object is a quantity, but its value overflows.
 func (o *ObjectValue) quantityValue() (decimal.Decimal, bool, error) {
 	valueBytes, dataType, _, err := jsonparser.Get(o.data, "value")
-	if err != nil || dataType != jsonparser.Number {
+	if err != nil || dataType != jsonparser.Number || !jsonNumber(valueBytes) {
 		return decimal.Decimal{}, false, nil
 	}
 	if _, isMoney := o.stringField("currency"); isMoney {

@@ -1,0 +1,93 @@
+# A resource's number read by JSON's grammar (#238): the numbers RFC 8259 admits,
+# read alike by the three engines (fhirpath.js 5.2.0, validator 6.10.2); ra-NN.json
+# holds valid[NN] as a RiskAssessment's probabilityDecimal, oq-NN.json as a Quantity's
+# value: -0, 0, 0.0, -0.0, 1.5, 1E5, 1e+05, 1e-5, -1.5E1, 10, 1.50e-1. The numbers it refuses cannot travel in the
+# harness's JSON batch: refused/measure.sh measures them. Results: plan 015.
+ra-00.json	RiskAssessment.prediction.probability + 1	4.0.1
+ra-00.json	RiskAssessment.prediction.probability + 1	5.0.0
+ra-00.json	RiskAssessment.prediction.probability.exists()	4.0.1
+ra-00.json	RiskAssessment.prediction.probability.exists()	5.0.0
+oq-00.json	Observation.value.value + 1	4.0.1
+oq-00.json	Observation.value.value + 1	5.0.0
+oq-00.json	Observation.value > 0 'mg'	4.0.1
+oq-00.json	Observation.value > 0 'mg'	5.0.0
+ra-01.json	RiskAssessment.prediction.probability + 1	4.0.1
+ra-01.json	RiskAssessment.prediction.probability + 1	5.0.0
+ra-01.json	RiskAssessment.prediction.probability.exists()	4.0.1
+ra-01.json	RiskAssessment.prediction.probability.exists()	5.0.0
+oq-01.json	Observation.value.value + 1	4.0.1
+oq-01.json	Observation.value.value + 1	5.0.0
+oq-01.json	Observation.value > 0 'mg'	4.0.1
+oq-01.json	Observation.value > 0 'mg'	5.0.0
+ra-02.json	RiskAssessment.prediction.probability + 1	4.0.1
+ra-02.json	RiskAssessment.prediction.probability + 1	5.0.0
+ra-02.json	RiskAssessment.prediction.probability.exists()	4.0.1
+ra-02.json	RiskAssessment.prediction.probability.exists()	5.0.0
+oq-02.json	Observation.value.value + 1	4.0.1
+oq-02.json	Observation.value.value + 1	5.0.0
+oq-02.json	Observation.value > 0 'mg'	4.0.1
+oq-02.json	Observation.value > 0 'mg'	5.0.0
+ra-03.json	RiskAssessment.prediction.probability + 1	4.0.1
+ra-03.json	RiskAssessment.prediction.probability + 1	5.0.0
+ra-03.json	RiskAssessment.prediction.probability.exists()	4.0.1
+ra-03.json	RiskAssessment.prediction.probability.exists()	5.0.0
+oq-03.json	Observation.value.value + 1	4.0.1
+oq-03.json	Observation.value.value + 1	5.0.0
+oq-03.json	Observation.value > 0 'mg'	4.0.1
+oq-03.json	Observation.value > 0 'mg'	5.0.0
+ra-04.json	RiskAssessment.prediction.probability + 1	4.0.1
+ra-04.json	RiskAssessment.prediction.probability + 1	5.0.0
+ra-04.json	RiskAssessment.prediction.probability.exists()	4.0.1
+ra-04.json	RiskAssessment.prediction.probability.exists()	5.0.0
+oq-04.json	Observation.value.value + 1	4.0.1
+oq-04.json	Observation.value.value + 1	5.0.0
+oq-04.json	Observation.value > 0 'mg'	4.0.1
+oq-04.json	Observation.value > 0 'mg'	5.0.0
+ra-05.json	RiskAssessment.prediction.probability + 1	4.0.1
+ra-05.json	RiskAssessment.prediction.probability + 1	5.0.0
+ra-05.json	RiskAssessment.prediction.probability.exists()	4.0.1
+ra-05.json	RiskAssessment.prediction.probability.exists()	5.0.0
+oq-05.json	Observation.value.value + 1	4.0.1
+oq-05.json	Observation.value.value + 1	5.0.0
+oq-05.json	Observation.value > 0 'mg'	4.0.1
+oq-05.json	Observation.value > 0 'mg'	5.0.0
+ra-06.json	RiskAssessment.prediction.probability + 1	4.0.1
+ra-06.json	RiskAssessment.prediction.probability + 1	5.0.0
+ra-06.json	RiskAssessment.prediction.probability.exists()	4.0.1
+ra-06.json	RiskAssessment.prediction.probability.exists()	5.0.0
+oq-06.json	Observation.value.value + 1	4.0.1
+oq-06.json	Observation.value.value + 1	5.0.0
+oq-06.json	Observation.value > 0 'mg'	4.0.1
+oq-06.json	Observation.value > 0 'mg'	5.0.0
+ra-07.json	RiskAssessment.prediction.probability + 1	4.0.1
+ra-07.json	RiskAssessment.prediction.probability + 1	5.0.0
+ra-07.json	RiskAssessment.prediction.probability.exists()	4.0.1
+ra-07.json	RiskAssessment.prediction.probability.exists()	5.0.0
+oq-07.json	Observation.value.value + 1	4.0.1
+oq-07.json	Observation.value.value + 1	5.0.0
+oq-07.json	Observation.value > 0 'mg'	4.0.1
+oq-07.json	Observation.value > 0 'mg'	5.0.0
+ra-08.json	RiskAssessment.prediction.probability + 1	4.0.1
+ra-08.json	RiskAssessment.prediction.probability + 1	5.0.0
+ra-08.json	RiskAssessment.prediction.probability.exists()	4.0.1
+ra-08.json	RiskAssessment.prediction.probability.exists()	5.0.0
+oq-08.json	Observation.value.value + 1	4.0.1
+oq-08.json	Observation.value.value + 1	5.0.0
+oq-08.json	Observation.value > 0 'mg'	4.0.1
+oq-08.json	Observation.value > 0 'mg'	5.0.0
+ra-09.json	RiskAssessment.prediction.probability + 1	4.0.1
+ra-09.json	RiskAssessment.prediction.probability + 1	5.0.0
+ra-09.json	RiskAssessment.prediction.probability.exists()	4.0.1
+ra-09.json	RiskAssessment.prediction.probability.exists()	5.0.0
+oq-09.json	Observation.value.value + 1	4.0.1
+oq-09.json	Observation.value.value + 1	5.0.0
+oq-09.json	Observation.value > 0 'mg'	4.0.1
+oq-09.json	Observation.value > 0 'mg'	5.0.0
+ra-10.json	RiskAssessment.prediction.probability + 1	4.0.1
+ra-10.json	RiskAssessment.prediction.probability + 1	5.0.0
+ra-10.json	RiskAssessment.prediction.probability.exists()	4.0.1
+ra-10.json	RiskAssessment.prediction.probability.exists()	5.0.0
+oq-10.json	Observation.value.value + 1	4.0.1
+oq-10.json	Observation.value.value + 1	5.0.0
+oq-10.json	Observation.value > 0 'mg'	4.0.1
+oq-10.json	Observation.value > 0 'mg'	5.0.0
