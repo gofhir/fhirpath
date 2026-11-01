@@ -1757,6 +1757,45 @@ stands for [−0.0005, 0.0005] and `0.0e5` for [−5000, 5000].
 fhirpath.js writes `150`. That text is no Decimal string `toDecimal()`
 reads back (FP-14).
 
+## A resource's number is read by JSON's grammar
+
+RFC 8259 §6: "number = [ minus ] int [ frac ] [ exp ]", with "int = zero /
+( digit1-9 *DIGIT )", "frac = decimal-point 1*DIGIT" and "Leading zeros are
+not allowed". FHIR R4 and R4B's decimal regex is that grammar,
+`-?(0|[1-9][0-9]*)(\.[0-9]+)?([eE][+-]?[0-9]+)?`; R5's is "informative, not
+normative", and malformed (a stray `}` closes its exponent). The decoder
+read more than that, inherited from shopspring/decimal v1.4.0: `-.5`, `5.`,
+`01`, `007.50`, `1.e5` were numbers, and an untyped `01` the Integer 1 (#238).
+
+A number token outside the grammar, which jsonparser still hands over
+(`-.5`, `5.`, `01`, `1.e5`, `-`, `1e`, `1.5.5`, `0x1`, `1_000`; not `.5` or
+`+1`, which it refuses), is no number and reads as `null` does: the
+primitive has no value, and its element (`_valueDecimal`, with its id and
+extensions) is kept, which `1x` and `0e` lost before. This holds where a
+number becomes a value (untyped, a declared decimal, a System type, a
+Quantity's or a Money's value, a Quantity's detection) and where two objects
+are compared with `=` and `~`: an object holding one compares as if `null`
+stood there. The engine validates no document, and checking one is the
+caller's work: a token that holds a byte of JSON's structure (`1:5`, `1"5"`,
+`1{2`) breaks the document for jsonparser itself: its `Get` loses the keys
+after `1:5` that `ObjectEach` still reads, and fails on a root holding `1"2`
+or `1{2`, which then reads as empty, as on main. Such a document is read as
+jsonparser reads it, as `1 2` is. `toDecimal()`, `convertsToDecimal()`, `ParseDecimal` and
+`NewDecimal` read strings by their own forms and keep their accept set.
+
+Measured (2026-10-31, `difftest/batteries/resource-number-grammar/refused/measure.sh`):
+fhirpath.js 5.2.0 never receives such a resource, because `JSON.parse`
+refuses every form. The HL7 validator 6.10.2 reads those its decoder takes
+(`-.5 + 1` is `0.5`, `007.50 + 1` is `8.50`, `01 + 1` is `2`), which the
+text does not support, and ends the evaluation on the rest (`-`, `1e`,
+`1.5.5`, `0x1`, `1_000`). The numbers JSON admits read alike in the three
+engines (`make three-engine BATTERY=batteries/resource-number-grammar/battery.tsv`).
+An object holding such a token is written with `null` in its place, as it
+is read.
+
+The grammar is written in the engine (`types/json_number.go`), an exception
+to reading everything from the packages, as the FHIR temporal forms are.
+
 ## Integer is 64 bits here, and there is no Long
 
 The specification gives `Integer` the range -2^31 to 2^31-1, and adds a `Long`

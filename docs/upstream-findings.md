@@ -45,6 +45,7 @@ Measured with `make three-engine`, the pinned validator jar.
 | JAVA-11 | A zero stands for anything within 0.5 of it however many places it is written to: `(0.0).lowBoundary()` and `(0.00).lowBoundary()` are `-0.50000000`, though `(0.0).precision()` is 1; `(0).lowBoundary(0)` is `-0` | battery `boundary-places`, and the probe `(0.00).lowBoundary()` | open |
 | JAVA-12 | The boundaries stop at 16 places, `precision < 17` in `funcLowBoundary`: `(1.587).lowBoundary(17)` is empty. The text leaves the maximum to the implementation | battery `boundary-places` | decided: this engine goes to 18 (CONFORMANCE.md, "Max precision for `lowBoundary`/`highBoundary`") |
 | JAVA-13 | A decimal written with an exponent is read without it for its precision: `1.5e2`'s `precision()` is 1 (the mantissa's places), its `lowBoundary()` `1.450000002` and `highBoundary()` `1.550000002` (the exponent's digits spliced into the result), `1.5E+2`'s `1.5E+15000`; a negative exponent ends the evaluation (`lowBoundary()` over `1.50e-1`); and `Observation.value.value = 150` over `1.5e2` is false. A value computed from it carries the defect: `(value * 2).lowBoundary()` and `(value + value).lowBoundary()` are `3.0E+15000`; `(-value).lowBoundary()` is `-150.50000000`, `value.abs()`'s `149.95000000` | battery `decimal-exponent` | open |
+| JAVA-14 | A resource's number outside JSON's grammar is read, and read off by one: `-.5` as 0.5, `5.` as 6, `1.` as 2, `-0.` as 1, `007.50` as 8.50, `1.e5` as 100001, `01` as 2, `00` as 1, `-01` as 0 for `value + 1`; `-`, `1e`, `1.5.5`, `0x1` and `1_000` end the evaluation with an error. RFC 8259 §6 refuses all of them, as does R4 and R4B's decimal regex; fhirpath.js refuses them in `JSON.parse` | `difftest/batteries/resource-number-grammar/refused/measure.sh` | open |
 
 ## The FHIR specification (HL7)
 
@@ -56,6 +57,7 @@ Measured with `make three-engine`, the pinned validator jar.
 | SPEC-3 | The text requires an offset on a `dateTime` with a time and the seconds on a `time`; both reference engines read values without them, and none occurs in the R4, R4B or R5 official examples | `datatypes.html`; scan of the pinned example packages | decided: read, as both engines do (user, 2026-10-26) |
 | SPEC-5 | R5's decimal regex (`StructureDefinition-decimal`, `decimal.value`) reads `-?(0|[1-9][0-9]{0,17})(\.[0-9]{1,17})?([eE][+-]?[0-9]{1,9}})?`: a stray `}` before the last `)?`, so the pattern as written requires a literal `}` after the exponent | pinned `hl7.fhir.r5.core` 5.0.0; found in the review of plan 011 (#235) | open |
 | SPEC-6 | R4 and R4B's search page gives `1e2` as "to 1 significant figures precision ... [95 ... 105)", which is not one significant figure; R5 corrects it to "[50 ... 150)" | `search.html` in R4, R4B and R5 | decided: R5's reading (plan 014) |
+| SPEC-7 | R5's integer regex (`StructureDefinition-integer`, `integer.value`) reads `[0]|[-+]?[1-9][0-9]*`: it admits `+1`, which JSON does not, and refuses `-0`, which JSON and R4's `-?([0]|([1-9][0-9]*))` admit | pinned `hl7.fhir.r4.core` 4.0.1 and `hl7.fhir.r5.core` 5.0.0; found in the review of plan 015 (#238) | open; a resource's number is read by JSON's grammar (plan 015) |
 
 ## gofhir/searchindex
 
@@ -82,7 +84,8 @@ Measured with `make three-engine`, the pinned validator jar.
 
 | # | Finding | Reproduce | Status |
 |---|---|---|---|
-| JP-1 | A bare `-` as a value is typed as a Number, and read as Integer 0 (`strconv.ParseInt("-")` path) | found in the review of plan 011 (Fable) | open; to be measured before reporting |
+| JP-1 | jsonparser types tokens RFC 8259 refuses as a Number: `-.5`, `5.`, `01`, `1.e5`, `-`, `1e`, `1.5.5`, `1e5e5`, `1-2`, `0x1`, `1_000` (it refuses `.5` and `+1`). It does not claim to validate a document, so this engine checks the grammar itself (plan 015); a bare `-` was read as Integer 0 through `strconv.ParseInt` | measured in plan 015 (#238) | not a defect: jsonparser documents no validation; nothing to report |
+| JP-2 | jsonparser reads a token holding a byte of JSON's structure one way in one call and another in the next. `{"value":1:5,"unit":"mg"}`: `Get(data, "unit")` answers "Key path not found" while `ObjectEach` reads `unit`. `{"x":1"2}` and `{"x":1{2}`: `Get(data)` on the root fails ("can't find closing '}' symbol") while `Get(data, "x")` answers the token and `ObjectEach` reads the object; the engine reads such a root as empty, as on main | found in plan 015's round 2 (#238) | open; invalid JSON, which jsonparser does not claim to validate: to be weighed before reporting |
 
 ## gofhir/fhirpath (this engine)
 
