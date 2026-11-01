@@ -8,6 +8,6 @@
   (tokens holding a byte of JSON's structure, which jsonparser itself reads
   inconsistently, JP-2). `make check` green; three-engine battery all
   agree; corpusdiff 0; mutation sets 010–015 all caught. Uncommitted.
-- **Next:** commit and PR when the user asks.
+- **Next:** PR #252 open, awaiting review and merge by the user.
 - **Pending user decisions:** none for 015 (D2 published as #251). From 010, still open outside this repo: searchindex SI-3, go-cql
   CQL-1 (docs/upstream-findings.md, unpublished).
