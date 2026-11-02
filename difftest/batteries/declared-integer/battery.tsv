@@ -1,0 +1,287 @@
+# What a declared integer type reads (#251, plan 016). i64-NN.json holds an R5
+# integer64 written as the JSON string FHIR requires (json.html 2.1.6.4.2):
+# "5", "+5", "-0", "01", "-5", "9223372036854775807", which strconv.ParseInt
+# reads, "1e2", "1.5", "9223372036854775808", " 5", "", "5x", which stay strings,
+# and "-9223372036854775808" (i64-12), which it reads.
+# oi-NN.json holds a valueInteger written as a JSON number outside integer's
+# form or range: 1.5, 1e2, 1.0, -1.5e1, 2147483648, and -0 and 100 as controls;
+# os-00.json the string "1"; pi-NN.json a positiveInt 0, -1, 1.5. Each
+# difference is classified in plan 016 with the reference's own answer.
+i64-00.json	DocumentReference.content.attachment.size + 1	5.0.0
+i64-00.json	DocumentReference.content.attachment.size * 2	5.0.0
+i64-00.json	DocumentReference.content.attachment.size > 1	5.0.0
+i64-00.json	DocumentReference.content.attachment.size = 5	5.0.0
+i64-00.json	DocumentReference.content.attachment.size.toDecimal()	5.0.0
+i64-00.json	DocumentReference.content.attachment.size.type().name	5.0.0
+i64-01.json	DocumentReference.content.attachment.size + 1	5.0.0
+i64-01.json	DocumentReference.content.attachment.size * 2	5.0.0
+i64-01.json	DocumentReference.content.attachment.size > 1	5.0.0
+i64-01.json	DocumentReference.content.attachment.size = 5	5.0.0
+i64-01.json	DocumentReference.content.attachment.size.toDecimal()	5.0.0
+i64-01.json	DocumentReference.content.attachment.size.type().name	5.0.0
+i64-02.json	DocumentReference.content.attachment.size + 1	5.0.0
+i64-02.json	DocumentReference.content.attachment.size * 2	5.0.0
+i64-02.json	DocumentReference.content.attachment.size > 1	5.0.0
+i64-02.json	DocumentReference.content.attachment.size = 5	5.0.0
+i64-02.json	DocumentReference.content.attachment.size.toDecimal()	5.0.0
+i64-02.json	DocumentReference.content.attachment.size.type().name	5.0.0
+i64-03.json	DocumentReference.content.attachment.size + 1	5.0.0
+i64-03.json	DocumentReference.content.attachment.size * 2	5.0.0
+i64-03.json	DocumentReference.content.attachment.size > 1	5.0.0
+i64-03.json	DocumentReference.content.attachment.size = 5	5.0.0
+i64-03.json	DocumentReference.content.attachment.size.toDecimal()	5.0.0
+i64-03.json	DocumentReference.content.attachment.size.type().name	5.0.0
+i64-04.json	DocumentReference.content.attachment.size + 1	5.0.0
+i64-04.json	DocumentReference.content.attachment.size * 2	5.0.0
+i64-04.json	DocumentReference.content.attachment.size > 1	5.0.0
+i64-04.json	DocumentReference.content.attachment.size = 5	5.0.0
+i64-04.json	DocumentReference.content.attachment.size.toDecimal()	5.0.0
+i64-04.json	DocumentReference.content.attachment.size.type().name	5.0.0
+i64-05.json	DocumentReference.content.attachment.size + 1	5.0.0
+i64-05.json	DocumentReference.content.attachment.size * 2	5.0.0
+i64-05.json	DocumentReference.content.attachment.size > 1	5.0.0
+i64-05.json	DocumentReference.content.attachment.size = 5	5.0.0
+i64-05.json	DocumentReference.content.attachment.size.toDecimal()	5.0.0
+i64-05.json	DocumentReference.content.attachment.size.type().name	5.0.0
+i64-06.json	DocumentReference.content.attachment.size + 1	5.0.0
+i64-06.json	DocumentReference.content.attachment.size * 2	5.0.0
+i64-06.json	DocumentReference.content.attachment.size > 1	5.0.0
+i64-06.json	DocumentReference.content.attachment.size = 5	5.0.0
+i64-06.json	DocumentReference.content.attachment.size.toDecimal()	5.0.0
+i64-06.json	DocumentReference.content.attachment.size.type().name	5.0.0
+i64-07.json	DocumentReference.content.attachment.size + 1	5.0.0
+i64-07.json	DocumentReference.content.attachment.size * 2	5.0.0
+i64-07.json	DocumentReference.content.attachment.size > 1	5.0.0
+i64-07.json	DocumentReference.content.attachment.size = 5	5.0.0
+i64-07.json	DocumentReference.content.attachment.size.toDecimal()	5.0.0
+i64-07.json	DocumentReference.content.attachment.size.type().name	5.0.0
+i64-08.json	DocumentReference.content.attachment.size + 1	5.0.0
+i64-08.json	DocumentReference.content.attachment.size * 2	5.0.0
+i64-08.json	DocumentReference.content.attachment.size > 1	5.0.0
+i64-08.json	DocumentReference.content.attachment.size = 5	5.0.0
+i64-08.json	DocumentReference.content.attachment.size.toDecimal()	5.0.0
+i64-08.json	DocumentReference.content.attachment.size.type().name	5.0.0
+oi-00.json	Observation.value + 1	4.0.1
+oi-00.json	Observation.value + 1	5.0.0
+oi-00.json	Observation.value * 2	4.0.1
+oi-00.json	Observation.value * 2	5.0.0
+oi-00.json	Observation.value > 1	4.0.1
+oi-00.json	Observation.value > 1	5.0.0
+oi-00.json	Observation.value = 1.5	4.0.1
+oi-00.json	Observation.value = 1.5	5.0.0
+oi-00.json	Observation.value.type().name	4.0.1
+oi-00.json	Observation.value.type().name	5.0.0
+oi-00.json	Observation.value.hasValue()	4.0.1
+oi-00.json	Observation.value.hasValue()	5.0.0
+oi-01.json	Observation.value + 1	4.0.1
+oi-01.json	Observation.value + 1	5.0.0
+oi-01.json	Observation.value * 2	4.0.1
+oi-01.json	Observation.value * 2	5.0.0
+oi-01.json	Observation.value > 1	4.0.1
+oi-01.json	Observation.value > 1	5.0.0
+oi-01.json	Observation.value = 1.5	4.0.1
+oi-01.json	Observation.value = 1.5	5.0.0
+oi-01.json	Observation.value.type().name	4.0.1
+oi-01.json	Observation.value.type().name	5.0.0
+oi-01.json	Observation.value.hasValue()	4.0.1
+oi-01.json	Observation.value.hasValue()	5.0.0
+oi-02.json	Observation.value + 1	4.0.1
+oi-02.json	Observation.value + 1	5.0.0
+oi-02.json	Observation.value * 2	4.0.1
+oi-02.json	Observation.value * 2	5.0.0
+oi-02.json	Observation.value > 1	4.0.1
+oi-02.json	Observation.value > 1	5.0.0
+oi-02.json	Observation.value = 1.5	4.0.1
+oi-02.json	Observation.value = 1.5	5.0.0
+oi-02.json	Observation.value.type().name	4.0.1
+oi-02.json	Observation.value.type().name	5.0.0
+oi-02.json	Observation.value.hasValue()	4.0.1
+oi-02.json	Observation.value.hasValue()	5.0.0
+oi-03.json	Observation.value + 1	4.0.1
+oi-03.json	Observation.value + 1	5.0.0
+oi-03.json	Observation.value * 2	4.0.1
+oi-03.json	Observation.value * 2	5.0.0
+oi-03.json	Observation.value > 1	4.0.1
+oi-03.json	Observation.value > 1	5.0.0
+oi-03.json	Observation.value = 1.5	4.0.1
+oi-03.json	Observation.value = 1.5	5.0.0
+oi-03.json	Observation.value.type().name	4.0.1
+oi-03.json	Observation.value.type().name	5.0.0
+oi-03.json	Observation.value.hasValue()	4.0.1
+oi-03.json	Observation.value.hasValue()	5.0.0
+oi-04.json	Observation.value + 1	4.0.1
+oi-04.json	Observation.value + 1	5.0.0
+oi-04.json	Observation.value * 2	4.0.1
+oi-04.json	Observation.value * 2	5.0.0
+oi-04.json	Observation.value > 1	4.0.1
+oi-04.json	Observation.value > 1	5.0.0
+oi-04.json	Observation.value = 1.5	4.0.1
+oi-04.json	Observation.value = 1.5	5.0.0
+oi-04.json	Observation.value.type().name	4.0.1
+oi-04.json	Observation.value.type().name	5.0.0
+oi-04.json	Observation.value.hasValue()	4.0.1
+oi-04.json	Observation.value.hasValue()	5.0.0
+oi-05.json	Observation.value + 1	4.0.1
+oi-05.json	Observation.value + 1	5.0.0
+oi-05.json	Observation.value * 2	4.0.1
+oi-05.json	Observation.value * 2	5.0.0
+oi-05.json	Observation.value > 1	4.0.1
+oi-05.json	Observation.value > 1	5.0.0
+oi-05.json	Observation.value = 1.5	4.0.1
+oi-05.json	Observation.value = 1.5	5.0.0
+oi-05.json	Observation.value.type().name	4.0.1
+oi-05.json	Observation.value.type().name	5.0.0
+oi-05.json	Observation.value.hasValue()	4.0.1
+oi-05.json	Observation.value.hasValue()	5.0.0
+oi-06.json	Observation.value + 1	4.0.1
+oi-06.json	Observation.value + 1	5.0.0
+oi-06.json	Observation.value * 2	4.0.1
+oi-06.json	Observation.value * 2	5.0.0
+oi-06.json	Observation.value > 1	4.0.1
+oi-06.json	Observation.value > 1	5.0.0
+oi-06.json	Observation.value = 1.5	4.0.1
+oi-06.json	Observation.value = 1.5	5.0.0
+oi-06.json	Observation.value.type().name	4.0.1
+oi-06.json	Observation.value.type().name	5.0.0
+oi-06.json	Observation.value.hasValue()	4.0.1
+oi-06.json	Observation.value.hasValue()	5.0.0
+os-00.json	Observation.value + 1	4.0.1
+os-00.json	Observation.value + 1	5.0.0
+os-00.json	Observation.value = 1	4.0.1
+os-00.json	Observation.value = 1	5.0.0
+os-00.json	Observation.value > 1	4.0.1
+os-00.json	Observation.value > 1	5.0.0
+os-00.json	Observation.value.type().name	4.0.1
+os-00.json	Observation.value.type().name	5.0.0
+pi-00.json	Patient.telecom.rank > 1	4.0.1
+pi-00.json	Patient.telecom.rank > 1	5.0.0
+pi-00.json	Patient.telecom.rank = 1.5	4.0.1
+pi-00.json	Patient.telecom.rank = 1.5	5.0.0
+pi-00.json	Patient.telecom.rank.type().name	4.0.1
+pi-00.json	Patient.telecom.rank.type().name	5.0.0
+pi-00.json	Patient.telecom.rank.hasValue()	4.0.1
+pi-00.json	Patient.telecom.rank.hasValue()	5.0.0
+pi-01.json	Patient.telecom.rank > 1	4.0.1
+pi-01.json	Patient.telecom.rank > 1	5.0.0
+pi-01.json	Patient.telecom.rank = 1.5	4.0.1
+pi-01.json	Patient.telecom.rank = 1.5	5.0.0
+pi-01.json	Patient.telecom.rank.type().name	4.0.1
+pi-01.json	Patient.telecom.rank.type().name	5.0.0
+pi-01.json	Patient.telecom.rank.hasValue()	4.0.1
+pi-01.json	Patient.telecom.rank.hasValue()	5.0.0
+pi-02.json	Patient.telecom.rank > 1	4.0.1
+pi-02.json	Patient.telecom.rank > 1	5.0.0
+pi-02.json	Patient.telecom.rank = 1.5	4.0.1
+pi-02.json	Patient.telecom.rank = 1.5	5.0.0
+pi-02.json	Patient.telecom.rank.type().name	4.0.1
+pi-02.json	Patient.telecom.rank.type().name	5.0.0
+pi-02.json	Patient.telecom.rank.hasValue()	4.0.1
+pi-02.json	Patient.telecom.rank.hasValue()	5.0.0
+i64-09.json	DocumentReference.content.attachment.size + 1	5.0.0
+i64-09.json	DocumentReference.content.attachment.size * 2	5.0.0
+i64-09.json	DocumentReference.content.attachment.size > 1	5.0.0
+i64-09.json	DocumentReference.content.attachment.size = 5	5.0.0
+i64-09.json	DocumentReference.content.attachment.size.toDecimal()	5.0.0
+i64-09.json	DocumentReference.content.attachment.size.type().name	5.0.0
+i64-10.json	DocumentReference.content.attachment.size + 1	5.0.0
+i64-10.json	DocumentReference.content.attachment.size * 2	5.0.0
+i64-10.json	DocumentReference.content.attachment.size > 1	5.0.0
+i64-10.json	DocumentReference.content.attachment.size = 5	5.0.0
+i64-10.json	DocumentReference.content.attachment.size.toDecimal()	5.0.0
+i64-10.json	DocumentReference.content.attachment.size.type().name	5.0.0
+i64-11.json	DocumentReference.content.attachment.size + 1	5.0.0
+i64-11.json	DocumentReference.content.attachment.size * 2	5.0.0
+i64-11.json	DocumentReference.content.attachment.size > 1	5.0.0
+i64-11.json	DocumentReference.content.attachment.size = 5	5.0.0
+i64-11.json	DocumentReference.content.attachment.size.toDecimal()	5.0.0
+i64-11.json	DocumentReference.content.attachment.size.type().name	5.0.0
+i64-12.json	DocumentReference.content.attachment.size + 1	5.0.0
+i64-12.json	DocumentReference.content.attachment.size * 2	5.0.0
+i64-12.json	DocumentReference.content.attachment.size > 1	5.0.0
+i64-12.json	DocumentReference.content.attachment.size = 5	5.0.0
+i64-12.json	DocumentReference.content.attachment.size.toDecimal()	5.0.0
+i64-12.json	DocumentReference.content.attachment.size.type().name	5.0.0
+i64-00.json	DocumentReference.content.attachment.size.toString()	5.0.0
+i64-00.json	DocumentReference.content.attachment.size.toInteger()	5.0.0
+i64-00.json	DocumentReference.content.attachment.size div 1	5.0.0
+i64-00.json	DocumentReference.content.attachment.size ~ 5	5.0.0
+i64-01.json	DocumentReference.content.attachment.size.toString()	5.0.0
+i64-01.json	DocumentReference.content.attachment.size.toInteger()	5.0.0
+i64-01.json	DocumentReference.content.attachment.size div 1	5.0.0
+i64-01.json	DocumentReference.content.attachment.size ~ 5	5.0.0
+i64-02.json	DocumentReference.content.attachment.size.toString()	5.0.0
+i64-02.json	DocumentReference.content.attachment.size.toInteger()	5.0.0
+i64-02.json	DocumentReference.content.attachment.size div 1	5.0.0
+i64-02.json	DocumentReference.content.attachment.size ~ 5	5.0.0
+i64-03.json	DocumentReference.content.attachment.size.toString()	5.0.0
+i64-03.json	DocumentReference.content.attachment.size.toInteger()	5.0.0
+i64-03.json	DocumentReference.content.attachment.size div 1	5.0.0
+i64-03.json	DocumentReference.content.attachment.size ~ 5	5.0.0
+i64-04.json	DocumentReference.content.attachment.size.toString()	5.0.0
+i64-04.json	DocumentReference.content.attachment.size.toInteger()	5.0.0
+i64-04.json	DocumentReference.content.attachment.size div 1	5.0.0
+i64-04.json	DocumentReference.content.attachment.size ~ 5	5.0.0
+i64-05.json	DocumentReference.content.attachment.size.toString()	5.0.0
+i64-05.json	DocumentReference.content.attachment.size.toInteger()	5.0.0
+i64-05.json	DocumentReference.content.attachment.size div 1	5.0.0
+i64-05.json	DocumentReference.content.attachment.size ~ 5	5.0.0
+i64-06.json	DocumentReference.content.attachment.size.toString()	5.0.0
+i64-06.json	DocumentReference.content.attachment.size.toInteger()	5.0.0
+i64-06.json	DocumentReference.content.attachment.size div 1	5.0.0
+i64-06.json	DocumentReference.content.attachment.size ~ 5	5.0.0
+i64-07.json	DocumentReference.content.attachment.size.toString()	5.0.0
+i64-07.json	DocumentReference.content.attachment.size.toInteger()	5.0.0
+i64-07.json	DocumentReference.content.attachment.size div 1	5.0.0
+i64-07.json	DocumentReference.content.attachment.size ~ 5	5.0.0
+i64-08.json	DocumentReference.content.attachment.size.toString()	5.0.0
+i64-08.json	DocumentReference.content.attachment.size.toInteger()	5.0.0
+i64-08.json	DocumentReference.content.attachment.size div 1	5.0.0
+i64-08.json	DocumentReference.content.attachment.size ~ 5	5.0.0
+i64-09.json	DocumentReference.content.attachment.size.toString()	5.0.0
+i64-09.json	DocumentReference.content.attachment.size.toInteger()	5.0.0
+i64-09.json	DocumentReference.content.attachment.size div 1	5.0.0
+i64-09.json	DocumentReference.content.attachment.size ~ 5	5.0.0
+i64-10.json	DocumentReference.content.attachment.size.toString()	5.0.0
+i64-10.json	DocumentReference.content.attachment.size.toInteger()	5.0.0
+i64-10.json	DocumentReference.content.attachment.size div 1	5.0.0
+i64-10.json	DocumentReference.content.attachment.size ~ 5	5.0.0
+i64-11.json	DocumentReference.content.attachment.size.toString()	5.0.0
+i64-11.json	DocumentReference.content.attachment.size.toInteger()	5.0.0
+i64-11.json	DocumentReference.content.attachment.size div 1	5.0.0
+i64-11.json	DocumentReference.content.attachment.size ~ 5	5.0.0
+i64-12.json	DocumentReference.content.attachment.size.toString()	5.0.0
+i64-12.json	DocumentReference.content.attachment.size.toInteger()	5.0.0
+i64-12.json	DocumentReference.content.attachment.size div 1	5.0.0
+i64-12.json	DocumentReference.content.attachment.size ~ 5	5.0.0
+oi-00.json	Observation.value.toString()	4.0.1
+oi-00.json	Observation.value.toString()	5.0.0
+oi-00.json	Observation.value.toInteger()	4.0.1
+oi-00.json	Observation.value.toInteger()	5.0.0
+oi-00.json	Observation.value div 1	4.0.1
+oi-00.json	Observation.value div 1	5.0.0
+oi-01.json	Observation.value.toString()	4.0.1
+oi-01.json	Observation.value.toString()	5.0.0
+oi-01.json	Observation.value.toInteger()	4.0.1
+oi-01.json	Observation.value.toInteger()	5.0.0
+oi-01.json	Observation.value div 1	4.0.1
+oi-01.json	Observation.value div 1	5.0.0
+oi-02.json	Observation.value.toString()	4.0.1
+oi-02.json	Observation.value.toString()	5.0.0
+oi-02.json	Observation.value.toInteger()	4.0.1
+oi-02.json	Observation.value.toInteger()	5.0.0
+oi-02.json	Observation.value div 1	4.0.1
+oi-02.json	Observation.value div 1	5.0.0
+oi-00.json	Observation.value is Integer	4.0.1
+oi-00.json	Observation.value is Integer	5.0.0
+oi-00.json	Observation.value is FHIR.integer	4.0.1
+oi-00.json	Observation.value is FHIR.integer	5.0.0
+oi-06.json	Observation.value is Integer	4.0.1
+oi-06.json	Observation.value is Integer	5.0.0
+oi-06.json	Observation.value is FHIR.integer	4.0.1
+oi-06.json	Observation.value is FHIR.integer	5.0.0
+oi-02.json	Observation.value is Integer	4.0.1
+oi-02.json	Observation.value is Integer	5.0.0
+oi-02.json	Observation.value is FHIR.integer	4.0.1
+oi-02.json	Observation.value is FHIR.integer	5.0.0
+oi-02.json	Observation.value = 1	4.0.1
+oi-02.json	Observation.value = 1	5.0.0

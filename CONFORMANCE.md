@@ -1796,6 +1796,72 @@ is read.
 The grammar is written in the engine (`types/json_number.go`), an exception
 to reading everything from the packages, as the FHIR temporal forms are.
 
+## What a declared integer type reads (#251)
+
+FHIR JSON (json.html §2.1.6.4.2): "The FHIR types integer, unsignedInt,
+positiveInt and decimal are represented as a JSON number … and all other
+types (including integer64) are represented as a JSON string". The R5
+datatypes page gives `integer64` "A signed integer in the range
+-9,223,372,036,854,775,808 to +9,223,372,036,854,775,807 (64-bit)", as
+"JSON String". The page does not say what a primitive written as the other
+JSON type reads as.
+
+`is Integer` is false for every FHIR `integer`, valid ones included, in the
+three engines: a FHIR `integer` is not a `System.Integer`. `is FHIR.integer`
+is the question, true here and in fhirpath.js for `1.5`, `1.0` and `100`
+alike; the validator answers false for all three.
+
+A number outside the form of `integer`, `unsignedInt` or `positiveInt`
+(`1.5`, `1e2`, `1.0`, `-1.5e1`) or outside its range (`2147483648`, a
+`positiveInt` `0` or `-1`, `9223372036854775808`) is read as the number it
+is, typed as declared, as a date outside its form is the string it is
+(#231): `1.5 + 1` is `2.5`, `1e2 + 1` is `101`, `1.0 = 1` is true, and
+`toInteger()` of `1.5` and of `1.0` is empty (`toInteger()` takes no
+Decimal). fhirpath.js reads alike (but has lost the text of `1e2`, JS-8, and
+reads `(1.0).toInteger()` as `1`); the validator ends the evaluation on
+arithmetic over them, and where it answers it reads `1.5` (`= 1.5` true),
+though `1.0 = 1` is false there. Integer is 64 bits
+here by decision (below), so no range is checked.
+
+An `integer64` is written as a JSON string, and is read as the Integer it
+writes when `strconv.ParseInt(s, 10, 64)` reads it: `[+-]?[0-9]+` within
+int64. `"5"`, `"+5"`, `"-0"`, `"01"`, `"-5"`, `"9223372036854775807"` and
+`"-9223372036854775808"` are Integers typed `integer64`, which computes and
+compares as one (`"5" + 1` is `6`, `"+5" = 5` is true); an Integer keeps no
+source text, so `"+5".toString()` is `5`. `" 5"`, `""`, `"1e2"`, `"1.5"`,
+`"5x"` and a string past int64 are no value of the type, and stay the string
+they are, typed `integer64`, as #231 reads a value outside its form: no
+arithmetic, `toString()` the text as written. That differs from a JSON number
+past int64 in an `integer`, which is a number and so a Decimal: the string is
+the type's own form, the number is not. The form is how gofhir/models reads an
+`integer64`; fhirpath.js reads these strings through BigInt, which also takes
+`" 5"` and `""` (as 0), which json.html rules out ("string values can never
+be empty"); the validator ends the evaluation or answers as for a string. The
+rule is in `fhirString`: with a model it holds wherever a type is declared;
+without one, through a choice's `.value`, which its suffix types. A choice key
+named directly (`valueInteger64`) is read untyped without a model, as
+`valueDecimal` is. R4 and R4B have no `integer64`:
+`Attachment.size` is an `unsignedInt` there, and a string stays a String
+typed `unsignedInt`, as the packages type its `value` `System.String` (SPEC-8).
+
+An `integer` written as a JSON string (`"1"`) stays the string it is, typed
+`integer`: `+ 1` ends the evaluation and `= 1` is false. The references do
+not read it as a number consistently: fhirpath.js's `+ 1` is `2` by
+JavaScript's coercion, and on `= 1` this engine and fhirpath.js answer false
+while the validator answers true.
+
+Whole-object `=` and `~` compare the JSON as written, untyped: two
+Attachments whose `size` is `"5"` and `"+5"` are unequal while their sizes
+are equal. A known split, out of scope.
+
+The rule names `integer64` in `fhirString`, an exception to reading
+everything from the packages, from json.html's prose: of the types FHIR
+writes as a JSON string it is the only one whose value is an integer. The
+evaluator's `fhirPathSpecMap` is hardcoded alike and stays a follow-up.
+
+Measured (2026-11-02, `difftest/batteries/declared-integer`): fhirpath.js
+5.2.0 and the HL7 validator 6.10.2.
+
 ## Integer is 64 bits here, and there is no Long
 
 The specification gives `Integer` the range -2^31 to 2^31-1, and adds a `Long`

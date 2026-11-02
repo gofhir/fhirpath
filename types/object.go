@@ -2214,6 +2214,9 @@ func asResource(data []byte) *ObjectValue {
 // written to the second and with its offset.
 const fhirInstant = "instant"
 
+// fhirInteger64 is the name of FHIR R5's 64-bit integer.
+const fhirInteger64 = "integer64"
+
 // fhirString reads a JSON string as the FHIR primitive the model declares,
 // tagged with that type, rather than leaving it to pattern matching. A
 // temporal type is read by the form FHIR gives it, narrower than the FHIRPath
@@ -2231,6 +2234,20 @@ func fhirString(data []byte, fhirType string) (Value, bool) {
 		return nil, false
 	}
 	text := decodeJSONString(data)
+
+	if strings.EqualFold(fhirType, fhirInteger64) {
+		// json.html §2.1.6.4.2 writes integer, unsignedInt, positiveInt and
+		// decimal as JSON numbers and "all other types (including
+		// integer64)" as strings. Of the types written as strings it is the
+		// only one whose value is an integer, so it is read as one: an
+		// exception to reading from the packages, from that prose, as the
+		// temporal forms are (plan 016, D2). A string ParseInt refuses, past
+		// int64 or with a space or an exponent, stays the string it is, as a
+		// date outside its form does.
+		if n, ok := parseInteger64(text); ok {
+			return n.WithFHIRType(fhirType), true
+		}
+	}
 
 	switch fhirType {
 	case "date":
@@ -2255,6 +2272,18 @@ func fhirString(data []byte, fhirType string) (Value, bool) {
 	v := NewString(text)
 	v.read = true
 	return v.WithFHIRType(fhirType), true
+}
+
+// parseInteger64 reads the string an integer64 is written as, [+-]?[0-9]+
+// within int64's range (D3), the form gofhir/models reads it by.
+func parseInteger64(text string) (Integer, bool) {
+	n, err := strconv.ParseInt(text, 10, 64)
+	if err != nil {
+		return Integer{}, false
+	}
+	i := NewInteger(n)
+	i.read = true
+	return i, true
 }
 
 // fhirDateTimeForm reports whether text, which NewDateTime has read, is in the
