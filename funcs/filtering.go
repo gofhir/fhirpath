@@ -167,7 +167,7 @@ func fnOfType(ctx *eval.Context, input types.Collection, args []interface{}) (ty
 
 	result := types.Collection{}
 	for _, item := range input {
-		if item.Type() == typeName {
+		if ctx.OfTypeMatches(item, typeName) {
 			result = append(result, item)
 		}
 	}

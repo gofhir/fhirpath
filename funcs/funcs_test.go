@@ -663,6 +663,30 @@ func TestFilteringFunctions(t *testing.T) {
 		}
 	})
 
+	// The registry's ofType answers as an expression's does (plan 017, D7): a
+	// FHIR code converts to System.String (R4 fhirpath.html §2.9.1.2), and a
+	// date to System.DateTime, not to System.Date.
+	t.Run("ofType by the System type a FHIR primitive converts to", func(t *testing.T) {
+		fn, _ := Get("ofType")
+
+		input := types.Collection{
+			types.NewStringWithFHIRType("male", "code"),
+			types.NewStringWithFHIRType("1990-01-01", "date"),
+		}
+		for _, tt := range []struct {
+			typeName string
+			want     int
+		}{{"System.String", 1}, {"String", 1}, {"System.DateTime", 1}, {"System.Date", 0}} {
+			result, err := fn.Fn(ctx, input, []interface{}{tt.typeName})
+			if err != nil {
+				t.Fatal(err)
+			}
+			if result.Count() != tt.want {
+				t.Errorf("ofType(%s) kept %d, want %d", tt.typeName, result.Count(), tt.want)
+			}
+		}
+	})
+
 	t.Run("ofType with empty type name", func(t *testing.T) {
 		fn, _ := Get("ofType")
 

@@ -1888,6 +1888,139 @@ expression asks about a FHIR type. Measured by
 `difftest/batteries/no-model/measure.js` and held by
 `conformance/no_model_types_test.go`.
 
+`ofType(System.X)` is answered by a table of its own (see [ofType() of a FHIR
+primitive by the System type it converts to](#oftype-of-a-fhir-primitive-by-the-system-type-it-converts-to)),
+and with no model the answer depends on how the element was read:
+
+| With no model | Answer |
+|---|---|
+| `birthDate.ofType(System.Date)` | the date: a plain element is a `Date` by its JSON |
+| `birthDate.ofType(System.DateTime)` | empty |
+| `meta.profile.ofType(System.String)` | the canonical: a plain element is a `String` |
+| `extension.value` on a `valueDate`, `.ofType(System.DateTime)` | the date: a choice is a `date` by its key, and the R4 table maps it |
+| `extension.value` on a `valueDate`, `.ofType(System.Date)` | empty |
+| `extension.value` on a `valueUrl`, `.ofType(System.String)` | empty: a url converts to no System type |
+| `extension.value` on a `valueInteger64`, `.ofType(System.Long)` | empty: the R4 table has no integer64 |
+
+## ofType() of a FHIR primitive by the System type it converts to
+
+The FHIR FHIRPath page, "Using FHIR types in expressions", says that "the
+evaluation engine will automatically convert the value of FHIR types
+representing primitives to FHIRPath types when they are used in expressions
+according to the following mapping" (R4 and R4B 2.9.1.2, R5 2.1.9.1.2):
+
+| FHIRPath type | R4 and R4B | R5 |
+|---|---|---|
+| System.Boolean | boolean | boolean |
+| System.String | string, uri, code, oid, id, uuid, sid, markdown, base64Binary | string, uri, code, oid, id, uuid, markdown, base64Binary |
+| System.Integer | integer, unsignedInt, positiveInt | integer, unsignedInt, positiveInt |
+| System.Long | | integer64 |
+| System.Decimal | decimal | decimal |
+| System.DateTime | date, dateTime, instant | date, dateTime, instant |
+| System.Time | time | time |
+
+canonical, url and xhtml are in neither table, so they convert to no System
+type. The Quantity row is a complex type and not this section's (FP-16). After
+the exception for `is()`, R5 says that "ofType() does not have such
+restrictions - both of the following are valid:
+`Patient.name.given.ofType(FHIR.string)`,
+`Patient.name.given.ofType(System.string)`". R4 and R4B say the same of `as()`
+and nothing of `ofType()`; FHIRPath defines `ofType()` as the items "of the
+given type or a subclass thereof".
+
+**What `ofType()` does.** Asked for a System type, it keeps a FHIR primitive
+exactly when the table of the version maps the primitive's FHIR type to that
+type. The item kept is the FHIR primitive itself, with its FHIR type and its
+extensions: `birthDate.ofType(System.DateTime).type().name` is `date`.
+
+- **The table** is the R4 one before R5 and the R5 one from R5 on, by the
+  version the model declares. R4B shares R4's. A model declaring no version, and
+  no model at all, take R4's, as every rule that changed in R5 does.
+- **Spelling.** The namespace is `System`, written so; the name ignores case,
+  so R5's `System.string` is System.String, and unqualified it is capitalized as
+  FHIRPath names its types (`String`, `DateTime`). `system.String` and
+  `SYSTEM.String` are not `System`, so a namespace not spelled exactly so
+  names no System type and matches nothing. With no model `is()` is false and
+  `as()` and `ofType()` are empty. With a model the bare name is looked up in
+  the model as an unqualified name is: an error ("does not resolve to a type in
+  the model") where the model has no such type (`String`, `Date`), and no error
+  but no match where it has one (`Quantity`). Changes from main (no model / R4 /
+  R5): `Patient.id.is(system.String)` true / true / false, now false / error /
+  error; its `ofType` and `as` `[String p1]` / `[String p1]` / `[]`, now
+  `[]` / error / error; `Patient.gender.is(system.String)` true / false / false,
+  now false / error / error; `Patient.birthDate.is(SYSTEM.Date)` true / false /
+  false, now false / error / error; `'a'.is(system.String)` false everywhere,
+  now false / error / error; `(1 'mg').is(SYSTEM.Quantity)` and
+  `Observation.value.is(SYSTEM.Quantity)` on a valueQuantity true everywhere,
+  now false; its `ofType(SYSTEM.Quantity)` `[Quantity]`, now `[]`. (R4 types
+  `Patient.id` System.String, R5 `id`.) One helper
+  reads the specifier for `ofType()` and for `as()`'s test of a FHIR primitive
+  asked by a System type, and `is()` and `as()` answer no differently for
+  `System.string` and the like.
+- **R5's `integer64`** maps to System.Long. `ofType(System.Long)` keeps it from
+  R5 on, because the item kept is the FHIR primitive and needs no Long value
+  (there is no Long here, see below); `ofType(System.Integer)` drops it. The
+  unqualified `Long` stays an error with a model.
+- **An element the model types as a System type** (`Element.id`, R4's
+  `Resource.id`, which the packages type `System.String`) has no FHIR type to
+  look up, and is answered by that name: `name.id.ofType(System.String)` keeps
+  it. R4B and R5 type `Resource.id` and `Element.id` `id`, which the table maps
+  to System.String.
+- **A primitive with only its element** (`_birthDate` alone) has no value to
+  convert, so `ofType(System.X)` drops it. `ofType(date)` and
+  `ofType(System.Any)` keep it.
+- **`funcs.Get("ofType")`**, the public registry, asks the same matcher.
+
+**What does not change.** The answers of `is()` and `as()`, except the spelling
+of the namespace above; `ofType()` by a FHIR name
+(`ofType(string)`, `ofType(FHIR.code)`), which still requires the declared type;
+System values, a literal or a function's result, which match System types only;
+and complex types, Quantity among them.
+
+**Measured** (2026-11-02, `difftest/batteries/primitive-type-operators`, R4 and
+R5 alike; this engine as it was before this rule):
+
+| `ofType(...)` | This engine | fhirpath.js 5.2.0 | HL7 validator 6.10.2 |
+|---|---|---|---|
+| `gender` (code), `implicitRules` (uri), `language` (code) `.ofType(System.String)` | `[]` | the value | `[]` |
+| `meta.profile` (canonical) `.ofType(System.String)` | `[]` | `[]` | `[]` |
+| `name.given` (string) `.ofType(System.String)` | the value | the value | `[]` |
+| `telecom.rank` (positiveInt) `.ofType(System.Integer)` | `[]` | the value | `[]` |
+| `birthDate` (date) `.ofType(System.DateTime)` | `[]` | the value | `[]` |
+| `birthDate` (date) `.ofType(System.Date)` | the value | `[]` | error |
+| `meta.lastUpdated`, `Observation.issued` (instant) `.ofType(System.DateTime)` | `[]` | the value | `[]` |
+| `active` (boolean) `.ofType(System.Boolean)` | the value | the value | `[]` |
+| Unqualified `ofType(String)`, `ofType(Integer)`, `ofType(DateTime)` | as qualified, by name | as qualified | error |
+| `given.ofType(System.string)` (the R5 example) | the value; `[]` with no model | error | error |
+
+fhirpath.js implements the table as written on every row. This engine kept
+only string, boolean, date and decimal, and only because their names are
+spelled like a System name; `ofType(System.Date)` kept a date, which the table
+maps to System.DateTime (FP-17, closed). The table is the source, by the
+choice of the project's owner (2026-11-02).
+
+**A rule-5 exception.** The two tables are written in Go (`eval`'s
+`PrimitiveConversion`) and not read from the models, which do not carry them:
+the packages type unsignedInt and positiveInt `System.String` (SPEC-8), date
+`System.Date`, R5's integer64 `System.Integer`, so reading them would give
+other answers than the text. `TestConversionTable`
+(`conformance/conversion_table_test.go`) parses the table out of the pinned
+texts of R4, R4B and R5 (`SPEC_SOURCES`, `fhir-r4b` among them) and fails on
+any difference, a row more or fewer; with `SPEC_SOURCES_REQUIRED` set, as in
+CI's pinned-source step, a missing text, anchor or header fails too. sid
+reaches no model, so that test alone covers it.
+
+**Without a model**, a plain element read from the resource is a FHIR
+primitive that carries the System type its JSON gives it, and is answered by
+that name: `birthDate.ofType(System.Date)` keeps it, `ofType(System.DateTime)`
+drops it, `meta.profile.ofType(System.String)` keeps it. A choice carries its
+FHIR type from its key (`valueDate` is a `date`) and is answered by the R4
+table: `extension.value` on a `valueDate`, `.ofType(System.DateTime)`, keeps it and on a
+`valueUrl`, `.ofType(System.String)`, drops it. The two differ because only the
+choice tells its FHIR type; see [Without a model, a FHIR type is a
+guess](#without-a-model-a-fhir-type-is-a-guess). `fhirPathSpecMap` answers
+`is()` and nothing here.
+
 ## Integer is 64 bits here, and there is no Long
 
 The specification gives `Integer` the range -2^31 to 2^31-1, and adds a `Long`
@@ -2338,17 +2471,18 @@ was reasoned or accidental.
 | Temporal comparison across precisions | Component by component, stopping at the first difference; empty only when everything shared matches | Not a judgement call — the spec states it, and it is why `now() > today()` is empty while `now() > @1974-12-25` is true |
 | `ofType()` on profiled subtypes without a Model | Keep structural inference | Nothing in the JSON distinguishes an `Age` from a `Quantity`; the information is in the model, not the document |
 | `~` between two quantities | In the less granular unit, rounded to the precision of the less precise value, trailing zeroes carrying none: `4 'g' ~ 4040 'mg'` and `4040 'mg' ~ 4 'g'` are both true, `1 year ~ 11 months` true. A converted value keeps the precision it was written with in its own unit: `200 'cm'` is given to the centimeter, two places in meters, so `2.4 'm' ~ 200 'cm'` is false. Where the conversion factor is 1, the left operand's unit, so `1.5 'Cel' ~ 274.6 'K'` is true and `274.6 'K' ~ 1.5 'Cel'` false. A calendar year or month against UCUM takes `'a'` or `'mo'`, so `1 year ~ 1 'a'` is true where `=` is empty | 3.0.0: "the quantity values must be converted to the least granular unit", and "If the conversion factors are 1 (the units are equal), then choose the unit of the operator's left argument"; its worked examples all hold either way round. 2.0.0 said the most granular unit, which fhirpath.js follows, so it answers `1 year ~ 6 'mo'` differently, and three of 3.0.0's examples, `4 'g' ~ 4040 'mg'`, `21 'mm' ~ 2 'cm'` and `1 year ~ 11 months`, false. The engine converted into the left operand's unit and counted trailing zeroes, which made `4040 'mg' ~ 4 'g'` false while `4 'g' ~ 4040 'mg'` was true. A step, not a point, measures a unit on a scale with an offset: a degree Fahrenheit is 5/9 of a kelvin, though 1 '[degF]' is 255.9 'K'. What it costs: a factor, or a temperature's step, is found once per pair of units and reused. `4 'g' ~ 4040 'mg'` runs about 15% faster than before, `4040 'mg' ~ 4 'g'` about 1.45 times slower, where the old code needed no rounding there; a temperature runs about as fast as before, and two calendar units about 1.7 times slower. A scale on which a step has no constant size, a logarithm or an angle, has no unit more granular than another, and keeps the left unit, as on a tie |
+| `ofType(System.X)` over a FHIR primitive that converts to X: `gender.ofType(System.String)`, `rank.ofType(System.Integer)`, `birthDate.ofType(System.DateTime)`, `active.ofType(System.Boolean)`, `name.given.ofType(System.String)` | Empty on every one, and an error on unqualified `ofType(String)` (JAVA-17) | The primitive, by the version's conversion table | R5 fhirpath.html 2.1.9.1.2: "ofType() does not have such restrictions - both of the following are valid: `Patient.name.given.ofType(FHIR.string)`, `Patient.name.given.ofType(System.string)`", and the mapping table says which FHIR types convert to which System type. fhirpath.js keeps them. See [ofType() of a FHIR primitive by the System type it converts to](#oftype-of-a-fhir-primitive-by-the-system-type-it-converts-to) |
 | `=` and `~` between two quantity objects | Both compare them as quantities, when their type is Quantity or one of its profiles | Where the HL7 validator answers over the specification text: see [Two FHIR Quantities are equivalent as quantities](#two-fhir-quantities-are-equivalent-as-quantities) |
 | `=` and `~` between two complex values | Under `=`, their children, each found by its key wherever each object writes it and compared as `=` compares its kind: a string as it reads, so an escaped character equals the character itself; a number as a decimal, so `1` equals `1.0`; a repeating child in order; a `null` or an empty array no child, as navigation reads it. `~` compares each child with the equivalence of its type, recursively: keys and repeats in any order, a primitive's value and the element beside it as one item, a string ignoring case, any whitespace character for another, no run collapsed (see [When 2.0.0 and 3.0.0 disagree](#when-200-and-300-disagree)), a decimal as decimals are equivalent, a date as dates are equivalent, so one at another precision or with an offset against none is not; a child on one side only is not equivalent. Two FHIR Quantities compare as quantities, as the row below says | "For complex types, equality requires all child properties to be equal, recursively": a property is found by its name, not by where a text writes it. fhirpath.js and HL7's Java engine both answer keys in another order equal, and fhirpath.js `1` and `1.0`, as "trailing zeroes after the decimal are ignored"; the Java engine answers a `null` member no child. Up to 1.13.6 this engine compared content as written, apart from layout, for speed: one serializer writes a value's keys in FHIR's order throughout a document, so only values from two serializers told the readings apart (#167). It now reads by key, through two fast paths that read no further than the first difference and build nothing: texts alike apart from layout are equal, and texts whose keys agree up to their first difference, found a word at a time, and differ there in a value are unequal. Only the rest, keys in another order among them, are read child by child. What it costs: evaluating every constraint over the R4, R4B and R5 examples, about 2% more time, 0.1% more memory. Over objects alone, `=`, unions and `distinct()` run 2 to 3 times slower than comparing bytes did, large objects that share a long prefix up to 8 times, 10 KB objects that differ only at their end up to 40 times (a narrative dense with escaped quotes, 7 µs against 0.18 µs), and `intersect()` and `repeat()` over objects with keys in another order about 20 times, which is the reading that tells them equal. A test holds the fast paths to reading by child over 20,000 pairs made to differ every way they take apart, and `FuzzSameJSON` holds the comparison of layout to a reference. For `~`, "equivalence requires all child properties to be equivalent, recursively": fhirpath.js and the HL7 validator apply string equivalence to each child too, so two Codings that differ in the case of a code are equivalent. fhirpath.js compares repeats in order and trims no whitespace; here each child takes this engine's own equivalence of its type, under which collections compare in any order, as "Comparison is not order dependent". The Java engine compares a repeating child in order too, while it compares the same values as collections in any order: two names whose givens are `["a", "b"]` and `["b", "a"]` are not equivalent to it, while their givens are, and so for two CodeableConcepts with their codings reversed. That answer contradicts its own, since equivalence "requires all child properties to be equivalent, recursively", and fhirpath.js's rests on pairing in order, which it does over collections too, so rule 1 does not apply where the two agree (#207). Two limits. A child is typed as navigation without a model types it, so with a model `a ~ b` can differ from `a.x ~ b.x` where the model calls a date-like value a string. And repeats pair greedily, those written alike first, so with decimals, whose equivalence rounds and is not transitive, the answer can depend on order, and can differ from `~` between the same values as collections: `{"v":[1, 1.4]}` is equivalent to `{"v":[1.4, 0.6]}`, while `(1 | 1.4) ~ (1.4 | 0.6)` is false, as in fhirpath.js. JSON no valid resource holds is compared as written rather than as navigation reads it: a `null` inside an array is a place of its own, a nested array is not flattened, and of a key written twice, the first that is not `null` counts. Comparing Quantities as quantities was first tried on any object with a numeric `value`, an adjudication among them, and dropped; it is done now for objects whose type is Quantity or one of its profiles, as the HL7 validator does. What it costs: a child written alike on both sides pairs unread, and a string that is no date compares as written, but each pair reads the keys of both objects. Each object in a repeating child is read once however many it is compared with, and found by key through an index once it has more than 16. Against comparing as `=` did, `~` between 40 names runs about 1.5 times slower, two objects of 200 keys that differ in the last about 3 times (19 µs against 53 µs), 100 Codings in reversed order about 5 times (15 µs against 75 µs), and 40 objects of 40 strings that differ in case, both levels reversed, about 5 times (128 µs against 640 µs); in the last two `=`'s reading answered false. Pairing a value with the element beside it (#175) costs 40 names with an element beside a given, in another case and reversed, about 5% more time and 8% more allocations (946 µs against 992 µs); objects without one compare as before |
 | A FHIR Quantity with a `comparator` (`<`, `<=`, `>=`, `>`, `ad`) | Read as its value | Where the HL7 validator answers over the specification text: see [A quantity's comparator is not read](#a-quantitys-comparator-is-not-read) |
-| `as()`/`ofType()` on a primitive | Requires the declared type; `is()` keeps hierarchy matching | FHIR: "all primitives are considered to be independent types (so markdown is not a subclass of string)" |
+| `as()`/`ofType()` on a primitive | Requires the declared type; `is()` keeps hierarchy matching. Asked for a System type, `ofType()` keeps a primitive the version's conversion table maps to it: see [ofType() of a FHIR primitive by the System type it converts to](#oftype-of-a-fhir-primitive-by-the-system-type-it-converts-to) | FHIR: "all primitives are considered to be independent types (so markdown is not a subclass of string)"; and for the table, R4 and R4B 2.9.1.2, R5 2.1.9.1.2 |
 | Telling `FHIR.boolean` from `System.Boolean` | By case: FHIR names primitives in lower camel case, FHIRPath capitalizes its own | The suite requires `active.is(boolean)` true and `active.is(Boolean)` false. Complex types such as `Quantity` are spelled alike in both namespaces, so the rule applies to primitives only |
 | Type of a polymorphic element without a model | Taken from the field name, corrected to FHIR's casing | `valueOid` states the element is an `oid`; that is information in the document, not a guess. The value itself says whether the type is primitive or complex. fhirpath.js run without a model resolves no suffix, `Observation.value` over `valueString` is empty, and reads a key written bare (measured in #219's adversarial review, not in a battery, since the batteries give every engine its model); not followed, since a name the document states is information to use |
 | An element written as an empty object, `"name": {}` or an item `{}` of an array | An item of its collection that `exists()` and `empty()` answer as though it were not there | Where the HL7 validator answers over the specification text: see [An element that holds no value](#an-element-that-holds-no-value) |
 | A FHIR primitive's `value`, and `hasValue()`/`getValue()` | The System value the primitive holds, without its FHIR type or element. `hasValue()` is true of a single FHIR primitive with a value, and of a single System value of a primitive type: a complex value, or a primitive with only an id or extensions, has none, however the object was made. An object typed as a FHIR primitive, as a validator builds `"_family"` to evaluate it as the root, written `string`, `FHIR.string` or R4's `http://hl7.org/fhirpath/System.String`, is a primitive with no value; the element beside a primitive that has one is not | FHIR: "FHIR.string … has the properties id, extension, and also the implicit value property that is actually of type of System.String", so `birthDate.value is System.Date`. The HL7 validator answers `value` with a FHIR `string` of the text whatever the primitive's type; that is not what the text says. `hasValue()` on a complex value: see [Measured, and not followed](#measured-and-not-followed) |
 | What is a FHIR primitive, as opposed to a System value | By where the value came from: one read from the resource is a FHIR primitive, with or without a model, and even where the model types it a System one; a literal or a function's result is a System value | `'abc'.value` and `'abc'.getValue()` are empty with or without a model, as the text says, and so for `active.toBoolean()`. `'abc'.hasValue()` is true, as fhirpath.js and the HL7 validator both answer, though the text speaks of FHIR primitives alone: the two agree on every System value of a primitive type, `1`, `true`, `@2020`, `@T10:00`, and `''`, which is a value, where only the validator answers false; a quantity is none. Up to 1.14.7 it was false. A primitive at a path the model does not know is still a FHIR primitive, so ele-1 holds on it. R4 gives `Resource.id`, `Element.id` and `Extension.url` the type code `System.String` and names their FHIR type, `id`, `string` and `uri`, in `structuredefinition-fhir-type`; the two parts of the definition disagree, and we follow the one that names the FHIR type, as the HL7 validator does, so `Patient.id.hasValue()` is true. Their type is the one the definitions name, where the model hands it: see [Where this engine follows the HL7 validator](#where-this-engine-follows-the-hl7-validator-over-the-specification-text) |
 | A primitive's value in `children()` and `descendants()` | Not a child | Where the HL7 validator answers over the specification text: see [A primitive's value is not a child](#a-primitives-value-is-not-a-child) |
-| `is()`, `as()` and `ofType()` on a System value | Only System types match, with a model or without one | A literal, a function's result or a primitive's value is a System value: `'abc'.is(String)` and `'abc'.is(System.string)` are true, `'abc'.is(string)` and `'abc'.is(FHIR.string)` false. Without a model only a value read from the resource is taken for what its type name might be in FHIR, so a literal or a function's result is never a FHIR string. `ofType(System.string)` still finds FHIR strings too: "ofType() does not have such restrictions" |
+| `is()`, `as()` and `ofType()` on a System value | Only System types match, with a model or without one | A literal, a function's result or a primitive's value is a System value: `'abc'.is(String)` and `'abc'.is(System.string)` are true, `'abc'.is(string)` and `'abc'.is(FHIR.string)` false. Without a model only a value read from the resource is taken for what its type name might be in FHIR, so a literal or a function's result is never a FHIR string. `ofType(System.string)` still finds the FHIR primitives that convert to System.String, and no others: "ofType() does not have such restrictions", and the version's conversion table says which (see [ofType() of a FHIR primitive by the System type it converts to](#oftype-of-a-fhir-primitive-by-the-system-type-it-converts-to)) |
 | Order of `children()` and `descendants()` | With a model that implements `ElementOrder`, the order the element's definition lists its children in; otherwise as the JSON writes them | The text leaves it undefined — "using functions like first() on the result may return different results on different platforms" — and allows "the logical order implied by the object model", which is the order the HL7 validator's parser builds. JSON keys are unordered, so without it one instance written two ways answers `children().first()` two ways. A field the definition does not list comes last, as written, where HL7 rejects it; an array keeps its order; an object the model does not know, or whose type is only guessed from its fields, stays as written. A primitive's element, `_birthDate`, is ordered and its fields typed by its primitive's type, `date`: id, then extension; and every element's `extension` is an `Extension`, as `Element` defines it, where a model does not list a primitive type's elements. An instance already in the definition's order, as HL7 and HAPI write, costs no allocation |
 
 ## Upstream issues

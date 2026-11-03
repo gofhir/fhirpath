@@ -1,0 +1,1 @@
+{"resourceType": "Patient", "name": [{"id": "n1", "given": ["A"]}], "_birthDate": {"extension": [{"url": "http://e", "valueString": "x"}]}}
