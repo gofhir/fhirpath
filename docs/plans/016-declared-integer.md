@@ -182,7 +182,11 @@ data and does reach it.
     Attachments with `size` `"5"` and `"+5"` stay unequal while their
     sizes are equal. Documented with a row, as a known split.
   - Deriving `fhirPathSpecMap` (eval/evaluator.go) from the model: a
-    pre-existing hardcoded table, follow-up issue.
+    pre-existing hardcoded table, follow-up issue. Withdrawn on
+    2026-11-02: with a model the table is not consulted (the model answers
+    every type question), and without one there is no package to derive it
+    from. What the table does without a model is now documented as a
+    guess; see the closing note below.
   - `unsignedInt` and `positiveInt` written as strings: the packages type
     their `value` `System.String` (R4, R4B, R5), while the datatypes page
     calls them integers and json.html JSON numbers. Recorded as SPEC-8;
@@ -413,8 +417,28 @@ String typed `unsignedInt` is a claim about this engine only, checked by
   (ResolveBundleURN, two AbsentField) were measured again alone with
   `COUNT=10 scripts/bench-compare.sh main 'ResolveBundleURN|AbsentField'`:
   none differs (p 0.35–1.0).
-- Follow-ups, not filed: derive `fhirPathSpecMap` from the model (it also
-  makes `ofType(integer64)` keep any Integer without a model); a bound
-  independent of the machine's load for #236's wall-clock test; corpusdiff
+- Follow-ups, not filed: corpusdiff
   descending into datatypes. Upstream, unpublished: SPEC-8, JAVA-15,
   JAVA-16.
+
+### The fhirPathSpecMap follow-up, withdrawn (2026-11-02)
+
+Measured before planning it: with the R4 or R5 model the table is never
+consulted, and without a model the engine has no package to derive it
+from. fhirpath.js with no model knows the System types only, and ends a
+question naming a FHIR type with an internal error
+(`difftest/batteries/no-model/measure.js`). The user chose to keep the
+guess and document it: CONFORMANCE.md, "Without a model, a FHIR type is a
+guess", with `conformance/no_model_types_test.go`.
+
+### The wall-clock follow-up, done (2026-11-02)
+
+The five tests in `types` that bounded a decimal's cost by the time it took
+(50 ms, 10 ms) now bound the bytes it allocates (`allocatedBy`,
+`withoutWritingOut` in `types/decimal_decode_test.go`), which do not depend
+on the machine's load. Measured: the fast paths allocate 30 KB at most
+(InDecimalRange copies its 2 MB coefficient once); counting or rescaling
+allocates 42–50 MB. The 15 mutants these tests caught (M02–M04, M10, M11,
+M16, M20, M32, M33, M49–M52, D1, G2) are all still caught, those that change
+only the cost (M02, M10, M11, M32) by the bound; the five tests passed ten
+runs in a row beside 24 busy loops.

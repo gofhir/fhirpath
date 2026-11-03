@@ -65,9 +65,16 @@ result, err := expr.EvaluateWithOptions(resource,
 )
 ```
 
-Without a model, the engine uses built-in heuristics that work for most cases.
 With a model, type hierarchy queries (`is`, `as`, `ofType`) become precise and
 polymorphic elements (`value[x]`) resolve using exact type metadata.
+
+Without a model, a value read from a resource knows only its System type
+(`String`, `Integer`...), so a question that names a FHIR type is a guess:
+`Patient.telecom.value is code` is true, because any `String` might be a
+`code`. Expressions that ask no type question (navigation, arithmetic, strings,
+dates) answer the same either way. For FHIR resources, pass the model whenever
+an expression asks about a FHIR type. See
+[CONFORMANCE.md](CONFORMANCE.md#without-a-model-a-fhir-type-is-a-guess).
 
 See the [documentation](https://gofhir.github.io/fhirpath/docs/advanced/fhir-model/)
 for details on the Model interface and custom implementations.

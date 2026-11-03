@@ -1862,6 +1862,32 @@ evaluator's `fhirPathSpecMap` is hardcoded alike and stays a follow-up.
 Measured (2026-11-02, `difftest/batteries/declared-integer`): fhirpath.js
 5.2.0 and the HL7 validator 6.10.2.
 
+## Without a model, a FHIR type is a guess
+
+A value read from a resource is typed by the model: `Patient.gender` is a
+`code`, `Patient.telecom.rank` a `positiveInt`. With no model there is no
+StructureDefinition to say so, and the value carries only the System type its
+JSON gives it, a `String` or an `Integer`. Where a question names a System type
+this engine and fhirpath.js 5.2.0 with no model answer alike:
+`Patient.gender is String` is true and `Patient.gender.type().name` is
+`String`.
+
+A question naming a FHIR type (`is code`, `is positiveInt`,
+`ofType(integer64)`) has no answer to give then. fhirpath.js ends it with an
+internal error (`Cannot read properties of undefined (reading
+'availableTypes')`). This engine guesses by the System type the FHIR type
+converts to: any `String` is taken for a `code`, any `Integer` for an
+`integer64`. The guess is right for `Patient.gender is code` and wrong for
+`Patient.telecom.value is code` (a `string`, false with a model) and for
+`Patient.descendants().ofType(integer64)`, which keeps every Integer.
+
+The table behind the guess (`fhirPathSpecMap`, `eval/evaluator.go`) is only
+consulted with no model: with one, the model answers every type question. So
+for FHIR resources, pass the model (`fhirpath.WithModel`) whenever an
+expression asks about a FHIR type. Measured by
+`difftest/batteries/no-model/measure.js` and held by
+`conformance/no_model_types_test.go`.
+
 ## Integer is 64 bits here, and there is no Long
 
 The specification gives `Integer` the range -2^31 to 2^31-1, and adds a `Long`

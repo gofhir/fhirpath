@@ -4,9 +4,9 @@ import (
 	"errors"
 	"math/big"
 	"regexp"
+	"runtime"
 	"strings"
 	"testing"
-	"time"
 )
 
 // What decodeDecimal reads is what shopspring/decimal v1.4.0's NewFromString
@@ -113,16 +113,33 @@ func TestThePublicAPIDecodesAsTheEngineDoes(t *testing.T) {
 // A short text with a huge exponent is told beyond the bound at once:
 // nothing is written out.
 func TestAHugeExponentDecodesAtOnce(t *testing.T) {
-	start := time.Now()
-	for _, written := range []string{"1e2000000000", "1e-2000000000", "9.99e2147483647"} {
-		d, err := decodeDecimal(written)
-		if err != nil || InDecimalRange(d) {
-			t.Errorf("%q: %v, in range %v", written, err, err == nil && InDecimalRange(d))
+	bytes := allocatedBy(func() {
+		for _, written := range []string{"1e2000000000", "1e-2000000000", "9.99e2147483647"} {
+			d, err := decodeDecimal(written)
+			if err != nil || InDecimalRange(d) {
+				t.Errorf("%q: %v, in range %v", written, err, err == nil && InDecimalRange(d))
+			}
 		}
+	})
+	if bytes > withoutWritingOut {
+		t.Errorf("three huge exponents allocated %d bytes", bytes)
 	}
-	if elapsed := time.Since(start); elapsed > 10*time.Millisecond {
-		t.Errorf("three huge exponents took %v", elapsed)
-	}
+}
+
+// withoutWritingOut bounds what an operation allocates on a decimal it must not
+// write out (#232, #236): the fast paths allocate tens of kilobytes at most,
+// and writing out or rescaling one of these values megabytes. Bytes allocated,
+// unlike the time taken, do not depend on the machine's load.
+const withoutWritingOut = 1 << 20
+
+// allocatedBy reports the bytes f allocates. The test calling it must not run
+// in parallel, as TotalAlloc counts the whole process.
+func allocatedBy(f func()) uint64 {
+	var before, after runtime.MemStats
+	runtime.ReadMemStats(&before)
+	f()
+	runtime.ReadMemStats(&after)
+	return after.TotalAlloc - before.TotalAlloc
 }
 
 // acceptedSpelling is the grammar decodeDecimal reads, written apart from it
