@@ -4,7 +4,6 @@ import (
 	"math/big"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/shopspring/decimal"
 )
@@ -58,10 +57,9 @@ func TestCompareDecimals(t *testing.T) {
 		{"-1" + strings.Repeat("0", 3000), "-2e2500", -1},
 	} {
 		a, b := mustDecode(t, tt.a), mustDecode(t, tt.b)
-		start := time.Now()
-		got := CompareDecimals(a, b)
-		if took := time.Since(start); took > 50*time.Millisecond {
-			t.Errorf("CompareDecimals(%s, %s) took %v: it rescaled", tt.a, tt.b, took)
+		var got int
+		if bytes := allocatedBy(func() { got = CompareDecimals(a, b) }); bytes > withoutWritingOut {
+			t.Errorf("CompareDecimals(%.20s, %.20s) allocated %d bytes: it rescaled", tt.a, tt.b, bytes)
 		}
 		if got != tt.want {
 			t.Errorf("CompareDecimals(%s, %s) = %d, want %d", tt.a, tt.b, got, tt.want)
@@ -138,10 +136,9 @@ func TestEquivalenceOfADecimalBeyondTheBoundDoesNotRescale(t *testing.T) {
 		if aerr != nil || berr != nil {
 			t.Fatal(aerr, berr)
 		}
-		start := time.Now()
-		got := a.Equivalent(b)
-		if took := time.Since(start); took > 50*time.Millisecond {
-			t.Errorf("%s ~ %s took %v: it rescaled", tt.a, tt.b, took)
+		var got bool
+		if bytes := allocatedBy(func() { got = a.Equivalent(b) }); bytes > withoutWritingOut {
+			t.Errorf("%s ~ %s allocated %d bytes: it rescaled", tt.a, tt.b, bytes)
 		}
 		if got != tt.want {
 			t.Errorf("%s ~ %s = %v, want %v", tt.a, tt.b, got, tt.want)
@@ -177,10 +174,12 @@ func TestACoefficientFarBeyondTheBoundIsToldWithoutCounting(t *testing.T) {
 		decimal.NewFromBigInt(coefficient, 0),
 		decimal.NewFromBigInt(new(big.Int).Neg(coefficient), -900),
 	} {
-		start := time.Now()
-		in := InDecimalRange(d)
-		if took := time.Since(start); took > 50*time.Millisecond {
-			t.Errorf("InDecimalRange of a %d-bit coefficient took %v: it counted the digits", d.Coefficient().BitLen(), took)
+		// the coefficient is copied once; its digits written out are a
+		// further 5 MB and more
+		var in bool
+		limit := 2 * uint64(d.Coefficient().BitLen()/8)
+		if bytes := allocatedBy(func() { in = InDecimalRange(d) }); bytes > limit {
+			t.Errorf("InDecimalRange of a %d-bit coefficient allocated %d bytes: it counted the digits", d.Coefficient().BitLen(), bytes)
 		}
 		if in {
 			t.Errorf("InDecimalRange of a %d-bit coefficient = true, want false", d.Coefficient().BitLen())
@@ -255,10 +254,9 @@ func TestADecimalPastTheBoundByZerosIsReadAtTheBound(t *testing.T) {
 	written := "1." + strings.Repeat("0", 200000)
 	coefficient, _ := new(big.Int).SetString("1"+strings.Repeat("0", 200000), 10)
 	held := decimal.NewFromBigInt(coefficient, -200000)
-	start := time.Now()
-	within := withinScale(held, written)
-	if elapsed := time.Since(start); elapsed > 50*time.Millisecond {
-		t.Errorf("200000 zeros past the bound took %v to read within it", elapsed)
+	var within decimal.Decimal
+	if bytes := allocatedBy(func() { within = withinScale(held, written) }); bytes > withoutWritingOut {
+		t.Errorf("200000 zeros past the bound allocated %d bytes to read within it", bytes)
 	}
 	if within.Exponent() != -DecimalDigits || !InDecimalRange(within) {
 		t.Errorf("200000 zeros past the bound read at exponent %d", within.Exponent())
