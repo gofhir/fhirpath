@@ -1,0 +1,1 @@
+{"resourceType":"Patient","gender":"male","telecom":[{"system":"phone","value":"1","rank":2}],"extension":[{"url":"http://e/i64","valueInteger64":"9"},{"url":"http://e/d","valueDecimal":5}]}
