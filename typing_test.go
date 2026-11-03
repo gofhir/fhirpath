@@ -1043,10 +1043,19 @@ func TestOfTypePolymorphic(t *testing.T) {
 			wantFirst: "2023-02-08",
 			wantType:  "dateTime",
 		},
+		// R4 and R4B fhirpath.html 2.9.1.2, R5 2.1.9.1.2: FHIR.date converts to
+		// System.DateTime, not to System.Date, so ofType(Date) drops a date and
+		// ofType(DateTime) keeps it (plan 017, D1).
 		{
-			name:      "ofType(Date) on valueDate",
+			name:      "ofType(Date) on valueDate is empty",
 			resource:  `{"resourceType":"Observation","valueDate":"2023-06-15"}`,
 			expr:      "Observation.value.ofType(Date)",
+			wantCount: 0,
+		},
+		{
+			name:      "ofType(DateTime) on valueDate",
+			resource:  `{"resourceType":"Observation","valueDate":"2023-06-15"}`,
+			expr:      "Observation.value.ofType(DateTime)",
 			wantCount: 1,
 			wantFirst: "2023-06-15",
 			wantType:  "date",

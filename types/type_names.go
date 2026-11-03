@@ -20,6 +20,8 @@ const (
 	TypeNameDateTime = "DateTime"
 	TypeNameTime     = "Time"
 	TypeNameQuantity = "Quantity"
+	TypeNameLong     = "Long"
+	TypeNameAny      = "Any"
 )
 
 // systemTypeNames indexes the System type names for lookup.

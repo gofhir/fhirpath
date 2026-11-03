@@ -1,0 +1,279 @@
+# What is, as and ofType answer for a FHIR primitive asked by its own name,
+# by the System type it converts to, and qualified in either namespace (#241).
+# obs-NN.json holds an Observation.value as a dateTime (00 a date, 01 with a
+# time), time, boolean, string, integer and Quantity; pat-00.json a Patient's
+# birthDate and active, which are no choice. FHIR R5 fhirpath.html 2.1.9.1.2:
+# "The primary exception is the is() operation, where the difference is
+# explicit ... Note that ofType() does not have such restrictions".
+obs-00.json	Observation.value.ofType(DateTime)	4.0.1
+obs-00.json	Observation.value.ofType(DateTime)	5.0.0
+obs-00.json	Observation.value.as(DateTime)	4.0.1
+obs-00.json	Observation.value.as(DateTime)	5.0.0
+obs-00.json	Observation.value is DateTime	4.0.1
+obs-00.json	Observation.value is DateTime	5.0.0
+obs-00.json	Observation.value.is(DateTime)	4.0.1
+obs-00.json	Observation.value.is(DateTime)	5.0.0
+obs-00.json	Observation.value.ofType(dateTime)	4.0.1
+obs-00.json	Observation.value.ofType(dateTime)	5.0.0
+obs-00.json	Observation.value.as(dateTime)	4.0.1
+obs-00.json	Observation.value.as(dateTime)	5.0.0
+obs-00.json	Observation.value is dateTime	4.0.1
+obs-00.json	Observation.value is dateTime	5.0.0
+obs-00.json	Observation.value.is(dateTime)	4.0.1
+obs-00.json	Observation.value.is(dateTime)	5.0.0
+obs-00.json	Observation.value.ofType(System.DateTime)	4.0.1
+obs-00.json	Observation.value.ofType(System.DateTime)	5.0.0
+obs-00.json	Observation.value.as(System.DateTime)	4.0.1
+obs-00.json	Observation.value.as(System.DateTime)	5.0.0
+obs-00.json	Observation.value is System.DateTime	4.0.1
+obs-00.json	Observation.value is System.DateTime	5.0.0
+obs-00.json	Observation.value.is(System.DateTime)	4.0.1
+obs-00.json	Observation.value.is(System.DateTime)	5.0.0
+obs-00.json	Observation.value.ofType(FHIR.dateTime)	4.0.1
+obs-00.json	Observation.value.ofType(FHIR.dateTime)	5.0.0
+obs-00.json	Observation.value.as(FHIR.dateTime)	4.0.1
+obs-00.json	Observation.value.as(FHIR.dateTime)	5.0.0
+obs-00.json	Observation.value is FHIR.dateTime	4.0.1
+obs-00.json	Observation.value is FHIR.dateTime	5.0.0
+obs-00.json	Observation.value.is(FHIR.dateTime)	4.0.1
+obs-00.json	Observation.value.is(FHIR.dateTime)	5.0.0
+obs-01.json	Observation.value.ofType(DateTime)	4.0.1
+obs-01.json	Observation.value.ofType(DateTime)	5.0.0
+obs-01.json	Observation.value.as(DateTime)	4.0.1
+obs-01.json	Observation.value.as(DateTime)	5.0.0
+obs-01.json	Observation.value is DateTime	4.0.1
+obs-01.json	Observation.value is DateTime	5.0.0
+obs-01.json	Observation.value.is(DateTime)	4.0.1
+obs-01.json	Observation.value.is(DateTime)	5.0.0
+obs-01.json	Observation.value.ofType(dateTime)	4.0.1
+obs-01.json	Observation.value.ofType(dateTime)	5.0.0
+obs-01.json	Observation.value.as(dateTime)	4.0.1
+obs-01.json	Observation.value.as(dateTime)	5.0.0
+obs-01.json	Observation.value is dateTime	4.0.1
+obs-01.json	Observation.value is dateTime	5.0.0
+obs-01.json	Observation.value.is(dateTime)	4.0.1
+obs-01.json	Observation.value.is(dateTime)	5.0.0
+obs-01.json	Observation.value.ofType(System.DateTime)	4.0.1
+obs-01.json	Observation.value.ofType(System.DateTime)	5.0.0
+obs-01.json	Observation.value.as(System.DateTime)	4.0.1
+obs-01.json	Observation.value.as(System.DateTime)	5.0.0
+obs-01.json	Observation.value is System.DateTime	4.0.1
+obs-01.json	Observation.value is System.DateTime	5.0.0
+obs-01.json	Observation.value.is(System.DateTime)	4.0.1
+obs-01.json	Observation.value.is(System.DateTime)	5.0.0
+obs-01.json	Observation.value.ofType(FHIR.dateTime)	4.0.1
+obs-01.json	Observation.value.ofType(FHIR.dateTime)	5.0.0
+obs-01.json	Observation.value.as(FHIR.dateTime)	4.0.1
+obs-01.json	Observation.value.as(FHIR.dateTime)	5.0.0
+obs-01.json	Observation.value is FHIR.dateTime	4.0.1
+obs-01.json	Observation.value is FHIR.dateTime	5.0.0
+obs-01.json	Observation.value.is(FHIR.dateTime)	4.0.1
+obs-01.json	Observation.value.is(FHIR.dateTime)	5.0.0
+obs-02.json	Observation.value.ofType(Time)	4.0.1
+obs-02.json	Observation.value.ofType(Time)	5.0.0
+obs-02.json	Observation.value.as(Time)	4.0.1
+obs-02.json	Observation.value.as(Time)	5.0.0
+obs-02.json	Observation.value is Time	4.0.1
+obs-02.json	Observation.value is Time	5.0.0
+obs-02.json	Observation.value.is(Time)	4.0.1
+obs-02.json	Observation.value.is(Time)	5.0.0
+obs-02.json	Observation.value.ofType(time)	4.0.1
+obs-02.json	Observation.value.ofType(time)	5.0.0
+obs-02.json	Observation.value.as(time)	4.0.1
+obs-02.json	Observation.value.as(time)	5.0.0
+obs-02.json	Observation.value is time	4.0.1
+obs-02.json	Observation.value is time	5.0.0
+obs-02.json	Observation.value.is(time)	4.0.1
+obs-02.json	Observation.value.is(time)	5.0.0
+obs-02.json	Observation.value.ofType(System.Time)	4.0.1
+obs-02.json	Observation.value.ofType(System.Time)	5.0.0
+obs-02.json	Observation.value.as(System.Time)	4.0.1
+obs-02.json	Observation.value.as(System.Time)	5.0.0
+obs-02.json	Observation.value is System.Time	4.0.1
+obs-02.json	Observation.value is System.Time	5.0.0
+obs-02.json	Observation.value.is(System.Time)	4.0.1
+obs-02.json	Observation.value.is(System.Time)	5.0.0
+obs-02.json	Observation.value.ofType(FHIR.time)	4.0.1
+obs-02.json	Observation.value.ofType(FHIR.time)	5.0.0
+obs-02.json	Observation.value.as(FHIR.time)	4.0.1
+obs-02.json	Observation.value.as(FHIR.time)	5.0.0
+obs-02.json	Observation.value is FHIR.time	4.0.1
+obs-02.json	Observation.value is FHIR.time	5.0.0
+obs-02.json	Observation.value.is(FHIR.time)	4.0.1
+obs-02.json	Observation.value.is(FHIR.time)	5.0.0
+obs-03.json	Observation.value.ofType(Boolean)	4.0.1
+obs-03.json	Observation.value.ofType(Boolean)	5.0.0
+obs-03.json	Observation.value.as(Boolean)	4.0.1
+obs-03.json	Observation.value.as(Boolean)	5.0.0
+obs-03.json	Observation.value is Boolean	4.0.1
+obs-03.json	Observation.value is Boolean	5.0.0
+obs-03.json	Observation.value.is(Boolean)	4.0.1
+obs-03.json	Observation.value.is(Boolean)	5.0.0
+obs-03.json	Observation.value.ofType(boolean)	4.0.1
+obs-03.json	Observation.value.ofType(boolean)	5.0.0
+obs-03.json	Observation.value.as(boolean)	4.0.1
+obs-03.json	Observation.value.as(boolean)	5.0.0
+obs-03.json	Observation.value is boolean	4.0.1
+obs-03.json	Observation.value is boolean	5.0.0
+obs-03.json	Observation.value.is(boolean)	4.0.1
+obs-03.json	Observation.value.is(boolean)	5.0.0
+obs-03.json	Observation.value.ofType(System.Boolean)	4.0.1
+obs-03.json	Observation.value.ofType(System.Boolean)	5.0.0
+obs-03.json	Observation.value.as(System.Boolean)	4.0.1
+obs-03.json	Observation.value.as(System.Boolean)	5.0.0
+obs-03.json	Observation.value is System.Boolean	4.0.1
+obs-03.json	Observation.value is System.Boolean	5.0.0
+obs-03.json	Observation.value.is(System.Boolean)	4.0.1
+obs-03.json	Observation.value.is(System.Boolean)	5.0.0
+obs-03.json	Observation.value.ofType(FHIR.boolean)	4.0.1
+obs-03.json	Observation.value.ofType(FHIR.boolean)	5.0.0
+obs-03.json	Observation.value.as(FHIR.boolean)	4.0.1
+obs-03.json	Observation.value.as(FHIR.boolean)	5.0.0
+obs-03.json	Observation.value is FHIR.boolean	4.0.1
+obs-03.json	Observation.value is FHIR.boolean	5.0.0
+obs-03.json	Observation.value.is(FHIR.boolean)	4.0.1
+obs-03.json	Observation.value.is(FHIR.boolean)	5.0.0
+obs-04.json	Observation.value.ofType(String)	4.0.1
+obs-04.json	Observation.value.ofType(String)	5.0.0
+obs-04.json	Observation.value.as(String)	4.0.1
+obs-04.json	Observation.value.as(String)	5.0.0
+obs-04.json	Observation.value is String	4.0.1
+obs-04.json	Observation.value is String	5.0.0
+obs-04.json	Observation.value.is(String)	4.0.1
+obs-04.json	Observation.value.is(String)	5.0.0
+obs-04.json	Observation.value.ofType(string)	4.0.1
+obs-04.json	Observation.value.ofType(string)	5.0.0
+obs-04.json	Observation.value.as(string)	4.0.1
+obs-04.json	Observation.value.as(string)	5.0.0
+obs-04.json	Observation.value is string	4.0.1
+obs-04.json	Observation.value is string	5.0.0
+obs-04.json	Observation.value.is(string)	4.0.1
+obs-04.json	Observation.value.is(string)	5.0.0
+obs-04.json	Observation.value.ofType(System.String)	4.0.1
+obs-04.json	Observation.value.ofType(System.String)	5.0.0
+obs-04.json	Observation.value.as(System.String)	4.0.1
+obs-04.json	Observation.value.as(System.String)	5.0.0
+obs-04.json	Observation.value is System.String	4.0.1
+obs-04.json	Observation.value is System.String	5.0.0
+obs-04.json	Observation.value.is(System.String)	4.0.1
+obs-04.json	Observation.value.is(System.String)	5.0.0
+obs-04.json	Observation.value.ofType(FHIR.string)	4.0.1
+obs-04.json	Observation.value.ofType(FHIR.string)	5.0.0
+obs-04.json	Observation.value.as(FHIR.string)	4.0.1
+obs-04.json	Observation.value.as(FHIR.string)	5.0.0
+obs-04.json	Observation.value is FHIR.string	4.0.1
+obs-04.json	Observation.value is FHIR.string	5.0.0
+obs-04.json	Observation.value.is(FHIR.string)	4.0.1
+obs-04.json	Observation.value.is(FHIR.string)	5.0.0
+obs-05.json	Observation.value.ofType(Integer)	4.0.1
+obs-05.json	Observation.value.ofType(Integer)	5.0.0
+obs-05.json	Observation.value.as(Integer)	4.0.1
+obs-05.json	Observation.value.as(Integer)	5.0.0
+obs-05.json	Observation.value is Integer	4.0.1
+obs-05.json	Observation.value is Integer	5.0.0
+obs-05.json	Observation.value.is(Integer)	4.0.1
+obs-05.json	Observation.value.is(Integer)	5.0.0
+obs-05.json	Observation.value.ofType(integer)	4.0.1
+obs-05.json	Observation.value.ofType(integer)	5.0.0
+obs-05.json	Observation.value.as(integer)	4.0.1
+obs-05.json	Observation.value.as(integer)	5.0.0
+obs-05.json	Observation.value is integer	4.0.1
+obs-05.json	Observation.value is integer	5.0.0
+obs-05.json	Observation.value.is(integer)	4.0.1
+obs-05.json	Observation.value.is(integer)	5.0.0
+obs-05.json	Observation.value.ofType(System.Integer)	4.0.1
+obs-05.json	Observation.value.ofType(System.Integer)	5.0.0
+obs-05.json	Observation.value.as(System.Integer)	4.0.1
+obs-05.json	Observation.value.as(System.Integer)	5.0.0
+obs-05.json	Observation.value is System.Integer	4.0.1
+obs-05.json	Observation.value is System.Integer	5.0.0
+obs-05.json	Observation.value.is(System.Integer)	4.0.1
+obs-05.json	Observation.value.is(System.Integer)	5.0.0
+obs-05.json	Observation.value.ofType(FHIR.integer)	4.0.1
+obs-05.json	Observation.value.ofType(FHIR.integer)	5.0.0
+obs-05.json	Observation.value.as(FHIR.integer)	4.0.1
+obs-05.json	Observation.value.as(FHIR.integer)	5.0.0
+obs-05.json	Observation.value is FHIR.integer	4.0.1
+obs-05.json	Observation.value is FHIR.integer	5.0.0
+obs-05.json	Observation.value.is(FHIR.integer)	4.0.1
+obs-05.json	Observation.value.is(FHIR.integer)	5.0.0
+obs-06.json	Observation.value.ofType(Quantity)	4.0.1
+obs-06.json	Observation.value.ofType(Quantity)	5.0.0
+obs-06.json	Observation.value.as(Quantity)	4.0.1
+obs-06.json	Observation.value.as(Quantity)	5.0.0
+obs-06.json	Observation.value is Quantity	4.0.1
+obs-06.json	Observation.value is Quantity	5.0.0
+obs-06.json	Observation.value.is(Quantity)	4.0.1
+obs-06.json	Observation.value.is(Quantity)	5.0.0
+obs-06.json	Observation.value.ofType(Quantity)	4.0.1
+obs-06.json	Observation.value.ofType(Quantity)	5.0.0
+obs-06.json	Observation.value.as(Quantity)	4.0.1
+obs-06.json	Observation.value.as(Quantity)	5.0.0
+obs-06.json	Observation.value is Quantity	4.0.1
+obs-06.json	Observation.value is Quantity	5.0.0
+obs-06.json	Observation.value.is(Quantity)	4.0.1
+obs-06.json	Observation.value.is(Quantity)	5.0.0
+obs-06.json	Observation.value.ofType(System.Quantity)	4.0.1
+obs-06.json	Observation.value.ofType(System.Quantity)	5.0.0
+obs-06.json	Observation.value.as(System.Quantity)	4.0.1
+obs-06.json	Observation.value.as(System.Quantity)	5.0.0
+obs-06.json	Observation.value is System.Quantity	4.0.1
+obs-06.json	Observation.value is System.Quantity	5.0.0
+obs-06.json	Observation.value.is(System.Quantity)	4.0.1
+obs-06.json	Observation.value.is(System.Quantity)	5.0.0
+obs-06.json	Observation.value.ofType(FHIR.Quantity)	4.0.1
+obs-06.json	Observation.value.ofType(FHIR.Quantity)	5.0.0
+obs-06.json	Observation.value.as(FHIR.Quantity)	4.0.1
+obs-06.json	Observation.value.as(FHIR.Quantity)	5.0.0
+obs-06.json	Observation.value is FHIR.Quantity	4.0.1
+obs-06.json	Observation.value is FHIR.Quantity	5.0.0
+obs-06.json	Observation.value.is(FHIR.Quantity)	4.0.1
+obs-06.json	Observation.value.is(FHIR.Quantity)	5.0.0
+pat-00.json	Patient.birthDate.ofType(Date)	4.0.1
+pat-00.json	Patient.birthDate.ofType(Date)	5.0.0
+pat-00.json	Patient.birthDate.as(Date)	4.0.1
+pat-00.json	Patient.birthDate.as(Date)	5.0.0
+pat-00.json	Patient.birthDate is Date	4.0.1
+pat-00.json	Patient.birthDate is Date	5.0.0
+pat-00.json	Patient.birthDate.ofType(date)	4.0.1
+pat-00.json	Patient.birthDate.ofType(date)	5.0.0
+pat-00.json	Patient.birthDate.as(date)	4.0.1
+pat-00.json	Patient.birthDate.as(date)	5.0.0
+pat-00.json	Patient.birthDate is date	4.0.1
+pat-00.json	Patient.birthDate is date	5.0.0
+pat-00.json	Patient.birthDate.ofType(System.Date)	4.0.1
+pat-00.json	Patient.birthDate.ofType(System.Date)	5.0.0
+pat-00.json	Patient.birthDate.as(System.Date)	4.0.1
+pat-00.json	Patient.birthDate.as(System.Date)	5.0.0
+pat-00.json	Patient.birthDate is System.Date	4.0.1
+pat-00.json	Patient.birthDate is System.Date	5.0.0
+pat-00.json	Patient.birthDate.ofType(FHIR.date)	4.0.1
+pat-00.json	Patient.birthDate.ofType(FHIR.date)	5.0.0
+pat-00.json	Patient.birthDate.as(FHIR.date)	4.0.1
+pat-00.json	Patient.birthDate.as(FHIR.date)	5.0.0
+pat-00.json	Patient.birthDate is FHIR.date	4.0.1
+pat-00.json	Patient.birthDate is FHIR.date	5.0.0
+pat-00.json	Patient.active.ofType(Boolean)	4.0.1
+pat-00.json	Patient.active.ofType(Boolean)	5.0.0
+pat-00.json	Patient.active.as(Boolean)	4.0.1
+pat-00.json	Patient.active.as(Boolean)	5.0.0
+pat-00.json	Patient.active is Boolean	4.0.1
+pat-00.json	Patient.active is Boolean	5.0.0
+pat-00.json	Patient.active.ofType(boolean)	4.0.1
+pat-00.json	Patient.active.ofType(boolean)	5.0.0
+pat-00.json	Patient.active.as(boolean)	4.0.1
+pat-00.json	Patient.active.as(boolean)	5.0.0
+pat-00.json	Patient.active is boolean	4.0.1
+pat-00.json	Patient.active is boolean	5.0.0
+pat-00.json	Patient.active.ofType(System.Boolean)	4.0.1
+pat-00.json	Patient.active.ofType(System.Boolean)	5.0.0
+pat-00.json	Patient.active.as(System.Boolean)	4.0.1
+pat-00.json	Patient.active.as(System.Boolean)	5.0.0
+pat-00.json	Patient.active is System.Boolean	4.0.1
+pat-00.json	Patient.active is System.Boolean	5.0.0
+pat-00.json	Patient.active.ofType(FHIR.boolean)	4.0.1
+pat-00.json	Patient.active.ofType(FHIR.boolean)	5.0.0
+pat-00.json	Patient.active.as(FHIR.boolean)	4.0.1
+pat-00.json	Patient.active.as(FHIR.boolean)	5.0.0
+pat-00.json	Patient.active is FHIR.boolean	4.0.1
+pat-00.json	Patient.active is FHIR.boolean	5.0.0

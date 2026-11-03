@@ -189,3 +189,36 @@ func TestSystemNamespaceStaysDistinct(t *testing.T) {
 		})
 	}
 }
+
+// stubModel is a Model with no type registry: it knows no hierarchy and
+// resolves nothing.
+type stubModel struct{}
+
+func (stubModel) ChoiceTypes(string) []string      { return nil }
+func (stubModel) TypeOf(string) string             { return "" }
+func (stubModel) ReferenceTargets(string) []string { return nil }
+func (stubModel) ParentType(string) string         { return "" }
+func (stubModel) IsSubtype(child, parent string) bool {
+	return child == parent
+}
+func (stubModel) ResolvePath(string) string { return "" }
+func (stubModel) IsResource(string) bool    { return false }
+
+// The System namespace is spelled exactly (plan 017, D4d): system.String names
+// no System type, so a System String is not it, while System.String is.
+func TestTypeMatchesWithModelSystemNamespaceIsExact(t *testing.T) {
+	var m Model = stubModel{}
+	for _, tt := range []struct {
+		actual, name string
+		want         bool
+	}{
+		{"String", "system.String", false},
+		{"String", "SYSTEM.String", false},
+		{"String", "System.String", true},
+		{"Integer", "System.String", false},
+	} {
+		if got := TypeMatchesWithModel(tt.actual, tt.name, m); got != tt.want {
+			t.Errorf("TypeMatchesWithModel(%q, %q) = %v, want %v", tt.actual, tt.name, got, tt.want)
+		}
+	}
+}

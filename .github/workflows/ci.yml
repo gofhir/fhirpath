@@ -132,7 +132,7 @@ jobs:
       - name: Check the spec-case quotes against the pinned specification
         run: |
           python3 scripts/spec-sources.py
-          cd conformance && SPEC_SOURCES_REQUIRED=1 go test -v -run TestSpecCaseCatalog .
+          cd conformance && SPEC_SOURCES_REQUIRED=1 go test -v -run 'TestSpecCaseCatalog|TestConversionTable' .
 
       # The harness already fails the run on a regression; this reports the
       # standing conformance number in the job summary.

@@ -3,6 +3,7 @@ package eval
 import (
 	"context"
 	"errors"
+	"maps"
 	"sort"
 	"strconv"
 	"strings"
@@ -1540,11 +1541,14 @@ func fhirPrimitiveAsSystemType(item types.Value, typeName string) bool {
 	if _, primitive := types.SystemValue(item); !primitive {
 		return false
 	}
-	name := typeName
-	if len(name) > len("System.") && strings.EqualFold(name[:len("System.")], "System.") {
+	// Anything written in the System namespace is asked as is() asks it, even
+	// a name that is no System type (System.code): is() says false, so as()
+	// says empty rather than matching the FHIR type by its bare name.
+	if strings.HasPrefix(typeName, "System.") {
 		return true
 	}
-	return types.IsSystemTypeName(name) && !isFHIRPrimitiveName(name)
+	_, system := systemTypeSpecifier(typeName)
+	return system
 }
 
 // isTypeArg checks if the given argument index is marked as a type specifier argument.
@@ -1593,20 +1597,144 @@ func (e *Evaluator) evaluateOfType(input types.Collection, typeName string) inte
 
 	result := types.Collection{}
 	for _, item := range input {
-		actualType := item.Type()
-
-		// For ObjectValue, also check if it's a FHIR type matching the request
-		if obj, ok := item.(*types.ObjectValue); ok {
-			// Try to get more specific type information
-			actualType = obj.Type()
-		}
-
-		if castMatches(item, actualType, typeName, e.ctx.model) {
+		if e.ctx.OfTypeMatches(item, typeName) {
 			result = append(result, item)
 		}
 	}
 
 	return result
+}
+
+// OfTypeMatches reports whether ofType(typeName) keeps the item. Exported so
+// that the function registry answers as the evaluator does.
+func (c *Context) OfTypeMatches(item types.Value, typeName string) bool {
+	var model Model
+	if c != nil {
+		model = c.model
+	}
+	return ofTypeMatches(item, typeName, model, c.enforcesR5Rules())
+}
+
+// ofTypeMatches decides one item for ofType().
+//
+// Asked for a System type, a FHIR primitive is kept exactly when the
+// specification's conversion table maps its FHIR type to it. FHIRPath defines
+// ofType() as the items "of the given type or a subclass thereof", and the
+// FHIR page says that, unlike is(), ofType() "does not have such
+// restrictions": both ofType(FHIR.string) and ofType(System.string) are valid.
+// The item kept is the FHIR primitive itself, with its type and extensions.
+// Every other question, and every other item, is answered as castMatches does.
+func ofTypeMatches(item types.Value, typeName string, model Model, r5 bool) bool {
+	// A FHIR primitive is never a System.<name that is no System type>: the
+	// FHIR namespace is FHIR, so System.code names nothing it could be.
+	if _, system := systemTypeSpecifier(typeName); !system &&
+		strings.HasPrefix(typeName, "System.") && types.IsFHIRPrimitive(item) {
+		return false
+	}
+	if system, ok := systemTypeSpecifier(typeName); ok && system != types.TypeNameAny {
+		// A primitive written with only its element has no value to convert.
+		if types.IsValueless(item) {
+			return false
+		}
+		if types.IsFHIRPrimitive(item) {
+			return primitiveConvertsTo(item.Type(), system, r5)
+		}
+	}
+	actualType := item.Type()
+	if obj, ok := item.(*types.ObjectValue); ok {
+		actualType = obj.Type()
+	}
+	return castMatches(item, actualType, typeName, model)
+}
+
+// primitiveConvertsTo reports whether a FHIR primitive of the given type
+// converts to the System type.
+//
+// A primitive the model types as a System type — Element.id, and R4's
+// Resource.id — or that no model typed, a plain element read with none, has no
+// FHIR type to look up, and is answered by its System name.
+func primitiveConvertsTo(fhirType, system string, r5 bool) bool {
+	if types.IsSystemTypeName(fhirType) {
+		return strings.EqualFold(fhirType, system)
+	}
+	converted, ok := primitiveConversion(r5)[fhirType]
+	return ok && converted == system
+}
+
+// systemTypeSpellings are the System types a type specifier can name, as
+// FHIRPath spells them.
+var systemTypeSpellings = []string{
+	types.TypeNameBoolean, types.TypeNameString, types.TypeNameInteger, types.TypeNameLong,
+	types.TypeNameDecimal, types.TypeNameDate, types.TypeNameDateTime, types.TypeNameTime,
+	types.TypeNameQuantity, types.TypeNameAny,
+}
+
+// systemTypeSpecifier resolves a type specifier to the System type it names:
+// System.X, whose namespace is spelled exactly and whose name ignores case —
+// FHIR's own example writes System.string — or an unqualified name as FHIRPath
+// capitalizes its types. system.String and SYSTEM.String name no System type.
+// Unqualified Long and Any are not resolved here: Long names no type of a
+// model, and Any is answered by isAnyType.
+func systemTypeSpecifier(typeName string) (string, bool) {
+	name, qualified := strings.CutPrefix(typeName, "System.")
+	if !qualified {
+		return typeName, types.IsSystemTypeName(typeName)
+	}
+	for _, system := range systemTypeSpellings {
+		if strings.EqualFold(system, name) {
+			return system, true
+		}
+	}
+	return "", false
+}
+
+// The tables the FHIR FHIRPath page gives for the conversion of a FHIR
+// primitive to a System type, "according to the following mapping" (R4 and R4B
+// 2.9.1.2, R5 2.1.9.1.2), keyed by FHIR type. canonical, url and xhtml are in
+// neither. The Quantity row, a complex type, is not a primitive's.
+// TestConversionTable holds both to the pinned texts.
+var (
+	r4Conversion = map[string]string{
+		"boolean": types.TypeNameBoolean,
+		"string":  types.TypeNameString, "uri": types.TypeNameString, "code": types.TypeNameString,
+		"oid": types.TypeNameString, "id": types.TypeNameString, "uuid": types.TypeNameString,
+		"sid": types.TypeNameString, "markdown": types.TypeNameString, "base64Binary": types.TypeNameString,
+		"integer": types.TypeNameInteger, "unsignedInt": types.TypeNameInteger, "positiveInt": types.TypeNameInteger,
+		"decimal": types.TypeNameDecimal,
+		"date":    types.TypeNameDateTime, "dateTime": types.TypeNameDateTime, "instant": types.TypeNameDateTime,
+		"time": types.TypeNameTime,
+	}
+	// R5 drops sid and maps integer64 to System.Long.
+	r5Conversion = map[string]string{
+		"boolean": types.TypeNameBoolean,
+		"string":  types.TypeNameString, "uri": types.TypeNameString, "code": types.TypeNameString,
+		"oid": types.TypeNameString, "id": types.TypeNameString, "uuid": types.TypeNameString,
+		"markdown": types.TypeNameString, "base64Binary": types.TypeNameString,
+		"integer": types.TypeNameInteger, "unsignedInt": types.TypeNameInteger, "positiveInt": types.TypeNameInteger,
+		"integer64": types.TypeNameLong,
+		"decimal":   types.TypeNameDecimal,
+		"date":      types.TypeNameDateTime, "dateTime": types.TypeNameDateTime, "instant": types.TypeNameDateTime,
+		"time": types.TypeNameTime,
+	}
+)
+
+// primitiveConversion is the table of a version: R5's from R5 on, R4's, which
+// R4B shares, before.
+func primitiveConversion(r5 bool) map[string]string {
+	if r5 {
+		return r5Conversion
+	}
+	return r4Conversion
+}
+
+// PrimitiveConversion returns a copy of the table that maps a FHIR primitive
+// type to the System type it converts to, without the namespace: "string" to
+// "String", "date" to "DateTime". r5 true selects the R5 table (R5 and later),
+// false the R4 one, which R4B shares. It exists for the conformance test that
+// holds each table to the pinned texts of the specification, and is not meant
+// for callers evaluating expressions.
+func PrimitiveConversion(r5 bool) map[string]string {
+	return maps.Clone(primitiveConversion(r5))
 }
 
 // evaluateRepeat applies a projection transitively: the projection runs over the
@@ -2584,11 +2712,21 @@ func (e *Evaluator) checkTypeSpecifier(function, typeName string) error {
 		if namespace == "System" {
 			return nil
 		}
+
+		// The namespace is spelled exactly: system.String names no System type,
+		// and the model is asked for String as for any other name.
+		if strings.EqualFold(namespace, "System") {
+			return e.lookupTypeSpecifier(registry, function, typeName, name)
+		}
 	}
 	if types.IsSystemTypeName(name) || isAnyType(typeName) {
 		return nil
 	}
+	return e.lookupTypeSpecifier(registry, function, typeName, name)
+}
 
+// lookupTypeSpecifier asks the model whether a name is one of its types.
+func (e *Evaluator) lookupTypeSpecifier(registry typeRegistry, function, typeName, name string) error {
 	known, supported := registry.LookupType(name)
 	if supported && !known {
 		return NewEvalError(ErrType, "%s: %q does not resolve to a type in the model", function, typeName)
@@ -2765,8 +2903,8 @@ func TypeMatchesWithModel(actualType, typeName string, model Model) bool {
 		// the FHIR types that convert to it: Resource.id, which R4 types
 		// System.String, is not an id there, as the HL7 validator and
 		// fhirpath.js both answer. What is left is the System namespace.
-		if strings.HasPrefix(typeNameLower, "system.") {
-			return matchesSystemType(actualType, typeName[len("system."):])
+		if strings.HasPrefix(typeName, "System.") {
+			return matchesSystemType(actualType, typeName[len("System."):])
 		}
 		return false
 	}
@@ -2798,7 +2936,7 @@ func typeMatchesSpecMaps(actualType, typeName, actualLower, typeNameLower string
 	}
 
 	// System type namespace handling (System.Boolean, System.String, etc.)
-	if strings.HasPrefix(typeNameLower, "system.") {
+	if strings.HasPrefix(typeName, "System.") {
 		return matchesSystemType(actualType, typeName[7:])
 	}
 
