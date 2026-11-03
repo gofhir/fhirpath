@@ -2021,6 +2021,56 @@ choice tells its FHIR type; see [Without a model, a FHIR type is a
 guess](#without-a-model-a-fhir-type-is-a-guess). `fhirPathSpecMap` answers
 `is()` and nothing here.
 
+## as() of a FHIR primitive by a System type, in every version
+
+R4 and R4B (fhirpath.html 2.9.1.2), right after the exception for `is()`:
+"Note that as() does not have such restrictions - both of the following are
+valid: `Patient.name.given.as(FHIR.string);`
+`Patient.name.given.as(System.string);`". R5 (2.1.9.1.2) says the same of
+`ofType()`, and rewrote the invariant `Observation-code-value-date` from
+`value.as(DateTime) | value.as(Period)` to
+`value.ofType(dateTime) | value.ofType(Period)`.
+
+The text admits three readings:
+
+1. R4 and R4B let `as()` keep a FHIR primitive by the System type it
+   converts to, and R5 moved that permission to `ofType()`.
+2. R5 moved the sentence only because its example, `given` (0..*), breaks
+   `as()`'s new singleton rule, so a singleton keeps the permission in R5.
+3. "Valid" means only that no error is raised: `as()` answers as `is()`
+   answers, which for a FHIR primitive and a System type is false.
+
+This engine follows the third, in every version: `as(System.X)`, `as(X)`
+for a System name, and the `as` operator answer as `is()`. That is what both
+references answer, in R4 and in R5, and neither splits by version
+(battery `difftest/batteries/as-system-type`, 44 cases, R4 and R5 models,
+2026-11-03):
+
+| With a model, R4 and R5 | fhirpath.js 5.2.0 | HL7 validator 6.10.2 | This engine |
+|---|---|---|---|
+| `Patient.gender.as(System.String)` | `[]` | `[]` | `[]` |
+| `Patient.birthDate.as(System.DateTime)` | `[]` | `[]` | `[]` |
+| `Patient.telecom.rank.as(System.Integer)` | `[]` | `[]` | `[]` |
+| `Patient.name.given.first().as(System.String)` | `[]` | `[]` | `[]` |
+| `Observation.value.as(System.DateTime)` | `[]` | `[]` | `[]` |
+| `Patient.gender.ofType(System.String)` | `[male]` | `[]` | `[male]` |
+
+Where the references part, neither reads 1 or 2:
+
+- The validator raises an error for the unqualified `as(String)`,
+  `as(Date)`, `as(DateTime)` and `as(Boolean)`. In R4 only, its operator
+  `Observation.value as DateTime` keeps the value.
+- fhirpath.js keeps R5 `Patient.id.as(System.String)`.
+
+Reading 1 would leave this engine alone against both references in R4 and
+R4B, for a permission the text does not state unambiguously. To keep a FHIR
+primitive by the System type it converts to, in any version, use `ofType()`:
+see the section above. R4's `Resource.id`, which the R4 model types
+`System.String`, is a System string and is kept by `as(System.String)` in R4,
+as in both references.
+
+The decision is recorded in `docs/plans/018-as-primitive-by-version.md`.
+
 ## Integer is 64 bits here, and there is no Long
 
 The specification gives `Integer` the range -2^31 to 2^31-1, and adds a `Long`

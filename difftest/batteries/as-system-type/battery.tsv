@@ -1,0 +1,44 @@
+pat.json	Patient.gender.as(System.String)	4.0.1
+pat.json	Patient.gender.as(System.String)	5.0.0
+pat.json	Patient.gender.as(String)	4.0.1
+pat.json	Patient.gender.as(String)	5.0.0
+pat.json	Patient.gender as System.String	4.0.1
+pat.json	Patient.gender as System.String	5.0.0
+pat.json	Patient.gender.is(System.String)	4.0.1
+pat.json	Patient.gender.is(System.String)	5.0.0
+pat.json	Patient.gender.ofType(System.String)	4.0.1
+pat.json	Patient.gender.ofType(System.String)	5.0.0
+pat.json	Patient.birthDate.as(System.DateTime)	4.0.1
+pat.json	Patient.birthDate.as(System.DateTime)	5.0.0
+pat.json	Patient.birthDate.as(System.Date)	4.0.1
+pat.json	Patient.birthDate.as(System.Date)	5.0.0
+pat.json	Patient.birthDate.ofType(System.DateTime)	4.0.1
+pat.json	Patient.birthDate.ofType(System.DateTime)	5.0.0
+pat.json	Patient.telecom.rank.as(System.Integer)	4.0.1
+pat.json	Patient.telecom.rank.as(System.Integer)	5.0.0
+pat.json	Patient.telecom.rank.ofType(System.Integer)	4.0.1
+pat.json	Patient.telecom.rank.ofType(System.Integer)	5.0.0
+pat.json	Patient.active.as(System.Boolean)	4.0.1
+pat.json	Patient.active.as(System.Boolean)	5.0.0
+pat.json	Patient.active.as(Boolean)	4.0.1
+pat.json	Patient.active.as(Boolean)	5.0.0
+pat.json	Patient.id.as(System.String)	4.0.1
+pat.json	Patient.id.as(System.String)	5.0.0
+pat.json	Patient.name.given.first().as(System.String)	4.0.1
+pat.json	Patient.name.given.first().as(System.String)	5.0.0
+pat.json	Patient.name.given.first().as(FHIR.string)	4.0.1
+pat.json	Patient.name.given.first().as(FHIR.string)	5.0.0
+pat.json	Patient.name.given.as(System.String)	4.0.1
+pat.json	Patient.name.given.as(System.String)	5.0.0
+obs.json	Observation.value.as(System.DateTime)	4.0.1
+obs.json	Observation.value.as(System.DateTime)	5.0.0
+obs.json	Observation.value.as(DateTime)	4.0.1
+obs.json	Observation.value.as(DateTime)	5.0.0
+obs.json	Observation.value as DateTime	4.0.1
+obs.json	Observation.value as DateTime	5.0.0
+obs.json	Observation.value.ofType(System.DateTime)	4.0.1
+obs.json	Observation.value.ofType(System.DateTime)	5.0.0
+obs.json	Observation.issued.as(System.DateTime)	4.0.1
+obs.json	Observation.issued.as(System.DateTime)	5.0.0
+obs.json	Observation.issued.ofType(System.DateTime)	4.0.1
+obs.json	Observation.issued.ofType(System.DateTime)	5.0.0
