@@ -343,6 +343,12 @@ func (a *analyzer) member(name, inputType string) (string, error) {
 		return unknownType, nil
 	}
 
+	return a.missingElement(name, inputType)
+}
+
+// missingElement settles a name no element answers to: a fault when the model
+// proves the element missing, and the unknown type when it cannot.
+func (a *analyzer) missingElement(name, inputType string) (string, error) {
 	// The model may not describe this type's elements at all, in which case
 	// there is nothing to prove either way. A backbone element is the usual
 	// case: it holds elements, and none of them belong to its type.
@@ -353,7 +359,30 @@ func (a *analyzer) member(name, inputType string) (string, error) {
 		return unknownType, nil
 	}
 
+	// An element typed with an abstract type holds an instance of a concrete
+	// type derived from it, which may have the element
+	// (StructureDefinition.abstract): DomainResource.contained is a Resource,
+	// and what it holds is a Patient or an Observation. R5's CanonicalResource
+	// and MetadataResource have no type derived from them, and are held by a
+	// resource that follows their pattern. What follows is unchecked, as after
+	// any unknown type. A backbone element is typed BackboneElement, abstract
+	// too, but its path defines its elements (decided by TypeOf(path+".id") on
+	// a model that keys backbone paths, as the generated models and a
+	// snapshot-built model do), so there a missing one is still proved missing.
+	if a.abstractWithoutOwnElements(inputType) {
+		return unknownType, nil
+	}
+
 	return unknownType, a.fault("%s has no element %s", inputType, name)
+}
+
+// abstractWithoutOwnElements reports whether the model says the input type is
+// abstract, and the path does not describe its own elements: the case where a
+// missing element proves nothing, as missingElement explains.
+func (a *analyzer) abstractWithoutOwnElements(inputType string) bool {
+	abstract, ok := a.model.(AbstractTypes)
+	return ok && abstract.IsAbstract(inputType) &&
+		(a.path == inputType || !a.modelDescribes(a.path))
 }
 
 // restatesContext reports whether a name restates the context rather than

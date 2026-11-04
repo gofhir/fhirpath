@@ -86,6 +86,12 @@ Measured with `make three-engine`, the pinned validator jar.
 |---|---|---|---|
 | VAL-1 | Its tests pass alike against main and against #231 | `go test ./...` through `go.work` | nothing to do |
 
+## gofhir/models
+
+| # | Finding | Reproduce | Status |
+|---|---|---|---|
+| MOD-1 | The generated `FHIRPathModel()` has no `IsAbstract` and describes none of the abstract types' own elements (`Resource.id`, `Resource.meta`, `DomainResource.text`, `DomainResource.contained`...; `Element.id` is described), which the StructureDefinition snapshots list. Proposal: an `IsAbstract(typeName)` read from `StructureDefinition.abstract`, plus those elements, so `Analyze` can tell `contained.contained` from a misspelling | plan 019 (`conformance/analyze_abstract_test.go` builds both around the published models) | reported: gofhir/models#90 |
+
 ## buger/jsonparser
 
 | # | Finding | Reproduce | Status |
@@ -114,3 +120,4 @@ Measured with `make three-engine`, the pinned validator jar.
 | FP-15 | A quotient's `precision()` is the division's 16 places: `(1.0 / 4).precision()` is 16, the HL7 validator answers 2; its boundaries take the same places | review of #246 (probe); open |
 | FP-16 | `Observation.value.as(System.Quantity)` keeps a `valueQuantity` and `is System.Quantity` is true; fhirpath.js and the HL7 validator both answer empty and false | battery `primitive-type-operators` (#241); open |
 | FP-17 | `Patient.birthDate.ofType(Date)` and `ofType(System.Date)` keep the FHIR date; fhirpath.js answers empty, as it keeps `valueDateTime` for `ofType(DateTime)`, and the HL7 validator errs | battery `primitive-type-operators` (#241); resolved by plan 017 with a model and for a choice: date maps to DateTime, so `ofType(System.Date)` drops it and `ofType(System.DateTime)` keeps it; with no model a plain `birthDate` is answered by its System name (Date), by D6 |
+| FP-18 | `types.IsAbstractResourceType` (`types/object.go`) holds one list across versions (Resource, DomainResource, CanonicalResource, MetadataResource; the last two exist only in R5), with no ADR; the specification gives the set per version in `StructureDefinition.abstract` (R4B adds DataType, R5 five more). Reproduce: read `types/object.go` | found in plan 019 (#257); open: out of scope there, `Analyze` takes the answer from the model (`AbstractTypes`) |
