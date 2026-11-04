@@ -90,6 +90,35 @@ type TypeRegistry interface {
 	HasType(typeName string) bool
 }
 
+// AbstractTypes is an optional interface a [Model] may also implement to say
+// which types are abstract: StructureDefinition.abstract, "Whether structure
+// this definition describes is abstract or not - that is, whether the
+// structure is not intended to be instantiated" (structuredefinition.html).
+//
+// Analyze uses it where a model describes an abstract type's own elements, as
+// one built from the StructureDefinition snapshots does. An element typed
+// Resource (DomainResource.contained, Bundle.entry.resource) holds an
+// instance of a concrete type derived from it, which may have an element the
+// abstract type does not, so contained.contained or Bundle.entry.resource.name
+// is not a fault. With a model that says the type is abstract, Analyze drops
+// the missing-element fault at that step, except under a path that defines its
+// own elements (a backbone element, typed BackboneElement); with one that does
+// not, it reports the missing element. Whether a path describes its own
+// elements is decided by TypeOf(path+".id") on a model that keys backbone
+// paths, as the generated models and a model built from the snapshots do.
+//
+// HasType, ParentType and IsSubtype cannot answer it: a type with subtypes is
+// not abstract (Quantity has Age), and a type without them can be
+// (R5's CanonicalResource, which no type derives from).
+//
+// A model that does not implement this interface has every missing element
+// reported.
+type AbstractTypes interface {
+	// IsAbstract reports whether the type is abstract. The name is
+	// unqualified: Resource rather than FHIR.Resource.
+	IsAbstract(typeName string) bool
+}
+
 // ElementOrder is an optional interface a [Model] may also implement to give
 // the order an element's definition lists its children in, which children()
 // and descendants() then return them in.

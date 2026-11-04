@@ -1013,6 +1013,25 @@ from each item, though it is read on the outer context:
 `Patient.name.aggregate($total + 1, telecom.count())` reported that HumanName
 has no element `telecom`.
 
+An abstract type is the last case (#257). A model built from the
+StructureDefinition snapshots describes `Resource` and `DomainResource`, which
+the published gofhir/models leave out, and then `contained.contained` (dom-2),
+`contained.text` and `Bundle.entry.resource.name` reported that Resource has no
+element `contained`, `text` or `name`. An element typed `Resource` holds an
+instance of a concrete type derived from it, which may have the element
+(StructureDefinition.abstract: the structure "is not intended to be
+instantiated"), so a missing element of an abstract type proves nothing. A model
+says which types are abstract by implementing the optional `AbstractTypes`
+interface, `IsAbstract(typeName string) bool`; Analyze then lands on an unknown
+type at that step. A model that does not implement it has every missing
+element reported. A
+backbone element is typed `BackboneElement`, which is abstract too, but its path
+defines its elements, so `Questionnaire.item.lnkId` is still a fault. What the
+rule does not do is check the element against the types derived from the
+abstract one, so `contained.foo` passes. `TestCoreConstraintsAnalyzeThroughAbstractTypes`
+in `corpusdiff` holds it over every core constraint with a model whose abstract
+types are read from the packages.
+
 ## A correction neither suite covers
 
 A prefix on a unit that sits on an affine scale — `mCel`, `kCel`, `cCel` —
