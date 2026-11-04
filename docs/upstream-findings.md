@@ -90,7 +90,7 @@ Measured with `make three-engine`, the pinned validator jar.
 
 | # | Finding | Reproduce | Status |
 |---|---|---|---|
-| MOD-1 | The generated `FHIRPathModel()` has no `IsAbstract` and describes none of the abstract types' own elements (`Resource.id`, `DomainResource.text`, `DomainResource.contained`, `Element.id`...), which the StructureDefinition snapshots list. Proposal: an `IsAbstract(typeName)` read from `StructureDefinition.abstract`, plus those elements, so `Analyze` can tell `contained.contained` from a misspelling | plan 019 (`conformance/analyze_abstract_test.go` builds both around the published models) | open, unpublished |
+| MOD-1 | The generated `FHIRPathModel()` has no `IsAbstract` and describes none of the abstract types' own elements (`Resource.id`, `Resource.meta`, `DomainResource.text`, `DomainResource.contained`...; `Element.id` is described), which the StructureDefinition snapshots list. Proposal: an `IsAbstract(typeName)` read from `StructureDefinition.abstract`, plus those elements, so `Analyze` can tell `contained.contained` from a misspelling | plan 019 (`conformance/analyze_abstract_test.go` builds both around the published models) | reported: gofhir/models#90 |
 
 ## buger/jsonparser
 

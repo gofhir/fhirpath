@@ -248,5 +248,6 @@ before".
   passes (R4, R4B, R5: the four recorded constraint faults only).
 - Mutations: mutate019 P1–P7 caught (scratchpad, `mut/mutate019.py`).
 - gofhir/models: `IsAbstract` and the abstract types' elements are proposed as
-  MOD-1 in docs/upstream-findings.md, unpublished. No session of that repo was
-  found to send it to.
+  MOD-1 in docs/upstream-findings.md, reported as gofhir/models#90
+  (2026-11-04). The published models describe `Element.id`, not the
+  elements of Resource or DomainResource.
