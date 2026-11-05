@@ -1,0 +1,10 @@
+{"resourceType":"Observation","status":"final","code":{"text":"x"},
+ "component":[
+  {"code":{"text":"c"},"extension":[{"url":"u","valueString":"1"},{"url":"v","valueString":"2"}],"valueString":"s"},
+  {"valueString":"s","extension":[{"url":"v","valueString":"2"},{"url":"u","valueString":"1"}],"code":{"text":"c"}},
+  {"code":{"text":"c"},"id":"a","valueDateTime":"2020-01-01T10:00:00Z"},
+  {"id":"a","code":{"text":"c"},"valueDateTime":"2020-01-01T12:00:00+02:00"},
+  {"code":{"text":"\u0061"},"valueDateTime":"2020-01-01T10:00:00Z"},
+  {"code":{"text":"a"},"valueDateTime":"2020-01-01T12:00:00+02:00"},
+  {"code":{"text":"a"},"valueDateTime":"2020-01-01T10:00:00Z"},
+  {"code":{"text":"c"},"extension":[{"url":"u","valueString":"1"},{"url":"v","valueString":"2"}],"valueString":"s"}]}
