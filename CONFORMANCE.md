@@ -1517,8 +1517,11 @@ the documentation: `-5 * time.Hour` cannot be read as five minutes, and no bound
 could have told the two apart, since both are offsets a timezone can have. Only
 whole minutes within the fourteen hours FHIR and XML Schema allow are accepted;
 anything else leaves the value as it was, so the comparison declines rather than
-answering from an invented instant. So does a value whose precision stops above
-a time of day: `@2020` has no instant to place.
+answering from an invented instant. The default applies at every precision, as
+CQL assigns the evaluation offset to `@2020T` and `@2020-01-01T` too; a value
+coarser than the hour then names a span placed at that offset, and against a
+finer value at another offset the order is unknown wherever the span does not
+settle it.
 
 #### What a default reaches
 

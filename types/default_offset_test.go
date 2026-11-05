@@ -190,14 +190,19 @@ func TestDefaultOffsetRejectsWhatIsNotAnOffset(t *testing.T) {
 	}
 }
 
-// A value whose precision stops above the time of day has no instant to place,
-// so there is nothing for an offset to mean and it is left alone.
-func TestDefaultOffsetNeedsATimeOfDay(t *testing.T) {
-	for _, written := range []string{"2020", "2020-01", "2020-01-01"} {
+// CQL assigns the evaluation offset at every precision, so a value written to
+// the year, month or day takes a default as one written to the hour does. It
+// still states no offset of its own.
+func TestDefaultOffsetPlacesAValueAtEveryPrecision(t *testing.T) {
+	for _, written := range []string{"2020", "2020-01", "2020-01-01", "2020-01-01T10", "2020-01-01T10:30"} {
 		t.Run(written, func(t *testing.T) {
-			value := mustDateTime(t, written)
-			if _, ok := value.WithDefaultOffset(0).EffectiveOffset(); ok {
-				t.Errorf("%q was given an offset, which it has no time of day to carry", written)
+			value := mustDateTime(t, written).WithDefaultOffset(-3 * time.Hour)
+			minutes, ok := value.EffectiveOffset()
+			if !ok || minutes != -180 {
+				t.Errorf("EffectiveOffset() = %d, %v; want -180, true", minutes, ok)
+			}
+			if value.HasTZ() || value.String() != written {
+				t.Errorf("the default became part of the value: HasTZ %v, String %q", value.HasTZ(), value.String())
 			}
 		})
 	}
