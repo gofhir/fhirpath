@@ -440,3 +440,104 @@ func TestBoundaryTimezoneOffsets(t *testing.T) {
 		})
 	}
 }
+
+// A DateTime coarser than the hour takes a default too: CQL assigns the
+// evaluation offset at every precision ("If no timezone offset is supplied, the
+// timezone offset of the evaluation request timestamp is assumed"; ToDateTime of
+// a Date sets "the timezone offset of the evaluation request timestamp"). These
+// are the readers of the offset that a placed day reaches.
+func TestDefaultOffsetPlacesADayForTheFunctionsThatReadIt(t *testing.T) {
+	day := withDefault(t, "2012-01-01", -3*time.Hour)
+	vars := map[string]types.Value{"d": day}
+
+	tests := []struct {
+		expr string
+		want string
+	}{
+		{"%d.timezoneOffsetOf()", "-3.0"},
+		{"(%d + 1 day).timezoneOffsetOf()", "-3.0"},
+		{"(%d + 1 month).timezoneOffsetOf()", "-3.0"},
+		{"%d.lowBoundary()", "2012-01-01T00:00:00.000-03:00"},
+		{"%d.highBoundary()", "2012-01-01T23:59:59.999-03:00"},
+		{"%d.lowBoundary().timezoneOffsetOf()", "-3.0"},
+		{"(%d + 1 day).lowBoundary()", "2012-01-02T00:00:00.000-03:00"},
+		// A boundary at a date precision is a Date, which has no offset to carry.
+		{"%d.lowBoundary(8)", "2012-01-01"},
+		{"%d.lowBoundary(8).type().name", "Date"},
+		{"%d.highBoundary(8).type().name", "Date"},
+		// What reads the value's own digits does not change.
+		{"%d.toString()", "2012-01-01"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.expr, func(t *testing.T) {
+			if got := answer(t, tt.expr, vars); got != tt.want {
+				t.Errorf("got %s, want %s", got, tt.want)
+			}
+		})
+	}
+}
+
+// Integer durations in days and weeks measure a placed day from its start at
+// the default: @2012-01-01T at -03:00 starts at 03:00Z, so 2012-01-03T02:00Z
+// is 23 hours short of two days. Unplaced, the day is measured from 00:00Z and
+// the same pair is 2 days.
+//
+// The CQL references disagree on these (Java 5.4.0 answers 2 days and 1 week;
+// cql-execution answers the uncertainties [0, 1] and 0 at -03:00), so the
+// values pin this engine's integer duration, not a reference: uncertainty is
+// the CQL engine's to build on top.
+func TestDefaultOffsetMeasuresDaysAndWeeksFromTheStartOfAPlacedDay(t *testing.T) {
+	end := mustParse(t, "2012-01-03T02:00:00Z")
+	weekEnd := mustParse(t, "2012-01-08T02:00:00Z")
+
+	placed := withDefault(t, "2012-01-01", -3*time.Hour)
+	bare := mustParse(t, "2012-01-01")
+
+	tests := []struct {
+		name  string
+		start types.DateTime
+		expr  string
+		want  string
+	}{
+		{"placed, days", placed, "%start.duration(%end, 'day')", "1"},
+		{"placed, weeks", placed, "%start.duration(%weekEnd, 'week')", "0"},
+		{"unplaced, days", bare, "%start.duration(%end, 'day')", "2"},
+		{"unplaced, weeks", bare, "%start.duration(%weekEnd, 'week')", "1"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			vars := map[string]types.Value{"start": tt.start, "end": end, "weekEnd": weekEnd}
+			if got := answer(t, tt.expr, vars); got != tt.want {
+				t.Errorf("got %s, want %s", got, tt.want)
+			}
+		})
+	}
+}
+
+// Without a default nothing below the hour changes: a day written to the day
+// has no offset, so against a value with one the answer is empty, as on main.
+func TestCoarseDateTimeWithoutADefaultStaysEmpty(t *testing.T) {
+	for _, expr := range []string{
+		"@2012-01-01T = @2012-01-01T01:00:00Z",
+		"@2012-01-01T < @2012-01-01T01:00:00Z",
+		"@2012-01 < @2012-01-01T10:00Z",
+		"@2012-01 > @2012-01-01T10:00Z",
+		"@2012-01 = @2012-01-01T10:00Z",
+	} {
+		t.Run(expr, func(t *testing.T) {
+			if got := answer(t, expr, nil); got != "{}" {
+				t.Errorf("got %s, want {}", got)
+			}
+		})
+	}
+}
+
+func mustParse(t *testing.T, s string) types.DateTime {
+	t.Helper()
+
+	value, err := types.NewDateTime(s)
+	if err != nil {
+		t.Fatalf("NewDateTime(%q): %v", s, err)
+	}
+	return value
+}

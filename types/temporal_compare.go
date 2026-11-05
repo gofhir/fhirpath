@@ -104,6 +104,20 @@ type temporalValue struct {
 // Returns ErrPrecisionMismatch when every shared component matches but the
 // values are specified to different precisions.
 func compareTemporal(left, right temporalValue) (int, error) {
+	// A value coarser than the hour has an offset only when a caller supplied a
+	// default, which CQL does at every precision; FHIRPath cannot write one, so
+	// no FHIRPath expression reaches this and the rules below it stay as they
+	// were. The value names a span, not an instant, and the comparison is the
+	// one CQL gives: unknown wherever the span does not settle it.
+	var (
+		order   int
+		settled bool
+		err     error
+	)
+	if left, right, order, settled, err = compareCoarsePlaced(left, right); settled {
+		return order, err
+	}
+
 	// "Both values are converted to a common timezone offset." Two at different
 	// offsets are compared as the instants they start at, as fhirpath.js and
 	// the HL7 validator compare them: @2020-01-01T10+05:30 is 04:30 at UTC,
@@ -149,6 +163,86 @@ func compareTemporal(left, right temporalValue) (int, error) {
 		return 0, ErrPrecisionMismatch
 	}
 	return 0, nil
+}
+
+// compareCoarsePlaced handles two values of which one is coarser than the hour
+// and has an offset, and leaves any other pair as it is. It reports settled
+// when it has the answer; otherwise it returns the values to compare component
+// by component, the finer one re-expressed at the coarser one's offset.
+func compareCoarsePlaced(left, right temporalValue) (l, r temporalValue, order int, settled bool, err error) {
+	if (!left.hasOffset || left.unit >= unitHour) && (!right.hasOffset || right.unit >= unitHour) {
+		return left, right, 0, false, nil
+	}
+
+	// A value with no offset has nothing to be placed against: this is the one
+	// rule that keeps a bare day from equalling two placed days that differ
+	// from each other, which would make equality intransitive. Hour and finer
+	// values reach the same answer below for the same reason.
+	if left.hasOffset != right.hasOffset {
+		return left, right, 0, true, ErrOffsetMismatch
+	}
+	if left.offset == right.offset {
+		return left, right, 0, false, nil
+	}
+
+	// The same coarse unit at two offsets: each names a span from its start to
+	// the start of the next unit at its own offset. One that ends before the
+	// other starts orders them; overlapping spans are neither the same nor
+	// apart. It is reported as an offset mismatch, since the units agree and
+	// the offsets are what leave the order open.
+	if left.unit == right.unit {
+		leftStart, rightStart := left.start(), right.start()
+		switch {
+		case !left.spanEnd().After(rightStart):
+			return left, right, -1, true, nil
+		case !right.spanEnd().After(leftStart):
+			return left, right, 1, true, nil
+		}
+		return left, right, 0, true, ErrOffsetMismatch
+	}
+
+	// Different units: the finer value is re-expressed at the coarser one's
+	// offset, and the two are compared precision by precision up to the coarser
+	// unit, as the CQL references do. @2012-01-01T at -03:00 is the day
+	// 2012-01-01 there, and 05:00Z, which is 02:00 there, falls within it.
+	if left.unit < right.unit {
+		return left, right.at(left.offset), 0, false, nil
+	}
+	return left.at(right.offset), right, 0, false, nil
+}
+
+// at re-expresses the value's start instant at another offset. A value held
+// past a leap second is converted as the second before it, the one it was
+// written as, so that it stays in the minute, day and year it was written in:
+// 2016-12-31T23:59:60-03:00 is held as 2017-01-01T00:00:00-03:00, and
+// converting that would move it a year.
+func (v temporalValue) at(offset int) temporalValue {
+	instant := v.start()
+	if v.leap {
+		instant = instant.Add(-time.Second)
+	}
+	instant = instant.In(time.FixedZone("", offset*60))
+
+	converted := v
+	converted.parts = partsOf(instant)
+	converted.offset = offset
+	// The written components belonged to the old offset and the leap is spent.
+	converted.leap = false
+	converted.written = [unitCount]int{}
+	return converted
+}
+
+// spanEnd returns where the span a value coarser than the hour names ends: the
+// start of the next year, month or day at its offset.
+func (v temporalValue) spanEnd() time.Time {
+	start := v.start()
+	switch v.unit {
+	case unitYear:
+		return start.AddDate(1, 0, 0)
+	case unitMonth:
+		return start.AddDate(0, 1, 0)
+	}
+	return start.AddDate(0, 0, 1)
 }
 
 // partsAt returns the components a comparison to the given precision reads:

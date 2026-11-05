@@ -563,15 +563,16 @@ func (dt DateTime) Compare(other Value) (int, error) {
 // fourteen hours FHIR and XML Schema allow — and anything else leaves the value
 // as it was, so a comparison declines rather than answering from an invented
 // instant.
+//
+// The default applies at every precision. CQL assigns the evaluation offset to
+// a literal however far it is written — @2012T, @2012-01-01T — and to the
+// DateTime that ToDateTime makes of a Date: "the time components unspecified,
+// except for the timezone offset, which will be set to the timezone offset of
+// the evaluation request timestamp" (CQL 1.5.3, Literals and ToDateTime). A
+// value coarser than the hour has no instant of its own, but it names a span
+// that starts at one, placed at that offset; compareTemporal reads it so.
 func (dt DateTime) WithDefaultOffset(offset time.Duration) DateTime {
 	if dt.hasTZ {
-		return dt
-	}
-
-	// An offset only means something once the value reaches a time of day.
-	// @2020 has no instant to place, and saying it sits at UTC-5 would make it
-	// comparable to things it is not.
-	if dt.precision < DTHourPrecision {
 		return dt
 	}
 

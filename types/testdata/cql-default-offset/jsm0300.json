@@ -1,0 +1,90 @@
+{
+  "library": "corpus probe256.cql",
+  "sourceSha256": "58cbb820b26c8af21a18a6bc67d77d998da06ee58870fac16cb88a91ba632d8a",
+  "engine": "cql-execution 3.3.2, cql-exec-fhir 2.2.0",
+  "evaluationDateTime": "2026-01-01T00:00:00.000-03:00",
+  "results": {
+    "D0": null,
+    "D1": {
+      "type": "Boolean",
+      "value": false
+    },
+    "D2": null,
+    "D3": {
+      "type": "Boolean",
+      "value": true
+    },
+    "D4": null,
+    "D5": null,
+    "D6": {
+      "type": "Boolean",
+      "value": true
+    },
+    "D7": null,
+    "D8": null,
+    "D9": {
+      "type": "Boolean",
+      "value": true
+    },
+    "D10": {
+      "type": "Boolean",
+      "value": false
+    },
+    "D11": {
+      "type": "Uncertainty",
+      "low": {
+        "type": "Integer",
+        "value": "0"
+      },
+      "high": {
+        "type": "Integer",
+        "value": "1"
+      }
+    },
+    "D12": {
+      "type": "Uncertainty",
+      "low": {
+        "type": "Integer",
+        "value": "2"
+      },
+      "high": {
+        "type": "Integer",
+        "value": "26"
+      }
+    },
+    "D13": {
+      "type": "Boolean",
+      "value": true
+    },
+    "D14": null,
+    "D15": null,
+    "D16": null,
+    "D17": {
+      "type": "Boolean",
+      "value": true
+    },
+    "D18": {
+      "type": "Boolean",
+      "value": false
+    },
+    "D19": {
+      "type": "Boolean",
+      "value": false
+    },
+    "D20": {
+      "type": "Uncertainty",
+      "low": {
+        "type": "Integer",
+        "value": "0"
+      },
+      "high": {
+        "type": "Integer",
+        "value": "1"
+      }
+    },
+    "D21": {
+      "type": "Integer",
+      "value": "0"
+    }
+  }
+}
