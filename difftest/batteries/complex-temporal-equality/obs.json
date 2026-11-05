@@ -1,0 +1,10 @@
+{"resourceType":"Observation","status":"final","code":{"text":"x"},
+ "identifier":[{"value":"2020-01-01T10:00:00Z"},{"value":"2020-01-01T12:00:00+02:00"}],
+ "component":[
+  {"code":{"text":"c"},"valueDateTime":"2020-01-01T10:00:00Z"},
+  {"code":{"text":"c"},"valueDateTime":"2020-01-01T12:00:00+02:00"},
+  {"code":{"text":"c"},"valueDateTime":"2020-01-01T10:00:00.000Z"},
+  {"code":{"text":"c"},"valueDateTime":"2020-01-01T10:00Z"},
+  {"code":{"text":"c"},"valueDateTime":"2020-01-01"},
+  {"code":{"text":"c"},"valueDateTime":"2020-01-01T10:00:00+00:00"},
+  {"code":{"text":"c"},"valueDateTime":"2020-01-01T10:00:00"}]}

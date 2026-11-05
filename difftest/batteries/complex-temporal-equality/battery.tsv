@@ -1,0 +1,138 @@
+obs.json	Observation.component[0] = Observation.component[1]	4.0.1
+obs.json	Observation.component[0] = Observation.component[1]	5.0.0
+obs.json	Observation.component[0] = Observation.component[2]	4.0.1
+obs.json	Observation.component[0] = Observation.component[2]	5.0.0
+obs.json	Observation.component[0] = Observation.component[3]	4.0.1
+obs.json	Observation.component[0] = Observation.component[3]	5.0.0
+obs.json	Observation.component[0] = Observation.component[4]	4.0.1
+obs.json	Observation.component[0] = Observation.component[4]	5.0.0
+obs.json	Observation.component[0] = Observation.component[5]	4.0.1
+obs.json	Observation.component[0] = Observation.component[5]	5.0.0
+obs.json	Observation.component[0] = Observation.component[6]	4.0.1
+obs.json	Observation.component[0] = Observation.component[6]	5.0.0
+obs.json	Observation.component[0] != Observation.component[3]	4.0.1
+obs.json	Observation.component[0] != Observation.component[3]	5.0.0
+obs.json	(Observation.component | Observation.component).count()	4.0.1
+obs.json	(Observation.component | Observation.component).count()	5.0.0
+obs.json	Observation.component.distinct().count()	4.0.1
+obs.json	Observation.component.distinct().count()	5.0.0
+obs.json	Observation.component[1] in Observation.component.take(1)	4.0.1
+obs.json	Observation.component[1] in Observation.component.take(1)	5.0.0
+obs.json	Observation.identifier[0] = Observation.identifier[1]	4.0.1
+obs.json	Observation.identifier[0] = Observation.identifier[1]	5.0.0
+obs.json	Observation.identifier[0].value = Observation.identifier[1].value	4.0.1
+obs.json	Observation.identifier[0].value = Observation.identifier[1].value	5.0.0
+obs.json	Observation.component[0].value = Observation.component[3].value	4.0.1
+obs.json	Observation.component[0].value = Observation.component[3].value	5.0.0
+obs.json	Observation.component[0] ~ Observation.component[1]	4.0.1
+obs.json	Observation.component[0] ~ Observation.component[1]	5.0.0
+obs.json	Observation.identifier[0] ~ Observation.identifier[1]	4.0.1
+obs.json	Observation.identifier[0] ~ Observation.identifier[1]	5.0.0
+obs.json	Observation.identifier[0].value ~ Observation.identifier[1].value	4.0.1
+obs.json	Observation.identifier[0].value ~ Observation.identifier[1].value	5.0.0
+valid.json	Observation.component[0].value = Observation.component[1].value	4.0.1
+valid.json	Observation.component[0].value = Observation.component[1].value	5.0.0
+valid.json	Observation.component[0].value = Observation.component[2].value	4.0.1
+valid.json	Observation.component[0].value = Observation.component[2].value	5.0.0
+valid.json	Observation.component[0].children() = Observation.component[1].children()	4.0.1
+valid.json	Observation.component[0].children() = Observation.component[1].children()	5.0.0
+valid.json	Observation.component[0].children() = Observation.component[2].children()	4.0.1
+valid.json	Observation.component[0].children() = Observation.component[2].children()	5.0.0
+valid.json	Observation.component[0] = Observation.component[1]	4.0.1
+valid.json	Observation.component[0] = Observation.component[1]	5.0.0
+valid.json	Observation.component[0] = Observation.component[3]	4.0.1
+valid.json	Observation.component[0] = Observation.component[3]	5.0.0
+valid.json	Observation.component[1] = Observation.component[3]	4.0.1
+valid.json	Observation.component[1] = Observation.component[3]	5.0.0
+valid.json	Observation.component[0] = Observation.component[4]	4.0.1
+valid.json	Observation.component[0] = Observation.component[4]	5.0.0
+valid.json	Observation.component[5] = Observation.component[6]	4.0.1
+valid.json	Observation.component[5] = Observation.component[6]	5.0.0
+valid.json	Observation.component[5].value = Observation.component[6].value	4.0.1
+valid.json	Observation.component[5].value = Observation.component[6].value	5.0.0
+valid.json	Observation.component[7] = Observation.component[8]	4.0.1
+valid.json	Observation.component[7] = Observation.component[8]	5.0.0
+valid.json	Observation.issued = Observation.effective.start	4.0.1
+valid.json	Observation.issued = Observation.effective.start	5.0.0
+valid.json	Observation.component.take(3).distinct().count()	4.0.1
+valid.json	Observation.component.take(3).distinct().count()	5.0.0
+valid.json	Observation.component.take(3).isDistinct()	4.0.1
+valid.json	Observation.component.take(3).isDistinct()	5.0.0
+valid.json	Observation.component.take(1).intersect(Observation.component.skip(1).take(1)).count()	4.0.1
+valid.json	Observation.component.take(1).intersect(Observation.component.skip(1).take(1)).count()	5.0.0
+valid.json	Observation.component.take(2).exclude(Observation.component.take(1)).count()	4.0.1
+valid.json	Observation.component.take(2).exclude(Observation.component.take(1)).count()	5.0.0
+valid.json	Observation.component.take(1).subsetOf(Observation.component.skip(1).take(1))	4.0.1
+valid.json	Observation.component.take(1).subsetOf(Observation.component.skip(1).take(1))	5.0.0
+valid.json	Observation.component.skip(1).take(1).supersetOf(Observation.component.take(1))	4.0.1
+valid.json	Observation.component.skip(1).take(1).supersetOf(Observation.component.take(1))	5.0.0
+valid.json	Observation.component.take(1) contains Observation.component[2]	4.0.1
+valid.json	Observation.component.take(1) contains Observation.component[2]	5.0.0
+valid.json	Observation.component[2] in Observation.component.take(1)	4.0.1
+valid.json	Observation.component[2] in Observation.component.take(1)	5.0.0
+valid.json	(Observation.component.take(1) | Observation.component.skip(3).take(1)).count()	4.0.1
+valid.json	(Observation.component.take(1) | Observation.component.skip(3).take(1)).count()	5.0.0
+fallback.json	Observation.component[0] = Observation.component[1]	4.0.1
+fallback.json	Observation.component[0] = Observation.component[1]	5.0.0
+fallback.json	Observation.component[1] = Observation.component[0]	4.0.1
+fallback.json	Observation.component[1] = Observation.component[0]	5.0.0
+fallback.json	Observation.component[1] = Observation.component[7]	4.0.1
+fallback.json	Observation.component[1] = Observation.component[7]	5.0.0
+fallback.json	Observation.component[2] = Observation.component[3]	4.0.1
+fallback.json	Observation.component[2] = Observation.component[3]	5.0.0
+fallback.json	Observation.component[3] = Observation.component[2]	4.0.1
+fallback.json	Observation.component[3] = Observation.component[2]	5.0.0
+fallback.json	Observation.component[4] = Observation.component[5]	4.0.1
+fallback.json	Observation.component[4] = Observation.component[5]	5.0.0
+fallback.json	Observation.component[4] = Observation.component[6]	4.0.1
+fallback.json	Observation.component[4] = Observation.component[6]	5.0.0
+fallback.json	Observation.component[6] = Observation.component[4]	4.0.1
+fallback.json	Observation.component[6] = Observation.component[4]	5.0.0
+fallback.json	(Observation.component[2] | Observation.component[3]).count()	4.0.1
+fallback.json	(Observation.component[2] | Observation.component[3]).count()	5.0.0
+fallback.json	(Observation.component[4] | Observation.component[6]).count()	4.0.1
+fallback.json	(Observation.component[4] | Observation.component[6]).count()	5.0.0
+valid.json	Observation.component[0] != Observation.component[1]	4.0.1
+valid.json	Observation.component[0] != Observation.component[1]	5.0.0
+valid.json	Observation.component[1] != Observation.component[0]	4.0.1
+valid.json	Observation.component[1] != Observation.component[0]	5.0.0
+valid.json	Observation.component[1] != Observation.component[3]	4.0.1
+valid.json	Observation.component[1] != Observation.component[3]	5.0.0
+valid.json	Observation.component.take(1).union(Observation.component.skip(3).take(1)).count()	4.0.1
+valid.json	Observation.component.take(1).union(Observation.component.skip(3).take(1)).count()	5.0.0
+valid.json	Observation.component.skip(3).take(1).union(Observation.component.take(1)).count()	4.0.1
+valid.json	Observation.component.skip(3).take(1).union(Observation.component.take(1)).count()	5.0.0
+valid.json	(Observation.component.skip(3).take(1) | Observation.component.take(1)).count()	4.0.1
+valid.json	(Observation.component.skip(3).take(1) | Observation.component.take(1)).count()	5.0.0
+valid.json	Observation.component.skip(1).take(1).intersect(Observation.component.take(1)).count()	4.0.1
+valid.json	Observation.component.skip(1).take(1).intersect(Observation.component.take(1)).count()	5.0.0
+valid.json	Observation.component.skip(1).take(1).exclude(Observation.component.take(1)).count()	4.0.1
+valid.json	Observation.component.skip(1).take(1).exclude(Observation.component.take(1)).count()	5.0.0
+valid.json	Observation.component.skip(1).take(1).subsetOf(Observation.component.take(1))	4.0.1
+valid.json	Observation.component.skip(1).take(1).subsetOf(Observation.component.take(1))	5.0.0
+valid.json	Observation.component.take(1).supersetOf(Observation.component.skip(1).take(1))	4.0.1
+valid.json	Observation.component.take(1).supersetOf(Observation.component.skip(1).take(1))	5.0.0
+valid.json	Observation.component.skip(2).take(1) contains Observation.component[0]	4.0.1
+valid.json	Observation.component.skip(2).take(1) contains Observation.component[0]	5.0.0
+valid.json	Observation.component[0] in Observation.component.skip(2).take(1)	4.0.1
+valid.json	Observation.component[0] in Observation.component.skip(2).take(1)	5.0.0
+valid.json	Observation.component[1].combine(Observation.component[3]).distinct().count()	4.0.1
+valid.json	Observation.component[1].combine(Observation.component[3]).distinct().count()	5.0.0
+valid.json	Observation.component[1].combine(Observation.component[3]).isDistinct()	4.0.1
+valid.json	Observation.component[1].combine(Observation.component[3]).isDistinct()	5.0.0
+valid.json	Observation.component.skip(1).take(1).intersect(Observation.component.skip(3).take(1)).count()	4.0.1
+valid.json	Observation.component.skip(1).take(1).intersect(Observation.component.skip(3).take(1)).count()	5.0.0
+valid.json	Observation.component.skip(3).take(1).exclude(Observation.component.skip(1).take(1)).count()	4.0.1
+valid.json	Observation.component.skip(3).take(1).exclude(Observation.component.skip(1).take(1)).count()	5.0.0
+valid.json	Observation.component.skip(1).take(1).subsetOf(Observation.component.skip(3).take(1))	4.0.1
+valid.json	Observation.component.skip(1).take(1).subsetOf(Observation.component.skip(3).take(1))	5.0.0
+valid.json	Observation.component.skip(3).take(1).supersetOf(Observation.component.skip(1).take(1))	4.0.1
+valid.json	Observation.component.skip(3).take(1).supersetOf(Observation.component.skip(1).take(1))	5.0.0
+valid.json	Observation.component.skip(1).take(1).union(Observation.component.skip(3).take(1)).count()	4.0.1
+valid.json	Observation.component.skip(1).take(1).union(Observation.component.skip(3).take(1)).count()	5.0.0
+valid.json	Observation.component[3] in Observation.component.skip(1).take(1)	4.0.1
+valid.json	Observation.component[3] in Observation.component.skip(1).take(1)	5.0.0
+valid.json	Observation.component.skip(1).take(1) contains Observation.component[3]	4.0.1
+valid.json	Observation.component.skip(1).take(1) contains Observation.component[3]	5.0.0
+valid.json	Observation.component.take(1).exclude(Observation.component.skip(1).take(1)).count()	4.0.1
+valid.json	Observation.component.take(1).exclude(Observation.component.skip(1).take(1)).count()	5.0.0

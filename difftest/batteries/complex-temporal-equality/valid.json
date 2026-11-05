@@ -1,0 +1,13 @@
+{"resourceType":"Observation","status":"final","code":{"text":"x"},
+ "effectivePeriod":{"start":"2020-01-01T10:00:00Z","end":"2020-01-02T10:00:00Z"},
+ "issued":"2020-01-01T10:00:00Z",
+ "component":[
+  {"code":{"text":"c"},"valueDateTime":"2020-01-01T10:00:00Z"},
+  {"code":{"text":"c"},"valueDateTime":"2020-01-01T12:00:00+02:00"},
+  {"code":{"text":"c"},"valueDateTime":"2020-01-01T10:00:00.000Z"},
+  {"valueDateTime":"2020-01-01T12:00:00+02:00","code":{"text":"c"}},
+  {"code":{"text":"c"},"valueDateTime":"2020-01-01T11:00:00Z"},
+  {"code":{"text":"c"},"valuePeriod":{"start":"2020-01-01T10:00:00Z"}},
+  {"code":{"text":"c"},"valuePeriod":{"start":"2020-01-01T12:00:00+02:00"}},
+  {"code":{"text":"c"},"valueDateTime":"2020-01-01","extension":[{"url":"u","valueDateTime":"2020-01-01T10:00:00Z"}]},
+  {"code":{"text":"c"},"valueDateTime":"2020-01-01","extension":[{"url":"u","valueDateTime":"2020-01-01T12:00:00+02:00"}]}]}
