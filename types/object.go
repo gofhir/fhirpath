@@ -716,7 +716,9 @@ func (o *ObjectValue) IsEmpty() bool {
 	return false
 }
 
-// Data returns the raw JSON data.
+// Data returns the raw JSON data. The bytes are shared, not copied, and must
+// not be modified: objects read out of them, caches and equality indexes
+// keep what they read.
 func (o *ObjectValue) Data() []byte {
 	return o.data
 }

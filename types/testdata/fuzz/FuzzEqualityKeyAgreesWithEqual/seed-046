@@ -1,0 +1,4 @@
+go test fuzz v1
+string("{\"code\":{\"coding\":[{\"system\":\"s\",\"code\":\"c\"}],\"text\":\"t\"},\"valueQuantity\":{\"value\":5,\"unit\":\"mg\"}}")
+string("{\"v\":9007199254740993,\"w\":\"9007199254740993\"}")
+[]byte("\xff\x03\x00\x00\x03")
