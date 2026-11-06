@@ -232,10 +232,8 @@ func fnSubsetOf(_ *eval.Context, input types.Collection, args []interface{}) (ty
 	}
 
 	// All items in input must be in other
-	for _, item := range input {
-		if !other.Contains(item) {
-			return types.FalseCollection, nil
-		}
+	if !input.SubsetOf(other) {
+		return types.FalseCollection, nil
 	}
 
 	return types.TrueCollection, nil
@@ -253,10 +251,8 @@ func fnSupersetOf(_ *eval.Context, input types.Collection, args []interface{}) (
 	}
 
 	// All items in other must be in input
-	for _, item := range other {
-		if !input.Contains(item) {
-			return types.FalseCollection, nil
-		}
+	if !input.SupersetOf(other) {
+		return types.FalseCollection, nil
 	}
 
 	return types.TrueCollection, nil

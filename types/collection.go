@@ -94,34 +94,45 @@ func (c Collection) Distinct() Collection {
 	if len(c) <= 1 {
 		return c
 	}
-	result := make(Collection, 0, len(c))
+	// Del índice, que guarda cada elemento que se queda, sale el resultado
+	var seen EqualityIndex
+	seen.init(make(Collection, 0, len(c)), len(c))
 	for _, item := range c {
-		if !result.Contains(item) {
-			result = append(result, item)
-		}
+		seen.AddIfAbsent(item)
 	}
-	return result
+	return seen.items
 }
 
 // IsDistinct returns true if all elements in the collection are unique.
 func (c Collection) IsDistinct() bool {
-	return len(c) == len(c.Distinct())
+	if len(c) <= 1 {
+		return true
+	}
+	var seen EqualityIndex
+	seen.init(make(Collection, 0, len(c)), len(c))
+	for _, item := range c {
+		if !seen.AddIfAbsent(item) {
+			return false
+		}
+	}
+	return true
 }
 
 // Union returns a new collection that is the union of c and other.
 // Duplicates are removed.
 func (c Collection) Union(other Collection) Collection {
-	result := make(Collection, 0, len(c)+len(other))
-
 	// "Merge the two collections into a single collection, eliminating any
 	// duplicate values" — of the merged collection, so a duplicate already
 	// present in the input goes too: 1.combine(1).union(2) holds two items.
-	for _, item := range append(append(Collection{}, c...), other...) {
-		if !result.Contains(item) {
-			result = append(result, item)
-		}
+	var seen EqualityIndex
+	seen.init(make(Collection, 0, len(c)+len(other)), len(c)+len(other))
+	for _, item := range c {
+		seen.AddIfAbsent(item)
 	}
-	return result
+	for _, item := range other {
+		seen.AddIfAbsent(item)
+	}
+	return seen.items
 }
 
 // Combine returns a new collection that combines c and other.
@@ -135,24 +146,56 @@ func (c Collection) Combine(other Collection) Collection {
 
 // Intersect returns elements that are in both collections.
 func (c Collection) Intersect(other Collection) Collection {
-	result := make(Collection, 0)
+	if len(c) == 0 || len(other) == 0 {
+		return make(Collection, 0)
+	}
+	// Todos los elementos de other se guardan, los iguales también: = no es
+	// transitiva entre cantidades, y quitar uno por igual a otro lo perdería
+	var inOther, seen EqualityIndex
+	inOther.init(other, len(c))
+	seen.init(make(Collection, 0), len(c))
 	for _, item := range c {
-		if other.Contains(item) && !result.Contains(item) {
+		if inOther.Contains(item) {
+			seen.AddIfAbsent(item)
+		}
+	}
+	return seen.items
+}
+
+// Exclude returns elements in c that are not in other.
+func (c Collection) Exclude(other Collection) Collection {
+	result := make(Collection, 0)
+	if len(other) == 0 {
+		return append(result, c...)
+	}
+	var inOther EqualityIndex
+	inOther.init(other, len(c))
+	for _, item := range c {
+		if !inOther.Contains(item) {
 			result = append(result, item)
 		}
 	}
 	return result
 }
 
-// Exclude returns elements in c that are not in other.
-func (c Collection) Exclude(other Collection) Collection {
-	result := make(Collection, 0)
+// SubsetOf reports whether every item of c is equal to some item of other.
+func (c Collection) SubsetOf(other Collection) bool {
+	if len(c) == 0 {
+		return true
+	}
+	var inOther EqualityIndex
+	inOther.init(other, len(c))
 	for _, item := range c {
-		if !other.Contains(item) {
-			result = append(result, item)
+		if !inOther.Contains(item) {
+			return false
 		}
 	}
-	return result
+	return true
+}
+
+// SupersetOf reports whether every item of other is equal to some item of c.
+func (c Collection) SupersetOf(other Collection) bool {
+	return other.SubsetOf(c)
 }
 
 // String returns a string representation of the collection.

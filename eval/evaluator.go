@@ -1749,6 +1749,12 @@ func PrimitiveConversion(r5 bool) map[string]string {
 // the configured collection limit bounds the damage when the data cycles.
 func (e *Evaluator) evaluateRepeat(input types.Collection, projection Node, dedupe bool) interface{} {
 	result := types.Collection{}
+	// El índice guarda lo que el resultado, para saber sin recorrerlo si un
+	// candidato ya está. repeatAll() no pregunta, y no lo construye.
+	var seen *types.EqualityIndex
+	if dedupe {
+		seen = types.NewEqualityIndex(types.UnknownQueries)
+	}
 	current := input
 
 	for round := 0; len(current) > 0; round++ {
@@ -1782,7 +1788,7 @@ func (e *Evaluator) evaluateRepeat(input types.Collection, projection Node, dedu
 			}
 
 			for _, candidate := range produced {
-				if dedupe && containsEqual(result, candidate) {
+				if dedupe && !seen.AddIfAbsent(candidate) {
 					continue
 				}
 				result = append(result, candidate)
@@ -1798,17 +1804,6 @@ func (e *Evaluator) evaluateRepeat(input types.Collection, projection Node, dedu
 	}
 
 	return result
-}
-
-// containsEqual reports whether the collection already holds an item equal to
-// the candidate, under the equality the repeat() definition names.
-func containsEqual(collection types.Collection, candidate types.Value) bool {
-	for _, existing := range collection {
-		if existing.Equal(candidate) {
-			return true
-		}
-	}
-	return false
 }
 
 // evaluateDefineVariable binds a name for the remainder of the expression and

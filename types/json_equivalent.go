@@ -199,7 +199,14 @@ const indexedChildren = 16
 // see addsNothing. A key written twice, which no valid resource has, is read
 // where it first stands, as navigation reads it.
 func parseJSONObject(data []byte) (jsonObject, bool) {
-	object := jsonObject{children: make([]jsonChild, 0, 8)}
+	return parseJSONObjectInto(make([]jsonChild, 0, 8), data)
+}
+
+// parseJSONObjectInto is parseJSONObject reading the children into the storage
+// given, empty, which it grows if it holds too few: a caller that reads many
+// objects reads them all into one.
+func parseJSONObjectInto(children []jsonChild, data []byte) (jsonObject, bool) {
+	object := jsonObject{children: children}
 	besides := 0
 	err := jsonparser.ObjectEach(data, func(key, value []byte, dataType jsonparser.ValueType, _ int) error {
 		dataType = readAs(value, dataType)

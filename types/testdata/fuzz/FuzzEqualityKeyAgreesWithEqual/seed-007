@@ -1,0 +1,4 @@
+go test fuzz v1
+string("{\"a\":1,\"b\":\"x\"}")
+string("{\"code\":{\"coding\":[{\"system\":\"s\",\"code\":\"c\"}],\"text\":\"t\"},\"valueQuantity\":{\"value\":5,\"unit\":\"mg\"}}")
+[]byte("\x80\x00\x00\x00\x00\a")
