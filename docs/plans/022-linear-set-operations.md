@@ -1,6 +1,6 @@
 # 022 — Union (`|`) and `distinct()` in linear time (#243)
 
-Status: closed (step 9), 2026-11-06; uncommitted. `make check` green.
+Status: merged 2026-11-06 as fd9597b (PR #266).
 
 ## 1. Prior review
 
