@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.16.8](https://github.com/gofhir/fhirpath/compare/v1.16.7...v1.16.8) (2026-11-07)
+
+
+### Bug Fixes
+
+* compare objects the same way in both directions ([#265](https://github.com/gofhir/fhirpath/issues/265)) ([#269](https://github.com/gofhir/fhirpath/issues/269)) ([81a4b67](https://github.com/gofhir/fhirpath/commit/81a4b677877de38cf48b22e9149b2b300ad924ea))
+
+
+### Performance Improvements
+
+* find equal items through a bucket index in set operations ([#243](https://github.com/gofhir/fhirpath/issues/243)) ([#266](https://github.com/gofhir/fhirpath/issues/266)) ([fd9597b](https://github.com/gofhir/fhirpath/commit/fd9597bb997193b5b3f06c63bc2b2e4ddba51d6d))
+
 ## [1.16.7](https://github.com/gofhir/fhirpath/compare/v1.16.6...v1.16.7) (2026-11-05)
 
 
