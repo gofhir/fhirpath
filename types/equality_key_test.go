@@ -359,9 +359,10 @@ func TestEqualityKeyOfScalars(t *testing.T) {
 			t.Errorf("%T(%s) has the key %q, and should have none", v, v, key)
 		}
 	}
+	// "" y "_" son nombres como cualquier otro, y tienen una clave
 	for _, text := range []string{`{"_":{}}`, `{"":"x"}`, `{"a":{"_":1}}`, `{"a":[{"":1}]}`} {
-		if key, ok := equalityKey(object(text)); ok {
-			t.Errorf("%s has the key %q, and should have none", text, key)
+		if _, ok := equalityKey(object(text)); !ok {
+			t.Errorf("%s has no key", text)
 		}
 	}
 	if key, ok := equalityKey(object(`{"a":`)); ok {

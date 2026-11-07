@@ -235,8 +235,9 @@ func setFamilies() [][]Value {
 		{object(`{"t":"a\"b"}`), object(`{"t":"a"b"}`)},
 		{object(`{"t":"é"}`), object(`{"t":"é"}`)},
 		{object(`{"a":1`), object(`{"a":1 `), object(`not json`)},
-		// "_" se toma por el elemento del nombre vacío, y = no es simétrica ahí
-		{object(`{"_":{}}`), object(`{"":"x","_":{}}`)},
+		// "" y "_" son nombres como los demás: distintos entre sí y de {}
+		{object(`{"_":{}}`)},
+		{object(`{"":"x","_":{}}`)},
 		{object(`{"":[],"_":{}}`), object(`{"":[],"_":{},"":null,"":"duplicate"}`)},
 		{object(`{"text":"x","extension":[{"url":"u","valueInteger":1}]}`), object(`{"extension":[{"valueInteger":1,"url":"u"}],"text":"x"}`)},
 		// R5: un integer64 de un objeto, escrito como cadena, como entero y como decimal

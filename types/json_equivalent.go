@@ -16,10 +16,11 @@ import (
 //
 // A child present on one side only is not equivalent, as an empty collection
 // is not equivalent to a non-empty one; a null, or an array of nothing but
-// nulls, counts as absent, as navigation reads nothing there. An element written as {} is read
-// as an item, and is a child. The element beside a primitive that holds no
-// value adds nothing to the primitive, as in the HL7 validator, and counts as
-// absent too.
+// nulls, counts as absent, as navigation reads nothing there. An element
+// written as {} is read as an item, and is a child. The element beside a
+// primitive that holds no value adds nothing to the primitive, as in the HL7
+// validator, and counts as absent too. The names compared are those of both
+// objects, each once, so that the answer is the same in either direction.
 //
 // The comparison reads the two texts and writes to no object: either may be
 // shared with other goroutines. A child written alike on both sides is
@@ -43,7 +44,7 @@ func equivalentJSON(a, b []byte) bool {
 // order: see equivalentNamed.
 func equivalentObjects(left, right *jsonObject) bool {
 	if left.hasElements() || right.hasElements() {
-		return equivalentWithElements(left, right)
+		return everyName(left, right, true)
 	}
 	if len(left.children) != len(right.children) {
 		return false
@@ -57,49 +58,63 @@ func equivalentObjects(left, right *jsonObject) bool {
 	return true
 }
 
-// equivalentWithElements compares two objects either of which writes an
-// element beside a primitive, by name as equalObjects does.
-func equivalentWithElements(left, right *jsonObject) bool {
+// everyName compares two objects name by name, with equivalentNamed or with
+// equalNamed, for each name either writes, a value or an element: the names of
+// both, each once, so that the answer does not depend on which object is asked
+// first. (The comparison is not passed as a function: the objects would leave
+// the stack.)
+func everyName(left, right *jsonObject, equivalent bool) bool {
+	same := func(name []byte) bool {
+		if equivalent {
+			return equivalentNamed(left, right, name)
+		}
+		return equalNamed(left, right, name)
+	}
 	for _, l := range left.children {
-		name, isElement := childName(l.key)
-		if isElement && left.has(name) {
+		name, isElement := elementOf(l.key)
+		if !isElement {
+			name = l.key
+		} else if _, found := left.valueOf(name); found {
 			continue // compared with its primitive
 		}
-		if !left.has("_"+name) && !right.has("_"+name) {
-			r, found := right.find(l.key, len(right.children))
-			if !found || !equivalentChildren(l, r) {
-				return false
-			}
-			continue
-		}
-		if !equivalentNamed(left, right, name) {
+		if !same(name) {
 			return false
 		}
 	}
 	for _, r := range right.children {
-		name, _ := childName(r.key)
-		if !left.has(name) && !left.has("_"+name) {
+		name, isElement := elementOf(r.key)
+		if !isElement {
+			name = r.key
+		} else if _, found := right.valueOf(name); found {
+			continue
+		}
+		if left.holds(name) {
+			continue // compared above
+		}
+		if !same(name) {
 			return false
 		}
 	}
 	return true
 }
 
-// equivalentNamed compares the child a name stands for on each side where
-// either writes the element beside it: each item, a value with the element at
-// its position, pairs with an unused equivalent item on the other side, in
-// any order, as ~ between collections pairs. An extension on the second given
-// is not one on the first.
-func equivalentNamed(left, right *jsonObject, name string) bool {
-	key, elementKey := []byte(name), []byte("_"+name)
-	lv, lok := left.find(key, len(left.children))
-	rv, rok := right.find(key, len(right.children))
-	le, leok := left.find(elementKey, len(left.children))
-	re, reok := right.find(elementKey, len(right.children))
-	l, r := equivalenceItems(lv, lok, le, leok), equivalenceItems(rv, rok, re, reok)
-	if len(l) != len(r) {
-		return false
+// equivalentNamed compares the child a name stands for on each side: each
+// item, a value with the element at its position, pairs with an unused
+// equivalent item on the other side, in any order, as ~ between collections
+// pairs. An extension on the second given is not one on the first.
+func equivalentNamed(left, right *jsonObject, name []byte) bool {
+	lv, lok, le, leok := left.namedChildren(name)
+	rv, rok, re, reok := right.namedChildren(name)
+	if !leok && !reok {
+		return lok && rok && equivalentChildren(lv, rv)
 	}
+	l, r := nameItems(lv, lok, le, leok), nameItems(rv, rok, re, reok)
+	return len(l) == len(r) && pairItems(l, r)
+}
+
+// pairItems reports whether each item on the left pairs with an unused
+// equivalent one on the right.
+func pairItems(l, r []pairedItem) bool {
 	// Items written alike pair first, as pairInAnyOrder pairs values: with
 	// decimals, whose equivalence is not transitive, pairing greedily from
 	// the first would miss what pairing the values alone finds
@@ -142,12 +157,13 @@ func optionalAlike(left, right *childValue) bool {
 	return writtenAlike(left.data, left.dataType, right.data, right.dataType)
 }
 
-// equivalenceItems lists a primitive's items as ~ reads them, each value with
-// the element at its position. An element that holds no value adds nothing
-// beside a value, as parseJSONObject has it, but beside a null it is the
-// item, a primitive with no value, as in the HL7 validator; a null beside a
-// null is no item.
-func equivalenceItems(value jsonChild, valueFound bool, element jsonChild, elementFound bool) []pairedItem {
+// nameItems lists the items of a name, each value with the element at its
+// position, as = and ~ both read them and as navigation counts them. A
+// position is an item when it holds a value or an element. An element that
+// holds no value adds nothing beside a value, as parseJSONObject has it, but
+// beside a null it is the item, a primitive with no value, as in the HL7
+// validator; a null beside a null is no item.
+func nameItems(value jsonChild, valueFound bool, element jsonChild, elementFound bool) []pairedItem {
 	values, elements := positionalValues(value, valueFound), positionalValues(element, elementFound)
 	var items []pairedItem
 	for i := range max(len(values), len(elements)) {
@@ -216,7 +232,7 @@ func parseJSONObjectInto(children []jsonChild, data []byte) (jsonObject, bool) {
 		if dataType == jsonparser.Null || dataType == jsonparser.Array && nullsOnly(value) {
 			return nil
 		}
-		if len(key) > 1 && key[0] == '_' {
+		if _, isElement := elementOf(key); isElement {
 			besides++
 		}
 		object.add(jsonChild{key: key, data: value, dataType: dataType})
@@ -232,8 +248,8 @@ func parseJSONObjectInto(children []jsonChild, data []byte) (jsonObject, bool) {
 	// by reading the object again
 	kept := jsonObject{children: make([]jsonChild, 0, len(object.children))}
 	for _, child := range object.children {
-		if len(child.key) > 1 && child.key[0] == '_' {
-			value, _ := object.find(child.key[1:], len(object.children))
+		if name, isElement := elementOf(child.key); isElement {
+			value, _ := object.valueOf(name)
 			if addsNothing(child, value) {
 				continue
 			}
@@ -562,67 +578,88 @@ func equalJSON(a, b []byte) bool {
 // equalObjects compares two parsed objects child by child, by name. A
 // primitive and the element FHIR writes beside it, given and _given, are one
 // child: each value is compared with the element at its own position, so
-// that an extension on the second given is not one on the first.
+// that an extension on the second given is not one on the first. The names
+// are those of both objects, each once: see everyName.
 func equalObjects(left, right *jsonObject) bool {
-	for _, l := range left.children {
-		name, isElement := childName(l.key)
-		if isElement && left.has(name) {
-			continue // compared with its primitive
-		}
-		if !equalNamed(left, right, name) {
-			return false
-		}
+	if left.hasElements() || right.hasElements() {
+		return everyName(left, right, false)
 	}
-	for _, r := range right.children {
-		name, isElement := childName(r.key)
-		if isElement && right.has(name) {
-			continue
-		}
-		if !left.has(name) && !left.has("_"+name) {
+	if len(left.children) != len(right.children) {
+		return false
+	}
+	for i, l := range left.children {
+		r, found := right.find(l.key, i)
+		if !found || !equalChildren(l, r) {
 			return false
 		}
 	}
 	return true
 }
 
-// childName is the name a key stands for: given for given and for _given,
-// which is its element.
-func childName(key []byte) (name string, isElement bool) {
+// elementOf reads a key as FHIR JSON does: _x is the element of the name x,
+// for any x that is not empty, and never the value of a name _x. Every other
+// key, "" and "_" among them, is the value of the name it spells. Every reader
+// of equality takes its keys through this rule, so that two objects have the
+// names they have however they are compared.
+func elementOf(key []byte) (name []byte, isElement bool) {
 	if len(key) > 1 && key[0] == '_' {
-		return string(key[1:]), true
+		return key[1:], true
 	}
-	return string(key), false
+	return nil, false
 }
 
-// hasElements reports an object that writes an element beside a primitive,
-// a key starting with an underscore.
+// hasElements reports an object that writes an element beside a primitive.
 func (o *jsonObject) hasElements() bool {
 	for _, child := range o.children {
-		if len(child.key) > 1 && child.key[0] == '_' {
+		if _, isElement := elementOf(child.key); isElement {
 			return true
 		}
 	}
 	return false
 }
 
-// has reports a child of an object by its key.
-func (o *jsonObject) has(key string) bool {
-	_, found := o.find([]byte(key), len(o.children))
-	return found
+// valueOf finds the value of a name: the child under its own key, unless that
+// key is an element's, as _a is, whose name is a.
+func (o *jsonObject) valueOf(name []byte) (jsonChild, bool) {
+	if _, isElement := elementOf(name); isElement {
+		return jsonChild{}, false
+	}
+	return o.find(name, len(o.children))
+}
+
+// elementFor finds the element of a name, the child under "_" and the name.
+// The empty name has none, for "_" is not its element.
+func (o *jsonObject) elementFor(name []byte) (jsonChild, bool) {
+	if len(name) == 0 {
+		return jsonChild{}, false
+	}
+	var buf [64]byte
+	return o.find(append(append(buf[:0], '_'), name...), len(o.children))
+}
+
+// namedChildren finds the value and the element of a name.
+func (o *jsonObject) namedChildren(name []byte) (value jsonChild, valueFound bool, element jsonChild, elementFound bool) {
+	value, valueFound = o.valueOf(name)
+	element, elementFound = o.elementFor(name)
+	return value, valueFound, element, elementFound
+}
+
+// holds reports an object that writes a name, as a value or as an element.
+func (o *jsonObject) holds(name []byte) bool {
+	_, valueFound, _, elementFound := o.namedChildren(name)
+	return valueFound || elementFound
 }
 
 // equalNamed compares the child a name stands for on each side: its values,
-// and the elements beside them where either side writes any.
-func equalNamed(left, right *jsonObject, name string) bool {
-	key, elementKey := []byte(name), []byte("_"+name)
-	lv, lok := left.find(key, len(left.children))
-	rv, rok := right.find(key, len(right.children))
-	le, leok := left.find(elementKey, len(left.children))
-	re, reok := right.find(elementKey, len(right.children))
+// and the elements beside them where either side writes any. A name one side
+// does not write has no items there.
+func equalNamed(left, right *jsonObject, name []byte) bool {
+	lv, lok, le, leok := left.namedChildren(name)
+	rv, rok, re, reok := right.namedChildren(name)
 	if !leok && !reok {
 		return lok && rok && equalChildren(lv, rv)
 	}
-	l, r := pairedItems(lv, lok, le, leok), pairedItems(rv, rok, re, reok)
+	l, r := nameItems(lv, lok, le, leok), nameItems(rv, rok, re, reok)
 	if len(l) != len(r) {
 		return false
 	}
@@ -638,27 +675,6 @@ func equalNamed(left, right *jsonObject, name string) bool {
 // position, either nil where none is written.
 type pairedItem struct {
 	value, element *childValue
-}
-
-// pairedItems lists a primitive's items, each value with the element at its
-// position; a position with neither, a null beside a null or an element that
-// holds no value, is no item, as navigation reads it.
-func pairedItems(value jsonChild, valueFound bool, element jsonChild, elementFound bool) []pairedItem {
-	values, elements := positionalValues(value, valueFound), positionalValues(element, elementFound)
-	var items []pairedItem
-	for i := range max(len(values), len(elements)) {
-		var item pairedItem
-		if i < len(values) && values[i].dataType != jsonparser.Null {
-			item.value = &values[i]
-		}
-		if i < len(elements) && !holdsNoValue(elements[i].data, elements[i].dataType) {
-			item.element = &elements[i]
-		}
-		if item.value != nil || item.element != nil {
-			items = append(items, item)
-		}
-	}
-	return items
 }
 
 // positionalValues lists a child's values by position, nulls kept, a single

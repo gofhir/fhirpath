@@ -1,0 +1,270 @@
+# What = and ~ answer between two objects, in both directions and with the
+# members in either order (#265): ex-NN.json holds a Basic with two extensions
+# to compare, exr-NN.json the same with the members of each reversed, c.json
+# the six codings of plan 023, nm-NN.json one Patient.name whose given count
+# navigation sets. One shape a file, as the Java engine fails on the whole
+# resource. The cases and their readings are in README.md.
+ex-00.json	extension[0] = extension[1]	R4
+ex-00.json	extension[1] = extension[0]	R4
+ex-00.json	extension[0] ~ extension[1]	R4
+ex-00.json	extension[1] ~ extension[0]	R4
+ex-00.json	extension[0] = extension[1]	R5
+ex-00.json	extension[1] = extension[0]	R5
+ex-00.json	extension[0] ~ extension[1]	R5
+ex-00.json	extension[1] ~ extension[0]	R5
+exr-00.json	extension[0] = extension[1]	R4
+exr-00.json	extension[1] = extension[0]	R4
+exr-00.json	extension[0] ~ extension[1]	R4
+exr-00.json	extension[1] ~ extension[0]	R4
+exr-00.json	extension[0] = extension[1]	R5
+exr-00.json	extension[1] = extension[0]	R5
+exr-00.json	extension[0] ~ extension[1]	R5
+exr-00.json	extension[1] ~ extension[0]	R5
+ex-01.json	extension[0] = extension[1]	R4
+ex-01.json	extension[1] = extension[0]	R4
+ex-01.json	extension[0] ~ extension[1]	R4
+ex-01.json	extension[1] ~ extension[0]	R4
+ex-01.json	extension[0] = extension[1]	R5
+ex-01.json	extension[1] = extension[0]	R5
+ex-01.json	extension[0] ~ extension[1]	R5
+ex-01.json	extension[1] ~ extension[0]	R5
+exr-01.json	extension[0] = extension[1]	R4
+exr-01.json	extension[1] = extension[0]	R4
+exr-01.json	extension[0] ~ extension[1]	R4
+exr-01.json	extension[1] ~ extension[0]	R4
+exr-01.json	extension[0] = extension[1]	R5
+exr-01.json	extension[1] = extension[0]	R5
+exr-01.json	extension[0] ~ extension[1]	R5
+exr-01.json	extension[1] ~ extension[0]	R5
+ex-02.json	extension[0] = extension[1]	R4
+ex-02.json	extension[1] = extension[0]	R4
+ex-02.json	extension[0] ~ extension[1]	R4
+ex-02.json	extension[1] ~ extension[0]	R4
+ex-02.json	extension[0] = extension[1]	R5
+ex-02.json	extension[1] = extension[0]	R5
+ex-02.json	extension[0] ~ extension[1]	R5
+ex-02.json	extension[1] ~ extension[0]	R5
+exr-02.json	extension[0] = extension[1]	R4
+exr-02.json	extension[1] = extension[0]	R4
+exr-02.json	extension[0] ~ extension[1]	R4
+exr-02.json	extension[1] ~ extension[0]	R4
+exr-02.json	extension[0] = extension[1]	R5
+exr-02.json	extension[1] = extension[0]	R5
+exr-02.json	extension[0] ~ extension[1]	R5
+exr-02.json	extension[1] ~ extension[0]	R5
+ex-03.json	extension[0] = extension[1]	R4
+ex-03.json	extension[1] = extension[0]	R4
+ex-03.json	extension[0] ~ extension[1]	R4
+ex-03.json	extension[1] ~ extension[0]	R4
+ex-03.json	extension[0] = extension[1]	R5
+ex-03.json	extension[1] = extension[0]	R5
+ex-03.json	extension[0] ~ extension[1]	R5
+ex-03.json	extension[1] ~ extension[0]	R5
+exr-03.json	extension[0] = extension[1]	R4
+exr-03.json	extension[1] = extension[0]	R4
+exr-03.json	extension[0] ~ extension[1]	R4
+exr-03.json	extension[1] ~ extension[0]	R4
+exr-03.json	extension[0] = extension[1]	R5
+exr-03.json	extension[1] = extension[0]	R5
+exr-03.json	extension[0] ~ extension[1]	R5
+exr-03.json	extension[1] ~ extension[0]	R5
+ex-04.json	extension[0] = extension[1]	R4
+ex-04.json	extension[1] = extension[0]	R4
+ex-04.json	extension[0] ~ extension[1]	R4
+ex-04.json	extension[1] ~ extension[0]	R4
+ex-04.json	extension[0] = extension[1]	R5
+ex-04.json	extension[1] = extension[0]	R5
+ex-04.json	extension[0] ~ extension[1]	R5
+ex-04.json	extension[1] ~ extension[0]	R5
+exr-04.json	extension[0] = extension[1]	R4
+exr-04.json	extension[1] = extension[0]	R4
+exr-04.json	extension[0] ~ extension[1]	R4
+exr-04.json	extension[1] ~ extension[0]	R4
+exr-04.json	extension[0] = extension[1]	R5
+exr-04.json	extension[1] = extension[0]	R5
+exr-04.json	extension[0] ~ extension[1]	R5
+exr-04.json	extension[1] ~ extension[0]	R5
+ex-05.json	extension[0] = extension[1]	R4
+ex-05.json	extension[1] = extension[0]	R4
+ex-05.json	extension[0] ~ extension[1]	R4
+ex-05.json	extension[1] ~ extension[0]	R4
+ex-05.json	extension[0] = extension[1]	R5
+ex-05.json	extension[1] = extension[0]	R5
+ex-05.json	extension[0] ~ extension[1]	R5
+ex-05.json	extension[1] ~ extension[0]	R5
+exr-05.json	extension[0] = extension[1]	R4
+exr-05.json	extension[1] = extension[0]	R4
+exr-05.json	extension[0] ~ extension[1]	R4
+exr-05.json	extension[1] ~ extension[0]	R4
+exr-05.json	extension[0] = extension[1]	R5
+exr-05.json	extension[1] = extension[0]	R5
+exr-05.json	extension[0] ~ extension[1]	R5
+exr-05.json	extension[1] ~ extension[0]	R5
+ex-06.json	extension[0] = extension[1]	R4
+ex-06.json	extension[1] = extension[0]	R4
+ex-06.json	extension[0] ~ extension[1]	R4
+ex-06.json	extension[1] ~ extension[0]	R4
+ex-06.json	extension[0] = extension[1]	R5
+ex-06.json	extension[1] = extension[0]	R5
+ex-06.json	extension[0] ~ extension[1]	R5
+ex-06.json	extension[1] ~ extension[0]	R5
+exr-06.json	extension[0] = extension[1]	R4
+exr-06.json	extension[1] = extension[0]	R4
+exr-06.json	extension[0] ~ extension[1]	R4
+exr-06.json	extension[1] ~ extension[0]	R4
+exr-06.json	extension[0] = extension[1]	R5
+exr-06.json	extension[1] = extension[0]	R5
+exr-06.json	extension[0] ~ extension[1]	R5
+exr-06.json	extension[1] ~ extension[0]	R5
+ex-07.json	extension[0] = extension[1]	R4
+ex-07.json	extension[1] = extension[0]	R4
+ex-07.json	extension[0] ~ extension[1]	R4
+ex-07.json	extension[1] ~ extension[0]	R4
+ex-07.json	extension[0] = extension[1]	R5
+ex-07.json	extension[1] = extension[0]	R5
+ex-07.json	extension[0] ~ extension[1]	R5
+ex-07.json	extension[1] ~ extension[0]	R5
+exr-07.json	extension[0] = extension[1]	R4
+exr-07.json	extension[1] = extension[0]	R4
+exr-07.json	extension[0] ~ extension[1]	R4
+exr-07.json	extension[1] ~ extension[0]	R4
+exr-07.json	extension[0] = extension[1]	R5
+exr-07.json	extension[1] = extension[0]	R5
+exr-07.json	extension[0] ~ extension[1]	R5
+exr-07.json	extension[1] ~ extension[0]	R5
+ex-08.json	extension[0] = extension[1]	R4
+ex-08.json	extension[1] = extension[0]	R4
+ex-08.json	extension[0] ~ extension[1]	R4
+ex-08.json	extension[1] ~ extension[0]	R4
+ex-08.json	extension[0] = extension[1]	R5
+ex-08.json	extension[1] = extension[0]	R5
+ex-08.json	extension[0] ~ extension[1]	R5
+ex-08.json	extension[1] ~ extension[0]	R5
+ex-09.json	extension[0] = extension[1]	R4
+ex-09.json	extension[1] = extension[0]	R4
+ex-09.json	extension[0] ~ extension[1]	R4
+ex-09.json	extension[1] ~ extension[0]	R4
+ex-09.json	extension[0] = extension[1]	R5
+ex-09.json	extension[1] = extension[0]	R5
+ex-09.json	extension[0] ~ extension[1]	R5
+ex-09.json	extension[1] ~ extension[0]	R5
+ex-10.json	extension[0] = extension[1]	R4
+ex-10.json	extension[1] = extension[0]	R4
+ex-10.json	extension[0] ~ extension[1]	R4
+ex-10.json	extension[1] ~ extension[0]	R4
+ex-10.json	extension[0] = extension[1]	R5
+ex-10.json	extension[1] = extension[0]	R5
+ex-10.json	extension[0] ~ extension[1]	R5
+ex-10.json	extension[1] ~ extension[0]	R5
+ex-11.json	extension[0] = extension[1]	R4
+ex-11.json	extension[1] = extension[0]	R4
+ex-11.json	extension[0] ~ extension[1]	R4
+ex-11.json	extension[1] ~ extension[0]	R4
+ex-11.json	extension[0] = extension[1]	R5
+ex-11.json	extension[1] = extension[0]	R5
+ex-11.json	extension[0] ~ extension[1]	R5
+ex-11.json	extension[1] ~ extension[0]	R5
+ex-12.json	extension[0] = extension[1]	R4
+ex-12.json	extension[1] = extension[0]	R4
+ex-12.json	extension[0] ~ extension[1]	R4
+ex-12.json	extension[1] ~ extension[0]	R4
+ex-12.json	extension[0] = extension[1]	R5
+ex-12.json	extension[1] = extension[0]	R5
+ex-12.json	extension[0] ~ extension[1]	R5
+ex-12.json	extension[1] ~ extension[0]	R5
+ex-13.json	extension[0] = extension[1]	R4
+ex-13.json	extension[1] = extension[0]	R4
+ex-13.json	extension[0] ~ extension[1]	R4
+ex-13.json	extension[1] ~ extension[0]	R4
+ex-13.json	extension[0] = extension[1]	R5
+ex-13.json	extension[1] = extension[0]	R5
+ex-13.json	extension[0] ~ extension[1]	R5
+ex-13.json	extension[1] ~ extension[0]	R5
+ex-14.json	extension[0] = extension[1]	R4
+ex-14.json	extension[1] = extension[0]	R4
+ex-14.json	extension[0] ~ extension[1]	R4
+ex-14.json	extension[1] ~ extension[0]	R4
+ex-14.json	extension[0] = extension[1]	R5
+ex-14.json	extension[1] = extension[0]	R5
+ex-14.json	extension[0] ~ extension[1]	R5
+ex-14.json	extension[1] ~ extension[0]	R5
+ex-15.json	extension[0] = extension[1]	R4
+ex-15.json	extension[1] = extension[0]	R4
+ex-15.json	extension[0] ~ extension[1]	R4
+ex-15.json	extension[1] ~ extension[0]	R4
+ex-15.json	extension[0] = extension[1]	R5
+ex-15.json	extension[1] = extension[0]	R5
+ex-15.json	extension[0] ~ extension[1]	R5
+ex-15.json	extension[1] ~ extension[0]	R5
+ex-16.json	extension[0] = extension[1]	R4
+ex-16.json	extension[1] = extension[0]	R4
+ex-16.json	extension[0] ~ extension[1]	R4
+ex-16.json	extension[1] ~ extension[0]	R4
+ex-16.json	extension[0] = extension[1]	R5
+ex-16.json	extension[1] = extension[0]	R5
+ex-16.json	extension[0] ~ extension[1]	R5
+ex-16.json	extension[1] ~ extension[0]	R5
+ex-17.json	extension[0] = extension[1]	R4
+ex-17.json	extension[1] = extension[0]	R4
+ex-17.json	extension[0] ~ extension[1]	R4
+ex-17.json	extension[1] ~ extension[0]	R4
+ex-17.json	extension[0] = extension[1]	R5
+ex-17.json	extension[1] = extension[0]	R5
+ex-17.json	extension[0] ~ extension[1]	R5
+ex-17.json	extension[1] ~ extension[0]	R5
+c.json	code.coding.distinct().count()	R4
+c.json	code.coding[0] = code.coding[1]	R4
+c.json	code.coding[0] ~ code.coding[1]	R4
+c.json	code.coding[1] = code.coding[0]	R4
+c.json	code.coding[1] ~ code.coding[0]	R4
+c.json	code.coding[2] = code.coding[3]	R4
+c.json	code.coding[2] ~ code.coding[3]	R4
+c.json	code.coding[3] = code.coding[2]	R4
+c.json	code.coding[3] ~ code.coding[2]	R4
+c.json	code.coding[3] = code.coding[5]	R4
+c.json	code.coding[3] ~ code.coding[5]	R4
+c.json	code.coding[5] = code.coding[3]	R4
+c.json	code.coding[5] ~ code.coding[3]	R4
+c.json	code.coding[2] = code.coding[5]	R4
+c.json	code.coding[2] ~ code.coding[5]	R4
+c.json	code.coding[0] = code.coding[4]	R4
+c.json	code.coding[0] ~ code.coding[4]	R4
+c.json	code.coding[1] = code.coding[4]	R4
+c.json	code.coding[1] ~ code.coding[4]	R4
+c.json	code.coding.distinct().count()	R5
+c.json	code.coding[0] = code.coding[1]	R5
+c.json	code.coding[0] ~ code.coding[1]	R5
+c.json	code.coding[1] = code.coding[0]	R5
+c.json	code.coding[1] ~ code.coding[0]	R5
+c.json	code.coding[2] = code.coding[3]	R5
+c.json	code.coding[2] ~ code.coding[3]	R5
+c.json	code.coding[3] = code.coding[2]	R5
+c.json	code.coding[3] ~ code.coding[2]	R5
+c.json	code.coding[3] = code.coding[5]	R5
+c.json	code.coding[3] ~ code.coding[5]	R5
+c.json	code.coding[5] = code.coding[3]	R5
+c.json	code.coding[5] ~ code.coding[3]	R5
+c.json	code.coding[2] = code.coding[5]	R5
+c.json	code.coding[2] ~ code.coding[5]	R5
+c.json	code.coding[0] = code.coding[4]	R5
+c.json	code.coding[0] ~ code.coding[4]	R5
+c.json	code.coding[1] = code.coding[4]	R5
+c.json	code.coding[1] ~ code.coding[4]	R5
+nm-00.json	Patient.name[0].given.count()	R4
+nm-00.json	Patient.name[0].given.count()	R5
+nm-01.json	Patient.name[0].given.count()	R4
+nm-01.json	Patient.name[0].given.count()	R5
+nm-02.json	Patient.name[0].given.count()	R4
+nm-02.json	Patient.name[0].given.count()	R5
+nm-03.json	Patient.name[0].given.count()	R4
+nm-03.json	Patient.name[0].given.count()	R5
+nm-04.json	Patient.name[0].given.count()	R4
+nm-04.json	Patient.name[0].given.count()	R5
+nm-05.json	Patient.name[0].given.count()	R4
+nm-05.json	Patient.name[0].given.count()	R5
+nm-06.json	Patient.name[0].given.count()	R4
+nm-06.json	Patient.name[0].given.count()	R5
+nm-07.json	Patient.name[0].given.count()	R4
+nm-07.json	Patient.name[0].given.count()	R5
+nm-08.json	Patient.name[0].given.count()	R4
+nm-08.json	Patient.name[0].given.count()	R5

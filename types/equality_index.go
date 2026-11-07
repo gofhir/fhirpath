@@ -271,9 +271,9 @@ func (w *keyWriter) decimal(d decimal.Decimal) {
 // aparición que la lectura conserva. Cada nombre con algún valor se escribe
 // como la lista de sus valores, en orden: un número como decimal, una cadena
 // decodificada, un objeto con esta misma lectura, un arreglo anidado como
-// "[]". Un nombre sin valores, y todo _elemento, quedan fuera: la clave es más
-// gruesa que =, que los compara. Un objeto o un arreglo que no se lee no tiene
-// clave, ni uno con un miembro de nombre vacío o "_".
+// "[]". Un nombre sin valores, y todo _elemento según elementOf, quedan fuera:
+// la clave es más gruesa que =, que los compara. "" y "_" son nombres como los
+// demás. Un objeto o un arreglo que no se lee no tiene clave.
 func (w *keyWriter) object(data []byte) bool {
 	start := w.used
 	ok := w.children(data)
@@ -300,13 +300,8 @@ func (w *keyWriter) children(data []byte) bool {
 	// Los hijos son nuestros: se filtran y se ordenan donde están
 	children := object.children[:0]
 	for _, child := range object.children {
-		if len(child.key) > 1 && child.key[0] == '_' {
+		if _, isElement := elementOf(child.key); isElement {
 			continue
-		}
-		if len(child.key) == 0 || len(child.key) == 1 && child.key[0] == '_' {
-			// equalObjects toma "_" por el elemento del nombre vacío, y no es
-			// uno: lo que dice un objeto con alguno de los dos no es simétrico
-			return false
 		}
 		children = append(children, child)
 	}
