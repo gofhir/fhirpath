@@ -1,12 +1,11 @@
 # Resume point
 
 - **Active increment:** 023, `=` between objects answers the same in both
-  directions (#265). Closed 2026-11-06 (step 9), uncommitted. `make check` is
+  directions (#265). Closed 2026-11-06 (step 9), in PR #269. `make check` is
   green, and code review converged in round 1. Plan:
   `docs/plans/023-object-equality-symmetry.md`. Preceded by 022 (#243), merged
-  2026-11-06 as fd9597b (PR #266). Docs PR #268 and release 1.16.8 (PR #267)
-  are open.
-- **Next:** commit and PR of 023 when the user asks, closing #265. Then 024:
+  2026-11-06 as fd9597b (PR #266). Release 1.16.8 (PR #267) is open.
+- **Next:** record 023 as merged. Then 024:
   `=` is transitive, so the fast paths must agree with the reader (duplicate
   keys, nested arrays, elements that hold no value written with content; see
   the plan). Open issues: #265, #263, #249, #248, #242. MOD-1 is reported as
