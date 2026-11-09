@@ -1,6 +1,6 @@
 # 023: `=` between objects answers the same in both directions (#265)
 
-Status: closed (step 9), 2026-11-06; uncommitted. `make check` green.
+Status: merged 2026-11-07 as 81a4b67 (PR #269).
 
 ## 1. Prior review
 
