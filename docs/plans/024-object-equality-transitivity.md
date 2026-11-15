@@ -1,6 +1,6 @@
 # 024: `=` between objects is transitive
 
-Status: closed 2026-11-14; PR open, awaiting merge.
+Status: closed 2026-11-14; merged 2026-11-15 (PR #271).
 
 ## 1. Prior review
 
