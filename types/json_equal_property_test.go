@@ -7,18 +7,6 @@ import (
 	"testing"
 )
 
-// equalJSONByChildren is equalJSON without its fast paths: every pair read
-// child by child. The fast paths decide what they can without building
-// anything, and must decide it as this does.
-func equalJSONByChildren(a, b []byte) bool {
-	left, ok := parseJSONObject(a)
-	if !ok {
-		return false
-	}
-	right, ok := parseJSONObject(b)
-	return ok && equalObjects(&left, &right)
-}
-
 // TestEqualJSONFastPathsAgreeWithReadingByChild compares equalJSON with
 // reading by child over pairs made to differ the ways the fast paths take
 // apart: keys in another order, a number written another way, a null member,
@@ -77,8 +65,8 @@ func TestEqualJSONFastPathsAgreeWithReadingByChild(t *testing.T) {
 			}
 		}
 		a, b := write(m, rng.Intn(2) == 0), write(other, rng.Intn(2) == 0)
-		if got, want := equalJSON([]byte(a), []byte(b)), equalJSONByChildren([]byte(a), []byte(b)); got != want {
-			t.Fatalf("equalJSON(%s, %s) = %v, reading by child says %v", a, b, got, want)
+		if got, want := equalJSON([]byte(a), []byte(b)), equalJSONReader([]byte(a), []byte(b)); got != want {
+			t.Fatalf("equalJSON(%s, %s) = %v, the reader says %v", a, b, got, want)
 		}
 	}
 }

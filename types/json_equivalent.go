@@ -438,30 +438,32 @@ func writtenAlike(a []byte, aType jsonparser.ValueType, b []byte, bType jsonpars
 	if aType == jsonparser.String {
 		return bytes.Equal(a, b)
 	}
-	if aType == jsonparser.Array {
-		return sameArray(a, b)
-	}
-	return sameJSON(a, b)
-}
-
-// sameArray is sameJSON for two arrays, read with a number outside JSON's
-// grammar as null (#238): neither array is read as a whole, so the numbers in
-// it are not seen but here.
-func sameArray(a, b []byte) bool {
-	if sameJSON(a, b) {
+	if shortcuts && sameJSON(a, b) {
 		return true
 	}
-	// Arrays without such a number come back as they are, compared already
-	na, nb := nullBadNumbersBytes(a), nullBadNumbersBytes(b)
-	if sameText(na, a) && sameText(nb, b) {
-		return false
-	}
-	return sameJSON(na, nb)
+	// An array is compared by value on any text, as = compares it: that is how
+	// a number outside JSON's grammar reads as the null it stands for (#238),
+	// which the reading of ~ below does not
+	return aType == jsonparser.Array && sameArray(a, b)
 }
 
-// sameText reports two slices of the same bytes in memory.
-func sameText(a, b []byte) bool {
-	return len(a) == len(b) && (len(a) == 0 || &a[0] == &b[0])
+// sameArray compares two arrays item by item, as = compares values: numbers as
+// decimals, strings as they read, objects through equalJSON, arrays in turn,
+// each in its place. A nested array is not flattened, and a null is compared as
+// written: it equals a null, and a number outside JSON's grammar, which reads
+// as null (#238), but no other item, not even an empty array.
+func sameArray(a, b []byte) bool {
+	l := positionalValues(jsonChild{data: a, dataType: jsonparser.Array}, true)
+	r := positionalValues(jsonChild{data: b, dataType: jsonparser.Array}, true)
+	if len(l) != len(r) {
+		return false
+	}
+	for i := range l {
+		if !equalValues(l[i], r[i]) {
+			return false
+		}
+	}
+	return true
 }
 
 // rawEquivalent compares two single values from their JSON. Two strings that
@@ -561,11 +563,13 @@ func valueEquivalent(left, right Value) bool {
 // differ compare: see orderedEqual. Only the rest, keys in another order among
 // them, are read child by child.
 func equalJSON(a, b []byte) bool {
-	if sameJSON(a, b) {
-		return true
-	}
-	if equal, decided := orderedEqualFromDifference(a, b); decided {
-		return equal
+	if shortcuts {
+		if sameJSON(a, b) {
+			return true
+		}
+		if equal, decided := orderedEqualFromDifference(a, b); decided {
+			return equal
+		}
 	}
 	left, ok := parseJSONObject(a)
 	if !ok {
@@ -744,6 +748,8 @@ func equalValues(left, right childValue) bool {
 		return lerr == nil && rerr == nil && l == r
 	case jsonparser.Array:
 		return sameArray(left.data, right.data)
+	case jsonparser.Null:
+		return true
 	}
-	return sameJSON(left.data, right.data)
+	return bytes.Equal(left.data, right.data)
 }

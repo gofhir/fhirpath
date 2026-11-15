@@ -3,6 +3,7 @@ package types
 import (
 	"bytes"
 	"encoding/binary"
+	"math"
 	"math/bits"
 	"strings"
 )
@@ -24,6 +25,9 @@ import (
 // laid out differently is read a byte at a time. A pair of different lengths
 // that agrees at both ends costs the bytes read up to its first difference.
 func sameJSON(a, b []byte) bool {
+	if !shortcuts {
+		shortcutEntries++
+	}
 	if len(a) == len(b) {
 		// The same bytes in memory, as one object reached twice is: equal at
 		// once, as bytes.Equal answers
@@ -55,6 +59,17 @@ func sameJSON(a, b []byte) bool {
 	}
 	return equalIgnoringLayout(a, b)
 }
+
+// shortcuts turns every shortcut of equalJSON and writtenAlike on or off at
+// any depth. Only tests set it, to read every pair by child as the reference
+// (plan 024), and never while another goroutine compares.
+var shortcuts = true
+
+// shortcutEntries counts the entries to a shortcut made while shortcuts is
+// off, which must be none: a test reads it to check the switch reaches every
+// shortcut. It is written only with the switch off, in tests, so that
+// comparing stays free of shared writes.
+var shortcutEntries int
 
 // endBytes is how far from their ends differAtEnd reads two texts.
 const endBytes = 64
@@ -197,21 +212,24 @@ func skipLayout(data []byte, i int) int {
 // for equalJSON to read child by child: keys in another order, an escape in a
 // string that differs, a null or an array where the other side has something
 // else, which navigation may read alike.
-func orderedEqual(a, b []byte) (equal, decided bool) {
+//
+// It reports where it stopped in each text: the start of the token that
+// decided or left it undecided, and the end of the text when it read to the end.
+func orderedEqual(a, b []byte) (equal, decided bool, stopA, stopB int) {
 	i, j := 0, 0
 	for {
 		i, j = skipJSONSpace(a, i), skipJSONSpace(b, j)
 		if i == len(a) || j == len(b) {
 			done := i == len(a) && j == len(b)
-			return done, done
+			return done, done, i, j
 		}
 		var verdict tokenVerdict
 		i, j, verdict = compareTokens(a, i, b, j)
 		switch verdict {
 		case tokensUnequal:
-			return false, true
+			return false, true, i, j
 		case tokensUndecided:
-			return false, false
+			return false, false, i, j
 		}
 	}
 }
@@ -364,20 +382,52 @@ func literalEnd(data []byte, i int) int {
 // common prefix is found a word at a time, which is what keeps a pair of large
 // objects that differ late as cheap to tell apart as comparing bytes was.
 func orderedEqualFromDifference(a, b []byte) (equal, decided bool) {
-	d := firstDifference(a, b)
-	prefix := a[:d]
-	start := d
-	if inString, opening := stringAt(prefix); inString {
-		// Inside a string: from its opening quote
-		start = opening
-	} else {
-		// Inside a number or a literal: from its first character, which a
-		// token outside the number grammar may stand among any bytes
-		for start > 0 && !endsToken[a[start-1]] && strings.IndexByte("[{:\"", a[start-1]) < 0 {
-			start--
-		}
+	if !shortcuts {
+		shortcutEntries++
 	}
-	return orderedEqual(a[start:], b[start:])
+	d := firstDifference(a, b)
+	// One pass over the shared bytes finds where the token that holds the
+	// difference starts, and whether they are plain
+	var keyBuf [plainStackKeys]keyRange
+	var markBuf [plainStackMarks]int32
+	shared, start, plain := plainScan{keyBuf[:0], markBuf[:0]}.prefix(a, d)
+	if !plain {
+		start = tokenStart(a, d)
+	}
+	equal, decided, stopA, stopB := orderedEqual(a[start:], b[start:])
+	if decided && !equal {
+		// A positive answer is trusted: texts that agree token by token read
+		// alike. A negative one stands only if the reader would read the text
+		// it read as written, up to the end of the token that decided (plan 024)
+		return false, plain && shared.tailsPlain(a, b, start, start+stopA+tokenSpan(a[start+stopA:]), start+stopB+tokenSpan(b[start+stopB:]))
+	}
+	return equal, decided
+}
+
+// tokenStart returns where the token that holds a[d] starts, or d. Inside a
+// string that is its opening quote. Inside a number or a literal it is the
+// token's first character; the walk back stops at a delimiter, because a token
+// outside the number grammar can be made of any bytes.
+func tokenStart(a []byte, d int) int {
+	if inString, opening := stringAt(a[:d]); inString {
+		return opening
+	}
+	start := d
+	for start > 0 && !endsToken[a[start-1]] && strings.IndexByte("[{:\"", a[start-1]) < 0 {
+		start--
+	}
+	return start
+}
+
+// tokenSpan returns the length of the scalar token that starts data.
+func tokenSpan(data []byte) int {
+	if len(data) > 0 && data[0] == '"' {
+		if end := stringClose(data, 0); end >= 0 {
+			return end + 1
+		}
+		return len(data)
+	}
+	return tokenEnd(data, 0)
 }
 
 // firstDifference returns the offset of the first byte where two texts
@@ -417,4 +467,146 @@ func stringAt(text []byte) (inString bool, opening int) {
 		i++
 	}
 	return inString, opening
+}
+
+// keyRange is where an object's key stands in the text read.
+type keyRange struct{ start, end int32 }
+
+// maxPlainKeys is how many keys one object may hold for plainScan to compare
+// them in pairs, which costs the square of that: an object with more is not
+// plain, and is read by child.
+const maxPlainKeys = 128
+
+// plainStackKeys and plainStackMarks size the stacks of keys and of open
+// objects a scan keeps on the stack. A text that goes beyond them is read
+// all the same, with the stacks on the heap.
+const (
+	plainStackKeys  = 96
+	plainStackMarks = 8
+)
+
+// plainScan reads a text for the gate (P1 to P3 of plan 024), and can stop at a token and
+// go on from there, over the same text or over another that shares the bytes
+// so far.
+type plainScan struct {
+	keys  []keyRange // the keys of the open objects, each object's after the last mark
+	marks []int32    // where the keys of each open object begin
+}
+
+// prefix reads the first d bytes of a, which two texts share, and returns the
+// scan at the token that holds a[d], where that token starts, and whether the
+// bytes are plain so far.
+func (s plainScan) prefix(a []byte, d int) (plainScan, int, bool) {
+	s, stop, ok := s.scan(a, 0, d)
+	if !ok {
+		return s, 0, false
+	}
+	if stop < d {
+		// Inside a string, which starts at stop
+		return s, stop, true
+	}
+	// Inside a number or a literal, or between tokens: the bytes of a bare
+	// token change nothing the scan keeps
+	return s, tokenStart(a, d), true
+}
+
+// tailsPlain continues the scan that read the shared bytes over what each
+// text read after them, a[start:endA] and b[start:endB], each with the scope
+// the shared bytes left open.
+func (s plainScan) tailsPlain(a, b []byte, start, endA, endB int) bool {
+	var forkKeys [plainStackKeys]keyRange
+	var forkMarks [plainStackMarks]int32
+	fork := plainScan{append(forkKeys[:0], s.keys...), append(forkMarks[:0], s.marks...)}
+	if _, stop, ok := s.scan(a, start, endA); !ok || stop != endA {
+		return false
+	}
+	_, stop, ok := fork.scan(b, start, endB)
+	return ok && stop == endB
+}
+
+// scan reads data[from:to], which begins between tokens, and returns the scan
+// after it, where it stopped, and whether the text is plain so far. It stops
+// before to at the opening quote of a string that closes at or after to. A key
+// is told by the colon that follows it, which may stand past to. It takes and
+// returns the scan by value so that the buffers it grows in stay on the
+// caller's stack.
+func (s plainScan) scan(data []byte, from, to int) (plainScan, int, bool) {
+	if len(data) > math.MaxInt32 {
+		return s, from, false
+	}
+	for i := from; i < to; {
+		c := data[i]
+		if !plainInteresting[c] {
+			i++
+			continue
+		}
+		switch c {
+		case '"':
+			end := stringClose(data, i)
+			if end < 0 || end >= to {
+				return s, i, true
+			}
+			if next := skipJSONSpace(data, end+1); next < len(data) && data[next] == ':' {
+				if len(s.marks) == 0 || !plainKey(data, i+1, end, s.keys[s.marks[len(s.marks)-1]:]) {
+					return s, i, false
+				}
+				key := keyRange{int32(i + 1), int32(end)} //nolint:gosec // len(data) is at most MaxInt32, checked on entry
+				s.keys = append(s.keys, key)
+			}
+			i = end + 1
+		case '{':
+			s.marks = append(s.marks, int32(len(s.keys))) //nolint:gosec // at most the keys of one text, below MaxInt32
+			i++
+		case '}':
+			if len(s.marks) == 0 {
+				return s, i, false
+			}
+			s.keys = s.keys[:s.marks[len(s.marks)-1]]
+			s.marks = s.marks[:len(s.marks)-1]
+			i++
+		default: // n: a null
+			return s, i, false
+		}
+	}
+	return s, to, true
+}
+
+// plainInteresting marks the bytes outside a string that plainScan stops at.
+var plainInteresting = [256]bool{'"': true, '{': true, '}': true, 'n': true}
+
+// stringClose returns the offset of the quote that closes the string that
+// opens at i, or -1 when it does not close. A quote after an odd number of
+// backslashes is escaped.
+func stringClose(data []byte, i int) int {
+	from := i + 1
+	for {
+		k := bytes.IndexByte(data[from:], '"')
+		if k < 0 {
+			return -1
+		}
+		q := from + k
+		slashes := 0
+		for b := q - 1; b > i && data[b] == '\\'; b-- {
+			slashes++
+		}
+		if slashes%2 == 0 {
+			return q
+		}
+		from = q + 1
+	}
+}
+
+// plainKey reports the key at data[start:end] plain: it does not start with _,
+// holds no backslash, and is none of the keys already read of its object.
+func plainKey(data []byte, start, end int, seen []keyRange) bool {
+	key := data[start:end]
+	if len(key) > 0 && key[0] == '_' || bytes.IndexByte(key, '\\') >= 0 || len(seen) >= maxPlainKeys {
+		return false
+	}
+	for _, k := range seen {
+		if int(k.end-k.start) == len(key) && bytes.Equal(data[k.start:k.end], key) {
+			return false
+		}
+	}
+	return true
 }
