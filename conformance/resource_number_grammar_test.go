@@ -290,19 +290,20 @@ func TestANonJSONNumberInAnArrayComparesAsNull(t *testing.T) {
 // Arrays of valid numbers nested in objects compare as they did before #238:
 // the values here are what main answered, kept as a regression guard and not
 // derived from the null relation. = reads a number by value, so [[1.0]] equals
-// [[1]], and ~ takes two arrays that are not written alike for different.
+// [[1]]; ~ compares the items of a nested array as = does since plan 024, so
+// they are equivalent too.
 func TestNestedArraysOfJSONNumbersCompareAsBefore(t *testing.T) {
 	for _, tc := range []struct {
 		left, right                  string
 		equal, equivalent, distinctN string
 	}{
-		{"[[1.0]]", "[[1]]", "[Boolean true]", "[Boolean false]", "[Integer 1]"},
+		{"[[1.0]]", "[[1]]", "[Boolean true]", "[Boolean true]", "[Integer 1]"},
 		{"[[1]]", "[[2]]", "[Boolean false]", "[Boolean false]", "[Integer 2]"},
 		{"[[1,2]]", "[[1,2]]", "[Boolean true]", "[Boolean true]", "[Integer 1]"},
-		{"[[1.0,2]]", "[[1,2.0]]", "[Boolean true]", "[Boolean false]", "[Integer 1]"},
+		{"[[1.0,2]]", "[[1,2.0]]", "[Boolean true]", "[Boolean true]", "[Integer 1]"},
 		{`[["a"]]`, `[["A"]]`, "[Boolean false]", "[Boolean false]", "[Integer 2]"},
-		{"[[1,[2.0]]]", "[[1,[2]]]", "[Boolean true]", "[Boolean false]", "[Integer 1]"},
-		{`[[{"b":1.0}]]`, `[[{"b":1}]]`, "[Boolean true]", "[Boolean false]", "[Integer 1]"},
+		{"[[1,[2.0]]]", "[[1,[2]]]", "[Boolean true]", "[Boolean true]", "[Integer 1]"},
+		{`[[{"b":1.0}]]`, `[[{"b":1}]]`, "[Boolean true]", "[Boolean true]", "[Integer 1]"},
 		{"[[null]]", "[[1]]", "[Boolean false]", "[Boolean false]", "[Integer 2]"},
 		{"[[1]]", "[[1],[2]]", "[Boolean false]", "[Boolean false]", "[Integer 2]"},
 	} {
