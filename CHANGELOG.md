@@ -6,7 +6,6 @@
 ### Bug Fixes
 
 * compare objects the same way in both directions ([#265](https://github.com/gofhir/fhirpath/issues/265)) ([#269](https://github.com/gofhir/fhirpath/issues/269)) ([81a4b67](https://github.com/gofhir/fhirpath/commit/81a4b677877de38cf48b22e9149b2b300ad924ea))
-* make object equality transitive ([579a581](https://github.com/gofhir/fhirpath/commit/579a581fc634c09908c9acd9ef18ed43b01c955f))
 * make object equality transitive ([#271](https://github.com/gofhir/fhirpath/issues/271)) ([579a581](https://github.com/gofhir/fhirpath/commit/579a581fc634c09908c9acd9ef18ed43b01c955f))
 
 
