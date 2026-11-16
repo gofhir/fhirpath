@@ -1944,9 +1944,13 @@ not read it as a number consistently: fhirpath.js's `+ 1` is `2` by
 JavaScript's coercion, and on `= 1` this engine and fhirpath.js answer false
 while the validator answers true.
 
-Whole-object `=` and `~` compare the JSON as written, untyped: two
-Attachments whose `size` is `"5"` and `"+5"` are unequal while their sizes
-are equal. A known split, out of scope.
+Whole-object `=` compares the JSON as written, untyped: two Attachments whose
+`size` is `"5"` and `"+5"` are unequal while their sizes are equal. A known
+split, out of scope. Whole-object `~` with a model reads each child as
+navigation types it (see [`~` types a complex value's children as navigation
+does](#-types-a-complex-values-children-as-navigation-does)), so the two
+Attachments are equivalent; without a model it compares the JSON untyped, as
+`=` does.
 
 The rule names `integer64` in `fhirString`, an exception to reading
 everything from the packages, from json.html's prose: of the types FHIR
@@ -2399,6 +2403,30 @@ Up to 1.16.2 the values and the elements were paired apart, each in any order,
 so both were equivalent, as was a position holding only an element against a
 value with that element (#175).
 
+### `~` types a complex value's children as navigation does
+
+With a model, `~` between two complex values reads every child as navigation
+types it, recursively, each side under its own type and the path it was
+reached by (#263, plan 025). A FHIR `string` child written like a date is a
+string, so two Identifiers whose `value` is `"2020-01-01T12:00:00+02:00"` and
+`"2020-01-01T10:00:00Z"` are not equivalent, though the two instants are the
+same, as fhirpath.js and the validator answer.
+Up to 1.16.8 every child was read by its shape, and a date-like string
+compared as a date.
+
+The same text under two types can be not equivalent: a backbone whose
+`value` is a `dateTime` against one whose `value` is a `string`, both
+`"2020"`, is false, as `'2020' ~ @2020` is. A child whose path the model does
+not know is read by its shape, as navigation reads it, and an `extension`
+inside it is still typed as an `Extension`, as navigation types it. A child
+whose value does not read under its type is absent, as navigation omits it. A
+Quantity nested in a complex value is still told by its shape (see [Two FHIR
+Quantities are equivalent as quantities](#two-fhir-quantities-are-equivalent-as-quantities)).
+Without a model nothing changes. Measured in
+`difftest/batteries/typed-complex-equivalence` (fhirpath.js 5.2.0, the HL7
+validator 6.10.2); where the three differ, the rows of [Measured, and not
+followed](#measured-and-not-followed) say why.
+
 ### A primitive's value is not a child
 
 Measured in the HL7 validator 6.10.2.
@@ -2509,6 +2537,9 @@ any other jar unless run with `-java-unpinned`, whose answers are marked
 |---|---|---|---|
 | `hasValue()` on a single complex value: `"maritalStatus": {"id": "x"}` | true, for a BackboneElement too | false, as fhirpath.js answers | FHIR's FHIRPath page, R4 and R5 alike: "Returns true if the input collection contains a single value which is a FHIR primitive". 1.13.4 followed the validator. The validator accepting such an element is no evidence for it: with `hasValue()` true, ele-1 holds on every complex element, so it holds there whether or not the validator evaluates it. Here ele-1 fails on it (#161) |
 | `'a b' ~ 'a\tb'`, `'a\nb' ~ 'a\rb'`, a no-break space against a space: whitespace characters of different kinds | false, a tab is not a space | true, as fhirpath.js answers | FHIRPath 2.0.0 and 3.0.0 alike: whitespace is "normalized", every whitespace character equivalent. 1.13.4 followed the validator. A run of whitespace is not collapsed, `'a b' ~ 'a  b'` false, nor an end trimmed, `' a' ~ 'a'` false, in the three |
+| `~` between two backbones whose `value` is a `dateTime` in one and a `string` in the other, both `"2020"` | true, as fhirpath.js answers | false | Each child is read as navigation types it, and the two values themselves are not equivalent: `'2020' ~ @2020` is false here and in fhirpath.js. The same choice as the two rows below (#263) |
+| `~` between two Attachments whose R5 `size` (`integer64`) is `"1"` and `"+1"` | false: it reads `integer64` as text | true, as fhirpath.js answers `size ~ size` | Plan 016 (D2) reads `integer64` as an Integer, and FHIRPath requires "all child properties to be equivalent, recursively" (#263) |
+| `~` between two Dosages whose `timeOfDay` children are equivalent | an error | true, as fhirpath.js answers `timeOfDay ~ timeOfDay` | No behavior to follow; the children are equivalent, so the Dosages are (#263) |
 | `a = b` between complex values, `b` with a child more | `a = b` true, `b = a` false | false, false | Equality that is not symmetric |
 | `~` between complex values whose primitive carries an element beside another value: `"given": ["x", "y"], "_given": [null, {"id": "e"}]` against `"_given": [{"id": "e"}, null]` | true, a primitive compared by its value alone | false, as fhirpath.js answers | "For complex types, equivalence requires all child properties to be equivalent, recursively", and the element beside a value is that item's: an extension on the second given is not one on the first. The validator answers true too for an element against none, `"given": ["x"], "_given": [{"id": "e"}]` against `"given": ["x"]`. Where a position holds only an element, `"given": [null, "y"], "_given": [{"id": "e"}, null]` against `"given": ["y"], "_given": [{"id": "e"}]`, it answers false, as fhirpath.js and this engine do (#175) |
 | `~` between quantities in different units: `2.4 'm' ~ 200 'cm'` | true; `1.501 'kg' ~ 1500 'g'` false | false; false | Coherent: both sides in the UCUM base unit, rounded to the less precise. Matching it means rewriting quantity equivalence, and no published constraint compares quantities in different units with `~` |

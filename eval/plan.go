@@ -133,7 +133,7 @@ func compileOperator(tree antlr.ParseTree) (Node, bool) {
 	case *grammar.InequalityExpressionContext:
 		return compileBinary(ctx.Expression(0), ctx.Expression(1), operatorOf(ctx), applyInequality), true
 	case *grammar.EqualityExpressionContext:
-		return compileBinary(ctx.Expression(0), ctx.Expression(1), operatorOf(ctx), applyEquality), true
+		return compileEquality(ctx.Expression(0), ctx.Expression(1), operatorOf(ctx)), true
 	case *grammar.MembershipExpressionContext:
 		return compileBinary(ctx.Expression(0), ctx.Expression(1), operatorOf(ctx), applyMembership), true
 	case *grammar.AndExpressionContext:
@@ -576,6 +576,25 @@ func compileBinary(leftExpr, rightExpr grammar.IExpressionContext, op string,
 			return err
 		}
 		return apply(leftResult.(types.Collection), rightResult.(types.Collection), op)
+	}
+}
+
+// compileEquality compiles =, !=, ~ and !~, which are compileBinary with the
+// context their ~ types objects by.
+func compileEquality(leftExpr, rightExpr grammar.IExpressionContext, op string) Node {
+	left := Compile(leftExpr)
+	right := Compile(rightExpr)
+
+	return func(e *Evaluator) interface{} {
+		leftResult := left(e)
+		if err, ok := leftResult.(error); ok {
+			return err
+		}
+		rightResult := right(e)
+		if err, ok := rightResult.(error); ok {
+			return err
+		}
+		return applyEquality(e.ctx, leftResult.(types.Collection), rightResult.(types.Collection), op)
 	}
 }
 

@@ -113,12 +113,13 @@ type Context struct {
 	terminologyService TerminologyService
 	profileValidator   ProfileValidator
 	htmlChecker        HTMLChecker
-	model              Model  // FHIR version-specific model data (nil = use heuristics)
-	path               string // the root's FHIR path, given with SetPath (e.g., "Patient.name")
-	data               []byte // the root as read by NewContext, to read again under a model's type
-	validJSON          bool   // data was given as already checked. See NewContextForValidJSON.
-	placed             bool   // whether the root is read under a model's type. See placeRoot.
-	clock              *clock // the instant now(), today() and timeOfDay() answer. See Now.
+	model              Model              // FHIR version-specific model data (nil = use heuristics)
+	equivalence        *types.Equivalence // how ~ types objects under model; see SetModel
+	path               string             // the root's FHIR path, given with SetPath (e.g., "Patient.name")
+	data               []byte             // the root as read by NewContext, to read again under a model's type
+	validJSON          bool               // data was given as already checked. See NewContextForValidJSON.
+	placed             bool               // whether the root is read under a model's type. See placeRoot.
+	clock              *clock             // the instant now(), today() and timeOfDay() answer. See Now.
 }
 
 // nowSource is where an evaluation reads the current time from.
@@ -406,6 +407,7 @@ func (c *Context) GetHTMLChecker() HTMLChecker {
 // SetModel sets the FHIR model for version-specific type resolution.
 func (c *Context) SetModel(m Model) {
 	c.model = m
+	c.equivalence = nil // it types by the model
 	c.placeRoot()
 }
 
@@ -2282,11 +2284,12 @@ func (e *Evaluator) VisitEqualityExpression(ctx *grammar.EqualityExpressionConte
 	}
 	rightCol := right.(types.Collection)
 
-	return applyEquality(leftCol, rightCol, ctx.GetChild(1).(antlr.TerminalNode).GetText())
+	return applyEquality(e.ctx, leftCol, rightCol, ctx.GetChild(1).(antlr.TerminalNode).GetText())
 }
 
-// applyEquality applies =, !=, ~ and !~.
-func applyEquality(leftCol, rightCol types.Collection, op string) interface{} {
+// applyEquality applies =, !=, ~ and !~. The context is what ~ types objects
+// by: see equivalentIn.
+func applyEquality(c *Context, leftCol, rightCol types.Collection, op string) interface{} {
 	var (
 		result types.Collection
 		err    error
@@ -2295,7 +2298,7 @@ func applyEquality(leftCol, rightCol types.Collection, op string) interface{} {
 	case "=", "!=":
 		result, err = equal(leftCol, rightCol)
 	case "~", "!~":
-		result = Equivalent(leftCol, rightCol)
+		result = equivalentIn(c, leftCol, rightCol)
 	default:
 		return types.Collection{}
 	}
