@@ -1413,6 +1413,21 @@ compares nor bounds. This engine applies the condition to the calendar units
 only, as the section above describes, and otherwise maps a quantity by its code,
 or its unit where it has none.
 
+A quantity with neither a code nor a unit maps to UCUM's default unit `'1'`,
+the unit FHIRPath gives a number converted to a quantity (FHIRPath 3.0.0,
+Conversion: "the resulting quantity will have the UCUM default unit `'1'`").
+An empty `code` or `unit`, which valid FHIR does not hold, is read as absent.
+So a unitless `{"value": 1}` answers as `1 '1'`: it is equal and equivalent
+to `1` and to `1 '1'`, comparable with and ordered against another unitless
+quantity, so rng-2 holds on a unitless Range in R4, R4B and R5, and is
+neither equal to nor comparable with `1 'mg'`, nor ordered against `1 year`.
+Its text is `1 '1'`, and `u + h` is `3 '1'`. Up to 1.16.8 it had no unit and
+took the other operand's, so it was equal to `1 'mg'` and less than `2 'mg'`
+(plan 026, FP-27). fhirpath.js reads none of it as a quantity; the validator
+reads it as `'1'` where it has a UCUM system or is an Age, and otherwise
+errors or answers empty. The divergences are listed in [Measured, and not
+followed](#measured-and-not-followed).
+
 The strict reading breaks FHIR's own invariants on ordinary data. R5 writes
 `rng-2` as
 
@@ -2508,7 +2523,7 @@ validator maps only those: with a model, two adjudications with the same
 read them as equal quantities. Without a model an object is a Quantity when it
 has a numeric value beside a unit, a code or a system, or is read from a field
 that names it, `valueQuantity`; one with a numeric value alone is of no known
-type and still converts, so a Range written without units orders, and two such
+type and still converts, in the unit `'1'`, so a Range written without units orders, and two such
 adjudications compare as quantities, as before.
 
 A Quantity inside a complex value is equivalent as a quantity too, so the
@@ -2540,6 +2555,8 @@ any other jar unless run with `-java-unpinned`, whose answers are marked
 | `~` between two backbones whose `value` is a `dateTime` in one and a `string` in the other, both `"2020"` | true, as fhirpath.js answers | false | Each child is read as navigation types it, and the two values themselves are not equivalent: `'2020' ~ @2020` is false here and in fhirpath.js. The same choice as the two rows below (#263) |
 | `~` between two Attachments whose R5 `size` (`integer64`) is `"1"` and `"+1"` | false: it reads `integer64` as text | true, as fhirpath.js answers `size ~ size` | Plan 016 (D2) reads `integer64` as an Integer, and FHIRPath requires "all child properties to be equivalent, recursively" (#263) |
 | `~` between two Dosages whose `timeOfDay` children are equivalent | an error | true, as fhirpath.js answers `timeOfDay ~ timeOfDay` | No behavior to follow; the children are equivalent, so the Dosages are (#263) |
+| A FHIR Quantity with neither code nor unit, `{"value": 1}`, against `1` or another unitless one: `u = 1`, `u.comparable(h)`, `u = u'` | `= 1` false; `comparable()` false, though `u <= h` is true; `=` empty, `~` an error | true, as `1 '1'` answers (plan 026) | FHIRPath's default unit `'1'` makes `23 = 23 '1'` true, and rng-2 needs a unitless Range to order. fhirpath.js reads none of these as a quantity and answers false. Two that differ only in `id` are equal and equivalent, as with a unit, where the validator agrees (FP-27) |
+| R5's rng-2 over a unitless Range from 3 to 1 | true: its `lowBoundary()` of a unitless Quantity is the Quantity itself | false: the boundaries 2.5 and 1.5 compare | A Range out of order (JAVA-18) |
 | `a = b` between complex values, `b` with a child more | `a = b` true, `b = a` false | false, false | Equality that is not symmetric |
 | `~` between complex values whose primitive carries an element beside another value: `"given": ["x", "y"], "_given": [null, {"id": "e"}]` against `"_given": [{"id": "e"}, null]` | true, a primitive compared by its value alone | false, as fhirpath.js answers | "For complex types, equivalence requires all child properties to be equivalent, recursively", and the element beside a value is that item's: an extension on the second given is not one on the first. The validator answers true too for an element against none, `"given": ["x"], "_given": [{"id": "e"}]` against `"given": ["x"]`. Where a position holds only an element, `"given": [null, "y"], "_given": [{"id": "e"}, null]` against `"given": ["y"], "_given": [{"id": "e"}]`, it answers false, as fhirpath.js and this engine do (#175) |
 | `~` between quantities in different units: `2.4 'm' ~ 200 'cm'` | true; `1.501 'kg' ~ 1500 'g'` false | false; false | Coherent: both sides in the UCUM base unit, rounded to the less precise. Matching it means rewriting quantity equivalence, and no published constraint compares quantities in different units with `~` |

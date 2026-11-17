@@ -1,0 +1,1 @@
+{"resourceType":"Claim","status":"active","type":{"text":"c"},"use":"claim","patient":{"reference":"Patient/p"},"created":"2020-01-01","provider":{"reference":"Practitioner/p"},"priority":{"text":"c"},"insurance":[{"sequence":1,"focal":true,"coverage":{"reference":"Coverage/c"}}],"total":{"value":1,"currency":"USD"}}

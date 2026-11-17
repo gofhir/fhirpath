@@ -2810,8 +2810,9 @@ func (o *ObjectValue) OverflowingQuantity() (Quantity, bool) {
 	return o.quantityOf(val.Value())
 }
 
-// quantityOf is a FHIR Quantity's value with its unit, and false for an
-// object that is no quantity.
+// quantityOf es el valor de un Quantity FHIR con su unidad, y false para un
+// objeto que no es cantidad. Sin code ni unit la unidad es DefaultQuantityUnit
+// ('1'); un code o unit vacío cuenta como ausente.
 func (o *ObjectValue) quantityOf(val decimal.Decimal) (Quantity, bool) {
 	// Only a quantity converts, as in the HL7 validator, which maps the types
 	// named Quantity and no other: an adjudication has a numeric value too,
@@ -2826,8 +2827,12 @@ func (o *ObjectValue) quantityOf(val decimal.Decimal) (Quantity, bool) {
 	// while unit is a human-readable display ("milligram") that no unit
 	// conversion can interpret. Fall back to unit when there is no code.
 	unit, hasCode := o.stringField("code")
+	hasCode = hasCode && unit != ""
 	if !hasCode {
 		unit, _ = o.stringField("unit")
+		if unit == "" {
+			unit = DefaultQuantityUnit
+		}
 	}
 
 	// FHIR maps time-valued UCUM codes onto FHIRPath's calendar keywords as part

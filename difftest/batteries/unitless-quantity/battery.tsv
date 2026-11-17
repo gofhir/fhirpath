@@ -1,0 +1,78 @@
+obs.json	Observation.referenceRange[0].low = 1 'mg'	4.0.1
+obs.json	Observation.referenceRange[0].low ~ 1 'mg'	4.0.1
+obs.json	Observation.referenceRange[0].low < 2 'mg'	4.0.1
+obs.json	Observation.referenceRange[0].low + 1 'mg'	4.0.1
+obs.json	Observation.referenceRange[0].low.comparable(1 'mg')	4.0.1
+obs.json	Observation.valueQuantity = 1 'mg'	4.0.1
+obs.json	Observation.referenceRange[0].low.toString() = '1 \'1\''	4.0.1
+obs.json	Observation.referenceRange[0].low.toQuantity() = 1 '1'	4.0.1
+obs.json	(Observation.referenceRange[0].low + Observation.referenceRange[0].high) = 3 '1'	4.0.1
+obs.json	(Observation.referenceRange[0].low + Observation.referenceRange[0].high).toString() = '3 \'1\''	4.0.1
+obs.json	Observation.referenceRange[0].low.lowBoundary() = 0.5 '1'	4.0.1
+obs.json	Observation.referenceRange[0].low.highBoundary() = 1.5 '1'	4.0.1
+obs.json	Observation.referenceRange[0].low = 1	4.0.1
+obs.json	Observation.referenceRange[0].low ~ 1	4.0.1
+obs.json	Observation.referenceRange[0].low = 1 '1'	4.0.1
+obs.json	Observation.referenceRange[1].low ~ Observation.referenceRange[2].low	4.0.1
+obs.json	Observation.referenceRange[1].low = Observation.referenceRange[2].low	4.0.1
+obs.json	Observation.referenceRange[0].low.comparable(Observation.referenceRange[0].high)	4.0.1
+obs.json	Observation.referenceRange[0].low <= Observation.referenceRange[0].high	4.0.1
+obs.json	Observation.referenceRange[4].low.comparable(1 'mg')	4.0.1
+obs.json	Observation.referenceRange[4].low = 1 '1'	4.0.1
+obs.json	Observation.referenceRange[5].low = 1 '1'	4.0.1
+obs.json	Observation.referenceRange[6].low = 1 'mg'	4.0.1
+obs.json	Observation.referenceRange[6].low.toString() = '1 \'mg\''	4.0.1
+obs.json	Observation.referenceRange[7].low.toString() = '1 year'	4.0.1
+claim.json	Claim.total.comparable(1 '1')	4.0.1
+obs.json	Observation.referenceRange[9].low = 1	4.0.1
+obs.json	Observation.referenceRange[9].low.toQuantity()	4.0.1
+obs.json	Observation.referenceRange[8].low = 1 '1'	4.0.1
+condition.json	Condition.onsetAge = 1 '1'	4.0.1
+ratio.json	Observation.valueRatio.denominator = 1 '1'	4.0.1
+range-asc.json	Observation.valueRange.low = 1 '1'	4.0.1
+obs.json	Observation.referenceRange[1].low in Observation.referenceRange[2].low	4.0.1
+obs.json	Observation.referenceRange[1].low.combine(Observation.referenceRange[2].low).distinct().count() = 2	4.0.1
+obs.json	Observation.referenceRange[1] ~ Observation.referenceRange[2]	4.0.1
+obs.json	Observation.referenceRange[1] = Observation.referenceRange[2]	4.0.1
+range-asc.json	Observation.valueRange.all(low.empty() or high.empty() or (low <= high))	4.0.1
+range-desc.json	Observation.valueRange.all(low.empty() or high.empty() or (low <= high))	4.0.1
+range-far.json	Observation.valueRange.all(low.empty() or high.empty() or (low <= high))	4.0.1
+obs.json	Observation.referenceRange[0].low = 1 'mg'	5.0.0
+obs.json	Observation.referenceRange[0].low ~ 1 'mg'	5.0.0
+obs.json	Observation.referenceRange[0].low < 2 'mg'	5.0.0
+obs.json	Observation.referenceRange[0].low + 1 'mg'	5.0.0
+obs.json	Observation.referenceRange[0].low.comparable(1 'mg')	5.0.0
+obs.json	Observation.valueQuantity = 1 'mg'	5.0.0
+obs.json	Observation.referenceRange[0].low.toString() = '1 \'1\''	5.0.0
+obs.json	Observation.referenceRange[0].low.toQuantity() = 1 '1'	5.0.0
+obs.json	(Observation.referenceRange[0].low + Observation.referenceRange[0].high) = 3 '1'	5.0.0
+obs.json	(Observation.referenceRange[0].low + Observation.referenceRange[0].high).toString() = '3 \'1\''	5.0.0
+obs.json	Observation.referenceRange[0].low.lowBoundary() = 0.5 '1'	5.0.0
+obs.json	Observation.referenceRange[0].low.highBoundary() = 1.5 '1'	5.0.0
+obs.json	Observation.referenceRange[0].low = 1	5.0.0
+obs.json	Observation.referenceRange[0].low ~ 1	5.0.0
+obs.json	Observation.referenceRange[0].low = 1 '1'	5.0.0
+obs.json	Observation.referenceRange[1].low ~ Observation.referenceRange[2].low	5.0.0
+obs.json	Observation.referenceRange[1].low = Observation.referenceRange[2].low	5.0.0
+obs.json	Observation.referenceRange[0].low.comparable(Observation.referenceRange[0].high)	5.0.0
+obs.json	Observation.referenceRange[0].low <= Observation.referenceRange[0].high	5.0.0
+obs.json	Observation.referenceRange[4].low.comparable(1 'mg')	5.0.0
+obs.json	Observation.referenceRange[4].low = 1 '1'	5.0.0
+obs.json	Observation.referenceRange[5].low = 1 '1'	5.0.0
+obs.json	Observation.referenceRange[6].low = 1 'mg'	5.0.0
+obs.json	Observation.referenceRange[6].low.toString() = '1 \'mg\''	5.0.0
+obs.json	Observation.referenceRange[7].low.toString() = '1 year'	5.0.0
+claim.json	Claim.total.comparable(1 '1')	5.0.0
+obs.json	Observation.referenceRange[9].low = 1	5.0.0
+obs.json	Observation.referenceRange[9].low.toQuantity()	5.0.0
+obs.json	Observation.referenceRange[8].low = 1 '1'	5.0.0
+condition.json	Condition.onsetAge = 1 '1'	5.0.0
+ratio.json	Observation.valueRatio.denominator = 1 '1'	5.0.0
+range-asc.json	Observation.valueRange.low = 1 '1'	5.0.0
+obs.json	Observation.referenceRange[1].low in Observation.referenceRange[2].low	5.0.0
+obs.json	Observation.referenceRange[1].low.combine(Observation.referenceRange[2].low).distinct().count() = 2	5.0.0
+obs.json	Observation.referenceRange[1] ~ Observation.referenceRange[2]	5.0.0
+obs.json	Observation.referenceRange[1] = Observation.referenceRange[2]	5.0.0
+range-asc.json	Observation.valueRange.all(low.value.empty() or high.value.empty() or low.lowBoundary().comparable(high.highBoundary()).not() or (low.lowBoundary() <= high.highBoundary()))	5.0.0
+range-desc.json	Observation.valueRange.all(low.value.empty() or high.value.empty() or low.lowBoundary().comparable(high.highBoundary()).not() or (low.lowBoundary() <= high.highBoundary()))	5.0.0
+range-far.json	Observation.valueRange.all(low.value.empty() or high.value.empty() or low.lowBoundary().comparable(high.highBoundary()).not() or (low.lowBoundary() <= high.highBoundary()))	5.0.0
