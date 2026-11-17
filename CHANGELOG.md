@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.16.9](https://github.com/gofhir/fhirpath/compare/v1.16.8...v1.16.9) (2026-11-17)
+
+
+### Bug Fixes
+
+* give a FHIR Quantity without a unit the unit '1' ([#274](https://github.com/gofhir/fhirpath/issues/274)) ([3d77dbd](https://github.com/gofhir/fhirpath/commit/3d77dbd8a63f9695a091c7071c21b5f38b6a8778))
+* type a complex value's children under ~ as navigation does ([#272](https://github.com/gofhir/fhirpath/issues/272)) ([2905311](https://github.com/gofhir/fhirpath/commit/2905311d5e8009ec9f2524be05233c690dec68b5)), closes [#263](https://github.com/gofhir/fhirpath/issues/263)
+
 ## [1.16.8](https://github.com/gofhir/fhirpath/compare/v1.16.7...v1.16.8) (2026-11-15)
 
 
