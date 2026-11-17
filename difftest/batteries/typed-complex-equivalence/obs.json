@@ -1,0 +1,22 @@
+{"resourceType":"Observation","id":"o","status":"final","code":{"coding":[{"system":"http://loinc.org","code":"2020-01-01T10:00:00Z"}],"text":"x"},
+ "identifier":[
+  {"system":"urn:s","value":"2020-01-01T10:00:00Z"},
+  {"system":"urn:s","value":"2020-01-01T12:00:00+02:00"},
+  {"system":"urn:s","value":"2020-01-01T10:00:00Z"},
+  {"system":"urn:s","value":"2020-01-01T10:00:00z"},
+  {"system":"urn:s","value":"2020-01-01T10:00:00Z","period":{"start":"2020-01-01T10:00:00Z"}},
+  {"system":"urn:s","value":"2020-01-01T10:00:00Z","period":{"start":"2020-01-01T12:00:00+02:00"}},
+  {"system":"urn:s","value":"x","assigner":{"identifier":{"value":"2020-01-01T10:00:00Z"}}},
+  {"system":"urn:s","value":"x","assigner":{"identifier":{"value":"2020-01-01T12:00:00+02:00"}}},
+  {"system":"urn:s","value":"2020-01-01T10:00:00Z","_value":{"extension":[{"url":"urn:e","valueString":"a"}]}},
+  {"system":"urn:s","value":"2020-01-01T12:00:00+02:00","_value":{"extension":[{"url":"urn:e","valueString":"A"}]}},
+  {"system":"urn:s","value":"2020"},
+  {"system":"urn:s","value":"2020-01"}
+ ],
+ "extension":[
+  {"url":"urn:e","valueString":"2020-01-01T10:00:00Z"},
+  {"url":"urn:e","valueString":"2020-01-01T12:00:00+02:00"},
+  {"url":"urn:e","valueDateTime":"2020-01-01T10:00:00Z"},
+  {"url":"urn:e","valueDateTime":"2020-01-01T12:00:00+02:00"}
+ ],
+ "note":[{"text":"2020-01-01T10:00:00Z"},{"text":"2020-01-01T12:00:00+02:00"}]}

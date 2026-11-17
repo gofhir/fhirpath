@@ -1,0 +1,5 @@
+{"resourceType":"Bundle","type":"collection","entry":[
+ {"resource":{"resourceType":"ImmunizationRecommendation","patient":{"reference":"Patient/p"},"date":"2020-01-01",
+  "recommendation":[{"forecastStatus":{"text":"due"},"dateCriterion":[{"value":"2020"}]}]}},
+ {"resource":{"resourceType":"TestScript","url":"urn:t","name":"t","status":"active",
+  "setup":{"action":[{"operation":{"requestHeader":[{"value":"2020"}]}}]}}}]}

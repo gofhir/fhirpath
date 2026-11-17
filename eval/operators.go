@@ -760,13 +760,23 @@ func negated(result types.Collection) types.Collection {
 	return types.TrueCollection
 }
 
-// Equivalent returns true if left ~ right.
+// Equivalent returns true if left ~ right, reading objects without a model:
+// each child by its shape, as types.ObjectValue.Equivalent does. The ~ operator
+// of an evaluation with a model types them by it: see equivalentIn.
 //
 // Unlike equality, equivalence never yields empty: two empty collections are
 // equivalent, and a length mismatch is false. For collections of more than one
 // item the comparison is not order dependent, so each item on the left must have
 // a distinct equivalent partner on the right.
 func Equivalent(left, right types.Collection) types.Collection {
+	return equivalentIn(nil, left, right)
+}
+
+// equivalentIn is Equivalent under a context: with a model, two objects are
+// compared as types.EquivalentIn does, each read as the type the model gives it
+// and placed where the context says it was reached, as navigation reads it.
+// Without a context or a model it is Equivalent.
+func equivalentIn(c *Context, left, right types.Collection) types.Collection {
 	// For equivalence, empty collections are equivalent to each other
 	if left.Empty() && right.Empty() {
 		return types.TrueCollection
@@ -781,7 +791,7 @@ func Equivalent(left, right types.Collection) types.Collection {
 	for _, item := range left {
 		matched := false
 		for j, candidate := range right {
-			if !used[j] && valuesEquivalent(item, candidate) {
+			if !used[j] && valuesEquivalentIn(c, item, candidate) {
 				used[j] = true
 				matched = true
 				break
@@ -792,6 +802,26 @@ func Equivalent(left, right types.Collection) types.Collection {
 		}
 	}
 	return types.TrueCollection
+}
+
+// valuesEquivalentIn is valuesEquivalent with the objects of a model typed by
+// it. A quantity is told first, as it is without a model.
+func valuesEquivalentIn(c *Context, left, right types.Value) bool {
+	if c != nil && c.model != nil {
+		lo, lok := left.(*types.ObjectValue)
+		ro, rok := right.(*types.ObjectValue)
+		if lok && rok {
+			if _, _, quantity, err := quantityOperands(left, right); err != nil {
+				return false
+			} else if !quantity {
+				if c.equivalence == nil {
+					c.equivalence = types.NewEquivalence(c.model)
+				}
+				return c.equivalence.Equivalent(lo, ro, c.PathOf(lo), c.PathOf(ro))
+			}
+		}
+	}
+	return valuesEquivalent(left, right)
 }
 
 // valuesEquivalent compares two single values for equivalence. A FHIR quantity

@@ -1729,16 +1729,17 @@ func elementShaped(field jsonField) bool {
 // appendPairedChild appends the children a paired field holds: one per value,
 // each carrying its element, or the element alone where there is no value.
 func (o *ObjectValue) appendPairedChild(result []TypedChild, f *pairedField, basePath string, res ElementTypeResolver) []TypedChild {
-	childPath, fhirType := o.childElement(basePath, f.name, res)
-	if fhirType == "" && o.isChoiceName(basePath, f.name, res) {
+	typing := o.typeField(basePath, f.name, res)
+	if typing.choice {
 		return result
 	}
+	childPath, fhirType := typing.path, typing.fhirType
 
 	for _, v := range pairedCollection(f.name, f.value, f.element, fhirType) {
 		// A resource resolves its fields beneath its own type, so it is not
 		// placed at the element that holds it. A primitive's element is placed
 		// at the primitive's path, which its type is read from.
-		if obj, ok := ElementOf(v); ok && fhirType != "" && !IsAbstractResourceType(fhirType) {
+		if obj, ok := ElementOf(v); ok && typing.placed() {
 			obj.elementPath = childPath
 		}
 		o.adopt(v)
@@ -1764,10 +1765,11 @@ func (o *ObjectValue) unpairedChildren(basePath string, res ElementTypeResolver)
 			return nil
 		}
 		name := string(key)
-		childPath, fhirType := o.childElement(basePath, name, res)
-		if fhirType == "" && o.isChoiceName(basePath, name, res) {
+		typing := o.typeField(basePath, name, res)
+		if typing.choice {
 			return nil
 		}
+		childPath, fhirType := typing.path, typing.fhirType
 
 		appendChild := func(data []byte, dt jsonparser.ValueType, index int) {
 			var v Value
@@ -1779,7 +1781,7 @@ func (o *ObjectValue) unpairedChildren(basePath string, res ElementTypeResolver)
 			if v != nil {
 				// A resource resolves its fields beneath its own type, so it
 				// is not placed at the element that holds it.
-				if obj, ok := ElementOf(v); ok && fhirType != "" && !IsAbstractResourceType(fhirType) {
+				if obj, ok := ElementOf(v); ok && typing.placed() {
 					obj.elementPath = childPath
 				}
 				o.adoptAt(v, name, index)
@@ -1806,16 +1808,54 @@ func (o *ObjectValue) unpairedChildren(basePath string, res ElementTypeResolver)
 	return result, true
 }
 
+// fieldTyping is what navigation resolves for a named field of an object: the
+// path the field carries onward, the FHIR type the model gives it, "" when it
+// knows none, and whether the name is the bare name of a choice element, which
+// is no field at all.
+type fieldTyping struct {
+	path     string
+	fhirType string
+	choice   bool
+}
+
+// placed reports whether the object a field holds is placed at the field's
+// path. A resource resolves its fields beneath its own type, so it is not
+// placed at the element that holds it, and an untyped field is placed nowhere.
+func (f fieldTyping) placed() bool {
+	return f.fhirType != "" && !IsAbstractResourceType(f.fhirType)
+}
+
+// typeField types a named field of the object, reached by basePath, as
+// navigation does: the one place a field's path and type are resolved, so
+// that navigation and the comparison of ~ cannot disagree on a type. It builds
+// no value.
+func (o *ObjectValue) typeField(basePath, name string, res ElementTypeResolver) fieldTyping {
+	return typeFieldOf(o.Type(), basePath, name, res)
+}
+
+// typeFieldOf is typeField for an object of the type given: a field is typed
+// by the object's type and the path it was reached by, and by nothing else
+// about the object.
+func typeFieldOf(objType, basePath, name string, res ElementTypeResolver) fieldTyping {
+	candidates := childCandidates(objType, basePath, name, res)
+	childPath, fhirType := childElement(&candidates, objType, basePath, name, res)
+	return fieldTyping{
+		path:     childPath,
+		fhirType: fhirType,
+		choice:   fhirType == "" && isChoiceName(&candidates, res),
+	}
+}
+
 // isChoiceName says whether name, as a field of this object, is the bare name
 // of a choice element the model knows, value for value[x]: FHIR's JSON writes
 // a choice only with its type suffix, so such a field is no element. Only a
 // resolver that knows choice types can tell.
-func (o *ObjectValue) isChoiceName(basePath, name string, res ElementTypeResolver) bool {
+func isChoiceName(candidates *candidatePaths, res ElementTypeResolver) bool {
 	choices, ok := res.(interface{ ChoiceTypes(string) []string })
 	if !ok {
 		return false
 	}
-	for _, candidate := range o.childCandidates(basePath, name, res) {
+	for _, candidate := range candidates.paths[:candidates.n] {
 		if len(choices.ChoiceTypes(candidate)) > 0 {
 			return true
 		}
@@ -1832,11 +1872,9 @@ func (o *ObjectValue) isChoiceName(basePath, name string, res ElementTypeResolve
 // The returned path is the one that resolved, so a recursive walk keeps a path
 // the model can still answer for. fhirType is "" when there is no resolver or
 // the model knows neither form, leaving the caller on structural inference.
-func (o *ObjectValue) childElement(basePath, name string, res ElementTypeResolver) (childPath, fhirType string) {
-	candidates := o.childCandidates(basePath, name, res)
-
+func childElement(candidates *candidatePaths, objType, basePath, name string, res ElementTypeResolver) (childPath, fhirType string) {
 	if res != nil {
-		for _, candidate := range candidates {
+		for _, candidate := range candidates.paths[:candidates.n] {
 			if t := res.TypeOf(candidate); t != "" {
 				return candidate, t
 			}
@@ -1845,7 +1883,7 @@ func (o *ObjectValue) childElement(basePath, name string, res ElementTypeResolve
 		// to read, and nothing is defined beneath a primitive's path; its
 		// fields are its type's: _birthDate's extension is date.extension,
 		// an Extension.
-		if candidate, t := o.primitiveChildElement(basePath, name, res); t != "" {
+		if candidate, t := primitiveChildElement(objType, basePath, name, res); t != "" {
 			return candidate, t
 		}
 		// Every element's extension and modifierExtension are Extensions:
@@ -1853,15 +1891,15 @@ func (o *ObjectValue) childElement(basePath, name string, res ElementTypeResolve
 		// list a primitive type's elements, date.extension, still types it.
 		if t := extensionFieldType(name); t != "" {
 			path := name
-			if len(candidates) > 0 {
-				path = candidates[0]
+			if candidates.n > 0 {
+				path = candidates.paths[0]
 			}
 			return path, t
 		}
 	}
 
-	if len(candidates) > 0 {
-		return candidates[0], ""
+	if candidates.n > 0 {
+		return candidates.paths[0], ""
 	}
 	return name, ""
 }
@@ -1876,8 +1914,8 @@ func (o *ObjectValue) childElement(basePath, name string, res ElementTypeResolve
 // A backbone element is defined where it was reached, and BackboneElement
 // says only what every one has, so its path comes first: R5 makes
 // BackboneElement.id an id, and Patient.contact.id a string.
-func (o *ObjectValue) childCandidates(basePath, name string, res ElementTypeResolver) []string {
-	candidates := make([]string, 0, 2)
+func childCandidates(objType, basePath, name string, res ElementTypeResolver) candidatePaths {
+	var candidates candidatePaths
 	var reached string
 	if basePath != "" {
 		reached = basePath + "." + name
@@ -1885,18 +1923,31 @@ func (o *ObjectValue) childCandidates(basePath, name string, res ElementTypeReso
 			reached = resolver.ResolvePath(reached)
 		}
 	}
-	t := o.Type()
+	t := objType
 	backbone := t == "BackboneElement"
 	if reached != "" && backbone {
-		candidates = append(candidates, reached)
+		candidates.add(reached)
 	}
 	if t != "" && t != typeObject {
-		candidates = append(candidates, t+"."+name)
+		candidates.add(t + "." + name)
 	}
 	if reached != "" && !backbone {
-		candidates = append(candidates, reached)
+		candidates.add(reached)
 	}
 	return candidates
+}
+
+// candidatePaths are the paths a child may be defined at, at most two: the
+// path it was reached by and the one its object's type gives. They are kept
+// in the array, which a list of them would allocate for every field typed.
+type candidatePaths struct {
+	paths [2]string
+	n     int
+}
+
+func (c *candidatePaths) add(path string) {
+	c.paths[c.n] = path
+	c.n++
 }
 
 // primitiveChildElement resolves a field of the element FHIR writes beside a
@@ -1904,12 +1955,12 @@ func (o *ObjectValue) childCandidates(basePath, name string, res ElementTypeReso
 // beneath its path: its fields are its primitive type's, _birthDate's
 // extension date.extension. Only a primitive type not yet tried is, so that
 // the path it builds is off every other read.
-func (o *ObjectValue) primitiveChildElement(basePath, name string, res ElementTypeResolver) (childPath, fhirType string) {
+func primitiveChildElement(objType, basePath, name string, res ElementTypeResolver) (childPath, fhirType string) {
 	if basePath == "" {
 		return "", ""
 	}
 	declared := res.TypeOf(basePath)
-	if declared == "" || declared[0] < 'a' || declared[0] > 'z' || declared == o.Type() {
+	if declared == "" || declared[0] < 'a' || declared[0] > 'z' || declared == objType {
 		return "", ""
 	}
 	candidate := declared + "." + name

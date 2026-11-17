@@ -1,0 +1,7 @@
+{"resourceType":"Patient","id":"p",
+ "telecom":[{"system":"phone","value":"2020-01-01T10:00:00Z"},{"system":"phone","value":"2020-01-01T12:00:00+02:00"}],
+ "name":[{"text":"2020-01-01","given":["2020-01-01T10:00:00Z","b"]},{"text":"2020-01-01","given":["b","2020-01-01T12:00:00+02:00"]}],
+ "contained":[
+  {"resourceType":"Basic","id":"b1","code":{"text":"c"},"identifier":[{"value":"2020-01-01T10:00:00Z"}]},
+  {"resourceType":"Basic","id":"b1","code":{"text":"c"},"identifier":[{"value":"2020-01-01T12:00:00+02:00"}]}
+ ]}
