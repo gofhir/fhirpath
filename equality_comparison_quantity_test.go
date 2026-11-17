@@ -636,10 +636,11 @@ func TestCalendarDurationOrdering(t *testing.T) {
 		}
 	}
 
-	// A quantity without a unit takes the other's, a calendar year included
+	// Plan 026: una Quantity sin unidad tiene la unidad '1' y no toma la del
+	// otro, así que responde como 2 '1' < 1 year, sin respuesta
 	unitless := []byte(`{"resourceType":"Observation","valueQuantity":{"value":2}}`)
-	if got := evaluateScalar(t, "Observation.value < 1 year", unitless); got != "false" {
-		t.Errorf("a unitless 2 < 1 year = %s, want false", got)
+	if got := evaluateScalar(t, "Observation.value < 1 year", unitless); got != "EMPTY" {
+		t.Errorf("a unitless 2 < 1 year = %s, want EMPTY, as 2 '1' < 1 year", got)
 	}
 
 	// A sort meets such a pair as one that does not compare

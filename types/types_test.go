@@ -426,8 +426,9 @@ func TestObjectValue(t *testing.T) {
 		if q.Value().String() != "42" {
 			t.Errorf("expected value 42, got %s", q.Value().String())
 		}
-		if q.Unit() != "" {
-			t.Errorf("expected empty unit, got %s", q.Unit())
+		// Plan 026: sin code ni unit, la unidad por defecto de UCUM
+		if q.Unit() != DefaultQuantityUnit {
+			t.Errorf("expected unit %s, got %s", DefaultQuantityUnit, q.Unit())
 		}
 	})
 
